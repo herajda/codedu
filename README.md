@@ -15,11 +15,13 @@ ___
 - Backend: C++ server
 
 ### Frontend
+  - React
 
 ### Backend
 
 #### Communication with frontend 
- - boost
+- boost
+- restbed
 
   
 
