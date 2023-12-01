@@ -24,7 +24,7 @@ ___
 - TODO: concurrency and parallelism might be done by the web framework but I might also need to use some other library to implement task queue like Poco Libraries Qt Framework C++ Actor Framework, Folly or Boost.Asio or it may be done simply using std::async along with std::future and std::promise be - needs more research 
 - TODO: database: MySQL or PostgreSQL alongside with a C++ driver for access - which one of them? which driver?
 - TODO: login ???
-
+- TODO: file upload
 
 
 
