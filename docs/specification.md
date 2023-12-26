@@ -1,8 +1,8 @@
 # code-grader: specification of the idea
  
-I want to create an easily to self-host software "code-grader" designed to automatically evaluate and grade coding assignments or projects. It aims to streamline the process of code assessment. A huge inspiration would be our MFF's [ReCodEx](https://github.com/ReCodEx). 
+I want to create an easy-to-self-host software "code-grader" designed to automatically evaluate and grade coding assignments or projects. It aims to streamline the process of code assessment. A major inspiration is MFF's [ReCodEx](https://github.com/ReCodEx). 
 
-To keep things on the simpler side, the code-grader will grade only Python scripts. This could be easily extended in the future.  
+To simplify, the code-grader will grade only Python scripts. This functionality could be easily extended in the future.  
 
 ### Overview of the program
 
@@ -14,12 +14,12 @@ The first thing you see, when you open the web app is a login page. There you'll
   - first name
   - last name
   - nickname
-  - (no email, that would have to work with a email server, which we don't have)
+  - (no email, as that would require an email server, which we don't have).
 
 #### When you log in as a teacher: 
-You have several options to do:
+You have several options:
 
-- manage classes and add students in them
+- manage classes and add students to them
 - add assignment to a class and specify it - name of the assignment, what the student should do
   - for each assignment the teacher can
     - add tests; each test have these parameters
@@ -42,14 +42,23 @@ You have several options to do:
 
 ### Technical specification
 
-The code-grader will have frontend developed using HTML/CSS + React and backend in C++.
+The code-grader will have a frontend developed using HTML/CSS + React and a backend in C++ with a PostgreSQL database.
 
-I'll use [Crow](https://crowcpp.org/master/) and [Boost.Asio](https://www.boost.org/doc/libs/1_78_0/doc/html/boost_asio.html) for communicating between the backend server and the frontend website. I am also considering using [Oat++](https://oatpp.io/).
+I'll use [Crow](https://crowcpp.org/master/) and [Boost.Asio](https://www.boost.org/doc/libs/1_78_0/doc/html/boost_asio.html) for communicating between the backend server and the frontend website. I am also considering using [Oat++](https://oatpp.io/). Crow can also handle uploading files. 
 
-A big technical question is how the test will be run. To ensure safety, all tests will evoke creating a Docker container just for the purpose of running one test. 
-This could hopefully be done using simple system calls.
+A big technical question is how the tests will be run. To ensure safety, all tests will involve creating a Docker container just for the purpose of running one test. 
+This could be done using simple system calls.
 
+I might need to implement a Task Queue for running the tests. I don't know which exact approach I'll use, but I have these options:
+- using standard library thread support: `std::thread`, `std::mutex` , `std::queue` , `std::deque`
+- using `std::async` and `std::future`
+- third-party libraries
+  - [Boost.Thread](https://www.boost.org/doc/libs/1_78_0/doc/html/thread.html)
+  - [Intel Threading Building Blocks](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onetbb.html)
+  - [Poco Libraries](https://pocoproject.org/)
 
+For secure password hashing I'll use Argon2 hashing function. 
 
+All the data will be stored in a SQL database. I'll use PostgreSQL and [libpqxx](https://pqxx.org/libpqxx/). 
 
-
+Finally, as mentioned, I want the whole software to be easily self-hosted. So the goal is to produce easy-to-deploy Docker images. 
