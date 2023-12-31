@@ -1,3 +1,6 @@
 [submodule "vcpkg"]
 	path = vcpkg
 	url = https://github.com/Microsoft/vcpkg.git
+[submodule "backend/backend/libpqxx"]
+	path = backend/backend/libpqxx
+	url = https://github.com/jtv/libpqxx
