@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  server:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile-crow
+    ports:
+      - "18080:18080"
+    depends_on:
+      - db
+    environment:
+      - DB_HOST=db
+      - DB_USER=myuser
+      - DB_PASSWORD=mypass
+      - DB_NAME=mydb
+
+  db:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile-postgres
+    ports:
+      - "5432:5432"
+  
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile-react
+    ports:
+      - "5000:5000"
