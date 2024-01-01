@@ -6,7 +6,6 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # Include directories
-find_package(libpqxx REQUIRED)
 # Find all source files in the src directory
 #file(GLOB SOURCES "src/*.cpp")
 file(GLOB_RECURSE SOURCES "src/*.cpp")
@@ -26,10 +25,7 @@ if(PostgreSQL_FOUND)
     include_directories(${PostgreSQL_INCLUDE_DIRS})
     target_link_libraries(server ${PostgreSQL_LIBRARIES})
 endif()
-find_library(LIBPQXX_LIBRARY pqxx)
-if(LIBPQXX_LIBRARY)
-    target_link_libraries(server ${LIBPQXX_LIBRARY})
-endif()
+target_link_libraries(server pqxx pq)
 
 #target_link_libraries(${PROJECT_NAME} PRIVATE pqxx)
 # Assuming Crow is a header-only library and included in the include/crow_all.h

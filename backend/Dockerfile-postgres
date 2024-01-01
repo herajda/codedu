@@ -1,7 +1,7 @@
 FROM postgres
-ENV POSTGRES_DB=your_db
-ENV POSTGRES_USER=your_user
-ENV POSTGRES_PASSWORD=your_pass
+ENV POSTGRES_DB=mydb
+ENV POSTGRES_USER=myuser
+ENV POSTGRES_PASSWORD=mypass
 COPY ./db/init.sql /docker-entrypoint-initdb.d/init.sql
 RUN chown -R postgres:postgres /docker-entrypoint-initdb.d/
 EXPOSE 5432

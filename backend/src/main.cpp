@@ -5,6 +5,7 @@
 #include "hash.h"
 
 #include <string>
+#include <cstdlib>
 #include <vector>
 #include <pqxx/pqxx>
 
@@ -46,17 +47,30 @@ int main() {
      std::string hashed_password = hash_password(password); // Implement this function
 
      // Connect to PostgreSQL and insert new user
+     std::cout << "Connecting to PostgreSQL database" << std::endl;
      try {
-     pqxx::connection c("dbname=mydb user=myuser password=mypass");
-     pqxx::work w(c);
-     w.exec0("INSERT INTO users (username, password) VALUES (" + w.quote(username) + ", " + w.quote(hashed_password) + ")");
-     w.commit();
+
+       std::string db_name = std::getenv("DB_NAME");
+       std::string db_user = std::getenv("DB_USER");
+       std::string db_password = std::getenv("DB_PASSWORD");
+       std::string db_host = std::getenv("DB_HOST");
+     
+       std::string connection_str = "dbname = " + db_name + 
+                                    " user = " + db_user +
+                                    " password = " + db_password +
+                                    " host = " + db_host;
+       pqxx::connection c(connection_str);
+       pqxx::work w(c);
+       w.exec0("INSERT INTO users (username, password) VALUES (" + w.quote(username) + ", " + w.quote(hashed_password) + ")");
+       w.commit();
      return crow::response(200, "User registered successfully");
      } catch (const std::exception &e) {
+     std::cout << e.what() << std::endl;
      return crow::response(500, "Server error: Unable to register user");
+
      }
     });
-     
+
   app.port(18080).multithreaded().run();
 }
 
