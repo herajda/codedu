@@ -18,6 +18,12 @@ CREATE TABLE IF NOT EXISTS teachers (
     FOREIGN KEY (user_id) REFERENCES users(id)
 )
 
+CREATE TABLE IF NOT EXISTS admins (
+    id SERIAL PRIMARY KEY, 
+    user_id INTEGER UNIQUE,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+)
+
 CREATE TABLE IF NOT EXISTS classes (
     id SERIAL PRIMARY KEY, 
     class_name VARCHAR(255) NOT NULL,
@@ -28,7 +34,7 @@ CREATE TABLE IF NOT EXISTS class_students (
     class_id INT NOT NULL,
     student_id INT NOT NULL,
     FOREIGN KEY (class_id) REFERENCES classes (class_id),
-    FOREIGN KEY (student_id) REFERENCES students (student_id),
+    FOREIGN KEY (student_id) REFERENCES students (user_id)
     UNIQUE (class_id, student_id)
 );
 
@@ -36,33 +42,33 @@ CREATE TABLE IF NOT EXISTS class_teachers (
     id SERIAL PRIMARY KEY,
     class_id INT NOT NULL,
     teacher_id INT NOT NULL,
+    owner BOOLEAN NOT NULL,
     FOREIGN KEY (class_id) REFERENCES classes (class_id),
-    FOREIGN KEY (teacher_id) REFERENCES teachers (teacher_id),
+    FOREIGN KEY (teacher_id) REFERENCES teachers (user_id)
     UNIQUE (class_id, teacher_id)
 );
 
 CREATE TABLE IF NOT EXISTS assignments (
     id SERIAL PRIMARY KEY, 
     class_id INTEGER REFERENCES classes(id),
-    assignment_name TEXT NOT NULL,
-    assignment_description VARCHAR(255) NOT NULL,
-    assignment_due_date DATE NOT NULL,
+    assignment_name VARCHAR(255) NOT NULL,
+    assignment_description TEXT NOT NULL,
+    assignment_due_timestamp TIMESTAMP NOT NULL,
     success_all_tests_correct BOOLEAN NOT NULL DEFAULT false, -- if true, all tests must pass to be considered correct; defult false
 );
-
 
 CREATE TABLE IF NOT EXISTS submissions (
     id SERIAL PRIMARY KEY,
     assignment_id INT NOT NULL,
     student_id INT NOT NULL,
     submission_number INT NOT NULL,
-    submission_date DATE NOT NULL,
+    submission_timestamp TIMESTAMP NOT NULL,
     submission_comment TEXT,
+    tests_finished BOOLEAN NOT NULL DEFAULT false,
     FOREIGN KEY (assignment_id) REFERENCES assignments (assignment_id),
     FOREIGN KEY (student_id) REFERENCES students (student_id),
     UNIQUE (assignment_id, student_id, submission_number)
 );
-
 
 CREATE TABLE IF NOT EXISTS files (
     id SERIAL PRIMARY KEY,
@@ -74,6 +80,7 @@ CREATE TABLE IF NOT EXISTS files (
 CREATE TABLE IF NOT EXISTS tests (
     id SERIAL PRIMARY KEY,
     assignment_id INTEGER REFERENCES assignments(id),
+    test_points INTEGER NOT NULL,
     test_name VARCHAR(255) NOT NULL,
     test_number INTEGER NOT NULL,
     stdin TEXT NOT NULL,
@@ -90,8 +97,20 @@ CREATE TABLE IF NOT EXISTS test_evaluations (
     submission_id INTEGER REFERENCES submissions(id),
     BOOLEAN test_passed NOT NULL,
     exit_code INTEGER NOT NULL,
-    test_output TEXT NOT NULL,
+    actual_stdout TEXT NOT NULL,
+    actual_stderr TEXT NOT NULL,
+    BOOLEAN runtime_error NOT NULL,
+    BOOLEAN memory_error NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS points (
+    id SERIAL PRIMARY KEY,
+    student_id INTEGER REFERENCES students(id),
+    assignment_id INTEGER REFERENCES assignments(id),
+    points_earned INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (student_id, assignment_id)
+);
+
 
 CREATE OR REPLACE FUNCTION auto_increment_submission_number()
 RETURNS TRIGGER AS $$

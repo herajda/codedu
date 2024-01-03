@@ -1,21 +1,39 @@
 #include "hash.h"
 
-std::string sha256(const std::string input) {
-    unsigned char hash[SHA256_DIGEST_LENGTH];
-    SHA256_CTX sha256;
-    SHA256_Init(&sha256);
-    SHA256_Update(&sha256, input.c_str(), input.size());
-    SHA256_Final(hash, &sha256);
-    
-    std::stringstream ss;
-    for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
-        ss << std::hex << std::setw(2) << std::setfill('0') << (int)hash[i];
-    }
-    return ss.str();
+std::string hash::hash_password(const std::string password, const std::string salt) {
+    std::string salted_password = password + salt;
+    return argon2(salted_password);
 }
 
-std::string hash_password(const std::string password) {
-    std::string salt = "salt";
+bool hash::verify_password(const std::string password, const std::string hash, const std::string salt) {
     std::string salted_password = password + salt;
-    return sha256(salted_password);
+    if (argon2(salted_password) == hash) {
+        return true;
+    }
+    return false;
+    
+}
+
+std::string hash::get_salt() {
+    return SALT;
+}
+
+std::string hash::argon2(const std::string password) {
+  char hash[crypto_pwhash_STRBYTES];
+  if (crypto_pwhash_str(
+    hash,
+    password.c_str(),
+    password.length(),
+    crypto_pwhash_OPSLIMIT_INTERACTIVE,
+    crypto_pwhash_MEMLIMIT_INTERACTIVE
+  ) != 0) {
+    throw std::runtime_error("Error hashing password");
+  }
+  std::cout << "Hashed password: " << hash << std::endl;
+  return std::string(reinterpret_cast<char*>(hash));
+}
+
+
+std::string hash::gen_random_hash() {
+  return "";
 }

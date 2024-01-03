@@ -1,2 +1,4 @@
 build/
 libpqxx/
+libsodium-cmake/
+.clangd

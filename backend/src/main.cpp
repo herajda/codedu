@@ -44,7 +44,7 @@ int main() {
      std::string password = x["password"].s();
 
      // Hash password
-     std::string hashed_password = hash_password(password); // Implement this function
+     std::string hashed_password = hash::hash_password(password); // Implement this function
 
      // Connect to PostgreSQL and insert new user
      std::cout << "Connecting to PostgreSQL database" << std::endl;
@@ -71,7 +71,7 @@ int main() {
      }
     });
 
-  app.port(18080).multithreaded().run();
+  auto a = app.port(18080).multithreaded().run_async();
 }
 
 // Define the base64_decode function...

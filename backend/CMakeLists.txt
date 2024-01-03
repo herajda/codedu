@@ -1,8 +1,8 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.14)
 project(server)
 
 # Set the C++ standard to use
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # Include directories
@@ -27,12 +27,13 @@ if(PostgreSQL_FOUND)
 endif()
 target_link_libraries(server pqxx pq)
 
-#target_link_libraries(${PROJECT_NAME} PRIVATE pqxx)
-# Assuming Crow is a header-only library and included in the include/crow_all.h
-# If Crow needs to be linked as a library, use target_link_libraries()
+include(FetchContent)
+FetchContent_Declare(Sodium
+    GIT_REPOSITORY https://github.com/robinlinden/libsodium-cmake.git
+    GIT_TAG 99f14233eab1d4f7f49c2af4ec836f2e701c445e # HEAD as of 2022-05-28
+)
+set(SODIUM_DISABLE_TESTS ON)
+FetchContent_MakeAvailable(Sodium)
 
-# If you have other libraries to link, you can use target_link_libraries here.
-# For example, if you're using Boost with Crow:
-# find_package(Boost 1.71 REQUIRED)
-# target_link_libraries(YourExecutableName Boost::boost)
+target_link_libraries(server sodium)
 

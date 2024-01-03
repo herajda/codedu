@@ -31,7 +31,6 @@
 *.out
 *.app
 
-
 *.swp
 .vscode
 .vs
@@ -42,3 +41,5 @@ Release
 x64
 *.user
 CMakeSettings.json
+
+*.clangd
