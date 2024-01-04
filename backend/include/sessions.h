@@ -18,6 +18,7 @@ class Session
   private:
     std::string session_hash;
     int user_id;
+    // TODO include other user data
     std::chrono::time_point<std::chrono::system_clock> updated_at;
     std::chrono::seconds valid_time_in_seconds_from_updated_time;
 

@@ -29,13 +29,13 @@ std::shared_ptr<std::string> Sessions::create_session(std::shared_ptr<std::strin
   }
   std::string hashed_password = hash::hash_password(*password);
   // try to log in
-  if (psc.login_user(std::make_shared<std::string>(user_name), std::make_shared<std::string>(hashed_password))) {
+  if (psc.login_user(user_name, std::make_shared<std::string>(hashed_password))) {
     // create session
-    std::string session_hash = hash::gen_random_hash();
+    auto session_hash = std::make_shared<std::string>(hash::gen_random_hash());
     Session session(session_hash, psc.get_user_id(user_name), 3600);
     std::unique_lock<std::shared_mutex> lock(sessions_mutex);
-    sessions.insert(session);
-    return std::make_shared<std::string>(session_hash);
+    this->sessions.insert(std::make_pair(*session_hash, session));
+    return session_hash;
   }
   else {
     return std::make_shared<std::string>("");
@@ -62,12 +62,16 @@ bool Sessions::validate_session(const std::shared_ptr<std::string> session_hash)
 
 int Sessions::get_user_id(const std::shared_ptr<std::string> session_hash) const {
   std::shared_lock<std::shared_mutex> lock(sessions_mutex);
-  auto session = sessions.find(Session(*session_hash));
+  auto session = sessions.find(*session_hash);
   if (session != sessions.end()) {
-    return session.get_user_id();
+    return session->second.get_user_id();
   }
   else {
     return -1;
   }
 }
 
+void Sessions::delete_all_sessions() {
+  std::unique_lock<std::shared_mutex> lock(sessions_mutex);
+  sessions.clear();
+}

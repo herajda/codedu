@@ -13,63 +13,271 @@
 int main() {
   crow::SimpleApp app;
 
-
-  CROW_ROUTE(app, "/upload").methods("POST"_method)
+  CROW_ROUTE(app, "/register_user").methods("POST"_method)
     ([](const crow::request& req) {
-     auto x = crow::json::load(req.body);
-     if (!x)
-     return crow::response(400, "Invalid request");
-
-     std::string encoded_string = x["fileData"].s();
-     std::string file_name = x["fileName"].s();
-     std::string decoded_data = base64_decode(encoded_string.substr(encoded_string.find(",") + 1));
-
-     std::ofstream out("uploaded_files/" + file_name, std::ios::binary);
-     if (out) {
-     out << decoded_data;
-     out.close();
-     return crow::response(200, "File uploaded successfully");
-     } else {
-     return crow::response(500, "Server error: Unable to save file");
-     }
+     return "Hello world";
      });
 
-  CROW_ROUTE(app, "/register").methods("POST"_method)
+  CROW_ROUTE(app, "/login_user").methods("POST"_method)
     ([](const crow::request& req) {
-     auto x = crow::json::load(req.body);
-     if (!x)
-     return crow::response(400, "Invalid request");
+     return "Hello world";
+     });
 
-     std::string username = x["username"].s();
-     std::string password = x["password"].s();
+  CROW_ROUTE(app, "/add_user_to_students").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
 
-     // Hash password
-     std::string hashed_password = hash::hash_password(password); // Implement this function
+  CROW_ROUTE(app, "/add_user_to_teachers").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
 
-     // Connect to PostgreSQL and insert new user
-     std::cout << "Connecting to PostgreSQL database" << std::endl;
-     try {
+  CROW_ROUTE(app, "/add_user_to_admins").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
 
-       std::string db_name = std::getenv("DB_NAME");
-       std::string db_user = std::getenv("DB_USER");
-       std::string db_password = std::getenv("DB_PASSWORD");
-       std::string db_host = std::getenv("DB_HOST");
-     
-       std::string connection_str = "dbname = " + db_name + 
-                                    " user = " + db_user +
-                                    " password = " + db_password +
-                                    " host = " + db_host;
-       pqxx::connection c(connection_str);
-       pqxx::work w(c);
-       w.exec0("INSERT INTO users (username, password) VALUES (" + w.quote(username) + ", " + w.quote(hashed_password) + ")");
-       w.commit();
-     return crow::response(200, "User registered successfully");
-     } catch (const std::exception &e) {
-     std::cout << e.what() << std::endl;
-     return crow::response(500, "Server error: Unable to register user");
+  CROW_ROUTE(app, "/add_class").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
 
-     }
-    });
+  CROW_ROUTE(app, "/add_student_to_class").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/add_teacher_to_class").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/add_assignment").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/add_test_to_assignment").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/add_submission").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/add_evaluation_to_test_submission").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/remove_student_from_class").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/remove_teacher_from_class").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/remove_class").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/remove_assignment").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/edit_assignment_name").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/edit_assignment_description").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/edit_assignment_due").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/edit_assignment_success").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/edit_test_name").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/edit_test_number").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/edit_test_stdin").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/edit_test_stdout").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/edit_test_runtime").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/edit_test_memory").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/edit_user_firstname").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/edit_user_lastname").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  // Continuing with the getters
+  CROW_ROUTE(app, "/get_user_id").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/get_class_id").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/get_assignment_id").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/get_test_id").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/get_submissions_ids").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/get_tests_ids").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/get_classes_ids").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/get_assignments_ids").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/get_students_ids").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/get_teachers_ids").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/get_admins_ids").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/is_user_student").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/is_user_teacher").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/is_user_admin").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/is_user_student_in_class").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/get_student_ids_in_class").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/are_tests_finished").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/get_submission_results").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/get_points_for_assignment").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/get_points_for_test").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/get_assignment_details").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/get_class_details").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/get_submission_details").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/get_test_details").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/get_user_details").methods("GET"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
 
   auto a = app.port(18080).multithreaded().run_async();
 }
