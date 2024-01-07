@@ -13,12 +13,17 @@
 int main() {
   crow::SimpleApp app;
 
-  CROW_ROUTE(app, "/register_user").methods("POST"_method)
+  CROW_ROUTE(app, "/register").methods("POST"_method)
     ([](const crow::request& req) {
      return "Hello world";
      });
 
-  CROW_ROUTE(app, "/login_user").methods("POST"_method)
+  CROW_ROUTE(app, "/login").methods("POST"_method)
+    ([](const crow::request& req) {
+     return "Hello world";
+     });
+
+  CROW_ROUTE(app, "/teacher/login").methods("POST"_method)
     ([](const crow::request& req) {
      return "Hello world";
      });

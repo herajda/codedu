@@ -15,7 +15,7 @@ function HomePage() {
 
     const fetchClasses = async () => {
       try {
-        const response = await fetch('https://api.example.com/my-classes', {
+        const response = await fetch('http://localhost:18080/my-classes', {
           headers: {
             'Authorization': `Bearer ${token}`
           }

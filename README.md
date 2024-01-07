@@ -7,23 +7,18 @@ ___
 
 ## !!! The software is still at development !!!
 
----
+### Install  
 
-## The plan
+Make sure you have `docker` and `docker-compose` installed
 
-- Frontend: HTML/CSS + React
-- Backend: C++ server
+Clone this repo: `git clone https://github.com/herajda/code-grader` 
 
-### Frontend
-  - React
+Move to the directory `cd ./code-grader`
 
-### Backend
+Build it and run it `sudo docker-compose up --build -d` (this might take a while)
 
-- web framework: crow and boost (or oat++), 
-- dockerizing the evaluation should be easy and does not involve any special libraries, only docker should be installed
-- TODO: concurrency and parallelism might be done by the web framework but I might also need to use some other library to implement task queue like Poco Libraries Qt Framework C++ Actor Framework, Folly or Boost.Asio or it may be done simply using std::async along with std::future and std::promise be - needs more research 
-- TODO: database: MySQL or PostgreSQL alongside with a C++ driver for access - which one of them? which driver?
-- TODO: login ???
-- TODO: file upload
+Access it on `http://localhost:5000/`
+
+
 
 

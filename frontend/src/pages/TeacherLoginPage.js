@@ -14,7 +14,7 @@ function TeacherLoginPage() {
     setError('');
 
     try {
-      const response = await fetch('https://api.example.com/teacher/login', {
+      const response = await fetch('http://localhost:18080/teacher/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
