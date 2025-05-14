@@ -1,8 +1,0 @@
-FROM postgres
-ENV POSTGRES_DB=mydb
-ENV POSTGRES_USER=myuser
-ENV POSTGRES_PASSWORD=mypass
-COPY ./db/init.sql /docker-entrypoint-initdb.d/init.sql
-RUN chown -R postgres:postgres /docker-entrypoint-initdb.d/
-EXPOSE 5432
-CMD ["docker-entrypoint.sh", "postgres"]
