@@ -1,45 +1,60 @@
-# Prerequisites
-*.d
-
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
+# ---------------------
+# Global (applies to all directories)
+# ---------------------
+*.log
+*.env
+*.DS_Store
 *.swp
-.vscode
-.vs
-build
-out
-Debug
-Release
-x64
-*.user
-CMakeSettings.json
+*.swo
+Thumbs.db
+.vscode/
+.idea/
 
-*.clangd
+# ---------------------
+# Go (Gin Backend)
+# ---------------------
+/backend/bin/
+/backend/coverage.out
+/backend/*.test
+/backend/.env
+/backend/go.sum
+/backend/go.mod
+/backend/pkg/
+/backend/vendor/
+/backend/*.exe
+/backend/*.dll
+/backend/*.so
+/backend/*.dylib
+
+# Go build artifacts
+/backend/*.out
+/backend/backend
+
+# ---------------------
+# Svelte (Frontend)
+/frontend/node_modules/
+/frontend/.svelte-kit/
+/frontend/public/build/
+/frontend/.env
+/frontend/.vite/
+
+# Build artifacts
+/frontend/dist/
+
+# ---------------------
+# Docker
+docker-compose.override.yml
+*.local.yml
+
+# Docker volumes and containers
+volumes/
+tmp/
+*.pid
+
+# ---------------------
+# PostgreSQL (dev)
+/db-data/
+*.pgsql
+*.sql
+*.dump
+*.db
