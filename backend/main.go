@@ -9,24 +9,25 @@ import (
 )
 
 func main() {
-	// 1️⃣ Initialize the DB (db.go)
+	// 1) Init DB
 	InitDB()
 
-	// 2️⃣ Create the router
+	// 2) Router
 	r := gin.Default()
 
-	// 3️⃣ Public routes
-	r.POST("/register", Register) // students only
-	r.POST("/login", Login)       // all roles
+	// 3) Public
+	r.POST("/register", Register)
+	r.POST("/login", Login)
 
-	// 4️⃣ Protected routes
+	// 4) Protected
 	api := r.Group("/api")
-	api.Use(JWTAuth()) // validate JWT and populate userID & role
+	api.Use(JWTAuth())
 	{
+		// health-check
 		api.GET("/ping", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"msg": "pong"})
 		})
-
+		// who am I
 		api.GET("/me", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{
 				"id":   c.GetInt("userID"),
@@ -34,13 +35,20 @@ func main() {
 			})
 		})
 
+		// Assignments
+		api.GET("/assignments", RoleGuard("student", "teacher", "admin"), listAssignments)
 		api.POST("/assignments", RoleGuard("teacher", "admin"), createAssignment)
+		api.GET("/assignments/:id", RoleGuard("student", "teacher", "admin"), getAssignment)
+		api.PUT("/assignments/:id", RoleGuard("teacher", "admin"), updateAssignment)
+		api.DELETE("/assignments/:id", RoleGuard("teacher", "admin"), deleteAssignment)
+
+		// User deletion (admin)
 		api.DELETE("/users/:id", RoleGuard("admin"), deleteUser)
+		// List my submissions (student)
 		api.GET("/my-submissions", RoleGuard("student"), listSubs)
 	}
 
 	log.Println("🚀 Server running on http://localhost:8080")
-	log.Printf("▶️  Using DATABASE_URL=%s", dsn)
 	if err := r.Run(":8080"); err != nil {
 		log.Fatalf("could not start server: %v", err)
 	}
