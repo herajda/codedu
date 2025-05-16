@@ -41,6 +41,18 @@ func main() {
 		api.GET("/assignments/:id", RoleGuard("student", "teacher", "admin"), getAssignment)
 		api.PUT("/assignments/:id", RoleGuard("teacher", "admin"), updateAssignment)
 		api.DELETE("/assignments/:id", RoleGuard("teacher", "admin"), deleteAssignment)
+		// TEACHER / STUDENT common
+		api.GET("/classes", RoleGuard("teacher", "student"), myClasses)
+
+		// ADMIN → add teacher
+		api.POST("/teachers", RoleGuard("admin"), createTeacher)
+
+		// TEACHER only
+		api.POST("/classes", RoleGuard("teacher"), createClass)
+		api.POST("/classes/:id/students", RoleGuard("teacher"), addStudents)
+
+		// Assignments now tied to class
+		api.POST("/classes/:id/assignments", RoleGuard("teacher"), createAssignment) // keep old handler but pass class id
 
 		// User deletion (admin)
 		api.DELETE("/users/:id", RoleGuard("admin"), deleteUser)

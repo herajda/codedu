@@ -21,6 +21,19 @@ type Assignment struct {
 	Deadline    time.Time `db:"deadline" json:"deadline"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	ClassID     int       `db:"class_id" json:"class_id"`
+}
+type Class struct {
+	ID        int       `db:"id"        json:"id"`
+	Name      string    `db:"name"      json:"name"`
+	TeacherID int       `db:"teacher_id" json:"teacher_id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+type ClassStudent struct {
+	ClassID   int `db:"class_id"`
+	StudentID int `db:"student_id"`
 }
 
 func CreateStudent(email, hash string) error {
@@ -103,4 +116,54 @@ func UpdateAssignment(a *Assignment) error {
 func DeleteAssignment(id int) error {
 	_, err := DB.Exec(`DELETE FROM assignments WHERE id=$1`, id)
 	return err
+}
+
+func CreateTeacher(email, hash string) error {
+	_, err := DB.Exec(`
+        INSERT INTO users (email, password_hash, role)
+        VALUES ($1,$2,'teacher')`, email, hash)
+	return err
+}
+
+func CreateClass(c *Class) error {
+	return DB.QueryRow(`
+        INSERT INTO classes (name, teacher_id)
+        VALUES ($1,$2)
+        RETURNING id, created_at, updated_at`,
+		c.Name, c.TeacherID,
+	).Scan(&c.ID, &c.CreatedAt, &c.UpdatedAt)
+}
+
+func AddStudentsToClass(classID int, studentIDs []int) error {
+	tx, err := DB.Beginx()
+	if err != nil {
+		return err
+	}
+	for _, sid := range studentIDs {
+		if _, err = tx.Exec(`
+            INSERT INTO class_students (class_id, student_id)
+            VALUES ($1,$2) ON CONFLICT DO NOTHING`, classID, sid); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func ListClassesForTeacher(teacherID int) ([]Class, error) {
+	var cls []Class
+	err := DB.Select(&cls, `
+        SELECT * FROM classes
+        WHERE teacher_id = $1 ORDER BY created_at DESC`, teacherID)
+	return cls, err
+}
+
+func ListClassesForStudent(studentID int) ([]Class, error) {
+	var cls []Class
+	err := DB.Select(&cls, `
+        SELECT c.* FROM classes c
+        JOIN class_students cs ON cs.class_id = c.id
+        WHERE cs.student_id = $1
+        ORDER BY c.created_at DESC`, studentID)
+	return cls, err
 }
