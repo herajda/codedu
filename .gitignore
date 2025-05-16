@@ -55,6 +55,5 @@ tmp/
 # PostgreSQL (dev)
 /db-data/
 *.pgsql
-*.sql
 *.dump
 *.db
