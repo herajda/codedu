@@ -10,7 +10,7 @@
   const isAuth = () => !!get(auth)?.token
 
   const Protected = wrap({
-    component: Dashboard,
+    component: Dashboard as any,
     conditions: [isAuth],
     userData: { redirect: '/login' }
   })

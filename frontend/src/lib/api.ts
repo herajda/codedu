@@ -6,9 +6,11 @@ export async function apiFetch(
   input: RequestInfo,
   init: RequestInit = {}
 ) {
-  const user = get(auth)
+  const token = localStorage.getItem('jwt')
   const headers = new Headers(init.headers)
-  if (user?.token) headers.set('Authorization', `Bearer ${user.token}`)
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
   const res = await fetch(input, { ...init, headers })
   return res
 }

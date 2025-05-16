@@ -19,7 +19,7 @@
         return
       }
       const { token } = await res.json()
-  
+      localStorage.setItem('jwt', token)
       // 2. Fetch /api/me
       const meRes = await apiFetch('/api/me')
       if (!meRes.ok) {
