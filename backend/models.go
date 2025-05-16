@@ -31,43 +31,54 @@ type Class struct {
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
-type ClassStudent struct {
-	ClassID   int `db:"class_id"`
-	StudentID int `db:"student_id"`
+// ──────────────────────────────────────────────────────
+// admin helpers
+// ──────────────────────────────────────────────────────
+
+type UserSummary struct {
+	ID        int       `db:"id"         json:"id"`
+	Email     string    `db:"email"      json:"email"`
+	Role      string    `db:"role"       json:"role"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
 }
 
-func CreateStudent(email, hash string) error {
-	_, err := DB.Exec(
-		`INSERT INTO users (email, password_hash, role) VALUES ($1, $2, 'student')`,
-		email, hash,
-	)
+func ListUsers() ([]UserSummary, error) {
+	var list []UserSummary
+	err := DB.Select(&list,
+		`SELECT id,email,role,created_at
+		   FROM users
+	      ORDER BY created_at`)
+	return list, err
+}
+
+func UpdateUserRole(id int, role string) error {
+	// only three legal roles
+	switch role {
+	case "student", "teacher", "admin":
+	default:
+		return fmt.Errorf("invalid role")
+	}
+	_, err := DB.Exec(`UPDATE users SET role=$1 WHERE id=$2`, role, id)
 	return err
 }
 
-func FindUserByEmail(email string) (*User, error) {
-	var u User
-	// only the columns in your User struct
-	err := DB.Get(&u,
-		`SELECT id, email, password_hash, role
-       FROM users
-      WHERE email = $1`,
-		email,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &u, nil
+func ListAllClasses() ([]Class, error) {
+	var cls []Class
+	err := DB.Select(&cls,
+		`SELECT * FROM classes ORDER BY created_at DESC`)
+	return cls, err
 }
 
-// CreateAssignment inserts a new assignment and returns its ID.
+// ──────────────────────────────────────────────────────────────────────────────
+// assignments
+// ──────────────────────────────────────────────────────────────────────────────
 func CreateAssignment(a *Assignment) error {
-	query := `
-    INSERT INTO assignments (title, description, created_by, deadline)
-    VALUES ($1, $2, $3, $4)
-    RETURNING id, created_at, updated_at`
-	return DB.QueryRow(
-		query,
-		a.Title, a.Description, a.CreatedBy, a.Deadline,
+	const q = `
+	  INSERT INTO assignments (title, description, created_by, deadline, class_id)
+	  VALUES ($1,$2,$3,$4,$5)
+	  RETURNING id, created_at, updated_at`
+	return DB.QueryRow(q,
+		a.Title, a.Description, a.CreatedBy, a.Deadline, a.ClassID,
 	).Scan(&a.ID, &a.CreatedAt, &a.UpdatedAt)
 }
 
@@ -166,4 +177,56 @@ func ListClassesForStudent(studentID int) ([]Class, error) {
         WHERE cs.student_id = $1
         ORDER BY c.created_at DESC`, studentID)
 	return cls, err
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// classes – helpers for detail view
+// ──────────────────────────────────────────────────────────────────────────────
+type Student struct {
+	ID    int    `db:"id"    json:"id"`
+	Email string `db:"email" json:"email"`
+}
+
+type ClassDetail struct {
+	Class       `json:"class"`
+	Students    []Student    `json:"students"`
+	Assignments []Assignment `json:"assignments"`
+}
+
+func GetClassDetail(id int) (*ClassDetail, error) {
+	var cls Class
+	if err := DB.Get(&cls, `SELECT * FROM classes WHERE id=$1`, id); err != nil {
+		return nil, err
+	}
+
+	var students []Student
+	if err := DB.Select(&students, `
+	    SELECT u.id, u.email
+	      FROM users u
+	      JOIN class_students cs ON cs.student_id = u.id
+	     WHERE cs.class_id = $1
+	     ORDER BY u.email`, id); err != nil {
+		return nil, err
+	}
+
+	var asg []Assignment
+	if err := DB.Select(&asg, `
+	    SELECT id, title, description, created_by, deadline,
+	           created_at, updated_at, class_id
+	      FROM assignments
+	     WHERE class_id = $1
+	     ORDER BY created_at DESC`, id); err != nil {
+		return nil, err
+	}
+
+	return &ClassDetail{Class: cls, Students: students, Assignments: asg}, nil
+}
+
+func ListAllStudents() ([]Student, error) {
+	var list []Student
+	err := DB.Select(&list, `
+	    SELECT id, email FROM users
+	     WHERE role = 'student'
+	     ORDER BY email`)
+	return list, err
 }

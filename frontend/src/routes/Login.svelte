@@ -28,9 +28,11 @@
       }
       const me = await meRes.json()
   
-      // 3. Store in auth and redirect
+      // 3. Store & smart-redirect
       auth.login(token, me.id, me.role)
-      push('/dashboard')
+      if      (me.role === 'admin')   push('/admin')
+      else if (me.role === 'teacher') push('/classes')
+      else                            push('/my-classes')
     }
   </script>
   
@@ -46,4 +48,3 @@
   <p>
     Don’t have an account? <a href="#/register">Register here</a>
   </p>
-  

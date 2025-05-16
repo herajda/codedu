@@ -5,12 +5,37 @@ import (
 	"log"
 	"net/http"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/gin-gonic/gin"
 )
+
+// seed a single admin so you’re never locked out
+func ensureAdmin() {
+	const (
+		email    = "admin@example.com"
+		password = "admin123"
+	)
+	var exists bool
+	if err := DB.Get(&exists,
+		`SELECT EXISTS(SELECT 1 FROM users WHERE email=$1)`, email); err != nil {
+		log.Fatalf("admin check failed: %v", err)
+	}
+	if !exists {
+		hash, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+		if _, err := DB.Exec(`
+		    INSERT INTO users (email,password_hash,role)
+		    VALUES ($1,$2,'admin')`, email, hash); err != nil {
+			log.Fatalf("could not insert admin: %v", err)
+		}
+		log.Printf("👑  Admin seeded → %s / %s", email, password)
+	}
+}
 
 func main() {
 	// 1) Init DB
 	InitDB()
+	ensureAdmin()
 
 	// 2) Router
 	r := gin.Default()
@@ -43,13 +68,16 @@ func main() {
 		api.DELETE("/assignments/:id", RoleGuard("teacher", "admin"), deleteAssignment)
 		// TEACHER / STUDENT common
 		api.GET("/classes", RoleGuard("teacher", "student"), myClasses)
+		api.POST("/classes/:id/students", RoleGuard("teacher", "admin"), addStudents)
+		api.GET("/classes/all", RoleGuard("admin"), listAllClasses) // new
 
 		// ADMIN → add teacher
 		api.POST("/teachers", RoleGuard("admin"), createTeacher)
+		api.GET("/users", RoleGuard("admin"), listUsers)               // new
+		api.PUT("/users/:id/role", RoleGuard("admin"), updateUserRole) // new
 
 		// TEACHER only
 		api.POST("/classes", RoleGuard("teacher"), createClass)
-		api.POST("/classes/:id/students", RoleGuard("teacher"), addStudents)
 
 		// Assignments now tied to class
 		api.POST("/classes/:id/assignments", RoleGuard("teacher"), createAssignment) // keep old handler but pass class id

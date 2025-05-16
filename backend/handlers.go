@@ -9,6 +9,60 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// ──────────────────────────────────────────────────────────────────────────────
+// utilities
+// ──────────────────────────────────────────────────────────────────────────────
+
+func getClass(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	detail, err := GetClassDetail(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	c.JSON(http.StatusOK, detail)
+}
+
+// ──────────────────────────────────────────
+// basic user helpers (used from auth.go)
+// ──────────────────────────────────────────
+
+func CreateStudent(email, hash string) error {
+	_, err := DB.Exec(
+		`INSERT INTO users (email, password_hash, role)
+		  VALUES ($1,$2,'student')`,
+		email, hash,
+	)
+	return err
+}
+
+func FindUserByEmail(email string) (*User, error) {
+	var u User
+	err := DB.Get(&u, `
+	    SELECT id, email, password_hash, role
+	      FROM users
+	     WHERE email = $1`,
+		email,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+func listStudents(c *gin.Context) {
+	list, err := ListAllStudents()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, list)
+}
+
 func deleteUser(c *gin.Context) {
 	c.JSON(501, gin.H{"error": "not implemented"})
 }
@@ -172,7 +226,7 @@ func addStudents(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// ---- STUDENT fetches their classes (+ assignments later) ----
+// ---- STUDENT / TEACHER common list ----
 func myClasses(c *gin.Context) {
 	uid := c.GetInt("userID")
 	role := c.GetString("role")
@@ -185,6 +239,48 @@ func myClasses(c *gin.Context) {
 	} else {
 		list, err = ListClassesForStudent(uid)
 	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, list)
+}
+
+// ──────────────────────────────────────────────────────
+// ADMIN handlers
+// ──────────────────────────────────────────────────────
+
+func listUsers(c *gin.Context) {
+	list, err := ListUsers()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, list)
+}
+
+func updateUserRole(c *gin.Context) {
+	uid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var req struct {
+		Role string `json:"role" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := UpdateUserRole(uid, req.Role); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func listAllClasses(c *gin.Context) {
+	list, err := ListAllClasses()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
