@@ -3,7 +3,9 @@
     import { push }    from 'svelte-spa-router'
     import { apiJSON } from '../lib/api'
   
-    type Class = { id:number; name:string }
+    type Class = { id:number; name:string; teacher_email:string }
+
+
   
     let list:Class[]=[]
     let err=''
@@ -18,9 +20,12 @@
   
   <ul>
     {#each list as c}
-      <li on:click={()=>push(`/classes/${c.id}`)}
-          style="cursor:pointer;text-decoration:underline">
-        {c.name}
+      <li>
+        <button
+           on:click={()=>push(`/classes/${c.id}`)}
+           style="background:none;border:none;padding:0;cursor:pointer;text-decoration:underline;color:inherit;font:inherit">
+          {c.name} – <small>{c.teacher_email}</small>
+        </button>
       </li>
     {/each}
     {#if !list.length && !err}<p>No classes yet.</p>{/if}
