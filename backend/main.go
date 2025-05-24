@@ -86,6 +86,11 @@ func main() {
 		api.DELETE("/users/:id", RoleGuard("admin"), deleteUser)
 		// List my submissions (student)
 		api.GET("/my-submissions", RoleGuard("student"), listSubs)
+		api.DELETE("/classes/:id/students/:sid", RoleGuard("teacher", "admin"), removeStudent)
+
+		api.GET("/students", RoleGuard("teacher", "admin"), listStudents)
+		api.GET("/classes/:id", RoleGuard("teacher", "student", "admin"), getClass)
+
 	}
 
 	log.Println("🚀 Server running on http://localhost:8080")

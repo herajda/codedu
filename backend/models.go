@@ -164,8 +164,12 @@ func AddStudentsToClass(classID int, studentIDs []int) error {
 func ListClassesForTeacher(teacherID int) ([]Class, error) {
 	var cls []Class
 	err := DB.Select(&cls, `
-        SELECT * FROM classes
-        WHERE teacher_id = $1 ORDER BY created_at DESC`, teacherID)
+        SELECT c.id, c.name, u.email AS teacher_email, c.created_at
+  		FROM classes c
+  		JOIN users      u  ON u.id = c.teacher_id
+  		JOIN class_students cs ON cs.class_id = c.id
+ 		WHERE cs.student_id = $1
+ 		ORDER BY c.created_at DESC`, teacherID)
 	return cls, err
 }
 
@@ -179,6 +183,15 @@ func ListClassesForStudent(studentID int) ([]Class, error) {
 	return cls, err
 }
 
+func ListAllStudents() ([]Student, error) {
+	var list []Student
+	err := DB.Select(&list, `
+	    SELECT id, email FROM users
+	     WHERE role = 'student'
+	     ORDER BY email`)
+	return list, err
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // classes – helpers for detail view
 // ──────────────────────────────────────────────────────────────────────────────
@@ -189,44 +202,63 @@ type Student struct {
 
 type ClassDetail struct {
 	Class       `json:"class"`
+	Teacher     Student      `json:"teacher"`
 	Students    []Student    `json:"students"`
 	Assignments []Assignment `json:"assignments"`
 }
 
 func GetClassDetail(id int) (*ClassDetail, error) {
+	// 1) Class meta -----------------------------------------------------------
 	var cls Class
-	if err := DB.Get(&cls, `SELECT * FROM classes WHERE id=$1`, id); err != nil {
+	if err := DB.Get(&cls,
+		`SELECT * FROM classes WHERE id = $1`, id); err != nil {
 		return nil, err
 	}
 
+	// 2) Teacher (one row) -----------------------------------------------------
+	var teacher Student // reuse tiny struct {id,email}
+	if err := DB.Get(&teacher,
+		`SELECT id, email FROM users WHERE id = $1`,
+		cls.TeacherID); err != nil {
+		return nil, err
+	}
+
+	// 3) Students (many) -------------------------------------------------------
 	var students []Student
 	if err := DB.Select(&students, `
-	    SELECT u.id, u.email
-	      FROM users u
-	      JOIN class_students cs ON cs.student_id = u.id
-	     WHERE cs.class_id = $1
-	     ORDER BY u.email`, id); err != nil {
+		SELECT u.id, u.email
+		  FROM users u
+		  JOIN class_students cs ON cs.student_id = u.id
+		 WHERE cs.class_id = $1
+		 ORDER BY u.email`,
+		id); err != nil {
 		return nil, err
 	}
 
+	// 4) Assignments (many) ----------------------------------------------------
 	var asg []Assignment
 	if err := DB.Select(&asg, `
-	    SELECT id, title, description, created_by, deadline,
-	           created_at, updated_at, class_id
-	      FROM assignments
-	     WHERE class_id = $1
-	     ORDER BY created_at DESC`, id); err != nil {
+		SELECT id, title, description, created_by, deadline,
+		       created_at, updated_at, class_id
+		  FROM assignments
+		 WHERE class_id = $1
+		 ORDER BY deadline ASC`,
+		id); err != nil {
 		return nil, err
 	}
 
-	return &ClassDetail{Class: cls, Students: students, Assignments: asg}, nil
+	// 5) Assemble --------------------------------------------------------------
+	return &ClassDetail{
+		Class:       cls,
+		Teacher:     teacher,
+		Students:    students,
+		Assignments: asg,
+	}, nil
 }
 
-func ListAllStudents() ([]Student, error) {
-	var list []Student
-	err := DB.Select(&list, `
-	    SELECT id, email FROM users
-	     WHERE role = 'student'
-	     ORDER BY email`)
-	return list, err
+func RemoveStudentFromClass(classID, studentID int) error {
+	_, err := DB.Exec(`DELETE FROM class_students
+                         WHERE class_id=$1 AND student_id=$2`,
+		classID, studentID)
+	return err
 }

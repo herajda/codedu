@@ -287,3 +287,13 @@ func listAllClasses(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, list)
 }
+func removeStudent(c *gin.Context) {
+	classID, _ := strconv.Atoi(c.Param("id"))
+	studentID, _ := strconv.Atoi(c.Param("sid"))
+
+	if err := RemoveStudentFromClass(classID, studentID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
