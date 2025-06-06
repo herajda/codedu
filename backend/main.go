@@ -33,8 +33,9 @@ func ensureAdmin() {
 }
 
 func main() {
-	// 1) Init DB
+	// 1) Init DB and auth
 	InitDB()
+	InitAuth()
 	ensureAdmin()
 
 	// 2) Router
