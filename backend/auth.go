@@ -5,13 +5,24 @@ import (
 	"time"
 
 	"log"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/joho/godotenv"
 	"golang.org/x/crypto/bcrypt"
 )
 
-var jwtSecret = []byte("supersecret-change-me")
+var jwtSecret []byte
+
+func InitAuth() {
+	_ = godotenv.Load()
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		log.Fatal("JWT_SECRET is not set")
+	}
+	jwtSecret = []byte(secret)
+}
 
 type registerReq struct {
 	Email    string `json:"email" binding:"required,email"`

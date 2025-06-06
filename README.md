@@ -89,6 +89,12 @@ Grading behavior is defined per assignment and supports:
 
 The system is fully Dockerized for simple setup using `docker-compose`.
 
+### Environment Variables
+The backend expects two variables to be set (usually via a `.env` file):
+
+- `DATABASE_URL` – PostgreSQL connection string
+- `JWT_SECRET` – secret used to sign authentication tokens
+
 ### Services
 - **frontend**: Svelte SPA
 - **backend**: Gin-based Go API
