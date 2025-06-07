@@ -95,6 +95,8 @@ The backend expects two variables to be set (usually via a `.env` file):
 - `DATABASE_URL` – PostgreSQL connection string
 - `JWT_SECRET` – secret used to sign authentication tokens
 
+You can copy `backend/.env.example` and adjust it for your environment.
+
 ### Services
 - **frontend**: Svelte SPA
 - **backend**: Gin-based Go API
