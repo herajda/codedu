@@ -164,12 +164,9 @@ func AddStudentsToClass(classID int, studentIDs []int) error {
 func ListClassesForTeacher(teacherID int) ([]Class, error) {
 	var cls []Class
 	err := DB.Select(&cls, `
-        SELECT c.id, c.name, u.email AS teacher_email, c.created_at
-  		FROM classes c
-  		JOIN users      u  ON u.id = c.teacher_id
-  		JOIN class_students cs ON cs.class_id = c.id
- 		WHERE cs.student_id = $1
- 		ORDER BY c.created_at DESC`, teacherID)
+                SELECT * FROM classes
+                 WHERE teacher_id = $1
+                 ORDER BY created_at DESC`, teacherID)
 	return cls, err
 }
 
