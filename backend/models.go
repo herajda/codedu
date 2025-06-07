@@ -31,6 +31,16 @@ type Class struct {
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
+type Submission struct {
+	ID           int       `db:"id" json:"id"`
+	AssignmentID int       `db:"assignment_id" json:"assignment_id"`
+	StudentID    int       `db:"student_id" json:"student_id"`
+	CodePath     string    `db:"code_path" json:"code_path"`
+	Status       string    `db:"status" json:"status"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
+}
+
 // ──────────────────────────────────────────────────────
 // admin helpers
 // ──────────────────────────────────────────────────────
@@ -258,7 +268,22 @@ func GetClassDetail(id int) (*ClassDetail, error) {
 
 func RemoveStudentFromClass(classID, studentID int) error {
 	_, err := DB.Exec(`DELETE FROM class_students
-                         WHERE class_id=$1 AND student_id=$2`,
+                        WHERE class_id=$1 AND student_id=$2`,
 		classID, studentID)
 	return err
+}
+
+func DeleteUser(id int) error {
+	_, err := DB.Exec(`DELETE FROM users WHERE id=$1`, id)
+	return err
+}
+
+func ListSubmissionsForStudent(studentID int) ([]Submission, error) {
+	var subs []Submission
+	err := DB.Select(&subs, `
+               SELECT id, assignment_id, student_id, code_path, status, created_at, updated_at
+                 FROM submissions
+                WHERE student_id = $1
+                ORDER BY created_at DESC`, studentID)
+	return subs, err
 }

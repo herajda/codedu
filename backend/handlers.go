@@ -64,11 +64,26 @@ func listStudents(c *gin.Context) {
 }
 
 func deleteUser(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if err := DeleteUser(id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 func listSubs(c *gin.Context) {
-	c.JSON(501, gin.H{"error": "not implemented"})
+	uid := c.GetInt("userID")
+	list, err := ListSubmissionsForStudent(uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, list)
 }
 
 // createAssignment: POST /api/classes/:id/assignments
