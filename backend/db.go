@@ -18,7 +18,16 @@ func InitDB() {
 	if dsn == "" {
 		log.Fatal("DATABASE_URL is not set")
 	}
-	db, err := sqlx.Connect("postgres", dsn)
+	var db *sqlx.DB
+	var err error
+	for i := 1; i <= 10; i++ {
+		db, err = sqlx.Connect("postgres", dsn)
+		if err == nil {
+			break
+		}
+		log.Printf("DB connect attempt %d failed: %v", i, err)
+		time.Sleep(2 * time.Second)
+	}
 	if err != nil {
 		log.Fatalf("DB connect error: %v", err)
 	}
