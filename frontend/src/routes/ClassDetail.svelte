@@ -5,7 +5,7 @@
   import { apiFetch, apiJSON } from '../lib/api'
 
   /* ───────────────────────── route param comes in as a PROP */
-  export let id: string            // ←  “5”, “7”, …
+  export let params: {id: string}
 
   const role = get(auth)?.role!
 
@@ -19,13 +19,13 @@
   let err = ''
 
   /* keep the id handy for the add/remove helpers */
-  let currentId = id
 
   /* ───────────────────────── data fetcher */
   async function load() {
     err = ''
     try {
-      const data = await apiJSON(`/api/classes/${currentId}`)
+      const data = await apiJSON(`/api/classes/${params.id}`)
+      console.log('Received from backend:', data) // Debugging print
       cls        = data
       students   = data.students
       assignments = [...data.assignments].sort(
@@ -42,7 +42,7 @@
   /* ───────────────────────── teacher actions (unchanged, just use currentId) */
   async function addStudents() {
     try {
-      await apiFetch(`/api/classes/${currentId}/students`, {
+      await apiFetch(`/api/classes/${params.id}/students`, {
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({ student_ids:selectedIDs })
@@ -55,14 +55,14 @@
   async function removeStudent(sid:number) {
     if (!confirm('Remove this student from class?')) return
     try {
-      await apiFetch(`/api/classes/${currentId}/students/${sid}`,{ method:'DELETE' })
+      await apiFetch(`/api/classes/${params.id}/students/${sid}`,{ method:'DELETE' })
       await load()
     } catch(e:any){ err=e.message }
   }
 
   async function createAssignment() {
     try {
-      await apiFetch(`/api/classes/${currentId}/assignments`,{
+      await apiFetch(`/api/classes/${params.id}/assignments`,{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
@@ -104,7 +104,7 @@
         {/if}
       </li>
     {/each}
-    {#if !students.length}<i>No students yet</i>{/if}
+    {#if !students || !students.length}<i>No students yet</i>{/if}
   </ul>
 
   {#if role === 'teacher' || role === 'admin'}
