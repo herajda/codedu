@@ -131,6 +131,9 @@
     {#each assignments as a}
       <li>
         <strong><a href={`#/assignments/${a.id}`}>{a.title}</a></strong>
+        {#if !a.published}
+          <em style="color:gray"> (draft)</em>
+        {/if}
         &nbsp;·&nbsp;
         <span style="color:{new Date(a.deadline)<new Date() ? 'red' : 'inherit'}">
           due {new Date(a.deadline).toLocaleString()}

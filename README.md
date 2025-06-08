@@ -143,6 +143,7 @@ The backend now exposes two additional endpoints:
 
 - `DELETE /api/users/:id` – Admin only. Deletes the specified user and cascades removal of related classes, assignments and submissions. Returns `204` on success.
 - `GET /api/my-submissions` – Student endpoint returning the authenticated user's submissions ordered by creation date.
+- `PUT /api/assignments/:id/publish` – Teacher/admin endpoint to publish an assignment once it's ready.
 
 ---
 

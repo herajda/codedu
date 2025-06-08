@@ -17,6 +17,13 @@
   let tStdin='', tStdout='', tLimit=''
   let file:File|null=null
 
+  async function publish(){
+    try{
+      await apiFetch(`/api/assignments/${params.id}/publish`,{method:'PUT'})
+      await load()
+    }catch(e:any){ err=e.message }
+  }
+
   async function load(){
     err=''
     try{
@@ -98,6 +105,9 @@
   {/if}
 
   {#if role==='teacher' || role==='admin'}
+    {#if !assignment.published}
+      <button on:click={publish}>Publish assignment</button>
+    {/if}
     <h3>Add test</h3>
     <input placeholder="stdin" bind:value={tStdin}>
     <br>
