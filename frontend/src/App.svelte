@@ -1,6 +1,8 @@
 <script lang="ts">
   import Router from 'svelte-spa-router'
   import wrap from 'svelte-spa-router/wrap'
+  import type { RouteDefinition } from 'svelte-spa-router'
+  import { asClassComponent } from 'svelte/legacy'
   import { get } from 'svelte/store'
   import { auth } from './lib/auth'
 
@@ -15,20 +17,20 @@
   const isAuth   = () => !!get(auth)?.token
   const hasRole  = (role: string) => () => get(auth)?.role === role
 
-  const routes = {
-    '/':          Login,
-    '/login':     Login,
-    '/register':  Register,
+  const routes: RouteDefinition = {
+    '/':          asClassComponent(Login),
+    '/login':     asClassComponent(Login),
+    '/register':  asClassComponent(Register),
 
-    '/dashboard': wrap({ component: Dashboard, conditions:[isAuth], userData:{redirect:'/login'} }),
+    '/dashboard': wrap({ component: asClassComponent(Dashboard), conditions:[isAuth], userData:{redirect:'/login'} }),
 
     // role-specific
-    '/admin':     wrap({ component: Admin,        conditions:[isAuth, hasRole('admin')],   userData:{redirect:'/login'} }),
-    '/classes':   wrap({ component: TeacherCls,   conditions:[isAuth, hasRole('teacher')], userData:{redirect:'/login'} }),
-    '/my-classes':wrap({ component: MyClasses,    conditions:[isAuth],                     userData:{redirect:'/login'} }),
-    '/classes/:id': wrap({ component: ClassPage,  conditions:[isAuth],                     userData:{redirect:'/login'} }),
+    '/admin':     wrap({ component: asClassComponent(Admin),        conditions:[isAuth, hasRole('admin')],   userData:{redirect:'/login'} }),
+    '/classes':   wrap({ component: asClassComponent(TeacherCls),   conditions:[isAuth, hasRole('teacher')], userData:{redirect:'/login'} }),
+    '/my-classes':wrap({ component: asClassComponent(MyClasses),    conditions:[isAuth],                     userData:{redirect:'/login'} }),
+    '/classes/:id': wrap({ component: asClassComponent(ClassPage),  conditions:[isAuth],                     userData:{redirect:'/login'} }),
 
-    '*': Login
+    '*': asClassComponent(Login)
   }
 </script>
 
