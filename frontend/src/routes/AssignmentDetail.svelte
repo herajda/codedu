@@ -12,7 +12,7 @@
   let tests:any[]=[] // teacher/admin only
   let submissions:any[]=[]
   let err=''
-  let tStdin='', tStdout=''
+  let tStdin='', tStdout='', tLimit=''
   let file:File|null=null
 
   async function load(){
@@ -32,9 +32,9 @@
       await apiFetch(`/api/assignments/${params.id}/tests`,{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({stdin:tStdin, expected_stdout:tStdout})
+        body:JSON.stringify({stdin:tStdin, expected_stdout:tStdout, time_limit_ms: parseInt(tLimit) || undefined})
       })
-      tStdin=tStdout=''
+      tStdin=tStdout=tLimit=''
       await load()
     }catch(e:any){ err=e.message }
   }
@@ -64,7 +64,7 @@
     <h2>Tests</h2>
     <ul>
       {#each tests ?? [] as t}
-        <li><pre>{t.stdin}</pre>→<pre>{t.expected_stdout}</pre></li>
+        <li><pre>{t.stdin}</pre>→<pre>{t.expected_stdout}</pre> <span>({t.time_limit_ms} ms)</span></li>
       {/each}
       {#if !(tests && tests.length)}<i>No tests</i>{/if}
     </ul>
@@ -88,6 +88,8 @@
     <input placeholder="stdin" bind:value={tStdin}>
     <br>
     <input placeholder="expected stdout" bind:value={tStdout}>
+    <br>
+    <input placeholder="time limit (ms)" bind:value={tLimit}>
     <br>
     <button on:click={addTest}>Add</button>
   {/if}

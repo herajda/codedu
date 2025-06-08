@@ -216,6 +216,7 @@ func createTestCase(c *gin.Context) {
 	var req struct {
 		Stdin          string `json:"stdin" binding:"required"`
 		ExpectedStdout string `json:"expected_stdout" binding:"required"`
+		TimeLimitMS    int    `json:"time_limit_ms"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -225,6 +226,7 @@ func createTestCase(c *gin.Context) {
 		AssignmentID:   aid,
 		Stdin:          req.Stdin,
 		ExpectedStdout: req.ExpectedStdout,
+		TimeLimitMS:    req.TimeLimitMS,
 	}
 	if err := CreateTestCase(tc); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
