@@ -270,6 +270,26 @@ func createSubmission(c *gin.Context) {
 	c.JSON(http.StatusCreated, sub)
 }
 
+// getSubmission: GET /api/submissions/:id
+func getSubmission(c *gin.Context) {
+	sid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	sub, err := GetSubmission(sid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if c.GetString("role") == "student" && c.GetInt("userID") != sub.StudentID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+	results, _ := ListResultsForSubmission(sid)
+	c.JSON(http.StatusOK, gin.H{"submission": sub, "results": results})
+}
+
 // ---- ADMIN adds a teacher ----
 func createTeacher(c *gin.Context) {
 	var req struct {
