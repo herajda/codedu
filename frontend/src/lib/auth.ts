@@ -16,12 +16,14 @@ function createAuth() {
     login(token: string, id: number, role: string) {
       const user = { token, id, role }
       localStorage.setItem('user', JSON.stringify(user))
+      localStorage.setItem('jwt', token)   // ensure apiFetch can send it
       set(user)
     },
 
     /** Log out everywhere */
     logout() {
       localStorage.removeItem('user')
+      localStorage.removeItem('jwt')
       set(null)
     },
 
