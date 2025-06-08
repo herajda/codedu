@@ -7,7 +7,7 @@
   /* ───────────────────────── route param comes in as a PROP */
   export let params: {id: string}
 
-  const role = get(auth)?.role!
+  const role: string = get(auth)?.role ?? ''
 
   /* ───────────────────────── component state */
   let cls:any           = null

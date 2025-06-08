@@ -1,6 +1,8 @@
 <script lang="ts">
   import Router from 'svelte-spa-router'
   import wrap from 'svelte-spa-router/wrap'
+  import type { RouteDefinition } from 'svelte-spa-router'
+  import { asClassComponent } from 'svelte/legacy'
   import { get } from 'svelte/store'
   import { auth } from './lib/auth'
 
@@ -17,12 +19,12 @@
   const isAuth   = () => !!get(auth)?.token
   const hasRole  = (role: string) => () => get(auth)?.role === role
 
-  const routes = {
-    '/':          Login,
-    '/login':     Login,
-    '/register':  Register,
+  const routes: RouteDefinition = {
+    '/':          asClassComponent(Login),
+    '/login':     asClassComponent(Login),
+    '/register':  asClassComponent(Register),
 
-    '/dashboard': wrap({ component: Dashboard, conditions:[isAuth], userData:{redirect:'/login'} }),
+    '/dashboard': wrap({ component: asClassComponent(Dashboard), conditions:[isAuth], userData:{redirect:'/login'} }),
 
     // role-specific
     '/admin':     wrap({ component: Admin,        conditions:[isAuth, hasRole('admin')],   userData:{redirect:'/login'} }),
@@ -32,7 +34,7 @@
     '/assignments/:id': wrap({ component: AssignmentPage, conditions:[isAuth], userData:{redirect:'/login'} }),
     '/submissions/:id': wrap({ component: SubmissionPage, conditions:[isAuth], userData:{redirect:'/login'} }),
 
-    '*': Login
+    '*': asClassComponent(Login)
   }
 </script>
 
