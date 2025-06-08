@@ -63,8 +63,8 @@
   {#if role !== 'student'}
     <h2>Tests</h2>
     <ul>
-      {#each tests ?? [] as t}
-        <li><pre>{t.stdin}</pre>→<pre>{t.expected_stdout}</pre></li>
+      {#each tests ?? [] as t, i}
+        <li>Test {i + 1}: <pre>{t.stdin}</pre>→<pre>{t.expected_stdout}</pre></li>
       {/each}
       {#if !(tests && tests.length)}<i>No tests</i>{/if}
     </ul>
