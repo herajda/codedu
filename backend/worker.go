@@ -71,7 +71,8 @@ func runSubmission(id int) {
 
 	allPass := true
 	for _, tc := range tests {
-		out, err, timedOut, runtime := executePython(codePath, tc.Stdin, time.Duration(tc.TimeLimitMS)*time.Millisecond)
+		timeout := time.Duration(tc.TimeLimitSec * float64(time.Second))
+		out, err, timedOut, runtime := executePython(codePath, tc.Stdin, timeout)
 
 		status := "passed"
 		switch {

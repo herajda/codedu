@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS test_cases (
   stdin TEXT NOT NULL,
   expected_stdout TEXT NOT NULL,
   weight NUMERIC NOT NULL DEFAULT 1 CHECK (weight > 0),
-  time_limit_ms INTEGER NOT NULL DEFAULT 1000,
+  time_limit_sec NUMERIC NOT NULL DEFAULT 1.0,
   memory_limit_kb INTEGER NOT NULL DEFAULT 65536,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()

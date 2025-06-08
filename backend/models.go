@@ -49,7 +49,7 @@ type TestCase struct {
 	AssignmentID   int       `db:"assignment_id" json:"assignment_id"`
 	Stdin          string    `db:"stdin" json:"stdin"`
 	ExpectedStdout string    `db:"expected_stdout" json:"expected_stdout"`
-	TimeLimitMS    int       `db:"time_limit_ms" json:"time_limit_ms"`
+	TimeLimitSec   float64   `db:"time_limit_sec" json:"time_limit_sec"`
 	MemoryLimitKB  int       `db:"memory_limit_kb" json:"memory_limit_kb"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
@@ -331,21 +331,21 @@ func ListSubmissionsForAssignmentAndStudent(aid, sid int) ([]SubmissionWithReaso
 }
 
 func CreateTestCase(tc *TestCase) error {
-	if tc.TimeLimitMS == 0 {
-		tc.TimeLimitMS = 1000
+	if tc.TimeLimitSec == 0 {
+		tc.TimeLimitSec = 1
 	}
 	const q = `
-          INSERT INTO test_cases (assignment_id, stdin, expected_stdout, time_limit_ms)
+          INSERT INTO test_cases (assignment_id, stdin, expected_stdout, time_limit_sec)
           VALUES ($1,$2,$3,$4)
-          RETURNING id, time_limit_ms, memory_limit_kb, created_at, updated_at`
-	return DB.QueryRow(q, tc.AssignmentID, tc.Stdin, tc.ExpectedStdout, tc.TimeLimitMS).
-		Scan(&tc.ID, &tc.TimeLimitMS, &tc.MemoryLimitKB, &tc.CreatedAt, &tc.UpdatedAt)
+          RETURNING id, time_limit_sec, memory_limit_kb, created_at, updated_at`
+	return DB.QueryRow(q, tc.AssignmentID, tc.Stdin, tc.ExpectedStdout, tc.TimeLimitSec).
+		Scan(&tc.ID, &tc.TimeLimitSec, &tc.MemoryLimitKB, &tc.CreatedAt, &tc.UpdatedAt)
 }
 
 func ListTestCases(assignmentID int) ([]TestCase, error) {
 	var list []TestCase
 	err := DB.Select(&list, `
-                SELECT id, assignment_id, stdin, expected_stdout, time_limit_ms, memory_limit_kb, created_at, updated_at
+                SELECT id, assignment_id, stdin, expected_stdout, time_limit_sec, memory_limit_kb, created_at, updated_at
                   FROM test_cases
                  WHERE assignment_id = $1
                  ORDER BY id`, assignmentID)
