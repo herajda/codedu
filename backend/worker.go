@@ -56,7 +56,16 @@ func runSubmission(id int) {
 
 	allPass := true
 	for _, tc := range tests {
-		status, out, runtime := executePython(sub.CodePath, tc.Stdin, time.Duration(tc.TimeLimitMS)*time.Millisecond)
+		out, err, timedOut, runtime := executePython(sub.CodePath, tc.Stdin, time.Duration(tc.TimeLimitMS)*time.Millisecond)
+
+		status := "passed"
+		switch {
+		case timedOut:
+			status = "time_limit_exceeded"
+		case err != nil || strings.TrimSpace(out) != strings.TrimSpace(tc.ExpectedStdout):
+			status = "wrong_output"
+		}
+
 		res := &Result{SubmissionID: id, TestCaseID: tc.ID, Status: status, ActualStdout: out, RuntimeMS: int(runtime.Milliseconds())}
 		CreateResult(res)
 		if status != "passed" {
@@ -71,20 +80,18 @@ func runSubmission(id int) {
 	}
 }
 
-func executePython(path, stdin string, timeout time.Duration) (string, string, time.Duration) {
+func executePython(path, stdin string, timeout time.Duration) (string, error, bool, time.Duration) {
 	abs, _ := filepath.Abs(path)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", "-i", "-v", fmt.Sprintf("%s:/code/main.py:ro", abs), pythonImage, "python", "/code/main.py")
 	cmd.Stdin = strings.NewReader(stdin)
-	out, err := cmd.CombinedOutput()
 
-	if ctx.Err() == context.DeadlineExceeded {
-		return "time_limit_exceeded", string(out), timeout
-	}
-	if err != nil {
-		return "wrong_output", string(out), timeout
-	}
-	return "passed", string(out), timeout
+	start := time.Now()
+	out, err := cmd.CombinedOutput()
+	runtime := time.Since(start)
+
+	timedOut := ctx.Err() == context.DeadlineExceeded
+	return string(out), err, timedOut, runtime
 }
