@@ -49,6 +49,8 @@ type TestCase struct {
 	AssignmentID   int       `db:"assignment_id" json:"assignment_id"`
 	Stdin          string    `db:"stdin" json:"stdin"`
 	ExpectedStdout string    `db:"expected_stdout" json:"expected_stdout"`
+	TimeLimitMS    int       `db:"time_limit_ms" json:"time_limit_ms"`
+	MemoryLimitKB  int       `db:"memory_limit_kb" json:"memory_limit_kb"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
 }
@@ -324,17 +326,68 @@ func CreateTestCase(tc *TestCase) error {
 	const q = `
           INSERT INTO test_cases (assignment_id, stdin, expected_stdout)
           VALUES ($1,$2,$3)
-          RETURNING id, created_at, updated_at`
+          RETURNING id, time_limit_ms, memory_limit_kb, created_at, updated_at`
 	return DB.QueryRow(q, tc.AssignmentID, tc.Stdin, tc.ExpectedStdout).
-		Scan(&tc.ID, &tc.CreatedAt, &tc.UpdatedAt)
+		Scan(&tc.ID, &tc.TimeLimitMS, &tc.MemoryLimitKB, &tc.CreatedAt, &tc.UpdatedAt)
 }
 
 func ListTestCases(assignmentID int) ([]TestCase, error) {
 	var list []TestCase
 	err := DB.Select(&list, `
-                SELECT id, assignment_id, stdin, expected_stdout, created_at, updated_at
+                SELECT id, assignment_id, stdin, expected_stdout, time_limit_ms, memory_limit_kb, created_at, updated_at
                   FROM test_cases
                  WHERE assignment_id = $1
                  ORDER BY id`, assignmentID)
+	return list, err
+}
+
+// ──────────────────────────────────────────────────────
+// submissions – helpers for grading
+// ──────────────────────────────────────────────────────
+
+// Result represents outcome of one test case execution.
+type Result struct {
+	ID           int       `db:"id" json:"id"`
+	SubmissionID int       `db:"submission_id" json:"submission_id"`
+	TestCaseID   int       `db:"test_case_id" json:"test_case_id"`
+	Status       string    `db:"status" json:"status"`
+	ActualStdout string    `db:"actual_stdout" json:"actual_stdout"`
+	RuntimeMS    int       `db:"runtime_ms" json:"runtime_ms"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+}
+
+func GetSubmission(id int) (*Submission, error) {
+	var s Submission
+	err := DB.Get(&s, `
+        SELECT id, assignment_id, student_id, code_path, code_content, status, created_at, updated_at
+          FROM submissions
+         WHERE id=$1`, id)
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
+func UpdateSubmissionStatus(id int, status string) error {
+	_, err := DB.Exec(`UPDATE submissions SET status=$1, updated_at=now() WHERE id=$2`, status, id)
+	return err
+}
+
+func CreateResult(r *Result) error {
+	const q = `
+        INSERT INTO results (submission_id, test_case_id, status, actual_stdout, runtime_ms)
+        VALUES ($1,$2,$3,$4,$5)
+        RETURNING id, created_at`
+	return DB.QueryRow(q, r.SubmissionID, r.TestCaseID, r.Status, r.ActualStdout, r.RuntimeMS).
+		Scan(&r.ID, &r.CreatedAt)
+}
+
+func ListResultsForSubmission(subID int) ([]Result, error) {
+	var list []Result
+	err := DB.Select(&list, `
+        SELECT id, submission_id, test_case_id, status, actual_stdout, runtime_ms, created_at
+          FROM results
+         WHERE submission_id=$1
+         ORDER BY id`, subID)
 	return list, err
 }

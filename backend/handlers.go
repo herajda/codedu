@@ -265,6 +265,8 @@ func createSubmission(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
+	// enqueue for grading
+	EnqueueJob(Job{SubmissionID: sub.ID})
 	c.JSON(http.StatusCreated, sub)
 }
 
