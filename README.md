@@ -127,7 +127,7 @@ You can copy `backend/.env.example` and adjust it for your environment.
 
 ## Data Model Design
 
-> **Note**: Data models for entities such as users, classes, assignments, test cases, and submissions are still being finalized. This section will be updated once the schema is defined.
+The current PostgreSQL schema is stored in `backend/schema.sql` and is executed automatically when the backend starts. This eliminates the need for external migration tools during early development.
 
 ---
 
