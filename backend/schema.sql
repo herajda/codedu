@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS submissions (
   assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
   student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   code_path TEXT NOT NULL,
+  code_content TEXT,
   status submission_status NOT NULL DEFAULT 'pending',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()

@@ -9,7 +9,8 @@
   const role = get(auth)?.role!
 
   let assignment:any=null
-  let tests:any[]=[] // ensure tests is always an array
+  let tests:any[]=[] // teacher/admin only
+  let submissions:any[]=[]
   let err=''
   let tStdin='', tStdout=''
   let file:File|null=null
@@ -19,7 +20,8 @@
     try{
       const data = await apiJSON(`/api/assignments/${params.id}`)
       assignment = data.assignment
-      tests = data.tests ?? [] // fallback to [] if data.tests is null/undefined
+      if(role==='student') submissions = data.submissions ?? []
+      else tests = data.tests ?? []
     }catch(e:any){ err=e.message }
   }
 
@@ -58,13 +60,25 @@
   <p><strong>Max points:</strong> {assignment.max_points}</p>
   <p><strong>Policy:</strong> {assignment.grading_policy}</p>
 
-  <h2>Tests</h2>
-  <ul>
-    {#each tests ?? [] as t}
-      <li><pre>{t.stdin}</pre>→<pre>{t.expected_stdout}</pre></li>
-    {/each}
-    {#if !(tests && tests.length)}<i>No tests</i>{/if}
-  </ul>
+  {#if role !== 'student'}
+    <h2>Tests</h2>
+    <ul>
+      {#each tests ?? [] as t}
+        <li><pre>{t.stdin}</pre>→<pre>{t.expected_stdout}</pre></li>
+      {/each}
+      {#if !(tests && tests.length)}<i>No tests</i>{/if}
+    </ul>
+  {/if}
+
+  {#if role==='student'}
+    <h3>Your submissions</h3>
+    <ul>
+      {#each submissions as s}
+        <li>{new Date(s.created_at).toLocaleString()} – {s.status}</li>
+      {/each}
+      {#if !submissions.length}<i>No submissions yet</i>{/if}
+    </ul>
+  {/if}
 
   {#if role==='teacher' || role==='admin'}
     <h3>Add test</h3>
