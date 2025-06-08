@@ -14,14 +14,16 @@ type User struct {
 }
 
 type Assignment struct {
-	ID          int       `db:"id" json:"id"`
-	Title       string    `db:"title" json:"title"`
-	Description string    `db:"description" json:"description"`
-	CreatedBy   int       `db:"created_by" json:"created_by"`
-	Deadline    time.Time `db:"deadline" json:"deadline"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-	ClassID     int       `db:"class_id" json:"class_id"`
+	ID            int       `db:"id" json:"id"`
+	Title         string    `db:"title" json:"title"`
+	Description   string    `db:"description" json:"description"`
+	CreatedBy     int       `db:"created_by" json:"created_by"`
+	Deadline      time.Time `db:"deadline" json:"deadline"`
+	MaxPoints     int       `db:"max_points" json:"max_points"`
+	GradingPolicy string    `db:"grading_policy" json:"grading_policy"`
+	CreatedAt     time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
+	ClassID       int       `db:"class_id" json:"class_id"`
 }
 type Class struct {
 	ID        int       `db:"id"        json:"id"`
@@ -39,6 +41,15 @@ type Submission struct {
 	Status       string    `db:"status" json:"status"`
 	CreatedAt    time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
+}
+
+type TestCase struct {
+	ID             int       `db:"id" json:"id"`
+	AssignmentID   int       `db:"assignment_id" json:"assignment_id"`
+	Stdin          string    `db:"stdin" json:"stdin"`
+	ExpectedStdout string    `db:"expected_stdout" json:"expected_stdout"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // ──────────────────────────────────────────────────────
@@ -84,11 +95,12 @@ func ListAllClasses() ([]Class, error) {
 // ──────────────────────────────────────────────────────────────────────────────
 func CreateAssignment(a *Assignment) error {
 	const q = `
-	  INSERT INTO assignments (title, description, created_by, deadline, class_id)
-	  VALUES ($1,$2,$3,$4,$5)
-	  RETURNING id, created_at, updated_at`
+          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, class_id)
+          VALUES ($1,$2,$3,$4,$5,$6,$7)
+          RETURNING id, created_at, updated_at`
 	return DB.QueryRow(q,
-		a.Title, a.Description, a.CreatedBy, a.Deadline, a.ClassID,
+		a.Title, a.Description, a.CreatedBy, a.Deadline,
+		a.MaxPoints, a.GradingPolicy, a.ClassID,
 	).Scan(&a.ID, &a.CreatedAt, &a.UpdatedAt)
 }
 
@@ -96,10 +108,9 @@ func CreateAssignment(a *Assignment) error {
 func ListAssignments() ([]Assignment, error) {
 	var list []Assignment
 	err := DB.Select(&list, `
-    SELECT id, title, description, created_by, deadline, created_at, updated_at
-    FROM assignments
-    ORDER BY created_at DESC
-  `)
+    SELECT id, title, description, created_by, deadline, max_points, grading_policy, created_at, updated_at, class_id
+      FROM assignments
+     ORDER BY created_at DESC`)
 	return list, err
 }
 
@@ -107,10 +118,9 @@ func ListAssignments() ([]Assignment, error) {
 func GetAssignment(id int) (*Assignment, error) {
 	var a Assignment
 	err := DB.Get(&a, `
-    SELECT id, title, description, created_by, deadline, created_at, updated_at
-    FROM assignments
-    WHERE id = $1
-  `, id)
+    SELECT id, title, description, created_by, deadline, max_points, grading_policy, created_at, updated_at, class_id
+      FROM assignments
+     WHERE id = $1`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -121,9 +131,13 @@ func GetAssignment(id int) (*Assignment, error) {
 func UpdateAssignment(a *Assignment) error {
 	res, err := DB.Exec(`
     UPDATE assignments
-    SET title=$1, description=$2, deadline=$3, updated_at=now()
-    WHERE id=$4
-  `, a.Title, a.Description, a.Deadline, a.ID)
+       SET title=$1, description=$2, deadline=$3,
+           max_points=$4, grading_policy=$5,
+           updated_at=now()
+     WHERE id=$6`,
+		a.Title, a.Description, a.Deadline,
+		a.MaxPoints, a.GradingPolicy,
+		a.ID)
 	if err != nil {
 		return err
 	}
@@ -245,11 +259,12 @@ func GetClassDetail(id int) (*ClassDetail, error) {
 	// 4) Assignments (many) ----------------------------------------------------
 	var asg []Assignment
 	if err := DB.Select(&asg, `
-		SELECT id, title, description, created_by, deadline,
-		       created_at, updated_at, class_id
-		  FROM assignments
-		 WHERE class_id = $1
-		 ORDER BY deadline ASC`,
+                SELECT id, title, description, created_by, deadline,
+                       max_points, grading_policy,
+                       created_at, updated_at, class_id
+                  FROM assignments
+                 WHERE class_id = $1
+                 ORDER BY deadline ASC`,
 		id); err != nil {
 		return nil, err
 	}
@@ -283,4 +298,32 @@ func ListSubmissionsForStudent(studentID int) ([]Submission, error) {
                 WHERE student_id = $1
                 ORDER BY created_at DESC`, studentID)
 	return subs, err
+}
+
+func CreateSubmission(s *Submission) error {
+	const q = `
+          INSERT INTO submissions (assignment_id, student_id, code_path)
+          VALUES ($1,$2,$3)
+          RETURNING id, status, created_at, updated_at`
+	return DB.QueryRow(q, s.AssignmentID, s.StudentID, s.CodePath).
+		Scan(&s.ID, &s.Status, &s.CreatedAt, &s.UpdatedAt)
+}
+
+func CreateTestCase(tc *TestCase) error {
+	const q = `
+          INSERT INTO test_cases (assignment_id, stdin, expected_stdout)
+          VALUES ($1,$2,$3)
+          RETURNING id, created_at, updated_at`
+	return DB.QueryRow(q, tc.AssignmentID, tc.Stdin, tc.ExpectedStdout).
+		Scan(&tc.ID, &tc.CreatedAt, &tc.UpdatedAt)
+}
+
+func ListTestCases(assignmentID int) ([]TestCase, error) {
+	var list []TestCase
+	err := DB.Select(&list, `
+                SELECT id, assignment_id, stdin, expected_stdout, created_at, updated_at
+                  FROM test_cases
+                 WHERE assignment_id = $1
+                 ORDER BY id`, assignmentID)
+	return list, err
 }

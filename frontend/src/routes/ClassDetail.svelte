@@ -16,6 +16,8 @@
   let allStudents:any[] = []
   let selectedIDs:number[] = []
   let aTitle='', aDesc='', aDeadline=''
+  let aPoints=100
+  let aPolicy='all_or_nothing'
   let err = ''
 
   /* keep the id handy for the add/remove helpers */
@@ -67,10 +69,14 @@
         body:JSON.stringify({
           title:aTitle,
           description:aDesc,
-          deadline:new Date(aDeadline).toISOString()
+          deadline:new Date(aDeadline).toISOString(),
+          max_points:Number(aPoints),
+          grading_policy:aPolicy
         })
       })
       aTitle=aDesc=aDeadline=''
+      aPoints=100
+      aPolicy='all_or_nothing'
       await load()
     } catch(e:any){ err=e.message }
   }
@@ -124,7 +130,7 @@
   <ul>
     {#each assignments as a}
       <li>
-        <strong>{a.title}</strong>
+        <strong><a href={`#/assignments/${a.id}`}>{a.title}</a></strong>
         &nbsp;·&nbsp;
         <span style="color:{new Date(a.deadline)<new Date() ? 'red' : 'inherit'}">
           due {new Date(a.deadline).toLocaleString()}
@@ -132,7 +138,7 @@
         {#if role === 'teacher' || role === 'admin'}
           &nbsp;<button on:click={()=>deleteAssignment(a.id)}>✕</button>
         {/if}
-        <p>{a.description}</p>
+        <p>{a.description} (max {a.max_points} pts, {a.grading_policy})</p>
       </li>
     {/each}
     {#if !assignments.length}<i>No assignments yet</i>{/if}
@@ -144,6 +150,14 @@
       <input placeholder="Title" bind:value={aTitle} required>
       <br>
       <textarea placeholder="Description" bind:value={aDesc} required></textarea>
+      <br>
+      <input type="number" min="1" bind:value={aPoints} placeholder="Max points" required>
+      <br>
+      <select bind:value={aPolicy}>
+        <option value="all_or_nothing">all_or_nothing</option>
+        <option value="percentage">percentage</option>
+        <option value="weighted">weighted</option>
+      </select>
       <br>
       <input type="datetime-local" bind:value={aDeadline} required>
       <br>

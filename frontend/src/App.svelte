@@ -11,6 +11,7 @@
   import TeacherCls from './routes/TeacherClasses.svelte'
   import ClassPage  from './routes/ClassDetail.svelte'
   import MyClasses  from './routes/MyClasses.svelte'
+  import AssignmentPage from './routes/AssignmentDetail.svelte'
 
   const isAuth   = () => !!get(auth)?.token
   const hasRole  = (role: string) => () => get(auth)?.role === role
@@ -27,6 +28,7 @@
     '/classes':   wrap({ component: TeacherCls,   conditions:[isAuth, hasRole('teacher')], userData:{redirect:'/login'} }),
     '/my-classes':wrap({ component: MyClasses,    conditions:[isAuth],                     userData:{redirect:'/login'} }),
     '/classes/:id': wrap({ component: ClassPage,  conditions:[isAuth],                     userData:{redirect:'/login'} }),
+    '/assignments/:id': wrap({ component: AssignmentPage, conditions:[isAuth], userData:{redirect:'/login'} }),
 
     '*': Login
   }

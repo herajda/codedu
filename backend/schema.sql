@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS assignments (
   description TEXT NOT NULL,
   created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   deadline TIMESTAMPTZ NOT NULL,
+  max_points INTEGER NOT NULL DEFAULT 100,
+  grading_policy TEXT NOT NULL DEFAULT 'all_or_nothing' CHECK (grading_policy IN ('all_or_nothing','percentage','weighted')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE
