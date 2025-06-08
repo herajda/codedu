@@ -39,7 +39,7 @@
       await apiFetch(`/api/assignments/${params.id}/tests`,{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({stdin:tStdin, expected_stdout:tStdout, time_limit_ms: parseInt(tLimit) || undefined})
+        body:JSON.stringify({stdin:tStdin, expected_stdout:tStdout, time_limit_sec: parseFloat(tLimit) || undefined})
       })
       tStdin=tStdout=tLimit=''
       await load()
@@ -78,7 +78,7 @@
     <h2>Tests</h2>
     <ul>
       {#each tests ?? [] as t, i}
-        <li><pre>Test {i + 1}</pre> <pre>{t.stdin}</pre>→<pre>{t.expected_stdout}</pre> <span>({t.time_limit_ms} ms)</span></li>
+        <li><pre>Test {i + 1}</pre> <pre>{t.stdin}</pre>→<pre>{t.expected_stdout}</pre> <span>({t.time_limit_sec} s)</span></li>
       {/each}
       {#if !(tests && tests.length)}<i>No tests</i>{/if}
     </ul>
@@ -103,7 +103,7 @@
     <br>
     <input placeholder="expected stdout" bind:value={tStdout}>
     <br>
-    <input placeholder="time limit (ms)" bind:value={tLimit}>
+    <input placeholder="time limit (s)" bind:value={tLimit}>
     <br>
     <button on:click={addTest}>Add</button>
   {/if}
