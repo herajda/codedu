@@ -4,6 +4,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -12,10 +13,14 @@ import (
 
 // seed a single admin so you’re never locked out
 func ensureAdmin() {
-	const (
-		email    = "admin@example.com"
+	email := os.Getenv("ADMIN_EMAIL")
+	if email == "" {
+		email = "admin@example.com"
+	}
+	password := os.Getenv("ADMIN_PASSWORD")
+	if password == "" {
 		password = "admin123"
-	)
+	}
 	var exists bool
 	if err := DB.Get(&exists,
 		`SELECT EXISTS(SELECT 1 FROM users WHERE email=$1)`, email); err != nil {
@@ -81,7 +86,7 @@ func main() {
 		api.POST("/classes", RoleGuard("teacher"), createClass)
 
 		// Assignments now tied to class
-		api.POST("/classes/:id/assignments", RoleGuard("teacher"), createAssignment) // keep old handler but pass class id
+		api.POST("/classes/:id/assignments", RoleGuard("teacher", "admin"), createAssignment) 
 
 		// User deletion (admin)
 		api.DELETE("/users/:id", RoleGuard("admin"), deleteUser)
@@ -94,8 +99,8 @@ func main() {
 
 	}
 
-        log.Println("🚀 Server running on http://localhost:22946")
-        if err := r.Run(":22946"); err != nil {
-                log.Fatalf("could not start server: %v", err)
-        }
+	log.Println("🚀 Server running on http://localhost:22946")
+	if err := r.Run(":22946"); err != nil {
+		log.Fatalf("could not start server: %v", err)
+	}
 }

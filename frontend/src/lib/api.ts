@@ -4,7 +4,8 @@ export async function apiFetch(
   input: RequestInfo,
   init: RequestInit = {}
 ) {
-  const token = localStorage.getItem('jwt')
+  const token =
+    localStorage.getItem('jwt') || get(auth)?.token || undefined
   const headers = new Headers(init.headers)
   if (token) {
     headers.set('Authorization', `Bearer ${token}`)
