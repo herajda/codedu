@@ -77,9 +77,6 @@
         <li>
           <a href={`#/submissions/${s.id}`}>{new Date(s.created_at).toLocaleString()}</a>
           &nbsp;– {s.status}
-          {#if s.failure_reason}
-            &nbsp;({s.failure_reason})
-          {/if}
         </li>
       {/each}
       {#if !submissions.length}<i>No submissions yet</i>{/if}
