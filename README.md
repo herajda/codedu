@@ -90,10 +90,12 @@ Grading behavior is defined per assignment and supports:
 The system is fully Dockerized for simple setup using `docker-compose`.
 
 ### Environment Variables
-The backend expects two variables to be set (usually via a `.env` file):
+The backend expects several variables to be set (usually via a `.env` file):
 
 - `DATABASE_URL` – PostgreSQL connection string
 - `JWT_SECRET` – secret used to sign authentication tokens
+- `ADMIN_EMAIL` – email for the seeded administrator account
+- `ADMIN_PASSWORD` – password for the seeded administrator account
 
 You can copy `backend/.env.example` and adjust it for your environment.
 
