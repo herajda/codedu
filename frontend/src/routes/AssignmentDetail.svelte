@@ -9,7 +9,7 @@
   const role = get(auth)?.role!
 
   let assignment:any=null
-  let tests:any[]=[]
+  let tests:any[]=[] // ensure tests is always an array
   let err=''
   let tStdin='', tStdout=''
   let file:File|null=null
@@ -19,7 +19,7 @@
     try{
       const data = await apiJSON(`/api/assignments/${params.id}`)
       assignment = data.assignment
-      tests = data.tests
+      tests = data.tests ?? [] // fallback to [] if data.tests is null/undefined
     }catch(e:any){ err=e.message }
   }
 
@@ -60,10 +60,10 @@
 
   <h2>Tests</h2>
   <ul>
-    {#each tests as t}
+    {#each tests ?? [] as t}
       <li><pre>{t.stdin}</pre>→<pre>{t.expected_stdout}</pre></li>
     {/each}
-    {#if !tests.length}<i>No tests</i>{/if}
+    {#if !(tests && tests.length)}<i>No tests</i>{/if}
   </ul>
 
   {#if role==='teacher' || role==='admin'}

@@ -55,3 +55,7 @@ tmp/
 *.pgsql
 *.dump
 *.db
+
+# ---------------------
+# Temporary files 
+uploads/

@@ -16,13 +16,13 @@
     async function create() {
       err=''
       try {
-        const c:Class = await apiJSON('/api/classes',{
+        await apiJSON('/api/classes',{
           method:'POST',
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({name})
         })
-        classes=[c,...classes]
         name=''
+        await load() // Reload the class list after creation
       } catch(e:any){ err=e.message }
     }
   
@@ -31,6 +31,9 @@
   
   <h1>Your classes</h1>
   
+  {#if !classes.length}
+    <p>No classes yet.</p>
+  {/if}
   <ul>
     {#each classes as c}
       <li>
@@ -41,7 +44,6 @@
         </button>
       </li>
     {/each}
-    {#if !classes.length}<p>No classes yet.</p>{/if}
   </ul>
   
   <h2>Create new class</h2>
@@ -50,4 +52,3 @@
     <button>Create</button>
   </form>
   {#if err}<p style="color:red">{err}</p>{/if}
-  
