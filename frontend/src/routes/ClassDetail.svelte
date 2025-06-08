@@ -5,7 +5,7 @@
   import { apiFetch, apiJSON } from '../lib/api'
 
   /* ───────────────────────── route param comes in as a PROP */
-  export let id: string            // ←  “5”, “7”, …
+  export let params: { id: string } = { id:'' } // ← { id:"5" }, { id:"7" }, …
 
   const role = get(auth)?.role!
 
@@ -19,7 +19,7 @@
   let err = ''
 
   /* keep the id handy for the add/remove helpers */
-  let currentId = id
+  let currentId = params.id
 
   /* ───────────────────────── data fetcher */
   async function load() {
