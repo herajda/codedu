@@ -64,18 +64,26 @@ func runSubmission(id int) {
 
 func executePython(path, stdin string, timeout time.Duration) (string, string, time.Duration) {
 	abs, _ := filepath.Abs(path)
+	fmt.Printf("[worker] Running: %s with timeout %v\n", abs, timeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", "-i", "-v", fmt.Sprintf("%s:/code/main.py:ro", abs), "python:3.11", "python", "/code/main.py")
 	cmd.Stdin = strings.NewReader(stdin)
+	fmt.Printf("[worker] Executing docker command for submission. Stdin: %q\n", stdin)
+	start := time.Now()
 	out, err := cmd.CombinedOutput()
+	elapsed := time.Since(start)
+	fmt.Printf("[worker] Docker finished in %v. Output:\n%s\n", elapsed, string(out))
 
 	if ctx.Err() == context.DeadlineExceeded {
+		fmt.Println("[worker] Time limit exceeded")
 		return "time_limit_exceeded", string(out), timeout
 	}
 	if err != nil {
+		fmt.Printf("[worker] Error: %v\n", err)
 		return "wrong_output", string(out), timeout
 	}
+	fmt.Println("[worker] Test passed")
 	return "passed", string(out), timeout
 }
