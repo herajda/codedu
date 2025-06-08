@@ -22,7 +22,7 @@ func getClass(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	detail, err := GetClassDetail(id)
+	detail, err := GetClassDetail(id, c.GetString("role"))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
@@ -117,6 +117,7 @@ func createAssignment(c *gin.Context) {
 		Deadline:      req.Deadline,
 		MaxPoints:     req.MaxPoints,
 		GradingPolicy: req.GradingPolicy,
+		Published:     false,
 		CreatedBy:     c.GetInt("userID"),
 	}
 	if err := CreateAssignment(a); err != nil {
@@ -128,7 +129,7 @@ func createAssignment(c *gin.Context) {
 
 // listAssignments: GET /api/assignments
 func listAssignments(c *gin.Context) {
-	list, err := ListAssignments()
+	list, err := ListAssignments(c.GetString("role"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not list"})
 		return
@@ -149,6 +150,10 @@ func getAssignment(c *gin.Context) {
 		return
 	}
 	if c.GetString("role") == "student" {
+		if !a.Published {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
 		subs, _ := ListSubmissionsForAssignmentAndStudent(id, c.GetInt("userID"))
 		c.JSON(http.StatusOK, gin.H{"assignment": a, "submissions": subs})
 		return
@@ -201,6 +206,20 @@ func deleteAssignment(c *gin.Context) {
 	}
 	if err := DeleteAssignment(id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not delete"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// publishAssignment: PUT /api/assignments/:id/publish
+func publishAssignment(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if err := SetAssignmentPublished(id, true); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
 	c.Status(http.StatusNoContent)

@@ -21,6 +21,7 @@ type Assignment struct {
 	Deadline      time.Time `db:"deadline" json:"deadline"`
 	MaxPoints     int       `db:"max_points" json:"max_points"`
 	GradingPolicy string    `db:"grading_policy" json:"grading_policy"`
+	Published     bool      `db:"published" json:"published"`
 	CreatedAt     time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
 	ClassID       int       `db:"class_id" json:"class_id"`
@@ -98,22 +99,26 @@ func ListAllClasses() ([]Class, error) {
 // ──────────────────────────────────────────────────────────────────────────────
 func CreateAssignment(a *Assignment) error {
 	const q = `
-          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, class_id)
-          VALUES ($1,$2,$3,$4,$5,$6,$7)
+          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, class_id)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
           RETURNING id, created_at, updated_at`
 	return DB.QueryRow(q,
 		a.Title, a.Description, a.CreatedBy, a.Deadline,
-		a.MaxPoints, a.GradingPolicy, a.ClassID,
+		a.MaxPoints, a.GradingPolicy, a.Published, a.ClassID,
 	).Scan(&a.ID, &a.CreatedAt, &a.UpdatedAt)
 }
 
 // ListAssignments returns all assignments.
-func ListAssignments() ([]Assignment, error) {
+func ListAssignments(role string) ([]Assignment, error) {
 	var list []Assignment
-	err := DB.Select(&list, `
-    SELECT id, title, description, created_by, deadline, max_points, grading_policy, created_at, updated_at, class_id
-      FROM assignments
-     ORDER BY created_at DESC`)
+	query := `
+    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, created_at, updated_at, class_id
+      FROM assignments`
+	if role == "student" {
+		query += " WHERE published = true"
+	}
+	query += " ORDER BY created_at DESC"
+	err := DB.Select(&list, query)
 	return list, err
 }
 
@@ -121,7 +126,7 @@ func ListAssignments() ([]Assignment, error) {
 func GetAssignment(id int) (*Assignment, error) {
 	var a Assignment
 	err := DB.Get(&a, `
-    SELECT id, title, description, created_by, deadline, max_points, grading_policy, created_at, updated_at, class_id
+    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, created_at, updated_at, class_id
       FROM assignments
      WHERE id = $1`, id)
 	if err != nil {
@@ -153,6 +158,12 @@ func UpdateAssignment(a *Assignment) error {
 // DeleteAssignment removes an assignment (and cascades test_cases/submissions).
 func DeleteAssignment(id int) error {
 	_, err := DB.Exec(`DELETE FROM assignments WHERE id=$1`, id)
+	return err
+}
+
+// SetAssignmentPublished updates the published flag on an assignment.
+func SetAssignmentPublished(id int, published bool) error {
+	_, err := DB.Exec(`UPDATE assignments SET published=$1, updated_at=now() WHERE id=$2`, published, id)
 	return err
 }
 
@@ -231,7 +242,7 @@ type ClassDetail struct {
 	Assignments []Assignment `json:"assignments"`
 }
 
-func GetClassDetail(id int) (*ClassDetail, error) {
+func GetClassDetail(id int, role string) (*ClassDetail, error) {
 	// 1) Class meta -----------------------------------------------------------
 	var cls Class
 	if err := DB.Get(&cls,
@@ -261,14 +272,17 @@ func GetClassDetail(id int) (*ClassDetail, error) {
 
 	// 4) Assignments (many) ----------------------------------------------------
 	var asg []Assignment
-	if err := DB.Select(&asg, `
+	query := `
                 SELECT id, title, description, created_by, deadline,
-                       max_points, grading_policy,
+                       max_points, grading_policy, published,
                        created_at, updated_at, class_id
                   FROM assignments
-                 WHERE class_id = $1
-                 ORDER BY deadline ASC`,
-		id); err != nil {
+                 WHERE class_id = $1`
+	if role == "student" {
+		query += " AND published = true"
+	}
+	query += " ORDER BY deadline ASC"
+	if err := DB.Select(&asg, query, id); err != nil {
 		return nil, err
 	}
 
