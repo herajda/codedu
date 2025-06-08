@@ -86,7 +86,7 @@ func main() {
 		api.POST("/classes", RoleGuard("teacher"), createClass)
 
 		// Assignments now tied to class
-		api.POST("/classes/:id/assignments", RoleGuard("teacher"), createAssignment) // keep old handler but pass class id
+		api.POST("/classes/:id/assignments", RoleGuard("teacher", "admin"), createAssignment) 
 
 		// User deletion (admin)
 		api.DELETE("/users/:id", RoleGuard("admin"), deleteUser)
