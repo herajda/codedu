@@ -28,8 +28,8 @@
   <pre>{submission.code_content}</pre>
   <h3>Results</h3>
   <ul>
-    {#each results as r}
-      <li>Test {r.test_case_id}: {r.status} ({r.runtime_ms} ms)</li>
+    {#each results as r, i}
+      <li>Test {i + 1}: {r.status} ({r.runtime_ms} ms)</li>
     {/each}
     {#if !results.length}<i>No results yet</i>{/if}
   </ul>

@@ -64,7 +64,7 @@
     <h2>Tests</h2>
     <ul>
       {#each tests ?? [] as t}
-        <li><pre>{t.stdin}</pre>→<pre>{t.expected_stdout}</pre> <span>({t.time_limit_ms} ms)</span></li>
+        <li><pre>{i + 1}</pre>→<pre>{t.expected_stdout}</pre> <span>({t.time_limit_ms} ms)</span></li>
       {/each}
       {#if !(tests && tests.length)}<i>No tests</i>{/if}
     </ul>
