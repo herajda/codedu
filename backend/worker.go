@@ -1,0 +1,81 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"time"
+)
+
+// Job represents a grading task for one submission.
+type Job struct{ SubmissionID int }
+
+var taskQueue chan Job
+
+// StartWorker starts n workers processing the grading queue.
+func StartWorker(n int) {
+	taskQueue = make(chan Job, 100)
+	for i := 0; i < n; i++ {
+		go workerLoop()
+	}
+}
+
+// EnqueueJob enqueues a submission for grading.
+func EnqueueJob(j Job) { taskQueue <- j }
+
+func workerLoop() {
+	for j := range taskQueue {
+		runSubmission(j.SubmissionID)
+	}
+}
+
+func runSubmission(id int) {
+	sub, err := GetSubmission(id)
+	if err != nil {
+		return
+	}
+
+	UpdateSubmissionStatus(id, "running")
+
+	tests, err := ListTestCases(sub.AssignmentID)
+	if err != nil {
+		UpdateSubmissionStatus(id, "failed")
+		return
+	}
+
+	allPass := true
+	for _, tc := range tests {
+		status, out, runtime := executePython(sub.CodePath, tc.Stdin, time.Duration(tc.TimeLimitMS)*time.Millisecond)
+		res := &Result{SubmissionID: id, TestCaseID: tc.ID, Status: status, ActualStdout: out, RuntimeMS: int(runtime.Milliseconds())}
+		CreateResult(res)
+		if status != "passed" {
+			allPass = false
+		}
+	}
+
+	if allPass {
+		UpdateSubmissionStatus(id, "completed")
+	} else {
+		UpdateSubmissionStatus(id, "failed")
+	}
+}
+
+func executePython(path, stdin string, timeout time.Duration) (string, string, time.Duration) {
+	abs, _ := filepath.Abs(path)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", "-i", "-v", fmt.Sprintf("%s:/code/main.py:ro", abs), "python:3.11", "python", "/code/main.py")
+	cmd.Stdin = strings.NewReader(stdin)
+	out, err := cmd.CombinedOutput()
+
+	if ctx.Err() == context.DeadlineExceeded {
+		return "time_limit_exceeded", string(out), timeout
+	}
+	if err != nil {
+		return "wrong_output", string(out), timeout
+	}
+	return "passed", string(out), timeout
+}

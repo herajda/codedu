@@ -42,6 +42,7 @@ func main() {
 	InitDB()
 	InitAuth()
 	ensureAdmin()
+	StartWorker(2)
 
 	// 2) Router
 	r := gin.Default()
