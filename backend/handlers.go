@@ -1,7 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -96,9 +99,11 @@ func createAssignment(c *gin.Context) {
 	}
 
 	var req struct {
-		Title       string    `json:"title" binding:"required"`
-		Description string    `json:"description" binding:"required"`
-		Deadline    time.Time `json:"deadline" binding:"required"`
+		Title         string    `json:"title" binding:"required"`
+		Description   string    `json:"description" binding:"required"`
+		Deadline      time.Time `json:"deadline" binding:"required"`
+		MaxPoints     int       `json:"max_points" binding:"required"`
+		GradingPolicy string    `json:"grading_policy" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -106,11 +111,13 @@ func createAssignment(c *gin.Context) {
 	}
 
 	a := &Assignment{
-		ClassID:     classID, // ← store it in the model
-		Title:       req.Title,
-		Description: req.Description,
-		Deadline:    req.Deadline,
-		CreatedBy:   c.GetInt("userID"),
+		ClassID:       classID,
+		Title:         req.Title,
+		Description:   req.Description,
+		Deadline:      req.Deadline,
+		MaxPoints:     req.MaxPoints,
+		GradingPolicy: req.GradingPolicy,
+		CreatedBy:     c.GetInt("userID"),
 	}
 	if err := CreateAssignment(a); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create assignment"})
@@ -141,7 +148,8 @@ func getAssignment(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-	c.JSON(http.StatusOK, a)
+	tests, _ := ListTestCases(id)
+	c.JSON(http.StatusOK, gin.H{"assignment": a, "tests": tests})
 }
 
 // updateAssignment: PUT /api/assignments/:id
@@ -153,9 +161,11 @@ func updateAssignment(c *gin.Context) {
 	}
 
 	var req struct {
-		Title       string    `json:"title" binding:"required"`
-		Description string    `json:"description" binding:"required"`
-		Deadline    time.Time `json:"deadline" binding:"required"`
+		Title         string    `json:"title" binding:"required"`
+		Description   string    `json:"description" binding:"required"`
+		Deadline      time.Time `json:"deadline" binding:"required"`
+		MaxPoints     int       `json:"max_points" binding:"required"`
+		GradingPolicy string    `json:"grading_policy" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -163,10 +173,12 @@ func updateAssignment(c *gin.Context) {
 	}
 
 	a := &Assignment{
-		ID:          id,
-		Title:       req.Title,
-		Description: req.Description,
-		Deadline:    req.Deadline,
+		ID:            id,
+		Title:         req.Title,
+		Description:   req.Description,
+		Deadline:      req.Deadline,
+		MaxPoints:     req.MaxPoints,
+		GradingPolicy: req.GradingPolicy,
 	}
 	if err := UpdateAssignment(a); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not update"})
@@ -187,6 +199,62 @@ func deleteAssignment(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+// createTestCase: POST /api/assignments/:id/tests
+func createTestCase(c *gin.Context) {
+	aid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var req struct {
+		Stdin          string `json:"stdin" binding:"required"`
+		ExpectedStdout string `json:"expected_stdout" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	tc := &TestCase{
+		AssignmentID:   aid,
+		Stdin:          req.Stdin,
+		ExpectedStdout: req.ExpectedStdout,
+	}
+	if err := CreateTestCase(tc); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusCreated, tc)
+}
+
+// createSubmission: POST /api/assignments/:id/submissions
+func createSubmission(c *gin.Context) {
+	aid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing file"})
+		return
+	}
+	if err := os.MkdirAll("uploads", 0755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "server error"})
+		return
+	}
+	path := fmt.Sprintf("uploads/%d_%d_%s", aid, c.GetInt("userID"), filepath.Base(file.Filename))
+	if err := c.SaveUploadedFile(file, path); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot save"})
+		return
+	}
+	sub := &Submission{AssignmentID: aid, StudentID: c.GetInt("userID"), CodePath: path}
+	if err := CreateSubmission(sub); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusCreated, sub)
 }
 
 // ---- ADMIN adds a teacher ----
