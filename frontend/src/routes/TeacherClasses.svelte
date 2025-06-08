@@ -33,9 +33,12 @@
   
   <ul>
     {#each classes as c}
-      <li on:click={()=>push(`/classes/${c.id}`)}
-          style="cursor:pointer;text-decoration:underline">
-        {c.name} &nbsp; <small>({new Date(c.created_at).toLocaleDateString()})</small>
+      <li>
+        <button
+           on:click={()=>push(`/classes/${c.id}`)}
+           style="background:none;border:none;padding:0;cursor:pointer;text-decoration:underline;color:inherit;font:inherit">
+          {c.name} &nbsp; <small>({new Date(c.created_at).toLocaleDateString()})</small>
+        </button>
       </li>
     {/each}
     {#if !classes.length}<p>No classes yet.</p>{/if}
