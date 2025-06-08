@@ -25,10 +25,9 @@
     err = ''
     try {
       const data = await apiJSON(`/api/classes/${params.id}`)
-      console.log('Received from backend:', data) // Debugging print
       cls        = data
       students   = data.students
-      assignments = [...data.assignments].sort(
+      assignments = [...(data.assignments ?? [])].sort(
         (a,b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
       )
       if (role === 'teacher' || role === 'admin')
