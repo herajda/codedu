@@ -1,6 +1,4 @@
-import { get } from 'svelte/store'
-import type { RequestInit, RequestInfo } from 'node-fetch'
-import { auth } from './auth'
+// RequestInit and RequestInfo are provided by the DOM lib
 
 export async function apiFetch(
   input: RequestInfo,
