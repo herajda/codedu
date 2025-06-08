@@ -11,6 +11,8 @@
   let assignment:any=null
   let tests:any[]=[] // teacher/admin only
   let submissions:any[]=[]
+  let pointsEarned=0
+  let done=false
   let err=''
   let tStdin='', tStdout=''
   let file:File|null=null
@@ -20,7 +22,12 @@
     try{
       const data = await apiJSON(`/api/assignments/${params.id}`)
       assignment = data.assignment
-      if(role==='student') submissions = data.submissions ?? []
+      if(role==='student') {
+        submissions = data.submissions ?? []
+        const completed = submissions.find((s:any)=>s.status==='completed')
+        done = !!completed
+        pointsEarned = completed ? assignment.max_points : 0
+      }
       else tests = data.tests ?? []
     }catch(e:any){ err=e.message }
   }
@@ -47,6 +54,7 @@
       await apiFetch(`/api/assignments/${params.id}/submissions`,{method:'POST', body:fd})
       file=null
       alert('Uploaded!')
+      await load()
     }catch(e:any){ err=e.message }
   }
 </script>
@@ -59,6 +67,12 @@
   <p><strong>Deadline:</strong> {new Date(assignment.deadline).toLocaleString()}</p>
   <p><strong>Max points:</strong> {assignment.max_points}</p>
   <p><strong>Policy:</strong> {assignment.grading_policy}</p>
+  {#if role==='student'}
+    <p><strong>Your points:</strong> {pointsEarned} / {assignment.max_points}</p>
+    {#if done}
+      <p style="color:green"><strong>Assignment done.</strong></p>
+    {/if}
+  {/if}
 
   {#if role !== 'student'}
     <h2>Tests</h2>
