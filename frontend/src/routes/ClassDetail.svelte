@@ -15,7 +15,7 @@
   let assignments:any[] = []
   let allStudents:any[] = []
   let selectedIDs:number[] = []
-  let aTitle='', aDesc='', aDeadline=''
+  let aTitle=''
   let err = ''
 
   /* keep the id handy for the add/remove helpers */
@@ -64,13 +64,9 @@
       await apiFetch(`/api/classes/${params.id}/assignments`,{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-          title:aTitle,
-          description:aDesc,
-          deadline:new Date(aDeadline).toISOString()
-        })
+        body:JSON.stringify({ title:aTitle })
       })
-      aTitle=aDesc=aDeadline=''
+      aTitle=''
       await load()
     } catch(e:any){ err=e.message }
   }
@@ -124,7 +120,10 @@
   <ul>
     {#each assignments as a}
       <li>
-        <strong>{a.title}</strong>
+        <strong><a href={`#/assignments/${a.id}`}>{a.title}</a></strong>
+        {#if !a.published}
+          <em style="color:gray"> (draft)</em>
+        {/if}
         &nbsp;·&nbsp;
         <span style="color:{new Date(a.deadline)<new Date() ? 'red' : 'inherit'}">
           due {new Date(a.deadline).toLocaleString()}
@@ -132,7 +131,7 @@
         {#if role === 'teacher' || role === 'admin'}
           &nbsp;<button on:click={()=>deleteAssignment(a.id)}>✕</button>
         {/if}
-        <p>{a.description}</p>
+        <p>{a.description} (max {a.max_points} pts, {a.grading_policy})</p>
       </li>
     {/each}
     {#if !assignments.length}<i>No assignments yet</i>{/if}
@@ -142,10 +141,6 @@
     <h3>Create assignment</h3>
     <form on:submit|preventDefault={createAssignment}>
       <input placeholder="Title" bind:value={aTitle} required>
-      <br>
-      <textarea placeholder="Description" bind:value={aDesc} required></textarea>
-      <br>
-      <input type="datetime-local" bind:value={aDeadline} required>
       <br>
       <button>Create</button>
     </form>

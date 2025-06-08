@@ -21,6 +21,9 @@ CREATE TABLE IF NOT EXISTS assignments (
   description TEXT NOT NULL,
   created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   deadline TIMESTAMPTZ NOT NULL,
+  max_points INTEGER NOT NULL DEFAULT 100,
+  grading_policy TEXT NOT NULL DEFAULT 'all_or_nothing' CHECK (grading_policy IN ('all_or_nothing','percentage','weighted')),
+  published BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE
@@ -32,7 +35,7 @@ CREATE TABLE IF NOT EXISTS test_cases (
   stdin TEXT NOT NULL,
   expected_stdout TEXT NOT NULL,
   weight NUMERIC NOT NULL DEFAULT 1 CHECK (weight > 0),
-  time_limit_ms INTEGER NOT NULL DEFAULT 1000,
+  time_limit_sec NUMERIC NOT NULL DEFAULT 1.0,
   memory_limit_kb INTEGER NOT NULL DEFAULT 65536,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -49,6 +52,7 @@ CREATE TABLE IF NOT EXISTS submissions (
   assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
   student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   code_path TEXT NOT NULL,
+  code_content TEXT,
   status submission_status NOT NULL DEFAULT 'pending',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()

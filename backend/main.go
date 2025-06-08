@@ -42,6 +42,7 @@ func main() {
 	InitDB()
 	InitAuth()
 	ensureAdmin()
+	StartWorker(2)
 
 	// 2) Router
 	r := gin.Default()
@@ -72,6 +73,11 @@ func main() {
 		api.GET("/assignments/:id", RoleGuard("student", "teacher", "admin"), getAssignment)
 		api.PUT("/assignments/:id", RoleGuard("teacher", "admin"), updateAssignment)
 		api.DELETE("/assignments/:id", RoleGuard("teacher", "admin"), deleteAssignment)
+		api.PUT("/assignments/:id/publish", RoleGuard("teacher", "admin"), publishAssignment)
+                api.POST("/assignments/:id/tests", RoleGuard("teacher", "admin"), createTestCase)
+                api.DELETE("/tests/:id", RoleGuard("teacher", "admin"), deleteTestCase)
+                api.POST("/assignments/:id/submissions", RoleGuard("student"), createSubmission)
+		api.GET("/submissions/:id", RoleGuard("student", "teacher", "admin"), getSubmission)
 		// TEACHER / STUDENT common
 		api.GET("/classes", RoleGuard("teacher", "student"), myClasses)
 		api.POST("/classes/:id/students", RoleGuard("teacher", "admin"), addStudents)
@@ -86,7 +92,7 @@ func main() {
 		api.POST("/classes", RoleGuard("teacher"), createClass)
 
 		// Assignments now tied to class
-		api.POST("/classes/:id/assignments", RoleGuard("teacher", "admin"), createAssignment) 
+		api.POST("/classes/:id/assignments", RoleGuard("teacher", "admin"), createAssignment)
 
 		// User deletion (admin)
 		api.DELETE("/users/:id", RoleGuard("admin"), deleteUser)

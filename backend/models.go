@@ -14,14 +14,17 @@ type User struct {
 }
 
 type Assignment struct {
-	ID          int       `db:"id" json:"id"`
-	Title       string    `db:"title" json:"title"`
-	Description string    `db:"description" json:"description"`
-	CreatedBy   int       `db:"created_by" json:"created_by"`
-	Deadline    time.Time `db:"deadline" json:"deadline"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-	ClassID     int       `db:"class_id" json:"class_id"`
+	ID            int       `db:"id" json:"id"`
+	Title         string    `db:"title" json:"title"`
+	Description   string    `db:"description" json:"description"`
+	CreatedBy     int       `db:"created_by" json:"created_by"`
+	Deadline      time.Time `db:"deadline" json:"deadline"`
+	MaxPoints     int       `db:"max_points" json:"max_points"`
+	GradingPolicy string    `db:"grading_policy" json:"grading_policy"`
+	Published     bool      `db:"published" json:"published"`
+	CreatedAt     time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
+	ClassID       int       `db:"class_id" json:"class_id"`
 }
 type Class struct {
 	ID        int       `db:"id"        json:"id"`
@@ -36,9 +39,21 @@ type Submission struct {
 	AssignmentID int       `db:"assignment_id" json:"assignment_id"`
 	StudentID    int       `db:"student_id" json:"student_id"`
 	CodePath     string    `db:"code_path" json:"code_path"`
+	CodeContent  string    `db:"code_content" json:"code_content"`
 	Status       string    `db:"status" json:"status"`
 	CreatedAt    time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
+}
+
+type TestCase struct {
+	ID             int       `db:"id" json:"id"`
+	AssignmentID   int       `db:"assignment_id" json:"assignment_id"`
+	Stdin          string    `db:"stdin" json:"stdin"`
+	ExpectedStdout string    `db:"expected_stdout" json:"expected_stdout"`
+	TimeLimitSec   float64   `db:"time_limit_sec" json:"time_limit_sec"`
+	MemoryLimitKB  int       `db:"memory_limit_kb" json:"memory_limit_kb"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // ──────────────────────────────────────────────────────
@@ -84,22 +99,26 @@ func ListAllClasses() ([]Class, error) {
 // ──────────────────────────────────────────────────────────────────────────────
 func CreateAssignment(a *Assignment) error {
 	const q = `
-	  INSERT INTO assignments (title, description, created_by, deadline, class_id)
-	  VALUES ($1,$2,$3,$4,$5)
-	  RETURNING id, created_at, updated_at`
+          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, class_id)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+          RETURNING id, created_at, updated_at`
 	return DB.QueryRow(q,
-		a.Title, a.Description, a.CreatedBy, a.Deadline, a.ClassID,
+		a.Title, a.Description, a.CreatedBy, a.Deadline,
+		a.MaxPoints, a.GradingPolicy, a.Published, a.ClassID,
 	).Scan(&a.ID, &a.CreatedAt, &a.UpdatedAt)
 }
 
 // ListAssignments returns all assignments.
-func ListAssignments() ([]Assignment, error) {
+func ListAssignments(role string) ([]Assignment, error) {
 	var list []Assignment
-	err := DB.Select(&list, `
-    SELECT id, title, description, created_by, deadline, created_at, updated_at
-    FROM assignments
-    ORDER BY created_at DESC
-  `)
+	query := `
+    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, created_at, updated_at, class_id
+      FROM assignments`
+	if role == "student" {
+		query += " WHERE published = true"
+	}
+	query += " ORDER BY created_at DESC"
+	err := DB.Select(&list, query)
 	return list, err
 }
 
@@ -107,10 +126,9 @@ func ListAssignments() ([]Assignment, error) {
 func GetAssignment(id int) (*Assignment, error) {
 	var a Assignment
 	err := DB.Get(&a, `
-    SELECT id, title, description, created_by, deadline, created_at, updated_at
-    FROM assignments
-    WHERE id = $1
-  `, id)
+    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, created_at, updated_at, class_id
+      FROM assignments
+     WHERE id = $1`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -121,9 +139,13 @@ func GetAssignment(id int) (*Assignment, error) {
 func UpdateAssignment(a *Assignment) error {
 	res, err := DB.Exec(`
     UPDATE assignments
-    SET title=$1, description=$2, deadline=$3, updated_at=now()
-    WHERE id=$4
-  `, a.Title, a.Description, a.Deadline, a.ID)
+       SET title=$1, description=$2, deadline=$3,
+           max_points=$4, grading_policy=$5,
+           updated_at=now()
+     WHERE id=$6`,
+		a.Title, a.Description, a.Deadline,
+		a.MaxPoints, a.GradingPolicy,
+		a.ID)
 	if err != nil {
 		return err
 	}
@@ -136,6 +158,12 @@ func UpdateAssignment(a *Assignment) error {
 // DeleteAssignment removes an assignment (and cascades test_cases/submissions).
 func DeleteAssignment(id int) error {
 	_, err := DB.Exec(`DELETE FROM assignments WHERE id=$1`, id)
+	return err
+}
+
+// SetAssignmentPublished updates the published flag on an assignment.
+func SetAssignmentPublished(id int, published bool) error {
+	_, err := DB.Exec(`UPDATE assignments SET published=$1, updated_at=now() WHERE id=$2`, published, id)
 	return err
 }
 
@@ -214,7 +242,7 @@ type ClassDetail struct {
 	Assignments []Assignment `json:"assignments"`
 }
 
-func GetClassDetail(id int) (*ClassDetail, error) {
+func GetClassDetail(id int, role string) (*ClassDetail, error) {
 	// 1) Class meta -----------------------------------------------------------
 	var cls Class
 	if err := DB.Get(&cls,
@@ -244,13 +272,17 @@ func GetClassDetail(id int) (*ClassDetail, error) {
 
 	// 4) Assignments (many) ----------------------------------------------------
 	var asg []Assignment
-	if err := DB.Select(&asg, `
-		SELECT id, title, description, created_by, deadline,
-		       created_at, updated_at, class_id
-		  FROM assignments
-		 WHERE class_id = $1
-		 ORDER BY deadline ASC`,
-		id); err != nil {
+	query := `
+                SELECT id, title, description, created_by, deadline,
+                       max_points, grading_policy, published,
+                       created_at, updated_at, class_id
+                  FROM assignments
+                 WHERE class_id = $1`
+	if role == "student" {
+		query += " AND published = true"
+	}
+	query += " ORDER BY deadline ASC"
+	if err := DB.Select(&asg, query, id); err != nil {
 		return nil, err
 	}
 
@@ -278,9 +310,114 @@ func DeleteUser(id int) error {
 func ListSubmissionsForStudent(studentID int) ([]Submission, error) {
 	var subs []Submission
 	err := DB.Select(&subs, `
-               SELECT id, assignment_id, student_id, code_path, status, created_at, updated_at
+               SELECT id, assignment_id, student_id, code_path, code_content, status, created_at, updated_at
                  FROM submissions
                 WHERE student_id = $1
                 ORDER BY created_at DESC`, studentID)
 	return subs, err
+}
+
+func CreateSubmission(s *Submission) error {
+	const q = `
+          INSERT INTO submissions (assignment_id, student_id, code_path, code_content)
+          VALUES ($1,$2,$3,$4)
+          RETURNING id, status, created_at, updated_at`
+	return DB.QueryRow(q, s.AssignmentID, s.StudentID, s.CodePath, s.CodeContent).
+		Scan(&s.ID, &s.Status, &s.CreatedAt, &s.UpdatedAt)
+}
+
+type SubmissionWithReason struct {
+	Submission
+	FailureReason *string `db:"failure_reason" json:"failure_reason,omitempty"`
+}
+
+func ListSubmissionsForAssignmentAndStudent(aid, sid int) ([]SubmissionWithReason, error) {
+	var subs []SubmissionWithReason
+	err := DB.Select(&subs, `
+               SELECT id, assignment_id, student_id, code_path, code_content, status, created_at, updated_at,
+                      (SELECT r.status FROM results r
+                         WHERE r.submission_id = submissions.id AND r.status <> 'passed'
+                         ORDER BY r.id LIMIT 1) AS failure_reason
+                 FROM submissions
+                WHERE assignment_id=$1 AND student_id=$2
+                ORDER BY created_at DESC`, aid, sid)
+	return subs, err
+}
+
+func CreateTestCase(tc *TestCase) error {
+	if tc.TimeLimitSec == 0 {
+		tc.TimeLimitSec = 1
+	}
+	const q = `
+          INSERT INTO test_cases (assignment_id, stdin, expected_stdout, time_limit_sec)
+          VALUES ($1,$2,$3,$4)
+          RETURNING id, time_limit_sec, memory_limit_kb, created_at, updated_at`
+	return DB.QueryRow(q, tc.AssignmentID, tc.Stdin, tc.ExpectedStdout, tc.TimeLimitSec).
+		Scan(&tc.ID, &tc.TimeLimitSec, &tc.MemoryLimitKB, &tc.CreatedAt, &tc.UpdatedAt)
+}
+
+func ListTestCases(assignmentID int) ([]TestCase, error) {
+        var list []TestCase
+        err := DB.Select(&list, `
+                SELECT id, assignment_id, stdin, expected_stdout, time_limit_sec, memory_limit_kb, created_at, updated_at
+                  FROM test_cases
+                 WHERE assignment_id = $1
+                 ORDER BY id`, assignmentID)
+        return list, err
+}
+
+func DeleteTestCase(id int) error {
+        _, err := DB.Exec(`DELETE FROM test_cases WHERE id=$1`, id)
+        return err
+}
+
+// ──────────────────────────────────────────────────────
+// submissions – helpers for grading
+// ──────────────────────────────────────────────────────
+
+// Result represents outcome of one test case execution.
+type Result struct {
+	ID           int       `db:"id" json:"id"`
+	SubmissionID int       `db:"submission_id" json:"submission_id"`
+	TestCaseID   int       `db:"test_case_id" json:"test_case_id"`
+	Status       string    `db:"status" json:"status"`
+	ActualStdout string    `db:"actual_stdout" json:"actual_stdout"`
+	RuntimeMS    int       `db:"runtime_ms" json:"runtime_ms"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+}
+
+func GetSubmission(id int) (*Submission, error) {
+	var s Submission
+	err := DB.Get(&s, `
+        SELECT id, assignment_id, student_id, code_path, code_content, status, created_at, updated_at
+          FROM submissions
+         WHERE id=$1`, id)
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
+func UpdateSubmissionStatus(id int, status string) error {
+	_, err := DB.Exec(`UPDATE submissions SET status=$1, updated_at=now() WHERE id=$2`, status, id)
+	return err
+}
+
+func CreateResult(r *Result) error {
+	const q = `
+        INSERT INTO results (submission_id, test_case_id, status, actual_stdout, runtime_ms)
+        VALUES ($1,$2,$3,$4,$5)
+        RETURNING id, created_at`
+	return DB.QueryRow(q, r.SubmissionID, r.TestCaseID, r.Status, r.ActualStdout, r.RuntimeMS).
+		Scan(&r.ID, &r.CreatedAt)
+}
+
+func ListResultsForSubmission(subID int) ([]Result, error) {
+	var list []Result
+	err := DB.Select(&list, `
+        SELECT id, submission_id, test_case_id, status, actual_stdout, runtime_ms, created_at
+          FROM results
+         WHERE submission_id=$1
+         ORDER BY id`, subID)
+	return list, err
 }

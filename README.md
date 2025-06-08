@@ -104,6 +104,8 @@ You can copy `backend/.env.example` and adjust it for your environment.
 - **backend**: Gin-based Go API
 - **db**: PostgreSQL
 - **worker**: Background task processor for grading
+- Ensure the Docker image `python:3.11` is available locally. If it's missing,
+  pull it once with `docker pull python:3.11`.
 
 ---
 
@@ -131,6 +133,8 @@ You can copy `backend/.env.example` and adjust it for your environment.
 
 The current PostgreSQL schema is stored in `backend/schema.sql` and is executed automatically when the backend starts. This eliminates the need for external migration tools during early development.
 
+Each assignment stores a `max_points` value and a `grading_policy`. The policy controls how points are awarded and can be one of `all_or_nothing`, `percentage` or `weighted`.
+
 ---
 
 ## API Notes
@@ -139,6 +143,7 @@ The backend now exposes two additional endpoints:
 
 - `DELETE /api/users/:id` – Admin only. Deletes the specified user and cascades removal of related classes, assignments and submissions. Returns `204` on success.
 - `GET /api/my-submissions` – Student endpoint returning the authenticated user's submissions ordered by creation date.
+- `PUT /api/assignments/:id/publish` – Teacher/admin endpoint to publish an assignment once it's ready.
 
 ---
 
