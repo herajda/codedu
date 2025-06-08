@@ -16,6 +16,8 @@
   let err=''
   let tStdin='', tStdout='', tLimit=''
   let file:File|null=null
+  let editing=false
+  let eTitle='', eDesc='', eDeadline='', ePoints=0, ePolicy='all_or_nothing'
 
   async function publish(){
     try{
@@ -53,6 +55,49 @@
     }catch(e:any){ err=e.message }
   }
 
+  function startEdit(){
+    editing=true
+    eTitle=assignment.title
+    eDesc=assignment.description
+    eDeadline=assignment.deadline.slice(0,16)
+    ePoints=assignment.max_points
+    ePolicy=assignment.grading_policy
+  }
+
+  async function saveEdit(){
+    try{
+      await apiFetch(`/api/assignments/${params.id}`,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          title:eTitle,
+          description:eDesc,
+          deadline:new Date(eDeadline).toISOString(),
+          max_points:Number(ePoints),
+          grading_policy:ePolicy
+        })
+      })
+      editing=false
+      await load()
+    }catch(e:any){ err=e.message }
+  }
+
+  async function delAssignment(){
+    if(!confirm('Delete this assignment?')) return
+    try{
+      await apiFetch(`/api/assignments/${params.id}`,{method:'DELETE'})
+      window.location.hash=`#/classes/${assignment.class_id}`
+    }catch(e:any){ err=e.message }
+  }
+
+  async function delTest(tid:number){
+    if(!confirm('Delete this test?')) return
+    try{
+      await apiFetch(`/api/tests/${tid}`,{method:'DELETE'})
+      await load()
+    }catch(e:any){ err=e.message }
+  }
+
   async function submit(){
     if(!file) return
     const fd = new FormData()
@@ -69,11 +114,35 @@
 {#if !assignment}
   <p>Loading…</p>
 {:else}
-  <h1>{assignment.title}</h1>
-  <p>{assignment.description}</p>
-  <p><strong>Deadline:</strong> {new Date(assignment.deadline).toLocaleString()}</p>
-  <p><strong>Max points:</strong> {assignment.max_points}</p>
-  <p><strong>Policy:</strong> {assignment.grading_policy}</p>
+  {#if editing}
+    <h1>Edit assignment</h1>
+    <input bind:value={eTitle} placeholder="Title" required>
+    <br>
+    <textarea bind:value={eDesc} placeholder="Description" required></textarea>
+    <br>
+    <input type="number" min="1" bind:value={ePoints} placeholder="Max points" required>
+    <br>
+    <select bind:value={ePolicy}>
+      <option value="all_or_nothing">all_or_nothing</option>
+      <option value="percentage">percentage</option>
+      <option value="weighted">weighted</option>
+    </select>
+    <br>
+    <input type="datetime-local" bind:value={eDeadline} required>
+    <br>
+    <button on:click={saveEdit}>Save</button>
+    <button on:click={()=>editing=false}>Cancel</button>
+  {:else}
+    <h1>{assignment.title}</h1>
+    <p>{assignment.description}</p>
+    <p><strong>Deadline:</strong> {new Date(assignment.deadline).toLocaleString()}</p>
+    <p><strong>Max points:</strong> {assignment.max_points}</p>
+    <p><strong>Policy:</strong> {assignment.grading_policy}</p>
+    {#if role==='teacher' || role==='admin'}
+      <button on:click={startEdit}>Edit</button>
+      <button on:click={delAssignment}>Delete assignment</button>
+    {/if}
+  {/if}
   {#if role==='student'}
     <p><strong>Your points:</strong> {pointsEarned} / {assignment.max_points}</p>
     {#if done}
@@ -85,7 +154,12 @@
     <h2>Tests</h2>
     <ul>
       {#each tests ?? [] as t, i}
-        <li><pre>Test {i + 1}</pre> <pre>{t.stdin}</pre>→<pre>{t.expected_stdout}</pre> <span>({t.time_limit_sec} s)</span></li>
+        <li>
+          <pre>Test {i + 1}</pre> <pre>{t.stdin}</pre>→<pre>{t.expected_stdout}</pre> <span>({t.time_limit_sec} s)</span>
+          {#if role==='teacher' || role==='admin'}
+            <button on:click={()=>delTest(t.id)}>✕</button>
+          {/if}
+        </li>
       {/each}
       {#if !(tests && tests.length)}<i>No tests</i>{/if}
     </ul>
