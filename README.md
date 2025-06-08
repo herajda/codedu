@@ -104,6 +104,8 @@ You can copy `backend/.env.example` and adjust it for your environment.
 - **backend**: Gin-based Go API
 - **db**: PostgreSQL
 - **worker**: Background task processor for grading
+- Ensure the Docker image `python:3.11` is available locally. If it's missing,
+  pull it once with `docker pull python:3.11`.
 
 ---
 
