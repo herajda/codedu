@@ -331,11 +331,14 @@ func ListSubmissionsForAssignmentAndStudent(aid, sid int) ([]SubmissionWithReaso
 }
 
 func CreateTestCase(tc *TestCase) error {
+	if tc.TimeLimitMS == 0 {
+		tc.TimeLimitMS = 1000
+	}
 	const q = `
-          INSERT INTO test_cases (assignment_id, stdin, expected_stdout)
-          VALUES ($1,$2,$3)
+          INSERT INTO test_cases (assignment_id, stdin, expected_stdout, time_limit_ms)
+          VALUES ($1,$2,$3,$4)
           RETURNING id, time_limit_ms, memory_limit_kb, created_at, updated_at`
-	return DB.QueryRow(q, tc.AssignmentID, tc.Stdin, tc.ExpectedStdout).
+	return DB.QueryRow(q, tc.AssignmentID, tc.Stdin, tc.ExpectedStdout, tc.TimeLimitMS).
 		Scan(&tc.ID, &tc.TimeLimitMS, &tc.MemoryLimitKB, &tc.CreatedAt, &tc.UpdatedAt)
 }
 
