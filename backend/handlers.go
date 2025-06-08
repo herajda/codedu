@@ -148,6 +148,11 @@ func getAssignment(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
+	if c.GetString("role") == "student" {
+		subs, _ := ListSubmissionsForAssignmentAndStudent(id, c.GetInt("userID"))
+		c.JSON(http.StatusOK, gin.H{"assignment": a, "submissions": subs})
+		return
+	}
 	tests, _ := ListTestCases(id)
 	c.JSON(http.StatusOK, gin.H{"assignment": a, "tests": tests})
 }
@@ -249,7 +254,13 @@ func createSubmission(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot save"})
 		return
 	}
-	sub := &Submission{AssignmentID: aid, StudentID: c.GetInt("userID"), CodePath: path}
+	content, _ := os.ReadFile(path)
+	sub := &Submission{
+		AssignmentID: aid,
+		StudentID:    c.GetInt("userID"),
+		CodePath:     path,
+		CodeContent:  string(content),
+	}
 	if err := CreateSubmission(sub); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return

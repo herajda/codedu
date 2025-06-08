@@ -38,6 +38,7 @@ type Submission struct {
 	AssignmentID int       `db:"assignment_id" json:"assignment_id"`
 	StudentID    int       `db:"student_id" json:"student_id"`
 	CodePath     string    `db:"code_path" json:"code_path"`
+	CodeContent  string    `db:"code_content" json:"code_content"`
 	Status       string    `db:"status" json:"status"`
 	CreatedAt    time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
@@ -293,7 +294,7 @@ func DeleteUser(id int) error {
 func ListSubmissionsForStudent(studentID int) ([]Submission, error) {
 	var subs []Submission
 	err := DB.Select(&subs, `
-               SELECT id, assignment_id, student_id, code_path, status, created_at, updated_at
+               SELECT id, assignment_id, student_id, code_path, code_content, status, created_at, updated_at
                  FROM submissions
                 WHERE student_id = $1
                 ORDER BY created_at DESC`, studentID)
@@ -302,11 +303,21 @@ func ListSubmissionsForStudent(studentID int) ([]Submission, error) {
 
 func CreateSubmission(s *Submission) error {
 	const q = `
-          INSERT INTO submissions (assignment_id, student_id, code_path)
-          VALUES ($1,$2,$3)
+          INSERT INTO submissions (assignment_id, student_id, code_path, code_content)
+          VALUES ($1,$2,$3,$4)
           RETURNING id, status, created_at, updated_at`
-	return DB.QueryRow(q, s.AssignmentID, s.StudentID, s.CodePath).
+	return DB.QueryRow(q, s.AssignmentID, s.StudentID, s.CodePath, s.CodeContent).
 		Scan(&s.ID, &s.Status, &s.CreatedAt, &s.UpdatedAt)
+}
+
+func ListSubmissionsForAssignmentAndStudent(aid, sid int) ([]Submission, error) {
+	var subs []Submission
+	err := DB.Select(&subs, `
+               SELECT id, assignment_id, student_id, code_path, code_content, status, created_at, updated_at
+                 FROM submissions
+                WHERE assignment_id=$1 AND student_id=$2
+                ORDER BY created_at DESC`, aid, sid)
+	return subs, err
 }
 
 func CreateTestCase(tc *TestCase) error {
