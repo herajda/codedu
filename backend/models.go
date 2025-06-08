@@ -357,13 +357,18 @@ func CreateTestCase(tc *TestCase) error {
 }
 
 func ListTestCases(assignmentID int) ([]TestCase, error) {
-	var list []TestCase
-	err := DB.Select(&list, `
+        var list []TestCase
+        err := DB.Select(&list, `
                 SELECT id, assignment_id, stdin, expected_stdout, time_limit_sec, memory_limit_kb, created_at, updated_at
                   FROM test_cases
                  WHERE assignment_id = $1
                  ORDER BY id`, assignmentID)
-	return list, err
+        return list, err
+}
+
+func DeleteTestCase(id int) error {
+        _, err := DB.Exec(`DELETE FROM test_cases WHERE id=$1`, id)
+        return err
 }
 
 // ──────────────────────────────────────────────────────

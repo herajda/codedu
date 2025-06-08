@@ -15,9 +15,7 @@
   let assignments:any[] = []
   let allStudents:any[] = []
   let selectedIDs:number[] = []
-  let aTitle='', aDesc='', aDeadline=''
-  let aPoints=100
-  let aPolicy='all_or_nothing'
+  let aTitle=''
   let err = ''
 
   /* keep the id handy for the add/remove helpers */
@@ -66,17 +64,9 @@
       await apiFetch(`/api/classes/${params.id}/assignments`,{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-          title:aTitle,
-          description:aDesc,
-          deadline:new Date(aDeadline).toISOString(),
-          max_points:Number(aPoints),
-          grading_policy:aPolicy
-        })
+        body:JSON.stringify({ title:aTitle })
       })
-      aTitle=aDesc=aDeadline=''
-      aPoints=100
-      aPolicy='all_or_nothing'
+      aTitle=''
       await load()
     } catch(e:any){ err=e.message }
   }
@@ -151,18 +141,6 @@
     <h3>Create assignment</h3>
     <form on:submit|preventDefault={createAssignment}>
       <input placeholder="Title" bind:value={aTitle} required>
-      <br>
-      <textarea placeholder="Description" bind:value={aDesc} required></textarea>
-      <br>
-      <input type="number" min="1" bind:value={aPoints} placeholder="Max points" required>
-      <br>
-      <select bind:value={aPolicy}>
-        <option value="all_or_nothing">all_or_nothing</option>
-        <option value="percentage">percentage</option>
-        <option value="weighted">weighted</option>
-      </select>
-      <br>
-      <input type="datetime-local" bind:value={aDeadline} required>
       <br>
       <button>Create</button>
     </form>

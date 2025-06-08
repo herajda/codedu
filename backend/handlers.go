@@ -98,28 +98,24 @@ func createAssignment(c *gin.Context) {
 		return
 	}
 
-	var req struct {
-		Title         string    `json:"title" binding:"required"`
-		Description   string    `json:"description" binding:"required"`
-		Deadline      time.Time `json:"deadline" binding:"required"`
-		MaxPoints     int       `json:"max_points" binding:"required"`
-		GradingPolicy string    `json:"grading_policy" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+        var req struct {
+                Title string `json:"title" binding:"required"`
+        }
+        if err := c.ShouldBindJSON(&req); err != nil {
+                c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+                return
+        }
 
-	a := &Assignment{
-		ClassID:       classID,
-		Title:         req.Title,
-		Description:   req.Description,
-		Deadline:      req.Deadline,
-		MaxPoints:     req.MaxPoints,
-		GradingPolicy: req.GradingPolicy,
-		Published:     false,
-		CreatedBy:     c.GetInt("userID"),
-	}
+        a := &Assignment{
+                ClassID:       classID,
+                Title:         req.Title,
+                Description:   "",
+                Deadline:      time.Now().Add(24 * time.Hour),
+                MaxPoints:     100,
+                GradingPolicy: "all_or_nothing",
+                Published:     false,
+                CreatedBy:     c.GetInt("userID"),
+        }
 	if err := CreateAssignment(a); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create assignment"})
 		return
@@ -252,6 +248,20 @@ func createTestCase(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, tc)
+}
+
+// deleteTestCase: DELETE /api/tests/:id
+func deleteTestCase(c *gin.Context) {
+        id, err := strconv.Atoi(c.Param("id"))
+        if err != nil {
+                c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+                return
+        }
+        if err := DeleteTestCase(id); err != nil {
+                c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+                return
+        }
+        c.Status(http.StatusNoContent)
 }
 
 // createSubmission: POST /api/assignments/:id/submissions
