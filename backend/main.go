@@ -94,8 +94,8 @@ func main() {
 
 	}
 
-	log.Println("🚀 Server running on http://localhost:8080")
-	if err := r.Run(":8080"); err != nil {
-		log.Fatalf("could not start server: %v", err)
-	}
+        log.Println("🚀 Server running on http://localhost:22946")
+        if err := r.Run(":22946"); err != nil {
+                log.Fatalf("could not start server: %v", err)
+        }
 }
