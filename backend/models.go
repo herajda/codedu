@@ -312,10 +312,18 @@ func CreateSubmission(s *Submission) error {
 		Scan(&s.ID, &s.Status, &s.CreatedAt, &s.UpdatedAt)
 }
 
-func ListSubmissionsForAssignmentAndStudent(aid, sid int) ([]Submission, error) {
-	var subs []Submission
+type SubmissionWithReason struct {
+	Submission
+	FailureReason *string `db:"failure_reason" json:"failure_reason,omitempty"`
+}
+
+func ListSubmissionsForAssignmentAndStudent(aid, sid int) ([]SubmissionWithReason, error) {
+	var subs []SubmissionWithReason
 	err := DB.Select(&subs, `
-               SELECT id, assignment_id, student_id, code_path, code_content, status, created_at, updated_at
+               SELECT id, assignment_id, student_id, code_path, code_content, status, created_at, updated_at,
+                      (SELECT r.status FROM results r
+                         WHERE r.submission_id = submissions.id AND r.status <> 'passed'
+                         ORDER BY r.id LIMIT 1) AS failure_reason
                  FROM submissions
                 WHERE assignment_id=$1 AND student_id=$2
                 ORDER BY created_at DESC`, aid, sid)
