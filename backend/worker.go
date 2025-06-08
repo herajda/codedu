@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -48,6 +49,20 @@ func runSubmission(id int) {
 
 	UpdateSubmissionStatus(id, "running")
 
+	// Recreate the submitted file from the stored code content. This
+	// avoids relying on the original path which may have been overwritten.
+	tmpDir, err := os.MkdirTemp("", "grader-")
+	if err != nil {
+		UpdateSubmissionStatus(id, "failed")
+		return
+	}
+	defer os.RemoveAll(tmpDir)
+	codePath := filepath.Join(tmpDir, "main.py")
+	if err := os.WriteFile(codePath, []byte(sub.CodeContent), 0644); err != nil {
+		UpdateSubmissionStatus(id, "failed")
+		return
+	}
+
 	tests, err := ListTestCases(sub.AssignmentID)
 	if err != nil {
 		UpdateSubmissionStatus(id, "failed")
@@ -56,7 +71,7 @@ func runSubmission(id int) {
 
 	allPass := true
 	for _, tc := range tests {
-		out, err, timedOut, runtime := executePython(sub.CodePath, tc.Stdin, time.Duration(tc.TimeLimitMS)*time.Millisecond)
+		out, err, timedOut, runtime := executePython(codePath, tc.Stdin, time.Duration(tc.TimeLimitMS)*time.Millisecond)
 
 		status := "passed"
 		switch {
