@@ -17,8 +17,6 @@ Thumbs.db
 /backend/coverage.out
 /backend/*.test
 /backend/.env
-/backend/go.sum
-/backend/go.mod
 /backend/pkg/
 /backend/vendor/
 /backend/*.exe
