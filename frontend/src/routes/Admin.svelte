@@ -3,7 +3,7 @@
   import { apiFetch, apiJSON } from '../lib/api'
 
   // ───────────────────────────────────────── tabs
-  let tab:'teachers'|'users'|'classes' = 'teachers'
+  let tab:'teachers'|'users'|'classes'|'bakalari' = 'teachers'
 
   // ──────────────────────────── 1) add-teacher form
   let email='', password=''
@@ -43,10 +43,63 @@
   let classes:Class[]=[]
   async function loadClasses(){ classes = await apiJSON('/api/classes/all') }
 
+  // ──────────────────────────── 4) Bakalari integration
+  let bakalariURL = ''
+  let bakOk='', bakErr=''
+  let bakUser='', bakPass=''
+  let importMsg='', importErr=''
+  let importTeachMsg='', importTeachErr=''
+
+  async function loadBakalariURL(){
+    try {
+      const r = await apiFetch('/api/bakalari/url')
+      if (r.ok) {
+        bakalariURL = (await r.json()).url
+      }
+    } catch {}
+  }
+
+  async function saveBakalariURL(){
+    bakOk=bakErr=''
+    try{
+      await apiFetch('/api/bakalari/url',{
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({url:bakalariURL})
+      })
+      bakOk='Saved ✔'
+    }catch(e:any){ bakErr=e.message }
+  }
+
+  async function importStudentsBak(){
+    importMsg=importErr=''
+    try{
+      const r = await apiJSON<{imported:number}>('/api/bakalari/import',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({username:bakUser,password:bakPass})
+      })
+      importMsg=`Imported ${r.imported} students`
+    }catch(e:any){ importErr=e.message }
+  }
+
+  async function importTeachersBak(){
+    importTeachMsg=importTeachErr=''
+    try{
+      const r = await apiJSON<{imported:number}>('/api/bakalari/import-teachers',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({username:bakUser,password:bakPass})
+      })
+      importTeachMsg=`Imported ${r.imported} teachers`
+    }catch(e:any){ importTeachErr=e.message }
+  }
+
   // load everything once
   onMount(()=>{
     loadUsers()
     loadClasses()
+    loadBakalariURL()
   })
 </script>
 
@@ -56,6 +109,7 @@
   <button on:click={()=>tab='teachers'} class:active={tab==='teachers'}>Teachers</button>
   <button on:click={()=>tab='users'}    class:active={tab==='users'}   >Users</button>
   <button on:click={()=>tab='classes'}  class:active={tab==='classes'} >Classes</button>
+  <button on:click={()=>tab='bakalari'} class:active={tab==='bakalari'}>Bakalari</button>
 </nav>
 
 {#if tab==='teachers'}
@@ -109,6 +163,28 @@
       {/each}
     </tbody>
   </table>
+{/if}
+
+{#if tab==='bakalari'}
+  <h2>Bakalari settings</h2>
+  <form on:submit|preventDefault={saveBakalariURL}>
+    <input placeholder="Bakalari URL" bind:value={bakalariURL} required />
+    <button>Save</button>
+  </form>
+  {#if bakOk}<p style="color:green">{bakOk}</p>{/if}
+  {#if bakErr}<p style="color:red">{bakErr}</p>{/if}
+
+  <h3>Import users</h3>
+  <input placeholder="Username" bind:value={bakUser} />
+  <input type="password" placeholder="Password" bind:value={bakPass} />
+  <div>
+    <button on:click={importStudentsBak}>Import students</button>
+    <button on:click={importTeachersBak}>Import teachers</button>
+  </div>
+  {#if importMsg}<p style="color:green">{importMsg}</p>{/if}
+  {#if importErr}<p style="color:red">{importErr}</p>{/if}
+  {#if importTeachMsg}<p style="color:green">{importTeachMsg}</p>{/if}
+  {#if importTeachErr}<p style="color:red">{importTeachErr}</p>{/if}
 {/if}
 
 <style>
