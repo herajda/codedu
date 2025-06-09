@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -449,4 +450,66 @@ func removeStudent(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+// -----------------------------------------------------------------------------
+// Bakalari integration
+// -----------------------------------------------------------------------------
+
+// bakalariLogin exchanges credentials for a Bakalari access token.
+func bakalariLogin(c *gin.Context) {
+	var req struct {
+		URL      string `json:"url" binding:"required"`
+		Username string `json:"username" binding:"required"`
+		Password string `json:"password" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	client, err := BakalariLogin(strings.TrimRight(req.URL, "/"), req.Username, req.Password)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"access_token": client.AccessToken})
+}
+
+// importStudents attempts to fetch students from Bakalari using a teacher
+// account. The current implementation acts as a placeholder until the exact
+// endpoints are known.
+func importStudents(c *gin.Context) {
+	var req struct {
+		URL      string `json:"url" binding:"required"`
+		Username string `json:"username" binding:"required"`
+		Password string `json:"password" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	client, err := BakalariLogin(strings.TrimRight(req.URL, "/"), req.Username, req.Password)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	students, err := client.ListMyStudents()
+	if err != nil {
+		c.JSON(http.StatusNotImplemented, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Placeholder: create local accounts for fetched students.
+	for _, s := range students {
+		// generate email placeholder
+		email := strings.ToLower(strings.ReplaceAll(s.Name, " ", ".")) + "@example.com"
+		hash, _ := bcrypt.GenerateFromPassword([]byte("temp123"), bcrypt.DefaultCost)
+		_ = CreateStudent(email, string(hash))
+		_ = s
+	}
+
+	c.JSON(http.StatusOK, gin.H{"imported": len(students)})
 }
