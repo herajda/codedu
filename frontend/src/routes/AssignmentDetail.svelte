@@ -180,16 +180,22 @@
   {#if role==='teacher' || role==='admin'}
     <h3>Student progress</h3>
     <table>
-      <tr><th>Student</th><th>Status</th><th>Last submission</th><th></th></tr>
-      {#each progress as p}
-        <tr>
-          <td>{p.student.email}</td>
-          <td>{p.latest ? p.latest.status : 'none'}</td>
-          <td>{p.latest ? new Date(p.latest.created_at).toLocaleString() : '-'}</td>
-          <td>{#if p.latest}<a href={`#/submissions/${p.latest.id}`}>view</a>{/if}</td>
-        </tr>
-      {/each}
-      {#if !progress.length}<tr><td colspan="4"><i>No students</i></td></tr>{/if}
+      <thead>
+        <tr><th>Student</th><th>Status</th><th>Last submission</th><th></th></tr>
+      </thead>
+      <tbody>
+        {#each progress as p}
+          <tr>
+            <td>{p.student.email}</td>
+            <td>{p.latest ? p.latest.status : 'none'}</td>
+            <td>{p.latest ? new Date(p.latest.created_at).toLocaleString() : '-'}</td>
+            <td>{#if p.latest}<a href={`#/submissions/${p.latest.id}`}>view</a>{/if}</td>
+          </tr>
+        {/each}
+        {#if !progress.length}
+          <tr><td colspan="4"><i>No students</i></td></tr>
+        {/if}
+      </tbody>
     </table>
   {/if}
 

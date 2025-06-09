@@ -31,7 +31,7 @@
     {#each results as r, i}
       <li>Test {i + 1}: {r.status} ({r.runtime_ms} ms)</li>
     {/each}
-    {#if !results.length}<i>No results yet</i>{/if}
+    {#if Array.isArray(results) && !results.length}<i>No results yet</i>{/if}
   </ul>
 {/if}
 
