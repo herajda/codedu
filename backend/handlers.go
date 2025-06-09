@@ -34,11 +34,11 @@ func getClass(c *gin.Context) {
 // basic user helpers (used from auth.go)
 // ──────────────────────────────────────────
 
-func CreateStudent(email, hash string, bkClass *string) error {
+func CreateStudent(email, hash string, bkClass, bkUID *string) error {
 	_, err := DB.Exec(
-		`INSERT INTO users (email, password_hash, role, bk_class)
-                 VALUES ($1,$2,'student',$3)`,
-		email, hash, bkClass,
+		`INSERT INTO users (email, password_hash, role, bk_class, bk_uid)
+                 VALUES ($1,$2,'student',$3,$4)`,
+		email, hash, bkClass, bkUID,
 	)
 	return err
 }
@@ -46,7 +46,7 @@ func CreateStudent(email, hash string, bkClass *string) error {
 func FindUserByEmail(email string) (*User, error) {
 	var u User
 	err := DB.Get(&u, `
-            SELECT id, email, password_hash, role, bk_class
+            SELECT id, email, password_hash, role, bk_class, bk_uid
               FROM users
              WHERE email = $1`,
 		email,
@@ -338,7 +338,7 @@ func createTeacher(c *gin.Context) {
 		return
 	}
 	hash, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-	if err := CreateTeacher(req.Email, string(hash)); err != nil {
+	if err := CreateTeacher(req.Email, string(hash), nil); err != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "user exists"})
 		return
 	}

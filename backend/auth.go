@@ -40,7 +40,7 @@ func Register(c *gin.Context) {
 		return
 	}
 	hash, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-	if err := CreateStudent(req.Email, string(hash), nil); err != nil {
+	if err := CreateStudent(req.Email, string(hash), nil, nil); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create user"})
 		return
 	}
@@ -158,6 +158,7 @@ func LoginBakalari(c *gin.Context) {
 	}
 	var userInfo struct {
 		UserType string `json:"UserType"`
+		UserUID  string `json:"UserUID"`
 		Class    struct {
 			Abbrev string `json:"Abbrev"`
 		} `json:"Class"`
@@ -176,24 +177,40 @@ func LoginBakalari(c *gin.Context) {
 	if role == "student" && userInfo.Class.Abbrev != "" {
 		bkClass = &userInfo.Class.Abbrev
 	}
+	var bkUID *string
+	if uid := userInfo.UserUID; uid != "" {
+		if len(uid) >= 5 {
+			id5 := uid[len(uid)-5:]
+			bkUID = &id5
+		} else {
+			bkUID = &uid
+		}
+	}
 
 	user, err := FindUserByEmail(req.Username)
 	if err != nil {
 		// create new user with specified role
 		hash, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 		if role == "teacher" {
-			err = CreateTeacher(req.Username, string(hash))
+			err = CreateTeacher(req.Username, string(hash), bkUID)
 		} else {
-			err = CreateStudent(req.Username, string(hash), bkClass)
+			err = CreateStudent(req.Username, string(hash), bkClass, bkUID)
 		}
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create user"})
 			return
 		}
 		user, _ = FindUserByEmail(req.Username)
-	} else if role == "student" && bkClass != nil && (user.BkClass == nil || *user.BkClass != *bkClass) {
-		// update stored class if changed
-		_, _ = DB.Exec(`UPDATE users SET bk_class=$1 WHERE id=$2`, *bkClass, user.ID)
+	} else {
+		// update stored bakalari info when changed
+		if role == "student" && bkClass != nil && (user.BkClass == nil || *user.BkClass != *bkClass) {
+			_, _ = DB.Exec(`UPDATE users SET bk_class=$1 WHERE id=$2`, *bkClass, user.ID)
+			user.BkClass = bkClass
+		}
+		if bkUID != nil && (user.BkUID == nil || *user.BkUID != *bkUID) {
+			_, _ = DB.Exec(`UPDATE users SET bk_uid=$1 WHERE id=$2`, *bkUID, user.ID)
+			user.BkUID = bkUID
+		}
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
