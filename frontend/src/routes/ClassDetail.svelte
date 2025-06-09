@@ -117,7 +117,7 @@
 {:else}
   <h1>{cls.name}</h1>
   {#if role === 'student'}
-    <p><strong>Teacher:</strong> {cls.teacher.email}</p>
+    <p><strong>Teacher:</strong> {cls.teacher.name ?? cls.teacher.email}</p>
   {/if}
 
   <!-- ‣ Students -->
@@ -125,7 +125,7 @@
   <ul>
     {#each students as s}
       <li>
-        {s.email}
+        {s.name ?? s.email}
         {#if role === 'teacher' || role === 'admin'}
           &nbsp;<button on:click={()=>removeStudent(s.id)}>✕</button>
         {/if}
@@ -139,7 +139,7 @@
       <summary><strong>Add students</strong></summary>
       <select multiple size="6" bind:value={selectedIDs}>
         {#each allStudents as s}
-          <option value={s.id}>{s.email}</option>
+          <option value={s.id}>{s.name ?? s.email}</option>
         {/each}
       </select>
       <br>

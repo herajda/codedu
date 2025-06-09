@@ -40,7 +40,7 @@ func Register(c *gin.Context) {
 		return
 	}
 	hash, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-	if err := CreateStudent(req.Email, string(hash), nil, nil); err != nil {
+	if err := CreateStudent(req.Email, string(hash), nil, nil, nil); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create user"})
 		return
 	}
@@ -194,7 +194,7 @@ func LoginBakalari(c *gin.Context) {
 		if role == "teacher" {
 			err = CreateTeacher(req.Username, string(hash), bkUID)
 		} else {
-			err = CreateStudent(req.Username, string(hash), bkClass, bkUID)
+			err = CreateStudent(req.Username, string(hash), nil, bkClass, bkUID)
 		}
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create user"})

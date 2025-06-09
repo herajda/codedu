@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -36,11 +37,11 @@ func getClass(c *gin.Context) {
 // basic user helpers (used from auth.go)
 // ──────────────────────────────────────────
 
-func CreateStudent(email, hash string, bkClass, bkUID *string) error {
+func CreateStudent(email, hash string, name, bkClass, bkUID *string) error {
 	_, err := DB.Exec(
-		`INSERT INTO users (email, password_hash, role, bk_class, bk_uid)
-                 VALUES ($1,$2,'student',$3,$4)`,
-		email, hash, bkClass, bkUID,
+		`INSERT INTO users (email, password_hash, name, role, bk_class, bk_uid)
+                 VALUES ($1,$2,$3,'student',$4,$5)`,
+		email, hash, name, bkClass, bkUID,
 	)
 	return err
 }
@@ -48,7 +49,7 @@ func CreateStudent(email, hash string, bkClass, bkUID *string) error {
 func FindUserByEmail(email string) (*User, error) {
 	var u User
 	err := DB.Get(&u, `
-            SELECT id, email, password_hash, role, bk_class, bk_uid
+            SELECT id, email, password_hash, name, role, bk_class, bk_uid
               FROM users
              WHERE email = $1`,
 		email,
@@ -468,8 +469,11 @@ func importBakalariStudents(c *gin.Context) {
 	defer resp.Body.Close()
 	var data struct {
 		Students []struct {
-			Id      string `json:"Id"`
-			ClassId string `json:"ClassId"`
+			Id         string `json:"Id"`
+			ClassId    string `json:"ClassId"`
+			FirstName  string `json:"FirstName"`
+			MiddleName string `json:"MiddleName"`
+			LastName   string `json:"LastName"`
 		} `json:"Students"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
@@ -478,7 +482,8 @@ func importBakalariStudents(c *gin.Context) {
 	}
 	var ids []int
 	for _, s := range data.Students {
-		id, err := EnsureStudentForBk(s.Id, s.ClassId)
+		full := strings.TrimSpace(strings.Join([]string{s.FirstName, s.MiddleName, s.LastName}, " "))
+		id, err := EnsureStudentForBk(s.Id, s.ClassId, full)
 		if err == nil {
 			ids = append(ids, id)
 		}
