@@ -40,3 +40,32 @@ func TestListClassesForTeacher(t *testing.T) {
 		t.Fatalf("unmet expectations: %v", err)
 	}
 }
+
+func TestSettings(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	defer db.Close()
+	DB = sqlx.NewDb(db, "sqlmock")
+
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO settings (key, value) VALUES ($1,$2)
+        ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value`)).
+		WithArgs("bakalari_url", "http://x").WillReturnResult(sqlmock.NewResult(1, 1))
+
+	if err := SetSetting("bakalari_url", "http://x"); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+
+	rows := sqlmock.NewRows([]string{"value"}).AddRow("http://x")
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT value FROM settings WHERE key=$1`)).
+		WithArgs("bakalari_url").WillReturnRows(rows)
+
+	val, err := GetSetting("bakalari_url")
+	if err != nil || val != "http://x" {
+		t.Fatalf("got %q err %v", val, err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet: %v", err)
+	}
+}

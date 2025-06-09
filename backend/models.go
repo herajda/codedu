@@ -445,3 +445,20 @@ func ListResultsForSubmission(subID int) ([]Result, error) {
          ORDER BY id`, subID)
 	return list, err
 }
+
+// SetSetting inserts or updates a key/value pair in the settings table.
+func SetSetting(key, value string) error {
+	_, err := DB.Exec(`INSERT INTO settings (key, value) VALUES ($1,$2)
+        ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value`, key, value)
+	return err
+}
+
+// GetSetting retrieves a configuration value by key.
+func GetSetting(key string) (string, error) {
+	var val string
+	err := DB.Get(&val, `SELECT value FROM settings WHERE key=$1`, key)
+	if err != nil {
+		return "", err
+	}
+	return val, nil
+}

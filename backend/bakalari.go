@@ -55,3 +55,13 @@ type BakalariStudent struct {
 	Name   string `json:"Name"`
 	Abbrev string `json:"Abbrev"`
 }
+
+// ListTeachers should retrieve all teachers. Placeholder until API docs are known.
+func (b *BakalariClient) ListTeachers() ([]BakalariTeacher, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+type BakalariTeacher struct {
+	ID   string `json:"Id"`
+	Name string `json:"Name"`
+}

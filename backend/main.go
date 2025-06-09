@@ -89,6 +89,9 @@ func main() {
 		api.GET("/users", RoleGuard("admin"), listUsers)               // new
 		api.PUT("/users/:id/role", RoleGuard("admin"), updateUserRole) // new
 		api.POST("/bakalari/import", RoleGuard("admin"), importStudents)
+		api.POST("/bakalari/import-teachers", RoleGuard("admin"), importTeachers)
+		api.GET("/bakalari/url", RoleGuard("admin"), getBakalariURL)
+		api.PUT("/bakalari/url", RoleGuard("admin"), setBakalariURL)
 
 		// TEACHER only
 		api.POST("/classes", RoleGuard("teacher"), createClass)

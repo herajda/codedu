@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
 	"os"
@@ -481,7 +482,7 @@ func bakalariLogin(c *gin.Context) {
 // endpoints are known.
 func importStudents(c *gin.Context) {
 	var req struct {
-		URL      string `json:"url" binding:"required"`
+		URL      string `json:"url"`
 		Username string `json:"username" binding:"required"`
 		Password string `json:"password" binding:"required"`
 	}
@@ -490,7 +491,21 @@ func importStudents(c *gin.Context) {
 		return
 	}
 
-	client, err := BakalariLogin(strings.TrimRight(req.URL, "/"), req.Username, req.Password)
+	base := strings.TrimRight(req.URL, "/")
+	if base == "" {
+		var err error
+		base, err = GetSetting("bakalari_url")
+		if err != nil {
+			if err == sql.ErrNoRows {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "bakalari url not configured"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+			return
+		}
+	}
+
+	client, err := BakalariLogin(base, req.Username, req.Password)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
@@ -512,4 +527,75 @@ func importStudents(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"imported": len(students)})
+}
+
+// importTeachers acts like importStudents but for teacher accounts.
+func importTeachers(c *gin.Context) {
+	var req struct {
+		URL      string `json:"url"`
+		Username string `json:"username" binding:"required"`
+		Password string `json:"password" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	base := strings.TrimRight(req.URL, "/")
+	if base == "" {
+		var err error
+		base, err = GetSetting("bakalari_url")
+		if err != nil {
+			if err == sql.ErrNoRows {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "bakalari url not configured"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+			return
+		}
+	}
+	client, err := BakalariLogin(base, req.Username, req.Password)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+	teachers, err := client.ListTeachers()
+	if err != nil {
+		c.JSON(http.StatusNotImplemented, gin.H{"error": err.Error()})
+		return
+	}
+	for _, t := range teachers {
+		email := strings.ToLower(strings.ReplaceAll(t.Name, " ", ".")) + "@example.com"
+		hash, _ := bcrypt.GenerateFromPassword([]byte("temp123"), bcrypt.DefaultCost)
+		_ = CreateTeacher(email, string(hash))
+		_ = t
+	}
+	c.JSON(http.StatusOK, gin.H{"imported": len(teachers)})
+}
+
+func getBakalariURL(c *gin.Context) {
+	url, err := GetSetting("bakalari_url")
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not set"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"url": url})
+}
+
+func setBakalariURL(c *gin.Context) {
+	var req struct {
+		URL string `json:"url" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := SetSetting("bakalari_url", strings.TrimRight(req.URL, "/")); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
