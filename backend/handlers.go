@@ -34,11 +34,11 @@ func getClass(c *gin.Context) {
 // basic user helpers (used from auth.go)
 // ──────────────────────────────────────────
 
-func CreateStudent(email, hash string) error {
+func CreateStudent(email, hash string, bkClass *string) error {
 	_, err := DB.Exec(
-		`INSERT INTO users (email, password_hash, role)
-		  VALUES ($1,$2,'student')`,
-		email, hash,
+		`INSERT INTO users (email, password_hash, role, bk_class)
+                 VALUES ($1,$2,'student',$3)`,
+		email, hash, bkClass,
 	)
 	return err
 }
@@ -46,9 +46,9 @@ func CreateStudent(email, hash string) error {
 func FindUserByEmail(email string) (*User, error) {
 	var u User
 	err := DB.Get(&u, `
-	    SELECT id, email, password_hash, role
-	      FROM users
-	     WHERE email = $1`,
+            SELECT id, email, password_hash, role, bk_class
+              FROM users
+             WHERE email = $1`,
 		email,
 	)
 	if err != nil {

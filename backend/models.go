@@ -10,6 +10,7 @@ type User struct {
 	Email        string    `db:"email"`
 	PasswordHash string    `db:"password_hash"`
 	Role         string    `db:"role"`
+	BkClass      *string   `db:"bk_class"`
 	CreatedAt    time.Time `db:"created_at"`
 }
 
