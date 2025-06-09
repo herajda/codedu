@@ -150,6 +150,7 @@ The backend now exposes two additional endpoints:
 - `GET /api/my-submissions` – Student endpoint returning the authenticated user's submissions ordered by creation date.
 - `PUT /api/assignments/:id/publish` – Teacher/admin endpoint to publish an assignment once it's ready.
 - `POST /login-bakalari` – Authenticate via Bakaláři API v3 using username and password.
+  The endpoint stores the user's Bakaláři class abbreviation and short ID when available.
 
 ---
 

@@ -11,6 +11,7 @@ type User struct {
 	PasswordHash string    `db:"password_hash"`
 	Role         string    `db:"role"`
 	BkClass      *string   `db:"bk_class"`
+	BkUID        *string   `db:"bk_uid"`
 	CreatedAt    time.Time `db:"created_at"`
 }
 
@@ -168,10 +169,10 @@ func SetAssignmentPublished(id int, published bool) error {
 	return err
 }
 
-func CreateTeacher(email, hash string) error {
+func CreateTeacher(email, hash string, bkUID *string) error {
 	_, err := DB.Exec(`
-        INSERT INTO users (email, password_hash, role)
-        VALUES ($1,$2,'teacher')`, email, hash)
+        INSERT INTO users (email, password_hash, role, bk_uid)
+        VALUES ($1,$2,'teacher',$3)`, email, hash, bkUID)
 	return err
 }
 
