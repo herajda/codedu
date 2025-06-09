@@ -3,12 +3,15 @@ package main
 import (
 	"fmt"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type User struct {
 	ID           int       `db:"id"`
 	Email        string    `db:"email"`
 	PasswordHash string    `db:"password_hash"`
+	Name         *string   `db:"name"`
 	Role         string    `db:"role"`
 	BkClass      *string   `db:"bk_class"`
 	BkUID        *string   `db:"bk_uid"`
@@ -65,6 +68,7 @@ type TestCase struct {
 type UserSummary struct {
 	ID        int       `db:"id"         json:"id"`
 	Email     string    `db:"email"      json:"email"`
+	Name      *string   `db:"name"       json:"name"`
 	Role      string    `db:"role"       json:"role"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 }
@@ -72,9 +76,9 @@ type UserSummary struct {
 func ListUsers() ([]UserSummary, error) {
 	var list []UserSummary
 	err := DB.Select(&list,
-		`SELECT id,email,role,created_at
-		   FROM users
-	      ORDER BY created_at`)
+		`SELECT id,email,name,role,created_at
+                  FROM users
+             ORDER BY created_at`)
 	return list, err
 }
 
@@ -176,6 +180,47 @@ func CreateTeacher(email, hash string, bkUID *string) error {
 	return err
 }
 
+// FindUserByBkUID returns a user identified by the Bakaláři UID.
+func FindUserByBkUID(uid string) (*User, error) {
+	var u User
+	err := DB.Get(&u, `SELECT id, email, password_hash, name, role, bk_class, bk_uid, created_at
+                            FROM users WHERE bk_uid=$1`, uid)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+// createStudentWithID inserts a new student and returns its database ID.
+func createStudentWithID(email, hash string, name, bkClass, bkUID *string) (int, error) {
+	var id int
+	err := DB.QueryRow(`
+                INSERT INTO users (email, password_hash, name, role, bk_class, bk_uid)
+                VALUES ($1,$2,$3,'student',$4,$5)
+                RETURNING id`, email, hash, name, bkClass, bkUID).Scan(&id)
+	return id, err
+}
+
+// EnsureStudentForBk ensures a student exists for the given Bakaláři UID
+// and returns the local user ID.
+func EnsureStudentForBk(uid, cls, name string) (int, error) {
+	u, err := FindUserByBkUID(uid)
+	if err == nil {
+		if cls != "" && (u.BkClass == nil || *u.BkClass != cls) {
+			_, _ = DB.Exec(`UPDATE users SET bk_class=$1 WHERE id=$2`, cls, u.ID)
+			u.BkClass = &cls
+		}
+		if name != "" && (u.Name == nil || *u.Name != name) {
+			_, _ = DB.Exec(`UPDATE users SET name=$1 WHERE id=$2`, name, u.ID)
+			u.Name = &name
+		}
+		return u.ID, nil
+	}
+	// not found
+	hash, _ := bcrypt.GenerateFromPassword([]byte(uid), bcrypt.DefaultCost)
+	return createStudentWithID(uid, string(hash), &name, &cls, &uid)
+}
+
 func CreateClass(c *Class) error {
 	return DB.QueryRow(`
         INSERT INTO classes (name, teacher_id)
@@ -223,9 +268,9 @@ func ListClassesForStudent(studentID int) ([]Class, error) {
 func ListAllStudents() ([]Student, error) {
 	var list []Student
 	err := DB.Select(&list, `
-	    SELECT id, email FROM users
-	     WHERE role = 'student'
-	     ORDER BY email`)
+            SELECT id, email, name FROM users
+             WHERE role = 'student'
+             ORDER BY email`)
 	return list, err
 }
 
@@ -233,8 +278,9 @@ func ListAllStudents() ([]Student, error) {
 // classes – helpers for detail view
 // ──────────────────────────────────────────────────────────────────────────────
 type Student struct {
-	ID    int    `db:"id"    json:"id"`
-	Email string `db:"email" json:"email"`
+	ID    int     `db:"id"    json:"id"`
+	Email string  `db:"email" json:"email"`
+	Name  *string `db:"name"  json:"name"`
 }
 
 type ClassDetail struct {
@@ -253,9 +299,9 @@ func GetClassDetail(id int, role string) (*ClassDetail, error) {
 	}
 
 	// 2) Teacher (one row) -----------------------------------------------------
-	var teacher Student // reuse tiny struct {id,email}
+	var teacher Student // reuse tiny struct {id,email,name}
 	if err := DB.Get(&teacher,
-		`SELECT id, email FROM users WHERE id = $1`,
+		`SELECT id, email, name FROM users WHERE id = $1`,
 		cls.TeacherID); err != nil {
 		return nil, err
 	}
@@ -263,11 +309,11 @@ func GetClassDetail(id int, role string) (*ClassDetail, error) {
 	// 3) Students (many) -------------------------------------------------------
 	var students []Student
 	if err := DB.Select(&students, `
-		SELECT u.id, u.email
-		  FROM users u
-		  JOIN class_students cs ON cs.student_id = u.id
-		 WHERE cs.class_id = $1
-		 ORDER BY u.email`,
+               SELECT u.id, u.email, u.name
+                 FROM users u
+                 JOIN class_students cs ON cs.student_id = u.id
+                WHERE cs.class_id = $1
+                ORDER BY u.email`,
 		id); err != nil {
 		return nil, err
 	}
@@ -337,6 +383,7 @@ type SubmissionWithReason struct {
 type SubmissionWithStudent struct {
 	Submission
 	StudentEmail  string  `db:"email" json:"student_email"`
+	StudentName   *string `db:"name" json:"student_name"`
 	FailureReason *string `db:"failure_reason" json:"failure_reason,omitempty"`
 }
 
@@ -359,9 +406,9 @@ func ListSubmissionsForAssignment(aid int) ([]SubmissionWithStudent, error) {
 	var subs []SubmissionWithStudent
 	err := DB.Select(&subs, `
                SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.created_at, s.updated_at,
-                      u.email,
-                      (SELECT r.status FROM results r
-                         WHERE r.submission_id = s.id AND r.status <> 'passed'
+                     u.email, u.name,
+                     (SELECT r.status FROM results r
+                        WHERE r.submission_id = s.id AND r.status <> 'passed'
                          ORDER BY r.id LIMIT 1) AS failure_reason
                  FROM submissions s
                  JOIN users u ON u.id = s.student_id

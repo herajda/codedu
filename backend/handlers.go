@@ -1,11 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -34,11 +37,11 @@ func getClass(c *gin.Context) {
 // basic user helpers (used from auth.go)
 // ──────────────────────────────────────────
 
-func CreateStudent(email, hash string, bkClass, bkUID *string) error {
+func CreateStudent(email, hash string, name, bkClass, bkUID *string) error {
 	_, err := DB.Exec(
-		`INSERT INTO users (email, password_hash, role, bk_class, bk_uid)
-                 VALUES ($1,$2,'student',$3,$4)`,
-		email, hash, bkClass, bkUID,
+		`INSERT INTO users (email, password_hash, name, role, bk_class, bk_uid)
+                 VALUES ($1,$2,$3,'student',$4,$5)`,
+		email, hash, name, bkClass, bkUID,
 	)
 	return err
 }
@@ -46,7 +49,7 @@ func CreateStudent(email, hash string, bkClass, bkUID *string) error {
 func FindUserByEmail(email string) (*User, error) {
 	var u User
 	err := DB.Get(&u, `
-            SELECT id, email, password_hash, role, bk_class, bk_uid
+            SELECT id, email, password_hash, name, role, bk_class, bk_uid
               FROM users
              WHERE email = $1`,
 		email,
@@ -377,6 +380,119 @@ func addStudents(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+// bakalariLogin performs a simple username/password login and returns the access token.
+func bakalariLogin(username, password string) (string, error) {
+	form := url.Values{}
+	form.Set("client_id", "ANDR")
+	form.Set("grant_type", "password")
+	form.Set("username", username)
+	form.Set("password", password)
+	resp, err := http.PostForm(bakalariBaseURL+"/api/login", form)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("login failed")
+	}
+	var r struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil || r.AccessToken == "" {
+		return "", fmt.Errorf("login failed")
+	}
+	return r.AccessToken, nil
+}
+
+// bakalariAtoms fetches teacher's marking atoms from Bakaláři.
+func bakalariAtoms(c *gin.Context) {
+	var req struct {
+		Username string `json:"username" binding:"required"`
+		Password string `json:"password" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	token, err := bakalariLogin(req.Username, req.Password)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		return
+	}
+	httpReq, _ := http.NewRequest("GET", bakalariBaseURL+"/api/3/marking/atoms", nil)
+	httpReq.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(httpReq)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "bakalari request failed"})
+		return
+	}
+	defer resp.Body.Close()
+	var data struct {
+		Atoms []struct {
+			Id   string `json:"Id"`
+			Name string `json:"Name"`
+		} `json:"Atoms"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "decode"})
+		return
+	}
+	c.JSON(http.StatusOK, data.Atoms)
+}
+
+// importBakalariStudents imports students from a Bakaláři class atom and adds them to a local class.
+func importBakalariStudents(c *gin.Context) {
+	localID, _ := strconv.Atoi(c.Param("id"))
+	var req struct {
+		Username string `json:"username" binding:"required"`
+		Password string `json:"password" binding:"required"`
+		AtomID   string `json:"atom_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	token, err := bakalariLogin(req.Username, req.Password)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		return
+	}
+	httpReq, _ := http.NewRequest("GET", bakalariBaseURL+"/api/3/marking/marks/"+req.AtomID, nil)
+	httpReq.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(httpReq)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "bakalari request failed"})
+		return
+	}
+	defer resp.Body.Close()
+	var data struct {
+		Students []struct {
+			Id         string `json:"Id"`
+			ClassId    string `json:"ClassId"`
+			FirstName  string `json:"FirstName"`
+			MiddleName string `json:"MiddleName"`
+			LastName   string `json:"LastName"`
+		} `json:"Students"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "decode"})
+		return
+	}
+	var ids []int
+	for _, s := range data.Students {
+		full := strings.TrimSpace(strings.Join([]string{s.FirstName, s.MiddleName, s.LastName}, " "))
+		id, err := EnsureStudentForBk(s.Id, s.ClassId, full)
+		if err == nil {
+			ids = append(ids, id)
+		}
+	}
+	if err := AddStudentsToClass(localID, ids); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"added": len(ids)})
 }
 
 // ---- STUDENT / TEACHER common list ----

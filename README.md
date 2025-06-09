@@ -151,6 +151,8 @@ The backend now exposes two additional endpoints:
 - `PUT /api/assignments/:id/publish` – Teacher/admin endpoint to publish an assignment once it's ready.
 - `POST /login-bakalari` – Authenticate via Bakaláři API v3 using username and password.
   The endpoint stores the user's Bakaláři class abbreviation and short ID when available.
+- `POST /api/bakalari/atoms` – Teacher endpoint returning the teacher's class atoms from Bakaláři.
+- `POST /api/classes/:id/import-bakalari` – Import all students from a selected Bakaláři class into the local class.
 
 ---
 

@@ -186,7 +186,7 @@
       <tbody>
         {#each progress as p}
           <tr>
-            <td>{p.student.email}</td>
+            <td>{p.student.name ?? p.student.email}</td>
             <td>{p.latest ? p.latest.status : 'none'}</td>
             <td>{p.latest ? new Date(p.latest.created_at).toLocaleString() : '-'}</td>
             <td>{#if p.latest}<a href={`#/submissions/${p.latest.id}`}>view</a>{/if}</td>
