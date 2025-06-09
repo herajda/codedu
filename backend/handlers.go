@@ -98,24 +98,24 @@ func createAssignment(c *gin.Context) {
 		return
 	}
 
-        var req struct {
-                Title string `json:"title" binding:"required"`
-        }
-        if err := c.ShouldBindJSON(&req); err != nil {
-                c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-                return
-        }
+	var req struct {
+		Title string `json:"title" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-        a := &Assignment{
-                ClassID:       classID,
-                Title:         req.Title,
-                Description:   "",
-                Deadline:      time.Now().Add(24 * time.Hour),
-                MaxPoints:     100,
-                GradingPolicy: "all_or_nothing",
-                Published:     false,
-                CreatedBy:     c.GetInt("userID"),
-        }
+	a := &Assignment{
+		ClassID:       classID,
+		Title:         req.Title,
+		Description:   "",
+		Deadline:      time.Now().Add(24 * time.Hour),
+		MaxPoints:     100,
+		GradingPolicy: "all_or_nothing",
+		Published:     false,
+		CreatedBy:     c.GetInt("userID"),
+	}
 	if err := CreateAssignment(a); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create assignment"})
 		return
@@ -145,7 +145,8 @@ func getAssignment(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-	if c.GetString("role") == "student" {
+	role := c.GetString("role")
+	if role == "student" {
 		if !a.Published {
 			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 			return
@@ -155,7 +156,12 @@ func getAssignment(c *gin.Context) {
 		return
 	}
 	tests, _ := ListTestCases(id)
-	c.JSON(http.StatusOK, gin.H{"assignment": a, "tests": tests})
+	resp := gin.H{"assignment": a, "tests": tests}
+	if role == "teacher" || role == "admin" {
+		subs, _ := ListSubmissionsForAssignment(id)
+		resp["submissions"] = subs
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 // updateAssignment: PUT /api/assignments/:id
@@ -252,16 +258,16 @@ func createTestCase(c *gin.Context) {
 
 // deleteTestCase: DELETE /api/tests/:id
 func deleteTestCase(c *gin.Context) {
-        id, err := strconv.Atoi(c.Param("id"))
-        if err != nil {
-                c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-                return
-        }
-        if err := DeleteTestCase(id); err != nil {
-                c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-                return
-        }
-        c.Status(http.StatusNoContent)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if err := DeleteTestCase(id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // createSubmission: POST /api/assignments/:id/submissions
