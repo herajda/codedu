@@ -331,6 +331,13 @@ type SubmissionWithReason struct {
 	FailureReason *string `db:"failure_reason" json:"failure_reason,omitempty"`
 }
 
+// SubmissionWithStudent includes the submitting student's email.
+type SubmissionWithStudent struct {
+	Submission
+	StudentEmail  string  `db:"email" json:"student_email"`
+	FailureReason *string `db:"failure_reason" json:"failure_reason,omitempty"`
+}
+
 func ListSubmissionsForAssignmentAndStudent(aid, sid int) ([]SubmissionWithReason, error) {
 	var subs []SubmissionWithReason
 	err := DB.Select(&subs, `
@@ -341,6 +348,23 @@ func ListSubmissionsForAssignmentAndStudent(aid, sid int) ([]SubmissionWithReaso
                  FROM submissions
                 WHERE assignment_id=$1 AND student_id=$2
                 ORDER BY created_at DESC`, aid, sid)
+	return subs, err
+}
+
+// ListSubmissionsForAssignment returns all submissions for a given assignment
+// along with each student's email and first failing result.
+func ListSubmissionsForAssignment(aid int) ([]SubmissionWithStudent, error) {
+	var subs []SubmissionWithStudent
+	err := DB.Select(&subs, `
+               SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.created_at, s.updated_at,
+                      u.email,
+                      (SELECT r.status FROM results r
+                         WHERE r.submission_id = s.id AND r.status <> 'passed'
+                         ORDER BY r.id LIMIT 1) AS failure_reason
+                 FROM submissions s
+                 JOIN users u ON u.id = s.student_id
+                WHERE s.assignment_id = $1
+                ORDER BY s.created_at DESC`, aid)
 	return subs, err
 }
 
@@ -357,18 +381,18 @@ func CreateTestCase(tc *TestCase) error {
 }
 
 func ListTestCases(assignmentID int) ([]TestCase, error) {
-        var list []TestCase
-        err := DB.Select(&list, `
+	var list []TestCase
+	err := DB.Select(&list, `
                 SELECT id, assignment_id, stdin, expected_stdout, time_limit_sec, memory_limit_kb, created_at, updated_at
                   FROM test_cases
                  WHERE assignment_id = $1
                  ORDER BY id`, assignmentID)
-        return list, err
+	return list, err
 }
 
 func DeleteTestCase(id int) error {
-        _, err := DB.Exec(`DELETE FROM test_cases WHERE id=$1`, id)
-        return err
+	_, err := DB.Exec(`DELETE FROM test_cases WHERE id=$1`, id)
+	return err
 }
 
 // ──────────────────────────────────────────────────────
