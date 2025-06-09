@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type User struct {
@@ -174,6 +176,43 @@ func CreateTeacher(email, hash string, bkUID *string) error {
         INSERT INTO users (email, password_hash, role, bk_uid)
         VALUES ($1,$2,'teacher',$3)`, email, hash, bkUID)
 	return err
+}
+
+// FindUserByBkUID returns a user identified by the Bakaláři UID.
+func FindUserByBkUID(uid string) (*User, error) {
+	var u User
+	err := DB.Get(&u, `SELECT id, email, password_hash, role, bk_class, bk_uid, created_at
+                            FROM users WHERE bk_uid=$1`, uid)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+// createStudentWithID inserts a new student and returns its database ID.
+func createStudentWithID(email, hash string, bkClass, bkUID *string) (int, error) {
+	var id int
+	err := DB.QueryRow(`
+                INSERT INTO users (email, password_hash, role, bk_class, bk_uid)
+                VALUES ($1,$2,'student',$3,$4)
+                RETURNING id`, email, hash, bkClass, bkUID).Scan(&id)
+	return id, err
+}
+
+// EnsureStudentForBk ensures a student exists for the given Bakaláři UID
+// and returns the local user ID.
+func EnsureStudentForBk(uid, cls string) (int, error) {
+	u, err := FindUserByBkUID(uid)
+	if err == nil {
+		if cls != "" && (u.BkClass == nil || *u.BkClass != cls) {
+			_, _ = DB.Exec(`UPDATE users SET bk_class=$1 WHERE id=$2`, cls, u.ID)
+			u.BkClass = &cls
+		}
+		return u.ID, nil
+	}
+	// not found
+	hash, _ := bcrypt.GenerateFromPassword([]byte(uid), bcrypt.DefaultCost)
+	return createStudentWithID(uid, string(hash), &cls, &uid)
 }
 
 func CreateClass(c *Class) error {
