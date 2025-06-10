@@ -4,7 +4,11 @@ module.exports = {
     './src/**/*.{svelte,js,ts}'
   ],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        sans: ['Inter', 'sans-serif'],
+      },
+    },
   },
   plugins: [require('@tailwindcss/typography')],
 }
