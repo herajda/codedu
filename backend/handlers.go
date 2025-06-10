@@ -1,11 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -34,11 +37,11 @@ func getClass(c *gin.Context) {
 // basic user helpers (used from auth.go)
 // ──────────────────────────────────────────
 
-func CreateStudent(email, hash string) error {
+func CreateStudent(email, hash string, name, bkClass, bkUID *string) error {
 	_, err := DB.Exec(
-		`INSERT INTO users (email, password_hash, role)
-		  VALUES ($1,$2,'student')`,
-		email, hash,
+		`INSERT INTO users (email, password_hash, name, role, bk_class, bk_uid)
+                 VALUES ($1,$2,$3,'student',$4,$5)`,
+		email, hash, name, bkClass, bkUID,
 	)
 	return err
 }
@@ -46,9 +49,9 @@ func CreateStudent(email, hash string) error {
 func FindUserByEmail(email string) (*User, error) {
 	var u User
 	err := DB.Get(&u, `
-	    SELECT id, email, password_hash, role
-	      FROM users
-	     WHERE email = $1`,
+            SELECT id, email, password_hash, name, role, bk_class, bk_uid
+              FROM users
+             WHERE email = $1`,
 		email,
 	)
 	if err != nil {
@@ -98,24 +101,24 @@ func createAssignment(c *gin.Context) {
 		return
 	}
 
-        var req struct {
-                Title string `json:"title" binding:"required"`
-        }
-        if err := c.ShouldBindJSON(&req); err != nil {
-                c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-                return
-        }
+	var req struct {
+		Title string `json:"title" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-        a := &Assignment{
-                ClassID:       classID,
-                Title:         req.Title,
-                Description:   "",
-                Deadline:      time.Now().Add(24 * time.Hour),
-                MaxPoints:     100,
-                GradingPolicy: "all_or_nothing",
-                Published:     false,
-                CreatedBy:     c.GetInt("userID"),
-        }
+	a := &Assignment{
+		ClassID:       classID,
+		Title:         req.Title,
+		Description:   "",
+		Deadline:      time.Now().Add(24 * time.Hour),
+		MaxPoints:     100,
+		GradingPolicy: "all_or_nothing",
+		Published:     false,
+		CreatedBy:     c.GetInt("userID"),
+	}
 	if err := CreateAssignment(a); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create assignment"})
 		return
@@ -145,7 +148,8 @@ func getAssignment(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-	if c.GetString("role") == "student" {
+	role := c.GetString("role")
+	if role == "student" {
 		if !a.Published {
 			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 			return
@@ -155,7 +159,12 @@ func getAssignment(c *gin.Context) {
 		return
 	}
 	tests, _ := ListTestCases(id)
-	c.JSON(http.StatusOK, gin.H{"assignment": a, "tests": tests})
+	resp := gin.H{"assignment": a, "tests": tests}
+	if role == "teacher" || role == "admin" {
+		subs, _ := ListSubmissionsForAssignment(id)
+		resp["submissions"] = subs
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 // updateAssignment: PUT /api/assignments/:id
@@ -252,16 +261,16 @@ func createTestCase(c *gin.Context) {
 
 // deleteTestCase: DELETE /api/tests/:id
 func deleteTestCase(c *gin.Context) {
-        id, err := strconv.Atoi(c.Param("id"))
-        if err != nil {
-                c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-                return
-        }
-        if err := DeleteTestCase(id); err != nil {
-                c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-                return
-        }
-        c.Status(http.StatusNoContent)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if err := DeleteTestCase(id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // createSubmission: POST /api/assignments/:id/submissions
@@ -332,7 +341,7 @@ func createTeacher(c *gin.Context) {
 		return
 	}
 	hash, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-	if err := CreateTeacher(req.Email, string(hash)); err != nil {
+	if err := CreateTeacher(req.Email, string(hash), nil); err != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "user exists"})
 		return
 	}
@@ -371,6 +380,119 @@ func addStudents(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+// bakalariLogin performs a simple username/password login and returns the access token.
+func bakalariLogin(username, password string) (string, error) {
+	form := url.Values{}
+	form.Set("client_id", "ANDR")
+	form.Set("grant_type", "password")
+	form.Set("username", username)
+	form.Set("password", password)
+	resp, err := http.PostForm(bakalariBaseURL+"/api/login", form)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("login failed")
+	}
+	var r struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil || r.AccessToken == "" {
+		return "", fmt.Errorf("login failed")
+	}
+	return r.AccessToken, nil
+}
+
+// bakalariAtoms fetches teacher's marking atoms from Bakaláři.
+func bakalariAtoms(c *gin.Context) {
+	var req struct {
+		Username string `json:"username" binding:"required"`
+		Password string `json:"password" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	token, err := bakalariLogin(req.Username, req.Password)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		return
+	}
+	httpReq, _ := http.NewRequest("GET", bakalariBaseURL+"/api/3/marking/atoms", nil)
+	httpReq.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(httpReq)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "bakalari request failed"})
+		return
+	}
+	defer resp.Body.Close()
+	var data struct {
+		Atoms []struct {
+			Id   string `json:"Id"`
+			Name string `json:"Name"`
+		} `json:"Atoms"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "decode"})
+		return
+	}
+	c.JSON(http.StatusOK, data.Atoms)
+}
+
+// importBakalariStudents imports students from a Bakaláři class atom and adds them to a local class.
+func importBakalariStudents(c *gin.Context) {
+	localID, _ := strconv.Atoi(c.Param("id"))
+	var req struct {
+		Username string `json:"username" binding:"required"`
+		Password string `json:"password" binding:"required"`
+		AtomID   string `json:"atom_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	token, err := bakalariLogin(req.Username, req.Password)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		return
+	}
+	httpReq, _ := http.NewRequest("GET", bakalariBaseURL+"/api/3/marking/marks/"+req.AtomID, nil)
+	httpReq.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(httpReq)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "bakalari request failed"})
+		return
+	}
+	defer resp.Body.Close()
+	var data struct {
+		Students []struct {
+			Id         string `json:"Id"`
+			ClassId    string `json:"ClassId"`
+			FirstName  string `json:"FirstName"`
+			MiddleName string `json:"MiddleName"`
+			LastName   string `json:"LastName"`
+		} `json:"Students"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "decode"})
+		return
+	}
+	var ids []int
+	for _, s := range data.Students {
+		full := strings.TrimSpace(strings.Join([]string{s.FirstName, s.MiddleName, s.LastName}, " "))
+		id, err := EnsureStudentForBk(s.Id, s.ClassId, full)
+		if err == nil {
+			ids = append(ids, id)
+		}
+	}
+	if err := AddStudentsToClass(localID, ids); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"added": len(ids)})
 }
 
 // ---- STUDENT / TEACHER common list ----

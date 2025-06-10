@@ -50,6 +50,7 @@ func main() {
 	// 3) Public
 	r.POST("/register", Register)
 	r.POST("/login", Login)
+	r.POST("/login-bakalari", LoginBakalari)
 
 	// 4) Protected
 	api := r.Group("/api")
@@ -74,13 +75,15 @@ func main() {
 		api.PUT("/assignments/:id", RoleGuard("teacher", "admin"), updateAssignment)
 		api.DELETE("/assignments/:id", RoleGuard("teacher", "admin"), deleteAssignment)
 		api.PUT("/assignments/:id/publish", RoleGuard("teacher", "admin"), publishAssignment)
-                api.POST("/assignments/:id/tests", RoleGuard("teacher", "admin"), createTestCase)
-                api.DELETE("/tests/:id", RoleGuard("teacher", "admin"), deleteTestCase)
-                api.POST("/assignments/:id/submissions", RoleGuard("student"), createSubmission)
+		api.POST("/assignments/:id/tests", RoleGuard("teacher", "admin"), createTestCase)
+		api.DELETE("/tests/:id", RoleGuard("teacher", "admin"), deleteTestCase)
+		api.POST("/assignments/:id/submissions", RoleGuard("student"), createSubmission)
 		api.GET("/submissions/:id", RoleGuard("student", "teacher", "admin"), getSubmission)
 		// TEACHER / STUDENT common
 		api.GET("/classes", RoleGuard("teacher", "student"), myClasses)
 		api.POST("/classes/:id/students", RoleGuard("teacher", "admin"), addStudents)
+		api.POST("/bakalari/atoms", RoleGuard("teacher"), bakalariAtoms)
+		api.POST("/classes/:id/import-bakalari", RoleGuard("teacher"), importBakalariStudents)
 		api.GET("/classes/all", RoleGuard("admin"), listAllClasses) // new
 
 		// ADMIN → add teacher

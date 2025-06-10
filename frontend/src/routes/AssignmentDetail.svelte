@@ -10,7 +10,10 @@
 
   let assignment:any=null
   let tests:any[]=[] // teacher/admin only
-  let submissions:any[]=[]
+  let submissions:any[]=[] // student submissions
+  let allSubs:any[]=[]     // teacher view
+  let students:any[]=[]    // class roster for teacher
+  let progress:any[]=[]    // computed progress per student
   let pointsEarned=0
   let done=false
   let err=''
@@ -36,8 +39,17 @@
         const completed = submissions.find((s:any)=>s.status==='completed')
         done = !!completed
         pointsEarned = completed ? assignment.max_points : 0
+      } else {
+        tests = data.tests ?? []
+        allSubs = data.submissions ?? []
+        const cls = await apiJSON(`/api/classes/${assignment.class_id}`)
+        students = cls.students ?? []
+        progress = students.map((s:any)=>{
+          const subs = allSubs.filter((x:any)=>x.student_id===s.id)
+          const latest = subs[0]
+          return {student:s, latest}
+        })
       }
-      else tests = data.tests ?? []
     }catch(e:any){ err=e.message }
   }
 
@@ -163,6 +175,28 @@
       {/each}
       {#if !(tests && tests.length)}<i>No tests</i>{/if}
     </ul>
+  {/if}
+
+  {#if role==='teacher' || role==='admin'}
+    <h3>Student progress</h3>
+    <table>
+      <thead>
+        <tr><th>Student</th><th>Status</th><th>Last submission</th><th></th></tr>
+      </thead>
+      <tbody>
+        {#each progress as p}
+          <tr>
+            <td>{p.student.name ?? p.student.email}</td>
+            <td>{p.latest ? p.latest.status : 'none'}</td>
+            <td>{p.latest ? new Date(p.latest.created_at).toLocaleString() : '-'}</td>
+            <td>{#if p.latest}<a href={`#/submissions/${p.latest.id}`}>view</a>{/if}</td>
+          </tr>
+        {/each}
+        {#if !progress.length}
+          <tr><td colspan="4"><i>No students</i></td></tr>
+        {/if}
+      </tbody>
+    </table>
   {/if}
 
   {#if role==='student'}

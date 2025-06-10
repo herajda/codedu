@@ -2,10 +2,15 @@ CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
+  name TEXT,
   role TEXT NOT NULL DEFAULT 'student' CHECK (role IN ('student','teacher','admin')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS bk_class TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS bk_uid TEXT;
 
 CREATE TABLE IF NOT EXISTS classes (
   id SERIAL PRIMARY KEY,

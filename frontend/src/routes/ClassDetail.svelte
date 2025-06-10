@@ -78,6 +78,38 @@
       await load()
     } catch(e:any){ err=e.message }
   }
+
+  /* ───────────────────────── Bakalári import helpers */
+  let bkUser = ''
+  let bkPass = ''
+  let bkAtoms: { Id:string; Name:string }[] = []
+  let loadingAtoms = false
+
+  async function fetchAtoms() {
+    err = ''
+    loadingAtoms = true
+    try {
+      bkAtoms = await apiJSON('/api/bakalari/atoms', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ username: bkUser, password: bkPass })
+      })
+    } catch(e:any) { err = e.message }
+    loadingAtoms = false
+  }
+
+  async function importAtom(aid:string) {
+    err = ''
+    try {
+      const res = await apiJSON<{added:number}>(`/api/classes/${params.id}/import-bakalari`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ username: bkUser, password: bkPass, atom_id: aid })
+      })
+      await load()
+      alert(`Imported ${res.added} students`)
+    } catch(e:any){ err = e.message }
+  }
 </script>
 
 {#if !cls}
@@ -85,7 +117,7 @@
 {:else}
   <h1>{cls.name}</h1>
   {#if role === 'student'}
-    <p><strong>Teacher:</strong> {cls.teacher.email}</p>
+    <p><strong>Teacher:</strong> {cls.teacher.name ?? cls.teacher.email}</p>
   {/if}
 
   <!-- ‣ Students -->
@@ -93,7 +125,7 @@
   <ul>
     {#each students as s}
       <li>
-        {s.email}
+        {s.name ?? s.email}
         {#if role === 'teacher' || role === 'admin'}
           &nbsp;<button on:click={()=>removeStudent(s.id)}>✕</button>
         {/if}
@@ -107,11 +139,30 @@
       <summary><strong>Add students</strong></summary>
       <select multiple size="6" bind:value={selectedIDs}>
         {#each allStudents as s}
-          <option value={s.id}>{s.email}</option>
+          <option value={s.id}>{s.name ?? s.email}</option>
         {/each}
       </select>
       <br>
       <button disabled={!selectedIDs.length} on:click={addStudents}>Add selected</button>
+    </details>
+
+    <details>
+      <summary><strong>Import from Bakaláři</strong></summary>
+      <input placeholder="Username" bind:value={bkUser}>
+      <input type="password" placeholder="Password" bind:value={bkPass}>
+      <button on:click={fetchAtoms} disabled={loadingAtoms}>Load classes</button>
+      {#if bkAtoms.length}
+        <ul>
+          {#each bkAtoms as a}
+            <li>
+              {a.Name}
+              <button on:click={()=>importAtom(a.Id)}>Import</button>
+            </li>
+          {/each}
+        </ul>
+      {:else if loadingAtoms}
+        <p>Loading…</p>
+      {/if}
     </details>
   {/if}
 

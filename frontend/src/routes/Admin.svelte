@@ -79,7 +79,7 @@
       {#each users as u}
         <tr>
           <td>{u.id}</td>
-          <td>{u.email}</td>
+          <td>{u.name ?? u.email}</td>
           <td>
             <select bind:value={u.role} on:change={(e)=>changeRole(u.id,(e.target as HTMLSelectElement).value)}>
               {#each roles as r}<option>{r}</option>{/each}

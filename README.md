@@ -96,6 +96,11 @@ The backend expects several variables to be set (usually via a `.env` file):
 - `JWT_SECRET` – secret used to sign authentication tokens
 - `ADMIN_EMAIL` – email for the seeded administrator account
 - `ADMIN_PASSWORD` – password for the seeded administrator account
+- `BAKALARI_BASE_URL` – base URL of the Bakaláři API v3 instance
+
+When this variable is configured, the frontend login page presents a
+"Bakalari" tab allowing students and teachers to authenticate using their
+school credentials.
 
 You can copy `backend/.env.example` and adjust it for your environment.
 
@@ -144,6 +149,10 @@ The backend now exposes two additional endpoints:
 - `DELETE /api/users/:id` – Admin only. Deletes the specified user and cascades removal of related classes, assignments and submissions. Returns `204` on success.
 - `GET /api/my-submissions` – Student endpoint returning the authenticated user's submissions ordered by creation date.
 - `PUT /api/assignments/:id/publish` – Teacher/admin endpoint to publish an assignment once it's ready.
+- `POST /login-bakalari` – Authenticate via Bakaláři API v3 using username and password.
+  The endpoint stores the user's Bakaláři class abbreviation and short ID when available.
+- `POST /api/bakalari/atoms` – Teacher endpoint returning the teacher's class atoms from Bakaláři.
+- `POST /api/classes/:id/import-bakalari` – Import all students from a selected Bakaláři class into the local class.
 
 ---
 
