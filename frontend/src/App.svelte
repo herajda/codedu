@@ -5,15 +5,16 @@
   import { get } from 'svelte/store'
   import { auth } from './lib/auth'
 
-  import Login      from './routes/Login.svelte'
-  import Register   from './routes/Register.svelte'
-  import Dashboard  from './routes/Dashboard.svelte'
-  import Admin      from './routes/Admin.svelte'
-  import TeacherCls from './routes/TeacherClasses.svelte'
-  import ClassPage  from './routes/ClassDetail.svelte'
-  import MyClasses  from './routes/MyClasses.svelte'
-  import AssignmentPage from './routes/AssignmentDetail.svelte'
-  import SubmissionPage from './routes/SubmissionDetail.svelte'
+import Login      from './routes/Login.svelte'
+import Register   from './routes/Register.svelte'
+import Dashboard  from './routes/Dashboard.svelte'
+import Admin      from './routes/Admin.svelte'
+import TeacherCls from './routes/TeacherClasses.svelte'
+import ClassPage  from './routes/ClassDetail.svelte'
+import MyClasses  from './routes/MyClasses.svelte'
+import AssignmentPage from './routes/AssignmentDetail.svelte'
+import SubmissionPage from './routes/SubmissionDetail.svelte'
+import AppLayout  from './lib/layouts/AppLayout.svelte'
 
   const isAuth   = () => !!get(auth)?.token
   const hasRole  = (role: string) => () => get(auth)?.role === role
@@ -38,5 +39,7 @@
 </script>
 
 <main>
-  <Router {routes}/>
+  <AppLayout>
+    <Router {routes}/>
+  </AppLayout>
 </main>
