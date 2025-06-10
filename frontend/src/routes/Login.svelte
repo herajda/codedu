@@ -2,8 +2,6 @@
     import { auth } from '../lib/auth'
     import { apiFetch } from '../lib/api'
     import { push } from 'svelte-spa-router'
-    import Button from '../lib/ui/Button.svelte'
-    import Input  from '../lib/ui/Input.svelte'
     let email = ''
     let password = ''
     let bkUser = ''
@@ -65,31 +63,27 @@
     }
   </script>
   
-  <div class="flex min-h-[calc(100vh-4rem)] items-center justify-center">
-    <div class="w-full max-w-md space-y-6 rounded-lg bg-white p-6 shadow">
-      <h1 class="text-center text-2xl font-bold">Log In</h1>
-      <div class="flex justify-center gap-2">
-        <Button on:click={() => mode = 'local'} variant={mode==='local' ? 'default' : 'outline'}>Local</Button>
-        <Button on:click={() => mode = 'bakalari'} variant={mode==='bakalari' ? 'default' : 'outline'}>Bakalari</Button>
-      </div>
-      {#if mode === 'local'}
-        <form on:submit|preventDefault={submit} class="space-y-4">
-          <Input type="email" bind:value={email} placeholder="Email" required />
-          <Input type="password" bind:value={password} placeholder="Password" required />
-          <Button type="submit" class="w-full">Log In</Button>
-        </form>
-      {:else}
-        <form on:submit|preventDefault={submitBk} class="space-y-4">
-          <Input bind:value={bkUser} placeholder="Username" required />
-          <Input type="password" bind:value={bkPass} placeholder="Password" required />
-          <Button type="submit" class="w-full">Log In</Button>
-        </form>
-      {/if}
-      {#if error}
-        <p class="text-center text-red-600">{error}</p>
-      {/if}
-      <p class="text-center text-sm">
-        Don’t have an account? <a href="#/register" class="underline">Register here</a>
-      </p>
-    </div>
+  <h1>Log In</h1>
+  <div>
+    <button on:click={() => mode = 'local'} disabled={mode==='local'}>Local</button>
+    <button on:click={() => mode = 'bakalari'} disabled={mode==='bakalari'}>Bakalari</button>
   </div>
+  {#if mode === 'local'}
+    <form on:submit|preventDefault={submit}>
+      <input type="email" bind:value={email} placeholder="Email" required />
+      <input type="password" bind:value={password} placeholder="Password" required />
+      <button type="submit">Log In</button>
+    </form>
+  {:else}
+    <form on:submit|preventDefault={submitBk}>
+      <input bind:value={bkUser} placeholder="Username" required />
+      <input type="password" bind:value={bkPass} placeholder="Password" required />
+      <button type="submit">Log In</button>
+    </form>
+  {/if}
+  {#if error}
+    <p style="color: red">{error}</p>
+  {/if}
+  <p>
+    Don’t have an account? <a href="#/register">Register here</a>
+  </p>
