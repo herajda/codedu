@@ -1,5 +1,6 @@
 <script lang="ts">
-  import Router from 'svelte-spa-router'
+import Router from 'svelte-spa-router'
+import Layout from './lib/Layout.svelte'
   import wrap from 'svelte-spa-router/wrap'
   import type { RouteDefinition } from 'svelte-spa-router'
   import { get } from 'svelte/store'
@@ -37,6 +38,6 @@
   }
 </script>
 
-<main>
-  <Router {routes}/>
-</main>
+<Layout>
+  <Router {routes} />
+</Layout>
