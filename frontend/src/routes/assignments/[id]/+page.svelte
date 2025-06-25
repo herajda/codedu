@@ -2,7 +2,8 @@
   import { onMount } from 'svelte'
   import { get } from 'svelte/store'
   import { auth } from '$lib/auth'
-  import { apiFetch, apiJSON } from '$lib/api'
+import { apiFetch, apiJSON } from '$lib/api'
+import { goto } from '$app/navigation'
 
   export let params:{id:string}
 
@@ -98,7 +99,7 @@
     if(!confirm('Delete this assignment?')) return
     try{
       await apiFetch(`/api/assignments/${params.id}`,{method:'DELETE'})
-      window.location.hash=`#/classes/${assignment.class_id}`
+      goto(`/classes/${assignment.class_id}`)
     }catch(e:any){ err=e.message }
   }
 

@@ -1,5 +1,4 @@
 <script lang="ts">
-    import { push } from 'svelte-spa-router'
     import { goto } from '$app/navigation'
     let email = ''
     let password = ''
