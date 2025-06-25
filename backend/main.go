@@ -111,7 +111,12 @@ func main() {
 
 	// 5) Frontend
 	buildPath := filepath.Join("..", "frontend", "build")
-	r.StaticFS("/", http.Dir(buildPath))
+
+	// serve built assets without conflicting with /api routes
+	r.Static("/_app", filepath.Join(buildPath, "_app"))
+	r.StaticFile("/favicon.png", filepath.Join(buildPath, "favicon.png"))
+
+	// send index.html for all other routes so SvelteKit can handle routing
 	r.NoRoute(func(c *gin.Context) {
 		c.File(filepath.Join(buildPath, "index.html"))
 	})
