@@ -17,7 +17,7 @@
 ## Technology Stack
 
 ### Frontend
-- **Framework**: [Svelte](https://svelte.dev/)
+- **Framework**: [SvelteKit](https://kit.svelte.dev/)
 - **Language**: TypeScript
 - **Tooling**: Vite
 - **Responsibilities**:
@@ -105,12 +105,14 @@ school credentials.
 You can copy `backend/.env.example` and adjust it for your environment.
 
 ### Services
-- **frontend**: Svelte SPA
+- **frontend**: SvelteKit static build
 - **backend**: Gin-based Go API
 - **db**: PostgreSQL
 - **worker**: Background task processor for grading
 - Ensure the Docker image `python:3.11` is available locally. If it's missing,
   pull it once with `docker pull python:3.11`.
+- After modifying the frontend, rebuild it with `npm run build` so the Go
+  server can serve the updated static files.
 
 ---
 

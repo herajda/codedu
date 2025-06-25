@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -107,6 +108,13 @@ func main() {
 		api.GET("/classes/:id", RoleGuard("teacher", "student", "admin"), getClass)
 
 	}
+
+	// 5) Frontend
+	buildPath := filepath.Join("..", "frontend", "build")
+	r.StaticFS("/", http.Dir(buildPath))
+	r.NoRoute(func(c *gin.Context) {
+		c.File(filepath.Join(buildPath, "index.html"))
+	})
 
 	log.Println("🚀 Server running on http://localhost:22946")
 	if err := r.Run(":22946"); err != nil {
