@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount } from 'svelte'
-    import { push }    from 'svelte-spa-router'
-    import { apiJSON } from '../lib/api'
+    import { apiJSON } from '$lib/api'
+    import { goto } from '$app/navigation'
   
     type Class = { id:number; name:string; teacher_email:string }
 
@@ -22,7 +22,7 @@
     {#each list as c}
       <li>
         <button
-           on:click={()=>push(`/classes/${c.id}`)}
+           on:click={()=>goto(`/classes/${c.id}`)}
            style="background:none;border:none;padding:0;cursor:pointer;text-decoration:underline;color:inherit;font:inherit">
           {c.name} – <small>{c.teacher_email}</small>
         </button>

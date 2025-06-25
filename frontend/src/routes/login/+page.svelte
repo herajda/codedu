@@ -1,7 +1,7 @@
 <script lang="ts">
-    import { auth } from '../lib/auth'
-    import { apiFetch } from '../lib/api'
-    import { push } from 'svelte-spa-router'
+    import { auth } from '$lib/auth'
+    import { apiFetch } from '$lib/api'
+    import { goto } from '$app/navigation'
     let email = ''
     let password = ''
     let bkUser = ''
@@ -33,9 +33,9 @@
   
       // 3. Store & smart-redirect
       auth.login(token, me.id, me.role)
-      if      (me.role === 'admin')   push('/admin')
-      else if (me.role === 'teacher') push('/classes')
-      else                            push('/my-classes')
+      if      (me.role === 'admin')   goto('/admin')
+      else if (me.role === 'teacher') goto('/classes')
+      else                            goto('/my-classes')
     }
     async function submitBk() {
       error = ''
@@ -57,9 +57,9 @@
       }
       const me = await meRes.json()
       auth.login(token, me.id, me.role)
-      if      (me.role === 'admin')   push('/admin')
-      else if (me.role === 'teacher') push('/classes')
-      else                            push('/my-classes')
+      if      (me.role === 'admin')   goto('/admin')
+      else if (me.role === 'teacher') goto('/classes')
+      else                            goto('/my-classes')
     }
   </script>
   
@@ -85,5 +85,5 @@
     <p style="color: red">{error}</p>
   {/if}
   <p>
-    Don’t have an account? <a href="#/register">Register here</a>
+    Don’t have an account? <a href="/register">Register here</a>
   </p>

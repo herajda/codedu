@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { get } from 'svelte/store'
-  import { auth } from '../lib/auth'
-  import { apiFetch, apiJSON } from '../lib/api'
+  import { auth } from '$lib/auth'
+  import { apiFetch, apiJSON } from '$lib/api'
 
   export let params:{id:string}
 
@@ -189,7 +189,7 @@
             <td>{p.student.name ?? p.student.email}</td>
             <td>{p.latest ? p.latest.status : 'none'}</td>
             <td>{p.latest ? new Date(p.latest.created_at).toLocaleString() : '-'}</td>
-            <td>{#if p.latest}<a href={`#/submissions/${p.latest.id}`}>view</a>{/if}</td>
+            <td>{#if p.latest}<a href={`/submissions/${p.latest.id}`}>view</a>{/if}</td>
           </tr>
         {/each}
         {#if !progress.length}
@@ -204,7 +204,7 @@
     <ul>
       {#each submissions as s}
         <li>
-          <a href={`#/submissions/${s.id}`}>{new Date(s.created_at).toLocaleString()}</a>
+          <a href={`/submissions/${s.id}`}>{new Date(s.created_at).toLocaleString()}</a>
           &nbsp;– {s.status}
         </li>
       {/each}

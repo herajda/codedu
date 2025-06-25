@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { apiJSON } from '../lib/api'
+  import { apiJSON } from '$lib/api'
   export let params:{id:string}
 
   let submission:any=null

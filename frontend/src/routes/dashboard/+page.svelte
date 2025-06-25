@@ -1,8 +1,8 @@
 <script lang="ts">
-    import { auth } from '../lib/auth'
-    import { apiFetch } from '../lib/api'
+    import { auth } from '$lib/auth'
+    import { apiFetch } from '$lib/api'
     import { onMount } from 'svelte'
-    import { push } from 'svelte-spa-router'
+    import { goto } from '$app/navigation'
   
     let me = { id: 0, role: '' }
     let msg = ''
@@ -22,7 +22,7 @@
   
     function logout() {
       auth.logout()
-      push('/login')
+      goto('/login')
     }
   </script>
   

@@ -1,5 +1,6 @@
 <script lang="ts">
     import { push } from 'svelte-spa-router'
+    import { goto } from '$app/navigation'
     let email = ''
     let password = ''
     let error = ''
@@ -12,7 +13,7 @@
         body: JSON.stringify({ email, password })
       })
       if (res.status === 201) {
-        push('/login')
+        goto('/login')
       } else {
         error = (await res.json()).error
       }
@@ -29,6 +30,6 @@
     <p style="color: red">{error}</p>
   {/if}
   <p>
-    Already have an account? <a href="#/login">Log in</a>
+    Already have an account? <a href="/login">Log in</a>
   </p>
   

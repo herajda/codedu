@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount }   from 'svelte'
   import { get }       from 'svelte/store'
-  import { auth }      from '../lib/auth'
-  import { apiFetch, apiJSON } from '../lib/api'
+  import { auth }      from '$lib/auth'
+  import { apiFetch, apiJSON } from '$lib/api'
 
   /* ───────────────────────── route param comes in as a PROP */
   export let params: {id: string}
@@ -79,7 +79,7 @@
     } catch(e:any){ err=e.message }
   }
 
-  /* ───────────────────────── Bakalári import helpers */
+  /* ───────────────────────── Bakalari import helpers */
   let bkUser = ''
   let bkPass = ''
   let bkAtoms: { Id:string; Name:string }[] = []
@@ -171,7 +171,7 @@
   <ul>
     {#each assignments as a}
       <li>
-        <strong><a href={`#/assignments/${a.id}`}>{a.title}</a></strong>
+        <strong><a href={`/assignments/${a.id}`}>{a.title}</a></strong>
         {#if !a.published}
           <em style="color:gray"> (draft)</em>
         {/if}

@@ -1,14 +1,18 @@
-// frontend/vite.config.ts
-import { defineConfig } from 'vite'
-import { svelte } from '@sveltejs/vite-plugin-svelte'
+import tailwindcss from '@tailwindcss/vite';
+import devtoolsJson from 'vite-plugin-devtools-json';
+import { sveltekit } from '@sveltejs/kit/vite';
+import { defineConfig } from 'vite';
 
 export default defineConfig({
-  plugins: [svelte()],
-  server: {
+	plugins: [
+		tailwindcss(),
+		sveltekit(),
+		devtoolsJson()
+	],
+	server: {
     proxy: {
-      '/api': 'http://localhost:22946',
+      '/api':      'http://localhost:22946',
       '/register': 'http://localhost:22946',
-      '/login': 'http://localhost:22946'
+      '/login':    'http://localhost:22946'
     }
-  }
-})
+}});

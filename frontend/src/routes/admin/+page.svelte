@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { apiFetch, apiJSON } from '../lib/api'
+  import { apiFetch, apiJSON } from '$lib/api'
 
   // ───────────────────────────────────────── tabs
   let tab:'teachers'|'users'|'classes' = 'teachers'

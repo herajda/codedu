@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { auth } from './auth';
+  import { auth } from '$lib/auth';
   import { get } from 'svelte/store';
-  import { push } from 'svelte-spa-router';
+  import { goto } from '$app/navigation';
+  import "../app.css";
 
   function logout() {
     auth.logout();
-    push('/login');
+    goto('/login');
   }
 
   $: user = get(auth);
@@ -18,7 +19,7 @@
       <a href="#/admin" class="hover:text-blue-400">Admin</a>
     {:else if user?.role === 'teacher'}
       <a href="#/classes" class="hover:text-blue-400">Classes</a>
-    {:else if user?.role === 'student'}
+    {:else if user?.role === 'student'}}
       <a href="#/my-classes" class="hover:text-blue-400">My Classes</a>
     {/if}
   </div>
@@ -33,12 +34,7 @@
   </div>
 </nav>
 
-<main class="p-4">
+<main class="p-4 mx-auto">
   <slot />
 </main>
 
-<style>
-  main {
-    @apply container mx-auto;
-  }
-</style>
