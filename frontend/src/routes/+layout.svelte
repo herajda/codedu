@@ -6,7 +6,7 @@
 
   function logout() {
     auth.logout();
-    goto('/api/login');
+    goto('/login');
   }
 
   $: user = get(auth);
