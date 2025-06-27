@@ -19,9 +19,9 @@
         {#if user?.role === 'admin'}
           <a href="/admin" class="btn btn-ghost">Admin</a>
         {:else if user?.role === 'teacher'}
-          <a href="/my-classes" class="btn btn-ghost">Classes</a>
+          <a href="/classes" class="btn btn-ghost">Classes</a>
         {:else if user?.role === 'student'}
-          <a href="/my-classes" class="btn btn-ghost">My Classes</a>
+          <a href="/classes" class="btn btn-ghost">My Classes</a>
         {/if}
       </div>
       <div class="flex-none gap-2">
