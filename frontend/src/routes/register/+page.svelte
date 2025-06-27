@@ -1,5 +1,6 @@
 <script lang="ts">
     import { goto } from '$app/navigation'
+    import { Card, Button, Input } from 'flowbite-svelte'
     let email = ''
     let password = ''
     let error = ''
@@ -19,16 +20,18 @@
     }
   </script>
   
-  <h1>Register</h1>
-  <form on:submit|preventDefault={submit}>
-    <input type="email" bind:value={email} placeholder="Email" required />
-    <input type="password" bind:value={password} placeholder="Password" required />
-    <button type="submit">Register</button>
+<Card class="max-w-md mx-auto p-6">
+  <h1 class="text-xl font-semibold mb-4 text-center">Register</h1>
+  <form on:submit|preventDefault={submit} class="flex flex-col gap-4">
+    <Input type="email" bind:value={email} placeholder="Email" required />
+    <Input type="password" bind:value={password} placeholder="Password" required />
+    <Button type="submit" class="w-full">Register</Button>
   </form>
   {#if error}
-    <p style="color: red">{error}</p>
+    <p class="text-red-600 mt-2">{error}</p>
   {/if}
-  <p>
-    Already have an account? <a href="/login">Log in</a>
+  <p class="mt-4 text-sm text-center">
+    Already have an account? <a href="/login" class="text-blue-600 hover:underline">Log in</a>
   </p>
+</Card>
   

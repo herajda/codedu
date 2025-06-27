@@ -3,6 +3,15 @@
   import { get } from 'svelte/store';
   import { goto } from '$app/navigation';
   import '../app.css';
+  import {
+    Navbar,
+    NavBrand,
+    NavHamburger,
+    NavUl,
+    NavLi,
+    Button
+  } from 'flowbite-svelte';
+  const ActionButton: any = Button
 
   function logout() {
     auth.logout();
@@ -12,29 +21,32 @@
   $: user = get(auth);
 </script>
 
-  <nav>
-  <div class="left">
-    <a href="/dashboard" class="brand">CodeGrader</a>
+<Navbar class="border-b mb-4">
+  <NavBrand href="/dashboard" class="ml-2">
+    <span class="self-center whitespace-nowrap text-xl font-semibold dark:text-white">CodeGrader</span>
+  </NavBrand>
+  <NavHamburger />
+  <NavUl class="flex-1 justify-end">
     {#if user?.role === 'admin'}
-      <a href="/admin">Admin</a>
+      <NavLi href="/admin">Admin</NavLi>
     {:else if user?.role === 'teacher'}
-      <a href="/my-classes">Classes</a>
+      <NavLi href="/my-classes">Classes</NavLi>
     {:else if user?.role === 'student'}
-      <a href="/my-classes">My Classes</a>
+      <NavLi href="/my-classes">My Classes</NavLi>
     {/if}
-  </div>
-  <div class="right">
     {#if user}
-      <span>{user.role}</span>
-      <button on:click={logout}>Logout</button>
+      <NavLi class="flex items-center">
+        <span class="text-sm mr-2">{user.role}</span>
+        <ActionButton color="gray" size="sm" on:click={logout}>Logout</ActionButton>
+      </NavLi>
     {:else}
-      <a href="/login">Login</a>
-      <a href="/register">Register</a>
+      <NavLi><ActionButton size="sm" href="/login">Login</ActionButton></NavLi>
+      <NavLi><ActionButton color="light" size="sm" href="/register">Register</ActionButton></NavLi>
     {/if}
-  </div>
-</nav>
+  </NavUl>
+</Navbar>
 
-<main>
+<main class="container mx-auto p-4">
   <slot />
 </main>
 

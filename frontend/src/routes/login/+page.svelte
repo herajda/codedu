@@ -2,6 +2,8 @@
     import { auth } from '$lib/auth'
     import { apiFetch } from '$lib/api'
     import { goto } from '$app/navigation'
+    import { Button, Input, Card } from 'flowbite-svelte'
+    const ActionButton: any = Button
     let email = ''
     let password = ''
     let bkUser = ''
@@ -63,27 +65,28 @@
     }
   </script>
   
-  <h1>Log In</h1>
-  <div>
-    <button on:click={() => mode = 'local'} disabled={mode==='local'}>Local</button>
-    <button on:click={() => mode = 'bakalari'} disabled={mode==='bakalari'}>Bakalari</button>
+<Card class="max-w-md mx-auto p-6">
+  <div class="flex justify-center mb-4 gap-2">
+    <ActionButton size="sm" on:click={() => mode = 'local'} color={mode==='local' ? 'primary' : 'light'}>Local</ActionButton>
+    <ActionButton size="sm" on:click={() => mode = 'bakalari'} color={mode==='bakalari' ? 'primary' : 'light'}>Bakalari</ActionButton>
   </div>
   {#if mode === 'local'}
-    <form on:submit|preventDefault={submit}>
-      <input type="email" bind:value={email} placeholder="Email" required />
-      <input type="password" bind:value={password} placeholder="Password" required />
-      <button type="submit">Log In</button>
+    <form on:submit|preventDefault={submit} class="flex flex-col gap-4">
+      <Input type="email" bind:value={email} placeholder="Email" required />
+      <Input type="password" bind:value={password} placeholder="Password" required />
+      <Button type="submit" class="w-full">Log In</Button>
     </form>
   {:else}
-    <form on:submit|preventDefault={submitBk}>
-      <input bind:value={bkUser} placeholder="Username" required />
-      <input type="password" bind:value={bkPass} placeholder="Password" required />
-      <button type="submit">Log In</button>
+    <form on:submit|preventDefault={submitBk} class="flex flex-col gap-4">
+      <Input bind:value={bkUser} placeholder="Username" required />
+      <Input type="password" bind:value={bkPass} placeholder="Password" required />
+      <Button type="submit" class="w-full">Log In</Button>
     </form>
   {/if}
   {#if error}
-    <p style="color: red">{error}</p>
+    <p class="text-red-600 mt-2">{error}</p>
   {/if}
-  <p>
-    Don’t have an account? <a href="/register">Register here</a>
+  <p class="mt-4 text-sm text-center">
+    Don’t have an account? <a href="/register" class="text-blue-600 hover:underline">Register here</a>
   </p>
+</Card>
