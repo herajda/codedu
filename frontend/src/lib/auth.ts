@@ -10,29 +10,17 @@ function createAuth() {
 
   /** Called from Login.svelte after successful auth */
   function login(id: number, role: string) {
-    const user = { id, role };
-    if (browser) {
-      localStorage.setItem('user', JSON.stringify(user));
-    }
-    set(user);
+    set({ id, role });
   }
 
   /** Log out everywhere */
   function logout() {
-    if (browser) {
-      localStorage.removeItem('user');
-    }
     set(null);
   }
 
   /** Run once at start-up: restore role/id when only a token is stored */
   async function init() {
-    if (!browser) return;            // don’t do anything on server
-
-    // read from localStorage
-    const raw = localStorage.getItem('user');
-    const cur: User = raw ? JSON.parse(raw) : null;
-    if (!cur) return;
+    if (!browser) return; // don’t do anything on server
 
     const r = await apiFetch('/api/me');
     if (r.ok) {

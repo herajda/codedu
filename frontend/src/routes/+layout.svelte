@@ -2,6 +2,7 @@
   import { auth } from '$lib/auth';
   import { get } from 'svelte/store';
   import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
   import '../app.css';
 
   function logout() {
@@ -10,6 +11,10 @@
   }
 
   $: user = get(auth);
+
+  onMount(() => {
+    auth.init();
+  });
 </script>
 
   <div class="min-h-screen flex flex-col">
