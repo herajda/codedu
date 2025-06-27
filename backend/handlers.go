@@ -101,18 +101,19 @@ func createAssignment(c *gin.Context) {
 		return
 	}
 
-	var req struct {
-		Title string `json:"title" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+        var req struct {
+                Title       string `json:"title" binding:"required"`
+                Description string `json:"description"`
+        }
+        if err := c.ShouldBindJSON(&req); err != nil {
+                c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+                return
+        }
 
 	a := &Assignment{
 		ClassID:       classID,
-		Title:         req.Title,
-		Description:   "",
+                Title:         req.Title,
+                Description:   req.Description,
 		Deadline:      time.Now().Add(24 * time.Hour),
 		MaxPoints:     100,
 		GradingPolicy: "all_or_nothing",

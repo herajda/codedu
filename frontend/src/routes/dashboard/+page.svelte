@@ -50,7 +50,7 @@
         const now = new Date();
         const soon = new Date();
         soon.setDate(soon.getDate()+7);
-        upcoming = classes.flatMap(c=>(c.assignments ?? []).map(a=>({class:c.name,...a})))
+        upcoming = classes.flatMap(c => (c.assignments ?? []).map((a: any) => ({ class: c.name, ...a })))
           .filter(a=>new Date(a.deadline)>now && new Date(a.deadline)<=soon)
           .sort((a,b)=>new Date(a.deadline).getTime()-new Date(b.deadline).getTime());
       }
@@ -91,9 +91,14 @@
     <h2 class="text-xl font-bold mt-8 mb-4">Upcoming deadlines</h2>
     <ul class="space-y-2">
       {#each upcoming as a}
-        <li class="flex justify-between items-center p-3 bg-base-100 rounded shadow">
-          <span>{a.title} <span class="text-sm text-base-content/60">({a.class})</span></span>
-          <span class="badge badge-info">{new Date(a.deadline).toLocaleString()}</span>
+        <li>
+          <a
+            href={`/assignments/${a.id}`}
+            class="flex justify-between items-center p-3 bg-base-100 rounded shadow hover:bg-base-200"
+          >
+            <span>{a.title} <span class="text-sm text-base-content/60">({a.class})</span></span>
+            <span class="badge badge-info">{new Date(a.deadline).toLocaleString()}</span>
+          </a>
         </li>
       {/each}
       {#if !upcoming.length}

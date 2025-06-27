@@ -2,8 +2,9 @@
   import { onMount } from 'svelte';
   import { get } from 'svelte/store';
   import { auth } from '$lib/auth';
-  import { apiFetch, apiJSON } from '$lib/api';
-  import { page } from '$app/stores';
+import { apiFetch, apiJSON } from '$lib/api';
+import { page } from '$app/stores';
+import { marked } from 'marked';
 
   $: id = $page.params.id;
   const role: string = get(auth)?.role ?? '';
@@ -11,6 +12,7 @@
   let cls:any = null;
   let students:any[] = [];
   let assignments:any[] = [];
+  let mySubs:any[] = [];
   let allStudents:any[] = [];
   let selectedIDs:number[] = [];
   let search='';
@@ -18,6 +20,22 @@
   $: filtered = allStudents.filter(s => (s.name ?? s.email).toLowerCase().includes(search.toLowerCase()));
   let aTitle='';
   let err='';
+  let now = Date.now();
+
+  onMount(() => {
+    const t = setInterval(() => now = Date.now(), 60000);
+    return () => clearInterval(t);
+  });
+
+  function countdown(deadline: string) {
+    const diff = new Date(deadline).getTime() - now;
+    if (diff <= 0) return 'late';
+    const d = Math.floor(diff / 86400000);
+    if (d >= 1) return `${d}d`;
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    return `${h}h ${m}m`;
+  }
 
   async function load() {
     err='';
@@ -26,6 +44,13 @@
       cls = data;
       students = data.students;
       assignments = [...(data.assignments ?? [])].sort((a,b)=>new Date(a.deadline).getTime()-new Date(b.deadline).getTime());
+      if (role === 'student') {
+        mySubs = await apiJSON('/api/my-submissions');
+        assignments = assignments.map(a => ({
+          ...a,
+          completed: mySubs.some((s:any)=>s.assignment_id===a.id && s.status==='completed')
+        }));
+      }
       if (role === 'teacher' || role === 'admin') allStudents = await apiJSON('/api/students');
     } catch(e:any){ err=e.message }
   }
@@ -51,7 +76,11 @@
 
   async function createAssignment(){
     try{
-      await apiFetch(`/api/classes/${id}/assignments`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:aTitle})});
+      await apiFetch(`/api/classes/${id}/assignments`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({title:aTitle})
+      });
       aTitle='';
       await load();
     }catch(e:any){ err=e.message }
@@ -169,20 +198,22 @@
         <h2 class="card-title">Assignments</h2>
         <ul class="space-y-4">
           {#each assignments as a}
-            <li class="border-b pb-2 last:border-none">
-              <div class="flex justify-between items-center">
-                <a href={`/assignments/${a.id}`} class="link link-primary text-lg">{a.title}</a>
-                {#if role === 'teacher' || role === 'admin'}
-                  <button class="btn btn-xs btn-error" on:click={()=>deleteAssignment(a.id)}>Delete</button>
-                {/if}
-              </div>
-              <div class="text-sm mb-1">
-                {#if !a.published}
-                  <span class="badge badge-sm mr-2">draft</span>
-                {/if}
-                <span class={new Date(a.deadline)<new Date() ? 'text-error' : ''}>due {new Date(a.deadline).toLocaleString()}</span>
-              </div>
-              <p class="text-sm">{a.description} (max {a.max_points} pts, {a.grading_policy})</p>
+            <li>
+              <a href={`/assignments/${a.id}`} class={`block no-underline text-current card shadow transition hover:-translate-y-1 hover:shadow-lg ${a.completed ? 'bg-success/10' : 'bg-base-100'}`}>
+                <div class="card-body flex-col sm:flex-row justify-between items-start sm:items-center gap-2 py-3">
+                  <span class="text-lg font-semibold text-primary">{a.title}</span>
+                  <div class="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:justify-end w-full sm:w-auto">
+                    <span class={`badge ${new Date(a.deadline)<new Date() && !a.completed ? 'badge-error' : 'badge-info'}`}>{new Date(a.deadline).toLocaleString()}</span>
+                    <span class="text-sm">{countdown(a.deadline)}</span>
+                    {#if a.completed}
+                      <span class="badge badge-success">done</span>
+                    {/if}
+                    {#if role === 'teacher' || role === 'admin'}
+                      <button class="btn btn-xs btn-error" on:click|stopPropagation={()=>deleteAssignment(a.id)}>Delete</button>
+                    {/if}
+                  </div>
+                </div>
+              </a>
             </li>
           {/each}
           {#if !assignments.length}<li><i>No assignments yet</i></li>{/if}
@@ -191,6 +222,7 @@
         {#if role === 'teacher' || role === 'admin'}
           <form class="mt-4" on:submit|preventDefault={createAssignment}>
             <input class="input input-bordered w-full mb-2" placeholder="Title" bind:value={aTitle} required>
+            <MarkdownEditor bind:value={aDesc} placeholder="Description" className="mb-2" />
             <button class="btn">Create</button>
           </form>
         {/if}
