@@ -2,7 +2,6 @@
   import { auth } from '$lib/auth';
   import { get } from 'svelte/store';
   import { goto } from '$app/navigation';
-  import "../app.css";
 
   function logout() {
     auth.logout();
