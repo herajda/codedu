@@ -1,18 +1,12 @@
 // RequestInit and RequestInfo are provided by the DOM lib
-import { get } from 'svelte/store'
-import { auth } from './auth'
-
 export async function apiFetch(
   input: RequestInfo,
   init: RequestInit = {}
 ) {
-  const token =
-    localStorage.getItem('jwt') || get(auth)?.token || undefined
-  const headers = new Headers(init.headers)
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`)
-  }
-  const res = await fetch(input, { ...init, headers })
+  const res = await fetch(input, {
+    ...init,
+    credentials: 'include'
+  })
   return res
 }
 // simple wrapper so we write one line instead of four every time

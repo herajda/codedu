@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { apiFetch, apiJSON } from '$lib/api'
+  import { sha256 } from '$lib/hash'
 
   // ───────────────────────────────────────── tabs
   let tab:'teachers'|'users'|'classes' = 'teachers'
@@ -14,7 +15,7 @@
     const r = await apiFetch('/api/teachers', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({email,password})
+      body:JSON.stringify({email,password:await sha256(password)})
     })
     if (r.status === 201) { ok='Teacher created ✔'; email=password='' }
     else                  { err=(await r.json()).error }

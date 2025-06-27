@@ -28,10 +28,11 @@ func ensureAdmin() {
 		log.Fatalf("admin check failed: %v", err)
 	}
 	if !exists {
-		hash, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+		hashed := clientHash(password)
+		hash, _ := bcrypt.GenerateFromPassword([]byte(hashed), bcrypt.DefaultCost)
 		if _, err := DB.Exec(`
-		    INSERT INTO users (email,password_hash,role)
-		    VALUES ($1,$2,'admin')`, email, hash); err != nil {
+                    INSERT INTO users (email,password_hash,role)
+                    VALUES ($1,$2,'admin')`, email, hash); err != nil {
 			log.Fatalf("could not insert admin: %v", err)
 		}
 		log.Printf("👑  Admin seeded → %s / %s", email, password)
@@ -52,6 +53,7 @@ func main() {
 	r.POST("/api/register", Register)
 	r.POST("/api/login", Login)
 	r.POST("/api/login-bakalari", LoginBakalari)
+	r.POST("/api/refresh", Refresh)
 
 	// 4) Protected
 	api := r.Group("/api")

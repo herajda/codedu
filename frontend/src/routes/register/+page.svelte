@@ -1,5 +1,6 @@
 <script lang="ts">
     import { goto } from '$app/navigation'
+    import { sha256 } from '$lib/hash'
     let email = ''
     let password = ''
     let error = ''
@@ -9,7 +10,7 @@
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password: await sha256(password) })
       })
       if (res.status === 201) {
         goto('/login')
