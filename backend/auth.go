@@ -90,6 +90,28 @@ func setAuthCookies(c *gin.Context, access, refresh string) {
 	})
 }
 
+func clearAuthCookies(c *gin.Context) {
+	secure := c.Request.TLS != nil
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "access_token",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   -1,
+	})
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   -1,
+	})
+}
+
 type registerReq struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,min=6"`
@@ -303,5 +325,10 @@ func Refresh(c *gin.Context) {
 		return
 	}
 	setAuthCookies(c, access, refresh)
+	c.Status(http.StatusNoContent)
+}
+
+func Logout(c *gin.Context) {
+	clearAuthCookies(c)
 	c.Status(http.StatusNoContent)
 }
