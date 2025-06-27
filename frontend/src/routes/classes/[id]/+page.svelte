@@ -3,9 +3,9 @@
   import { get }       from 'svelte/store'
   import { auth }      from '$lib/auth'
   import { apiFetch, apiJSON } from '$lib/api'
+  import { page } from '$app/stores'
 
-  /* ───────────────────────── route param comes in as a PROP */
-  export let params: {id: string}
+  $: id  = $page.params.id
 
   const role: string = get(auth)?.role ?? ''
 
@@ -24,7 +24,7 @@
   async function load() {
     err = ''
     try {
-      const data = await apiJSON(`/api/classes/${params.id}`)
+      const data = await apiJSON(`/api/classes/${id}`)
       cls        = data
       students   = data.students
       assignments = [...(data.assignments ?? [])].sort(
@@ -41,7 +41,7 @@
   /* ───────────────────────── teacher actions (unchanged, just use currentId) */
   async function addStudents() {
     try {
-      await apiFetch(`/api/classes/${params.id}/students`, {
+      await apiFetch(`/api/classes/${id}/students`, {
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({ student_ids:selectedIDs })
@@ -54,14 +54,14 @@
   async function removeStudent(sid:number) {
     if (!confirm('Remove this student from class?')) return
     try {
-      await apiFetch(`/api/classes/${params.id}/students/${sid}`,{ method:'DELETE' })
+      await apiFetch(`/api/classes/${id}/students/${sid}`,{ method:'DELETE' })
       await load()
     } catch(e:any){ err=e.message }
   }
 
   async function createAssignment() {
     try {
-      await apiFetch(`/api/classes/${params.id}/assignments`,{
+      await apiFetch(`/api/classes/${id}/assignments`,{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({ title:aTitle })
@@ -101,7 +101,7 @@
   async function importAtom(aid:string) {
     err = ''
     try {
-      const res = await apiJSON<{added:number}>(`/api/classes/${params.id}/import-bakalari`, {
+      const res = await apiJSON<{added:number}>(`/api/classes/${id}/import-bakalari`, {
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ username: bkUser, password: bkPass, atom_id: aid })
@@ -171,7 +171,7 @@
   <ul>
     {#each assignments as a}
       <li>
-        <strong><a href={`/assignments/${a.id}`}>{a.title}</a></strong>
+        <strong><a href={`/api/assignments/${a.id}`}>{a.title}</a></strong>
         {#if !a.published}
           <em style="color:gray"> (draft)</em>
         {/if}

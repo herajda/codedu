@@ -58,7 +58,7 @@
       const me = await meRes.json()
       auth.login(token, me.id, me.role)
       if      (me.role === 'admin')   goto('/admin')
-      else if (me.role === 'teacher') goto('/classes')
+      else if (me.role === 'teacher') goto('/my-classes')
       else                            goto('/my-classes')
     }
   </script>

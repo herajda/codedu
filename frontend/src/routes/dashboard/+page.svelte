@@ -22,7 +22,7 @@
   
     function logout() {
       auth.logout()
-      goto('/api/login')
+      goto('/login')
     }
   </script>
   
@@ -31,4 +31,5 @@
   <p><strong>Your role:</strong> {me.role}</p>
   <p><strong>Ping says:</strong> {msg}</p>
   <button on:click={logout}>Log out</button>
+
   

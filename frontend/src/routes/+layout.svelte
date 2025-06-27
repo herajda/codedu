@@ -18,7 +18,7 @@
     {#if user?.role === 'admin'}
       <a href="/admin" class="hover:text-blue-400">Admin</a>
     {:else if user?.role === 'teacher'}
-      <a href="/classes" class="hover:text-blue-400">Classes</a>
+      <a href="/my-classes" class="hover:text-blue-400">Classes</a>
     {:else if user?.role === 'student'}
       <a href="/my-classes" class="hover:text-blue-400">My Classes</a>
     {/if}

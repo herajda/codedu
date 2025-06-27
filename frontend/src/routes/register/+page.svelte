@@ -6,13 +6,13 @@
   
     async function submit() {
       error = ''
-      const res = await fetch('/register', {
+      const res = await fetch('/api/register', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ email, password })
       })
       if (res.status === 201) {
-        goto('/api/login')
+        goto('/login')
       } else {
         error = (await res.json()).error
       }
