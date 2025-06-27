@@ -3,6 +3,7 @@
   import { createEventDispatcher } from 'svelte';
   import EasyMDE from 'easymde';
   import 'easymde/dist/easymde.min.css';
+  import '@fortawesome/fontawesome-free/css/all.min.css';
 
   export let value = '';
   export let placeholder = '';
