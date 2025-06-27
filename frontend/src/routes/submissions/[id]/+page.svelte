@@ -1,7 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { apiJSON } from '$lib/api'
-  export let params:{id:string}
+  import { page } from '$app/stores'
+
+$: id = $page.params.id
 
   let submission:any=null
   let results:any[]=[]
@@ -10,7 +12,7 @@
   async function load(){
     err=''
     try{
-      const data = await apiJSON(`/api/submissions/${params.id}`)
+      const data = await apiJSON(`/api/submissions/${id}`)
       submission = data.submission
       results = data.results
     }catch(e:any){ err=e.message }

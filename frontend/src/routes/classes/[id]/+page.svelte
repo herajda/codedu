@@ -171,7 +171,7 @@
   <ul>
     {#each assignments as a}
       <li>
-        <strong><a href={`/api/assignments/${a.id}`}>{a.title}</a></strong>
+        <strong><a href={`/assignments/${a.id}`}>{a.title}</a></strong>
         {#if !a.published}
           <em style="color:gray"> (draft)</em>
         {/if}
