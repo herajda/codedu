@@ -13,6 +13,9 @@
   let assignments:any[] = [];
   let allStudents:any[] = [];
   let selectedIDs:number[] = [];
+  let search='';
+  let addDialog: HTMLDialogElement;
+  $: filtered = allStudents.filter(s => (s.name ?? s.email).toLowerCase().includes(search.toLowerCase()));
   let aTitle='';
   let err='';
 
@@ -33,6 +36,7 @@
     try{
       await apiFetch(`/api/classes/${id}/students`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({student_ids:selectedIDs})});
       selectedIDs=[];
+      addDialog.close();
       await load();
     }catch(e:any){ err=e.message }
   }
@@ -59,6 +63,10 @@
       await apiFetch(`/api/assignments/${aid}`,{method:'DELETE'});
       await load();
     }catch(e:any){ err=e.message }
+  }
+
+  function openAddModal(){
+    addDialog.showModal();
   }
 
   let bkUser='';
@@ -110,18 +118,8 @@
             {#if !students.length}<li><i>No students yet</i></li>{/if}
           </ul>
 
-          <div class="mt-4">
-            <details class="collapse collapse-arrow">
-              <summary class="collapse-title font-medium">Add students</summary>
-              <div class="collapse-content">
-                <select multiple size="6" bind:value={selectedIDs} class="select select-bordered w-full mb-2">
-                  {#each allStudents as s}
-                    <option value={s.id}>{s.name ?? s.email}</option>
-                  {/each}
-                </select>
-                <button class="btn" disabled={!selectedIDs.length} on:click={addStudents}>Add selected</button>
-              </div>
-            </details>
+          <div class="mt-4 space-y-2">
+            <button class="btn" on:click={openAddModal}>Add students</button>
 
             <details class="collapse collapse-arrow mt-2">
               <summary class="collapse-title font-medium">Import from Bakaláři</summary>
@@ -141,9 +139,30 @@
               </div>
             </details>
           </div>
+      </div>
+    </div>
+    <dialog bind:this={addDialog} class="modal">
+      <div class="modal-box w-11/12 max-w-lg">
+        <h3 class="font-bold text-lg mb-3">Add students</h3>
+        <input class="input input-bordered w-full mb-3" placeholder="Search" bind:value={search} />
+        <div class="max-h-60 overflow-y-auto space-y-2 mb-4">
+          {#each filtered as s}
+            <label class="flex items-center gap-2">
+              <input type="checkbox" class="checkbox" value={s.id} bind:group={selectedIDs} />
+              <span>{s.name ?? s.email}</span>
+            </label>
+          {/each}
+          {#if !filtered.length}
+            <p><i>No students</i></p>
+          {/if}
+        </div>
+        <div class="modal-action">
+          <button class="btn" on:click={addStudents} disabled={!selectedIDs.length}>Add selected</button>
         </div>
       </div>
-    {/if}
+      <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+  {/if}
 
     <div class="card bg-base-100 shadow">
       <div class="card-body">
