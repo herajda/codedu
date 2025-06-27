@@ -22,7 +22,7 @@
   
     function logout() {
       auth.logout()
-      goto('/login')
+      goto('/api/login')
     }
   </script>
   

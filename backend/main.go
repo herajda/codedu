@@ -49,9 +49,9 @@ func main() {
 	r := gin.Default()
 
 	// 3) Public
-	r.POST("/register", Register)
-	r.POST("/login", Login)
-	r.POST("/login-bakalari", LoginBakalari)
+	r.POST("/api/register", Register)
+	r.POST("/api/login", Login)
+	r.POST("/api/login-bakalari", LoginBakalari)
 
 	// 4) Protected
 	api := r.Group("/api")

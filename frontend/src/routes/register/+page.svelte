@@ -12,7 +12,7 @@
         body: JSON.stringify({ email, password })
       })
       if (res.status === 201) {
-        goto('/login')
+        goto('/api/login')
       } else {
         error = (await res.json()).error
       }

@@ -12,7 +12,5 @@ export default defineConfig({
 	server: {
     proxy: {
       '/api':      'http://localhost:22946',
-      '/register': 'http://localhost:22946',
-      '/login':    'http://localhost:22946'
     }
 }});
