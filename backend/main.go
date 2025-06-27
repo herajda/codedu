@@ -54,6 +54,7 @@ func main() {
 	r.POST("/api/login", Login)
 	r.POST("/api/login-bakalari", LoginBakalari)
 	r.POST("/api/refresh", Refresh)
+	r.POST("/api/logout", Logout)
 
 	// 4) Protected
 	api := r.Group("/api")
