@@ -14,7 +14,14 @@ function createAuth() {
   }
 
   /** Log out everywhere */
-  function logout() {
+  async function logout() {
+    if (browser) {
+      try {
+        await apiFetch('/api/logout', { method: 'POST' });
+      } catch {
+        // ignore errors
+      }
+    }
     set(null);
   }
 

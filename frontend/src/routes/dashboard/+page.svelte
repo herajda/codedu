@@ -50,7 +50,7 @@
         const now = new Date();
         const soon = new Date();
         soon.setDate(soon.getDate()+7);
-        upcoming = classes.flatMap(c=>(c.assignments ?? []).map(a=>({class:c.name,...a})))
+        upcoming = classes.flatMap(c => (c.assignments ?? []).map((a: any) => ({ class: c.name, ...a })))
           .filter(a=>new Date(a.deadline)>now && new Date(a.deadline)<=soon)
           .sort((a,b)=>new Date(a.deadline).getTime()-new Date(b.deadline).getTime());
       }
