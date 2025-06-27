@@ -4,7 +4,6 @@
   import { auth } from '$lib/auth';
 import { apiFetch, apiJSON } from '$lib/api';
 import { page } from '$app/stores';
-import { MarkdownEditor } from '$lib';
 import { marked } from 'marked';
 
   $: id = $page.params.id;
@@ -20,7 +19,6 @@ import { marked } from 'marked';
   let addDialog: HTMLDialogElement;
   $: filtered = allStudents.filter(s => (s.name ?? s.email).toLowerCase().includes(search.toLowerCase()));
   let aTitle='';
-  let aDesc='';
   let err='';
   let now = Date.now();
 
@@ -81,10 +79,9 @@ import { marked } from 'marked';
       await apiFetch(`/api/classes/${id}/assignments`,{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({title:aTitle, description:aDesc})
+        body:JSON.stringify({title:aTitle})
       });
       aTitle='';
-      aDesc='';
       await load();
     }catch(e:any){ err=e.message }
   }
