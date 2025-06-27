@@ -177,7 +177,7 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
             </div>
           {/if}
         </div>
-        <div>{@html marked.parse(assignment.description)}</div>
+        <div class="markdown">{@html marked.parse(assignment.description)}</div>
         <p><strong>Deadline:</strong> {new Date(assignment.deadline).toLocaleString()}</p>
         <p><strong>Max points:</strong> {assignment.max_points}</p>
         <p><strong>Policy:</strong> {assignment.grading_policy}</p>

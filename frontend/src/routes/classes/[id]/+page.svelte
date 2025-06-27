@@ -190,7 +190,7 @@ import { marked } from 'marked';
                 {/if}
                 <span class={new Date(a.deadline)<new Date() ? 'text-error' : ''}>due {new Date(a.deadline).toLocaleString()}</span>
               </div>
-              <p class="text-sm">{@html marked.parse(a.description)} (max {a.max_points} pts, {a.grading_policy})</p>
+              <p class="text-sm markdown">{@html marked.parse(a.description)} (max {a.max_points} pts, {a.grading_policy})</p>
             </li>
           {/each}
           {#if !assignments.length}<li><i>No assignments yet</i></li>{/if}
