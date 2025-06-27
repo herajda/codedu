@@ -3,13 +3,14 @@
   import { createEventDispatcher } from 'svelte';
   import '@fortawesome/fontawesome-free/css/all.min.css';
 
-  let EasyMDE: typeof import('easymde');
+  let EasyMDE: any;
 
   export let value = '';
   export let placeholder = '';
+  export let className: string = '';
 
   let textarea: HTMLTextAreaElement;
-  let editor: import('easymde').default | null = null;
+  let editor: any = null;
   const dispatch = createEventDispatcher();
 
   onMount(async () => {
@@ -21,7 +22,25 @@
       initialValue: value,
       placeholder,
       autoDownloadFontAwesome: false,
-      spellChecker: false
+      spellChecker: false,
+      toolbar: [
+        'bold',
+        'italic',
+        'heading',
+        '|',
+        'code',
+        'unordered-list',
+        'ordered-list',
+        '|',
+        'link',
+        'image',
+        '|',
+        'preview',
+        'side-by-side',
+        'fullscreen',
+        '|',
+        'guide'
+      ]
     });
     editor.codemirror.on('change', () => {
       value = editor!.value();
@@ -39,4 +58,4 @@
   }
 </script>
 
-<textarea bind:this={textarea}></textarea>
+<textarea bind:this={textarea} class={className}></textarea>
