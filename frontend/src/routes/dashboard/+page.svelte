@@ -4,6 +4,7 @@
     import { onMount } from 'svelte'
     import { goto } from '$app/navigation'
   
+  
     let me = { id: 0, role: '' }
     let msg = ''
   
@@ -24,6 +25,7 @@
       auth.logout()
       goto('/login')
     }
+
   </script>
   
   <h1>Dashboard</h1>
