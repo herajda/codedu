@@ -227,15 +227,25 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
 
   {#if role==='student'}
     <h3>Your submissions</h3>
-    <ul>
-      {#each submissions as s}
-        <li>
-          <a href={`/submissions/${s.id}`}>{new Date(s.created_at).toLocaleString()}</a>
-          &nbsp;– {s.status}
-        </li>
-      {/each}
-      {#if !submissions.length}<i>No submissions yet</i>{/if}
-    </ul>
+    <div class="overflow-x-auto">
+      <table class="table table-zebra">
+        <thead>
+          <tr><th>Date</th><th>Status</th><th></th></tr>
+        </thead>
+        <tbody>
+          {#each submissions as s}
+            <tr>
+              <td>{new Date(s.created_at).toLocaleString()}</td>
+              <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span></td>
+              <td><a href={`/submissions/${s.id}`} class="btn btn-sm btn-outline">view</a></td>
+            </tr>
+          {/each}
+          {#if !submissions.length}
+            <tr><td colspan="3"><i>No submissions yet</i></td></tr>
+          {/if}
+        </tbody>
+      </table>
+    </div>
   {/if}
 
   {#if role==='teacher' || role==='admin'}

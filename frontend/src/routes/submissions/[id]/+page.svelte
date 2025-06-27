@@ -22,6 +22,9 @@ $: id = $page.params.id
     if(s==='completed') return 'badge-success'
     if(s==='running') return 'badge-info'
     if(s==='failed') return 'badge-error'
+    if(s==='passed') return 'badge-success'
+    if(s==='wrong_output') return 'badge-error'
+    if(s==='time_limit_exceeded' || s==='memory_limit_exceeded') return 'badge-warning'
     return ''
   }
 
@@ -47,12 +50,25 @@ $: id = $page.params.id
     <div class="card bg-base-100 shadow">
       <div class="card-body">
         <h3 class="card-title">Results</h3>
-        <ul class="list-disc ml-6">
-          {#each results as r, i}
-            <li>Test {i + 1}: <span class={`badge ${statusColor(r.status)}`}>{r.status}</span> ({r.runtime_ms} ms)</li>
-          {/each}
-          {#if Array.isArray(results) && !results.length}<i>No results yet</i>{/if}
-        </ul>
+        <div class="overflow-x-auto">
+          <table class="table table-zebra">
+            <thead>
+              <tr><th>Test</th><th>Status</th><th>Runtime (ms)</th></tr>
+            </thead>
+            <tbody>
+              {#each results as r, i}
+                <tr>
+                  <td>{i + 1}</td>
+                  <td><span class={`badge ${statusColor(r.status)}`}>{r.status}</span></td>
+                  <td>{r.runtime_ms}</td>
+                </tr>
+              {/each}
+              {#if Array.isArray(results) && !results.length}
+                <tr><td colspan="3"><i>No results yet</i></td></tr>
+              {/if}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
