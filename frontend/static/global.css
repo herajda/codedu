@@ -1,0 +1,67 @@
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background-color: #f5f7fa;
+}
+
+nav {
+  background-color: #333;
+  color: #fff;
+  padding: 0.5rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+nav a,
+nav button,
+nav span {
+  color: #fff;
+  margin-right: 1rem;
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+}
+nav a:last-child,
+nav button:last-child,
+nav span:last-child {
+  margin-right: 0;
+}
+nav a:hover,
+nav button:hover {
+  text-decoration: underline;
+}
+
+main.container {
+  max-width: 800px;
+  margin: 1rem auto;
+  padding: 0 1rem;
+}
+
+button {
+  cursor: pointer;
+}
+
+input,
+select,
+textarea {
+  margin: 0.25rem 0;
+  padding: 0.25rem;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+th,
+td {
+  border: 1px solid #ccc;
+  padding: 0.25rem 0.5rem;
+}
+
+.active {
+  border-bottom: 2px solid #646cff;
+}
+
