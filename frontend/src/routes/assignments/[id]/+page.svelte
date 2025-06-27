@@ -23,6 +23,7 @@ const role = get(auth)?.role!;
   let err=''
   let tStdin='', tStdout='', tLimit=''
   let file:File|null=null
+  let submitDialog: HTMLDialogElement;
 $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100) : 0;
   let editing=false
   let eTitle='', eDesc='', eDeadline='', ePoints=0, ePolicy='all_or_nothing'
@@ -129,9 +130,14 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
     try{
       await apiFetch(`/api/assignments/${id}/submissions`,{method:'POST', body:fd})
       file=null
+      submitDialog.close()
       alert('Uploaded!')
       await load()
     }catch(e:any){ err=e.message }
+  }
+
+  function openSubmitModal(){
+    submitDialog.showModal()
   }
 </script>
 
@@ -159,28 +165,28 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
     </div>
   {:else}
     <div class="card bg-base-100 shadow mb-4">
-      <div class="card-body">
-        <h1 class="card-title text-2xl">{assignment.title}</h1>
+      <div class="card-body space-y-2">
+        <div class="flex justify-between items-start">
+          <h1 class="card-title text-2xl">{assignment.title}</h1>
+          {#if role==='student'}
+            <div class="flex items-center gap-2">
+              <div class="radial-progress text-primary" style="--value:{percent};" aria-valuenow={percent} role="progressbar">{percent}%</div>
+              <span class="font-semibold">{pointsEarned} / {assignment.max_points} pts</span>
+            </div>
+          {/if}
+        </div>
         <p>{assignment.description}</p>
         <p><strong>Deadline:</strong> {new Date(assignment.deadline).toLocaleString()}</p>
         <p><strong>Max points:</strong> {assignment.max_points}</p>
         <p><strong>Policy:</strong> {assignment.grading_policy}</p>
+        {#if done}
+          <p class="text-success font-bold">Assignment done.</p>
+        {/if}
         {#if role==='teacher' || role==='admin'}
           <div class="card-actions justify-end">
             <button class="btn" on:click={startEdit}>Edit</button>
             <button class="btn btn-error" on:click={delAssignment}>Delete</button>
           </div>
-        {/if}
-      </div>
-    </div>
-  {/if}
-  {#if role==='student'}
-    <div class="flex items-center gap-4 mb-4">
-      <div class="radial-progress text-primary" style="--value:{percent};" aria-valuenow={percent} role="progressbar">{percent}%</div>
-      <div>
-        <p class="font-semibold">Your points: {pointsEarned} / {assignment.max_points}</p>
-        {#if done}
-          <p class="text-success font-bold">Assignment done.</p>
         {/if}
       </div>
     </div>
@@ -226,25 +232,30 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
   {/if}
 
   {#if role==='student'}
-    <h3>Your submissions</h3>
-    <div class="overflow-x-auto">
-      <table class="table table-zebra">
-        <thead>
-          <tr><th>Date</th><th>Status</th><th></th></tr>
-        </thead>
-        <tbody>
-          {#each submissions as s}
-            <tr>
-              <td>{new Date(s.created_at).toLocaleString()}</td>
-              <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span></td>
-              <td><a href={`/submissions/${s.id}`} class="btn btn-sm btn-outline">view</a></td>
-            </tr>
-          {/each}
-          {#if !submissions.length}
-            <tr><td colspan="3"><i>No submissions yet</i></td></tr>
-          {/if}
-        </tbody>
-      </table>
+    <div class="card bg-base-100 shadow mb-4">
+      <div class="card-body space-y-2">
+        <h3 class="card-title">Your submissions</h3>
+        <div class="overflow-x-auto">
+          <table class="table table-zebra">
+            <thead>
+              <tr><th>Date</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody>
+              {#each submissions as s}
+                <tr>
+                  <td>{new Date(s.created_at).toLocaleString()}</td>
+                  <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span></td>
+                  <td><a href={`/submissions/${s.id}`} class="btn btn-sm btn-outline">view</a></td>
+                </tr>
+              {/each}
+              {#if !submissions.length}
+                <tr><td colspan="3"><i>No submissions yet</i></td></tr>
+              {/if}
+            </tbody>
+          </table>
+        </div>
+        <button class="btn" on:click={openSubmitModal}>Submit new solution</button>
+      </div>
     </div>
   {/if}
 
@@ -265,17 +276,16 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
     </div>
   {/if}
 
-  {#if role==='student'}
-    <div class="card bg-base-100 shadow mb-4">
-      <div class="card-body space-y-2">
-        <h3 class="card-title">Submit solution</h3>
-        <input type="file" accept=".py" class="file-input file-input-bordered w-full" on:change={e=>file=(e.target as HTMLInputElement).files?.[0] || null}>
-        <div class="card-actions justify-end">
-          <button class="btn btn-primary" disabled={!file} on:click={submit}>Upload</button>
-        </div>
+  <dialog bind:this={submitDialog} class="modal">
+    <div class="modal-box w-11/12 max-w-md space-y-2">
+      <h3 class="font-bold text-lg">Submit solution</h3>
+      <input type="file" accept=".py" class="file-input file-input-bordered w-full" on:change={e=>file=(e.target as HTMLInputElement).files?.[0] || null}>
+      <div class="modal-action">
+        <button class="btn" on:click={submit} disabled={!file}>Upload</button>
       </div>
     </div>
-  {/if}
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>
 
   {#if err}<p style="color:red">{err}</p>{/if}
 {/if}
