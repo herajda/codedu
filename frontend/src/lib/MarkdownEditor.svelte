@@ -1,18 +1,21 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { createEventDispatcher } from 'svelte';
-  import EasyMDE from 'easymde';
-  import 'easymde/dist/easymde.min.css';
   import '@fortawesome/fontawesome-free/css/all.min.css';
+
+  let EasyMDE: typeof import('easymde');
 
   export let value = '';
   export let placeholder = '';
 
   let textarea: HTMLTextAreaElement;
-  let editor: EasyMDE;
+  let editor: import('easymde').default | null = null;
   const dispatch = createEventDispatcher();
 
-  onMount(() => {
+  onMount(async () => {
+    const mod = await import('easymde');
+    await import('easymde/dist/easymde.min.css');
+    EasyMDE = mod.default;
     editor = new EasyMDE({
       element: textarea,
       initialValue: value,
@@ -21,13 +24,14 @@
       spellChecker: false
     });
     editor.codemirror.on('change', () => {
-      value = editor.value();
+      value = editor!.value();
       dispatch('input', value);
     });
   });
 
   onDestroy(() => {
     editor?.toTextArea();
+    editor = null;
   });
 
   $: if (editor && value !== editor.value()) {
