@@ -22,6 +22,22 @@ import { marked } from 'marked';
   let aTitle='';
   let aDesc='';
   let err='';
+  let now = Date.now();
+
+  onMount(() => {
+    const t = setInterval(() => now = Date.now(), 60000);
+    return () => clearInterval(t);
+  });
+
+  function countdown(deadline: string) {
+    const diff = new Date(deadline).getTime() - now;
+    if (diff <= 0) return 'late';
+    const d = Math.floor(diff / 86400000);
+    if (d >= 1) return `${d}d`;
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    return `${h}h ${m}m`;
+  }
 
   async function load() {
     err='';
@@ -185,19 +201,22 @@ import { marked } from 'marked';
         <h2 class="card-title">Assignments</h2>
         <ul class="space-y-4">
           {#each assignments as a}
-            <li class={`card shadow ${a.completed ? 'bg-success/10' : 'bg-base-100'}`}> 
-              <div class="card-body flex-row justify-between items-center py-3">
-                <a href={`/assignments/${a.id}`} class={`link link-primary text-lg ${a.completed ? 'line-through' : ''}`}>{a.title}</a>
-                <div class="flex items-center gap-2">
-                  <span class={`badge ${new Date(a.deadline)<new Date() && !a.completed ? 'badge-error' : 'badge-info'}`}>{new Date(a.deadline).toLocaleString()}</span>
-                  {#if a.completed}
-                    <span class="badge badge-success">done</span>
-                  {/if}
-                  {#if role === 'teacher' || role === 'admin'}
-                    <button class="btn btn-xs btn-error" on:click={()=>deleteAssignment(a.id)}>Delete</button>
-                  {/if}
+            <li>
+              <a href={`/assignments/${a.id}`} class={`block no-underline text-current card shadow transition hover:-translate-y-1 hover:shadow-lg ${a.completed ? 'bg-success/10' : 'bg-base-100'}`}>
+                <div class="card-body flex-col sm:flex-row justify-between items-start sm:items-center gap-2 py-3">
+                  <span class="text-lg font-semibold text-primary">{a.title}</span>
+                  <div class="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:justify-end w-full sm:w-auto">
+                    <span class={`badge ${new Date(a.deadline)<new Date() && !a.completed ? 'badge-error' : 'badge-info'}`}>{new Date(a.deadline).toLocaleString()}</span>
+                    <span class="text-sm">{countdown(a.deadline)}</span>
+                    {#if a.completed}
+                      <span class="badge badge-success">done</span>
+                    {/if}
+                    {#if role === 'teacher' || role === 'admin'}
+                      <button class="btn btn-xs btn-error" on:click|stopPropagation={()=>deleteAssignment(a.id)}>Delete</button>
+                    {/if}
+                  </div>
                 </div>
-              </div>
+              </a>
             </li>
           {/each}
           {#if !assignments.length}<li><i>No assignments yet</i></li>{/if}
