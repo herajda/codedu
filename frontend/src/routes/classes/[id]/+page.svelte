@@ -13,6 +13,7 @@ import { marked } from 'marked';
   let cls:any = null;
   let students:any[] = [];
   let assignments:any[] = [];
+  let mySubs:any[] = [];
   let allStudents:any[] = [];
   let selectedIDs:number[] = [];
   let search='';
@@ -29,6 +30,13 @@ import { marked } from 'marked';
       cls = data;
       students = data.students;
       assignments = [...(data.assignments ?? [])].sort((a,b)=>new Date(a.deadline).getTime()-new Date(b.deadline).getTime());
+      if (role === 'student') {
+        mySubs = await apiJSON('/api/my-submissions');
+        assignments = assignments.map(a => ({
+          ...a,
+          completed: mySubs.some((s:any)=>s.assignment_id===a.id && s.status==='completed')
+        }));
+      }
       if (role === 'teacher' || role === 'admin') allStudents = await apiJSON('/api/students');
     } catch(e:any){ err=e.message }
   }
@@ -177,20 +185,19 @@ import { marked } from 'marked';
         <h2 class="card-title">Assignments</h2>
         <ul class="space-y-4">
           {#each assignments as a}
-            <li class="border-b pb-2 last:border-none">
-              <div class="flex justify-between items-center">
-                <a href={`/assignments/${a.id}`} class="link link-primary text-lg">{a.title}</a>
-                {#if role === 'teacher' || role === 'admin'}
-                  <button class="btn btn-xs btn-error" on:click={()=>deleteAssignment(a.id)}>Delete</button>
-                {/if}
+            <li class={`card shadow ${a.completed ? 'bg-success/10' : 'bg-base-100'}`}> 
+              <div class="card-body flex-row justify-between items-center py-3">
+                <a href={`/assignments/${a.id}`} class={`link link-primary text-lg ${a.completed ? 'line-through' : ''}`}>{a.title}</a>
+                <div class="flex items-center gap-2">
+                  <span class={`badge ${new Date(a.deadline)<new Date() && !a.completed ? 'badge-error' : 'badge-info'}`}>{new Date(a.deadline).toLocaleString()}</span>
+                  {#if a.completed}
+                    <span class="badge badge-success">done</span>
+                  {/if}
+                  {#if role === 'teacher' || role === 'admin'}
+                    <button class="btn btn-xs btn-error" on:click={()=>deleteAssignment(a.id)}>Delete</button>
+                  {/if}
+                </div>
               </div>
-              <div class="text-sm mb-1">
-                {#if !a.published}
-                  <span class="badge badge-sm mr-2">draft</span>
-                {/if}
-                <span class={new Date(a.deadline)<new Date() ? 'text-error' : ''}>due {new Date(a.deadline).toLocaleString()}</span>
-              </div>
-              <p class="text-sm markdown">{@html marked.parse(a.description)} (max {a.max_points} pts, {a.grading_policy})</p>
             </li>
           {/each}
           {#if !assignments.length}<li><i>No assignments yet</i></li>{/if}
