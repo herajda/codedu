@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -48,9 +49,9 @@ func main() {
 	r := gin.Default()
 
 	// 3) Public
-	r.POST("/register", Register)
-	r.POST("/login", Login)
-	r.POST("/login-bakalari", LoginBakalari)
+	r.POST("/api/register", Register)
+	r.POST("/api/login", Login)
+	r.POST("/api/login-bakalari", LoginBakalari)
 
 	// 4) Protected
 	api := r.Group("/api")
@@ -107,6 +108,18 @@ func main() {
 		api.GET("/classes/:id", RoleGuard("teacher", "student", "admin"), getClass)
 
 	}
+
+	// 5) Frontend
+	buildPath := filepath.Join("..", "frontend", "build")
+
+	// serve built assets without conflicting with /api routes
+	r.Static("/_app", filepath.Join(buildPath, "_app"))
+	r.StaticFile("/favicon.png", filepath.Join(buildPath, "favicon.png"))
+
+	// send index.html for all other routes so SvelteKit can handle routing
+	r.NoRoute(func(c *gin.Context) {
+		c.File(filepath.Join(buildPath, "index.html"))
+	})
 
 	log.Println("🚀 Server running on http://localhost:22946")
 	if err := r.Run(":22946"); err != nil {

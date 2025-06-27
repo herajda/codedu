@@ -31,4 +31,5 @@
   <p><strong>Your role:</strong> {me.role}</p>
   <p><strong>Ping says:</strong> {msg}</p>
   <button on:click={logout}>Log out</button>
+
   

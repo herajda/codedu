@@ -1,5 +1,4 @@
 <script lang="ts">
-    import { push } from 'svelte-spa-router'
     import { goto } from '$app/navigation'
     let email = ''
     let password = ''
@@ -7,7 +6,7 @@
   
     async function submit() {
       error = ''
-      const res = await fetch('/register', {
+      const res = await fetch('/api/register', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ email, password })

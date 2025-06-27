@@ -2,11 +2,14 @@
   import { onMount } from 'svelte'
   import { get } from 'svelte/store'
   import { auth } from '$lib/auth'
-  import { apiFetch, apiJSON } from '$lib/api'
+import { apiFetch, apiJSON } from '$lib/api'
+import { goto } from '$app/navigation'
+import { page } from '$app/stores'
 
-  export let params:{id:string}
 
-  const role = get(auth)?.role!
+
+$: id = $page.params.id
+const role = get(auth)?.role!;
 
   let assignment:any=null
   let tests:any[]=[] // teacher/admin only
@@ -24,7 +27,7 @@
 
   async function publish(){
     try{
-      await apiFetch(`/api/assignments/${params.id}/publish`,{method:'PUT'})
+      await apiFetch(`/api/assignments/${id}/publish`,{method:'PUT'})
       await load()
     }catch(e:any){ err=e.message }
   }
@@ -32,7 +35,7 @@
   async function load(){
     err=''
     try{
-      const data = await apiJSON(`/api/assignments/${params.id}`)
+      const data = await apiJSON(`/api/assignments/${id}`)
       assignment = data.assignment
       if(role==='student') {
         submissions = data.submissions ?? []
@@ -57,7 +60,7 @@
 
   async function addTest(){
     try{
-      await apiFetch(`/api/assignments/${params.id}/tests`,{
+      await apiFetch(`/api/assignments/${id}/tests`,{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({stdin:tStdin, expected_stdout:tStdout, time_limit_sec: parseFloat(tLimit) || undefined})
@@ -78,7 +81,7 @@
 
   async function saveEdit(){
     try{
-      await apiFetch(`/api/assignments/${params.id}`,{
+      await apiFetch(`/api/assignments/${id}`,{
         method:'PUT',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
@@ -97,8 +100,8 @@
   async function delAssignment(){
     if(!confirm('Delete this assignment?')) return
     try{
-      await apiFetch(`/api/assignments/${params.id}`,{method:'DELETE'})
-      window.location.hash=`#/classes/${assignment.class_id}`
+      await apiFetch(`/api/assignments/${id}`,{method:'DELETE'})
+      goto(`/classes/${assignment.class_id}`)
     }catch(e:any){ err=e.message }
   }
 
@@ -115,7 +118,7 @@
     const fd = new FormData()
     fd.append('file', file)
     try{
-      await apiFetch(`/api/assignments/${params.id}/submissions`,{method:'POST', body:fd})
+      await apiFetch(`/api/assignments/${id}/submissions`,{method:'POST', body:fd})
       file=null
       alert('Uploaded!')
       await load()

@@ -12,7 +12,7 @@
     async function submit() {
       error = ''
       // 1. Log in
-      const res = await fetch('/login', {
+      const res = await fetch('/api/login', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ email, password })
@@ -39,7 +39,7 @@
     }
     async function submitBk() {
       error = ''
-      const res = await fetch('/login-bakalari', {
+      const res = await fetch('/api/login-bakalari', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ username: bkUser, password: bkPass })
@@ -58,7 +58,7 @@
       const me = await meRes.json()
       auth.login(token, me.id, me.role)
       if      (me.role === 'admin')   goto('/admin')
-      else if (me.role === 'teacher') goto('/classes')
+      else if (me.role === 'teacher') goto('/my-classes')
       else                            goto('/my-classes')
     }
   </script>
