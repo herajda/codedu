@@ -25,8 +25,8 @@
 
       for (const c of classes) {
         const detail = await apiJSON(`/api/classes/${c.id}`);
-        c.assignments = detail.assignments;
-        c.students = detail.students;
+        c.assignments = detail.assignments ?? [];
+        c.students = detail.students ?? [];
         c.pointsTotal = c.assignments.reduce((s:any,a:any)=>s+a.max_points,0);
         if (role === 'student') {
           c.completed = c.assignments.filter((a:any)=>
@@ -39,7 +39,8 @@
           c.progress = [];
           for (const a of c.assignments) {
             const data = await apiJSON(`/api/assignments/${a.id}`);
-            const done = new Set(data.submissions.filter((s:any)=>s.status==='completed').map((s:any)=>s.student_id)).size;
+            const subs = Array.isArray(data.submissions) ? data.submissions : [];
+            const done = new Set(subs.filter((s:any)=>s.status==='completed').map((s:any)=>s.student_id)).size;
             c.progress.push({ id:a.id, title:a.title, done });
           }
         }
@@ -49,7 +50,7 @@
         const now = new Date();
         const soon = new Date();
         soon.setDate(soon.getDate()+7);
-        upcoming = classes.flatMap(c=>c.assignments.map(a=>({class:c.name,...a})))
+        upcoming = classes.flatMap(c=>(c.assignments ?? []).map(a=>({class:c.name,...a})))
           .filter(a=>new Date(a.deadline)>now && new Date(a.deadline)<=soon)
           .sort((a,b)=>new Date(a.deadline).getTime()-new Date(b.deadline).getTime());
       }
@@ -68,7 +69,7 @@
   {#if role === 'student'}
     <div class="grid gap-6 md:grid-cols-2">
       {#each classes as c}
-        <div class="card bg-base-100 shadow">
+        <a href={`/classes/${c.id}`} class="card bg-base-100 shadow hover:shadow-lg block">
           <div class="card-body">
             <h2 class="card-title">{c.name}</h2>
             <div class="stats stats-vertical lg:stats-horizontal mt-3">
@@ -83,7 +84,7 @@
               </div>
             </div>
           </div>
-        </div>
+        </a>
       {/each}
     </div>
 
@@ -102,7 +103,7 @@
   {:else if role === 'teacher'}
     <div class="grid gap-6 md:grid-cols-2">
       {#each classes as c}
-        <div class="card bg-base-100 shadow">
+        <a href={`/classes/${c.id}`} class="card bg-base-100 shadow hover:shadow-lg block">
           <div class="card-body">
             <h2 class="card-title">{c.name}</h2>
             <p class="text-sm mb-2">{c.students.length} students</p>
@@ -117,7 +118,7 @@
               {#if !c.assignments.length}<li><i>No assignments</i></li>{/if}
             </ul>
           </div>
-        </div>
+        </a>
       {/each}
     </div>
   {/if}
