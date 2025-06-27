@@ -2,18 +2,17 @@ import { writable } from 'svelte/store';
 import { apiFetch } from '$lib/api';
 import { browser } from '$app/environment';
 
-export type User = { id: number; role: string; token: string } | null;
+export type User = { id: number; role: string } | null;
 
 function createAuth() {
   // Always start with null on both server and client…
   const { subscribe, set } = writable<User>(null);
 
   /** Called from Login.svelte after successful auth */
-  function login(token: string, id: number, role: string) {
-    const user = { token, id, role };
+  function login(id: number, role: string) {
+    const user = { id, role };
     if (browser) {
       localStorage.setItem('user', JSON.stringify(user));
-      localStorage.setItem('jwt', token);
     }
     set(user);
   }
@@ -22,7 +21,6 @@ function createAuth() {
   function logout() {
     if (browser) {
       localStorage.removeItem('user');
-      localStorage.removeItem('jwt');
     }
     set(null);
   }
@@ -34,19 +32,13 @@ function createAuth() {
     // read from localStorage
     const raw = localStorage.getItem('user');
     const cur: User = raw ? JSON.parse(raw) : null;
-    if (!cur?.token) return;         // nothing to do
-    if (cur.role) {
-      set(cur);
-      return;
-    }
+    if (!cur) return;
 
-    // token exists but no metadata → fetch it
     const r = await apiFetch('/api/me');
     if (r.ok) {
       const me = await r.json();
-      login(cur.token, me.id, me.role);
+      login(me.id, me.role);
     } else {
-      // token expired → wipe it
       logout();
     }
   }

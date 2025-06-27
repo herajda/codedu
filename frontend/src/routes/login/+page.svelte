@@ -1,6 +1,7 @@
 <script lang="ts">
     import { auth } from '$lib/auth'
     import { apiFetch } from '$lib/api'
+    import { sha256 } from '$lib/hash'
     import { goto } from '$app/navigation'
     let email = ''
     let password = ''
@@ -15,14 +16,12 @@
       const res = await fetch('/api/login', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password: await sha256(password) })
       })
       if (!res.ok) {
         error = (await res.json()).error
         return
       }
-      const { token } = await res.json()
-      localStorage.setItem('jwt', token)
       // 2. Fetch /api/me
       const meRes = await apiFetch('/api/me')
       if (!meRes.ok) {
@@ -30,9 +29,9 @@
         return
       }
       const me = await meRes.json()
-  
+
       // 3. Store & smart-redirect
-      auth.login(token, me.id, me.role)
+      auth.login(me.id, me.role)
       if      (me.role === 'admin')   goto('/admin')
       else if (me.role === 'teacher') goto('/classes')
       else                            goto('/my-classes')
@@ -48,15 +47,13 @@
         error = (await res.json()).error
         return
       }
-      const { token } = await res.json()
-      localStorage.setItem('jwt', token)
       const meRes = await apiFetch('/api/me')
       if (!meRes.ok) {
         error = 'Couldn\u2019t fetch user info'
         return
       }
       const me = await meRes.json()
-      auth.login(token, me.id, me.role)
+      auth.login(me.id, me.role)
       if      (me.role === 'admin')   goto('/admin')
       else if (me.role === 'teacher') goto('/my-classes')
       else                            goto('/my-classes')

@@ -1,13 +1,14 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/url"
-	"time"
-
-	"log"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
@@ -18,6 +19,11 @@ import (
 var jwtSecret []byte
 var bakalariBaseURL string
 
+const (
+	accessTokenTTL  = 15 * time.Minute
+	refreshTokenTTL = 30 * 24 * time.Hour
+)
+
 func InitAuth() {
 	_ = godotenv.Load()
 	secret := os.Getenv("JWT_SECRET")
@@ -26,6 +32,62 @@ func InitAuth() {
 	}
 	jwtSecret = []byte(secret)
 	bakalariBaseURL = os.Getenv("BAKALARI_BASE_URL")
+}
+
+// clientHash replicates the SHA-256 hashing performed by the frontend before
+// submitting passwords. The resulting hex string is then hashed with bcrypt
+// for storage.
+func clientHash(pw string) string {
+	sum := sha256.Sum256([]byte(pw))
+	return hex.EncodeToString(sum[:])
+}
+
+// issueTokens creates a short lived access token and a long lived refresh token
+// for the given user ID and role.
+func issueTokens(uid int, role string) (string, string, error) {
+	access := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub":  uid,
+		"role": role,
+		"exp":  time.Now().Add(accessTokenTTL).Unix(),
+	})
+	accessStr, err := access.SignedString(jwtSecret)
+	if err != nil {
+		return "", "", err
+	}
+
+	refresh := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub":     uid,
+		"role":    role,
+		"exp":     time.Now().Add(refreshTokenTTL).Unix(),
+		"refresh": true,
+	})
+	refreshStr, err := refresh.SignedString(jwtSecret)
+	if err != nil {
+		return "", "", err
+	}
+	return accessStr, refreshStr, nil
+}
+
+func setAuthCookies(c *gin.Context, access, refresh string) {
+	secure := c.Request.TLS != nil
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "access_token",
+		Value:    access,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   int(accessTokenTTL.Seconds()),
+	})
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    refresh,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   int(refreshTokenTTL.Seconds()),
+	})
 }
 
 type registerReq struct {
@@ -72,7 +134,7 @@ func Login(c *gin.Context) {
 	}
 	log.Printf("[Login] found user id=%d hash=%q", user.ID, user.PasswordHash)
 
-	// 3️⃣ Verify the password
+	// 3️⃣ Verify the password (the request already contains SHA-256 hash)
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
 		log.Printf("[Login] password compare error: %v", err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
@@ -80,21 +142,15 @@ func Login(c *gin.Context) {
 	}
 
 	log.Printf("[Login] password OK for user %d", user.ID)
-	// 4️⃣ Generate the token
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub":  user.ID,
-		"role": user.Role,
-		"exp":  time.Now().Add(24 * time.Hour).Unix(),
-	})
-	signed, err := token.SignedString(jwtSecret)
+	// 4️⃣ Issue tokens & cookies
+	access, refresh, err := issueTokens(user.ID, user.Role)
 	if err != nil {
 		log.Printf("[Login] token sign error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate token"})
 		return
 	}
-	log.Printf("[Login] issuing token for user %d", user.ID)
-
-	c.JSON(http.StatusOK, gin.H{"token": signed})
+	setAuthCookies(c, access, refresh)
+	c.Status(http.StatusNoContent)
 }
 
 // LoginBakalari verifies credentials using Bakaláři API v3. If the user does
@@ -190,7 +246,7 @@ func LoginBakalari(c *gin.Context) {
 	user, err := FindUserByEmail(req.Username)
 	if err != nil {
 		// create new user with specified role
-		hash, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+		hash, _ := bcrypt.GenerateFromPassword([]byte(clientHash(req.Password)), bcrypt.DefaultCost)
 		if role == "teacher" {
 			err = CreateTeacher(req.Username, string(hash), bkUID)
 		} else {
@@ -213,16 +269,39 @@ func LoginBakalari(c *gin.Context) {
 		}
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub":  user.ID,
-		"role": user.Role,
-		"exp":  time.Now().Add(24 * time.Hour).Unix(),
-	})
-	signed, err := token.SignedString(jwtSecret)
+	access, refresh, err := issueTokens(user.ID, user.Role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate token"})
 		return
 	}
+	setAuthCookies(c, access, refresh)
+	c.Status(http.StatusNoContent)
+}
 
-	c.JSON(http.StatusOK, gin.H{"token": signed})
+// Refresh issues a new pair of tokens using the refresh token cookie.
+func Refresh(c *gin.Context) {
+	refreshStr, err := c.Cookie("refresh_token")
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing refresh token"})
+		return
+	}
+	token, err := jwt.Parse(refreshStr, func(t *jwt.Token) (interface{}, error) { return jwtSecret, nil })
+	if err != nil || !token.Valid {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+		return
+	}
+	claims := token.Claims.(jwt.MapClaims)
+	if claims["refresh"] != true {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+		return
+	}
+	uid := int(claims["sub"].(float64))
+	role := claims["role"].(string)
+	access, refresh, err := issueTokens(uid, role)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate token"})
+		return
+	}
+	setAuthCookies(c, access, refresh)
+	c.Status(http.StatusNoContent)
 }
