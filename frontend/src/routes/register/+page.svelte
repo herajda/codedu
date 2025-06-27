@@ -19,16 +19,18 @@
     }
   </script>
   
-  <h1>Register</h1>
-  <form on:submit|preventDefault={submit}>
-    <input type="email" bind:value={email} placeholder="Email" required />
-    <input type="password" bind:value={password} placeholder="Password" required />
-    <button type="submit">Register</button>
-  </form>
+  <h1 class="text-3xl font-bold text-center mb-6">Register</h1>
+  <div class="flex justify-center">
+    <form on:submit|preventDefault={submit} class="card w-full max-w-sm bg-base-100 shadow p-6 space-y-4">
+      <input type="email" bind:value={email} placeholder="Email" required class="input input-bordered w-full" />
+      <input type="password" bind:value={password} placeholder="Password" required class="input input-bordered w-full" />
+      <button type="submit" class="btn btn-primary w-full">Register</button>
+    </form>
+  </div>
   {#if error}
-    <p style="color: red">{error}</p>
+    <p class="text-error text-center mt-4">{error}</p>
   {/if}
-  <p>
-    Already have an account? <a href="/login">Log in</a>
+  <p class="text-center mt-4">
+    Already have an account? <a href="/login" class="link link-primary">Log in</a>
   </p>
   

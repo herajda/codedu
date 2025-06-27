@@ -63,27 +63,29 @@
     }
   </script>
   
-  <h1>Log In</h1>
-  <div>
-    <button on:click={() => mode = 'local'} disabled={mode==='local'}>Local</button>
-    <button on:click={() => mode = 'bakalari'} disabled={mode==='bakalari'}>Bakalari</button>
+  <h1 class="text-3xl font-bold text-center mb-6">Log In</h1>
+  <div role="tablist" class="tabs tabs-boxed justify-center mb-6">
+    <a role="tab" class="tab {mode==='local' ? 'tab-active' : ''}" on:click={() => mode = 'local'}>Local</a>
+    <a role="tab" class="tab {mode==='bakalari' ? 'tab-active' : ''}" on:click={() => mode = 'bakalari'}>Bakalari</a>
   </div>
-  {#if mode === 'local'}
-    <form on:submit|preventDefault={submit}>
-      <input type="email" bind:value={email} placeholder="Email" required />
-      <input type="password" bind:value={password} placeholder="Password" required />
-      <button type="submit">Log In</button>
-    </form>
-  {:else}
-    <form on:submit|preventDefault={submitBk}>
-      <input bind:value={bkUser} placeholder="Username" required />
-      <input type="password" bind:value={bkPass} placeholder="Password" required />
-      <button type="submit">Log In</button>
-    </form>
-  {/if}
+  <div class="flex justify-center">
+    {#if mode === 'local'}
+      <form on:submit|preventDefault={submit} class="card w-full max-w-sm bg-base-100 shadow p-6 space-y-4">
+        <input type="email" bind:value={email} placeholder="Email" required class="input input-bordered w-full" />
+        <input type="password" bind:value={password} placeholder="Password" required class="input input-bordered w-full" />
+        <button type="submit" class="btn btn-primary w-full">Log In</button>
+      </form>
+    {:else}
+      <form on:submit|preventDefault={submitBk} class="card w-full max-w-sm bg-base-100 shadow p-6 space-y-4">
+        <input bind:value={bkUser} placeholder="Username" required class="input input-bordered w-full" />
+        <input type="password" bind:value={bkPass} placeholder="Password" required class="input input-bordered w-full" />
+        <button type="submit" class="btn btn-primary w-full">Log In</button>
+      </form>
+    {/if}
+  </div>
   {#if error}
-    <p style="color: red">{error}</p>
+    <p class="text-error text-center mt-4">{error}</p>
   {/if}
-  <p>
-    Don’t have an account? <a href="/register">Register here</a>
+  <p class="text-center mt-4">
+    Don’t have an account? <a href="/register" class="link link-primary">Register here</a>
   </p>
