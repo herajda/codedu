@@ -19,9 +19,11 @@ const role = get(auth)?.role!;
   let progress:any[]=[]    // computed progress per student
   let pointsEarned=0
   let done=false
+  let percent=0
   let err=''
   let tStdin='', tStdout='', tLimit=''
   let file:File|null=null
+$: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100) : 0;
   let editing=false
   let eTitle='', eDesc='', eDeadline='', ePoints=0, ePolicy='all_or_nothing'
 
@@ -113,6 +115,13 @@ const role = get(auth)?.role!;
     }catch(e:any){ err=e.message }
   }
 
+  function statusColor(s:string){
+    if(s==='completed') return 'badge-success';
+    if(s==='running') return 'badge-info';
+    if(s==='failed') return 'badge-error';
+    return '';
+  }
+
   async function submit(){
     if(!file) return
     const fd = new FormData()
@@ -130,39 +139,51 @@ const role = get(auth)?.role!;
   <p>Loading…</p>
 {:else}
   {#if editing}
-    <h1>Edit assignment</h1>
-    <input bind:value={eTitle} placeholder="Title" required>
-    <br>
-    <textarea bind:value={eDesc} placeholder="Description" required></textarea>
-    <br>
-    <input type="number" min="1" bind:value={ePoints} placeholder="Max points" required>
-    <br>
-    <select bind:value={ePolicy}>
-      <option value="all_or_nothing">all_or_nothing</option>
-      <option value="percentage">percentage</option>
-      <option value="weighted">weighted</option>
-    </select>
-    <br>
-    <input type="datetime-local" bind:value={eDeadline} required>
-    <br>
-    <button on:click={saveEdit}>Save</button>
-    <button on:click={()=>editing=false}>Cancel</button>
+    <div class="card bg-base-100 shadow mb-4">
+      <div class="card-body space-y-3">
+        <h1 class="card-title">Edit assignment</h1>
+        <input class="input input-bordered w-full" bind:value={eTitle} placeholder="Title" required>
+        <textarea class="textarea textarea-bordered w-full" bind:value={eDesc} placeholder="Description" required></textarea>
+        <input type="number" min="1" class="input input-bordered w-full" bind:value={ePoints} placeholder="Max points" required>
+        <select class="select select-bordered w-full" bind:value={ePolicy}>
+          <option value="all_or_nothing">all_or_nothing</option>
+          <option value="percentage">percentage</option>
+          <option value="weighted">weighted</option>
+        </select>
+        <input type="datetime-local" class="input input-bordered w-full" bind:value={eDeadline} required>
+        <div class="card-actions justify-end">
+          <button class="btn btn-primary" on:click={saveEdit}>Save</button>
+          <button class="btn" on:click={()=>editing=false}>Cancel</button>
+        </div>
+      </div>
+    </div>
   {:else}
-    <h1>{assignment.title}</h1>
-    <p>{assignment.description}</p>
-    <p><strong>Deadline:</strong> {new Date(assignment.deadline).toLocaleString()}</p>
-    <p><strong>Max points:</strong> {assignment.max_points}</p>
-    <p><strong>Policy:</strong> {assignment.grading_policy}</p>
-    {#if role==='teacher' || role==='admin'}
-      <button on:click={startEdit}>Edit</button>
-      <button on:click={delAssignment}>Delete assignment</button>
-    {/if}
+    <div class="card bg-base-100 shadow mb-4">
+      <div class="card-body">
+        <h1 class="card-title text-2xl">{assignment.title}</h1>
+        <p>{assignment.description}</p>
+        <p><strong>Deadline:</strong> {new Date(assignment.deadline).toLocaleString()}</p>
+        <p><strong>Max points:</strong> {assignment.max_points}</p>
+        <p><strong>Policy:</strong> {assignment.grading_policy}</p>
+        {#if role==='teacher' || role==='admin'}
+          <div class="card-actions justify-end">
+            <button class="btn" on:click={startEdit}>Edit</button>
+            <button class="btn btn-error" on:click={delAssignment}>Delete</button>
+          </div>
+        {/if}
+      </div>
+    </div>
   {/if}
   {#if role==='student'}
-    <p><strong>Your points:</strong> {pointsEarned} / {assignment.max_points}</p>
-    {#if done}
-      <p style="color:green"><strong>Assignment done.</strong></p>
-    {/if}
+    <div class="flex items-center gap-4 mb-4">
+      <div class="radial-progress text-primary" style="--value:{percent};" aria-valuenow={percent} role="progressbar">{percent}%</div>
+      <div>
+        <p class="font-semibold">Your points: {pointsEarned} / {assignment.max_points}</p>
+        {#if done}
+          <p class="text-success font-bold">Assignment done.</p>
+        {/if}
+      </div>
+    </div>
   {/if}
 
   {#if role !== 'student'}
@@ -182,24 +203,26 @@ const role = get(auth)?.role!;
 
   {#if role==='teacher' || role==='admin'}
     <h3>Student progress</h3>
-    <table>
-      <thead>
-        <tr><th>Student</th><th>Status</th><th>Last submission</th><th></th></tr>
-      </thead>
-      <tbody>
-        {#each progress as p}
-          <tr>
-            <td>{p.student.name ?? p.student.email}</td>
-            <td>{p.latest ? p.latest.status : 'none'}</td>
-            <td>{p.latest ? new Date(p.latest.created_at).toLocaleString() : '-'}</td>
-            <td>{#if p.latest}<a href={`/submissions/${p.latest.id}`}>view</a>{/if}</td>
-          </tr>
-        {/each}
-        {#if !progress.length}
-          <tr><td colspan="4"><i>No students</i></td></tr>
-        {/if}
-      </tbody>
-    </table>
+    <div class="overflow-x-auto">
+      <table class="table table-zebra">
+        <thead>
+          <tr><th>Student</th><th>Status</th><th>Last submission</th><th></th></tr>
+        </thead>
+        <tbody>
+          {#each progress as p}
+            <tr>
+              <td>{p.student.name ?? p.student.email}</td>
+              <td><span class={`badge ${statusColor(p.latest ? p.latest.status : 'none')}`}>{p.latest ? p.latest.status : 'none'}</span></td>
+              <td>{p.latest ? new Date(p.latest.created_at).toLocaleString() : '-'}</td>
+              <td>{#if p.latest}<a href={`/submissions/${p.latest.id}`}>view</a>{/if}</td>
+            </tr>
+          {/each}
+          {#if !progress.length}
+            <tr><td colspan="4"><i>No students</i></td></tr>
+          {/if}
+        </tbody>
+      </table>
+    </div>
   {/if}
 
   {#if role==='student'}
@@ -217,22 +240,31 @@ const role = get(auth)?.role!;
 
   {#if role==='teacher' || role==='admin'}
     {#if !assignment.published}
-      <button on:click={publish}>Publish assignment</button>
+      <button class="btn btn-secondary mb-4" on:click={publish}>Publish assignment</button>
     {/if}
-    <h3>Add test</h3>
-    <input placeholder="stdin" bind:value={tStdin}>
-    <br>
-    <input placeholder="expected stdout" bind:value={tStdout}>
-    <br>
-    <input placeholder="time limit (s)" bind:value={tLimit}>
-    <br>
-    <button on:click={addTest}>Add</button>
+    <div class="card bg-base-100 shadow mb-4">
+      <div class="card-body space-y-2">
+        <h3 class="card-title">Add test</h3>
+        <input class="input input-bordered w-full" placeholder="stdin" bind:value={tStdin}>
+        <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={tStdout}>
+        <input class="input input-bordered w-full" placeholder="time limit (s)" bind:value={tLimit}>
+        <div class="card-actions justify-end">
+          <button class="btn btn-primary" on:click={addTest}>Add</button>
+        </div>
+      </div>
+    </div>
   {/if}
 
   {#if role==='student'}
-    <h3>Submit solution</h3>
-    <input type="file" accept=".py" on:change={e=>file=(e.target as HTMLInputElement).files?.[0] || null}>
-    <button disabled={!file} on:click={submit}>Upload</button>
+    <div class="card bg-base-100 shadow mb-4">
+      <div class="card-body space-y-2">
+        <h3 class="card-title">Submit solution</h3>
+        <input type="file" accept=".py" class="file-input file-input-bordered w-full" on:change={e=>file=(e.target as HTMLInputElement).files?.[0] || null}>
+        <div class="card-actions justify-end">
+          <button class="btn btn-primary" disabled={!file} on:click={submit}>Upload</button>
+        </div>
+      </div>
+    </div>
   {/if}
 
   {#if err}<p style="color:red">{err}</p>{/if}
