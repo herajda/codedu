@@ -3,6 +3,8 @@
   import { get } from 'svelte/store'
   import { auth } from '$lib/auth'
 import { apiFetch, apiJSON } from '$lib/api'
+import { MarkdownEditor } from '$lib'
+import { marked } from 'marked'
 import { goto } from '$app/navigation'
 import { page } from '$app/stores'
 
@@ -149,7 +151,7 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
       <div class="card-body space-y-3">
         <h1 class="card-title">Edit assignment</h1>
         <input class="input input-bordered w-full" bind:value={eTitle} placeholder="Title" required>
-        <textarea class="textarea textarea-bordered w-full" bind:value={eDesc} placeholder="Description" required></textarea>
+        <MarkdownEditor bind:value={eDesc} placeholder="Description" />
         <input type="number" min="1" class="input input-bordered w-full" bind:value={ePoints} placeholder="Max points" required>
         <select class="select select-bordered w-full" bind:value={ePolicy}>
           <option value="all_or_nothing">all_or_nothing</option>
@@ -175,7 +177,7 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
             </div>
           {/if}
         </div>
-        <p>{assignment.description}</p>
+        <div>{@html marked.parse(assignment.description)}</div>
         <p><strong>Deadline:</strong> {new Date(assignment.deadline).toLocaleString()}</p>
         <p><strong>Max points:</strong> {assignment.max_points}</p>
         <p><strong>Policy:</strong> {assignment.grading_policy}</p>
