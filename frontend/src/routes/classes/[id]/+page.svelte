@@ -94,22 +94,22 @@
   {/if}
 
   <div class="space-y-6">
-    <div class="card bg-base-100 shadow">
-      <div class="card-body">
-        <h2 class="card-title">Students</h2>
-        <ul class="space-y-1">
-          {#each students as s}
-            <li class="flex justify-between items-center">
-              <span>{s.name ?? s.email}</span>
-              {#if role === 'teacher' || role === 'admin'}
-                <button class="btn btn-xs btn-error" on:click={()=>removeStudent(s.id)}>Remove</button>
-              {/if}
-            </li>
-          {/each}
-          {#if !students.length}<li><i>No students yet</i></li>{/if}
-        </ul>
+    {#if role === 'teacher' || role === 'admin'}
+      <div class="card bg-base-100 shadow">
+        <div class="card-body">
+          <h2 class="card-title">Students</h2>
+          <ul class="space-y-1">
+            {#each students as s}
+              <li class="flex justify-between items-center">
+                <span>{s.name ?? s.email}</span>
+                {#if role === 'teacher' || role === 'admin'}
+                  <button class="btn btn-xs btn-error" on:click={()=>removeStudent(s.id)}>Remove</button>
+                {/if}
+              </li>
+            {/each}
+            {#if !students.length}<li><i>No students yet</i></li>{/if}
+          </ul>
 
-        {#if role === 'teacher' || role === 'admin'}
           <div class="mt-4">
             <details class="collapse collapse-arrow">
               <summary class="collapse-title font-medium">Add students</summary>
@@ -141,9 +141,9 @@
               </div>
             </details>
           </div>
-        {/if}
+        </div>
       </div>
-    </div>
+    {/if}
 
     <div class="card bg-base-100 shadow">
       <div class="card-body">
