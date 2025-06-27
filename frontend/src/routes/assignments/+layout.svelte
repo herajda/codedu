@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import { apiJSON } from '$lib/api';
   import { page } from '$app/stores';
-  import type { Page } from '@sveltejs/kit';
 
   let classes:any[] = [];
   let err = '';
@@ -20,7 +19,7 @@
     <ul class="menu">
       {#each classes as c}
         <li>
-          <a class={($page.params.id == c.id.toString()) ? 'active' : ''} href={`/classes/${c.id}`}>{c.name}</a>
+          <a href={`/classes/${c.id}`}>{c.name}</a>
         </li>
       {/each}
       {#if !classes.length && !err}
