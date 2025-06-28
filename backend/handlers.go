@@ -101,19 +101,19 @@ func createAssignment(c *gin.Context) {
 		return
 	}
 
-        var req struct {
-                Title       string `json:"title" binding:"required"`
-                Description string `json:"description"`
-        }
-        if err := c.ShouldBindJSON(&req); err != nil {
-                c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-                return
-        }
+	var req struct {
+		Title       string `json:"title" binding:"required"`
+		Description string `json:"description"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
 	a := &Assignment{
 		ClassID:       classID,
-                Title:         req.Title,
-                Description:   req.Description,
+		Title:         req.Title,
+		Description:   req.Description,
 		Deadline:      time.Now().Add(24 * time.Hour),
 		MaxPoints:     100,
 		GradingPolicy: "all_or_nothing",
@@ -229,6 +229,49 @@ func publishAssignment(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+// uploadTemplate: POST /api/assignments/:id/template
+func uploadTemplate(c *gin.Context) {
+	aid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing file"})
+		return
+	}
+	if err := os.MkdirAll("templates", 0755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "server error"})
+		return
+	}
+	path := fmt.Sprintf("templates/%d_%s", aid, filepath.Base(file.Filename))
+	if err := c.SaveUploadedFile(file, path); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot save"})
+		return
+	}
+	if err := UpdateAssignmentTemplate(aid, &path); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// getTemplate: GET /api/assignments/:id/template
+func getTemplate(c *gin.Context) {
+	aid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	a, err := GetAssignment(aid)
+	if err != nil || a.TemplatePath == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	c.File(*a.TemplatePath)
 }
 
 // createTestCase: POST /api/assignments/:id/tests

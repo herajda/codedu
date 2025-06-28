@@ -27,6 +27,7 @@ type Assignment struct {
 	MaxPoints     int       `db:"max_points" json:"max_points"`
 	GradingPolicy string    `db:"grading_policy" json:"grading_policy"`
 	Published     bool      `db:"published" json:"published"`
+	TemplatePath  *string   `db:"template_path" json:"template_path"`
 	CreatedAt     time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
 	ClassID       int       `db:"class_id" json:"class_id"`
@@ -105,12 +106,12 @@ func ListAllClasses() ([]Class, error) {
 // ──────────────────────────────────────────────────────────────────────────────
 func CreateAssignment(a *Assignment) error {
 	const q = `
-          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, class_id)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, template_path, class_id)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
           RETURNING id, created_at, updated_at`
 	return DB.QueryRow(q,
 		a.Title, a.Description, a.CreatedBy, a.Deadline,
-		a.MaxPoints, a.GradingPolicy, a.Published, a.ClassID,
+		a.MaxPoints, a.GradingPolicy, a.Published, a.TemplatePath, a.ClassID,
 	).Scan(&a.ID, &a.CreatedAt, &a.UpdatedAt)
 }
 
@@ -118,7 +119,7 @@ func CreateAssignment(a *Assignment) error {
 func ListAssignments(role string) ([]Assignment, error) {
 	var list []Assignment
 	query := `
-    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, created_at, updated_at, class_id
+    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, template_path, created_at, updated_at, class_id
       FROM assignments`
 	if role == "student" {
 		query += " WHERE published = true"
@@ -132,7 +133,7 @@ func ListAssignments(role string) ([]Assignment, error) {
 func GetAssignment(id int) (*Assignment, error) {
 	var a Assignment
 	err := DB.Get(&a, `
-    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, created_at, updated_at, class_id
+    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, template_path, created_at, updated_at, class_id
       FROM assignments
      WHERE id = $1`, id)
 	if err != nil {
@@ -170,6 +171,11 @@ func DeleteAssignment(id int) error {
 // SetAssignmentPublished updates the published flag on an assignment.
 func SetAssignmentPublished(id int, published bool) error {
 	_, err := DB.Exec(`UPDATE assignments SET published=$1, updated_at=now() WHERE id=$2`, published, id)
+	return err
+}
+
+func UpdateAssignmentTemplate(id int, path *string) error {
+	_, err := DB.Exec(`UPDATE assignments SET template_path=$1, updated_at=now() WHERE id=$2`, path, id)
 	return err
 }
 
@@ -322,7 +328,7 @@ func GetClassDetail(id int, role string) (*ClassDetail, error) {
 	var asg []Assignment
 	query := `
                 SELECT id, title, description, created_by, deadline,
-                       max_points, grading_policy, published,
+                       max_points, grading_policy, published, template_path,
                        created_at, updated_at, class_id
                   FROM assignments
                  WHERE class_id = $1`
