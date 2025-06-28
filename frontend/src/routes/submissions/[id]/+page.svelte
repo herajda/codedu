@@ -203,17 +203,17 @@ pre {
   background: transparent;
 }
 
-code.line-numbers {
+:global(code.line-numbers) {
   counter-reset: line;
 }
 
-.line {
+:global(.line) {
   display: block;
   padding-left: 3em;
   position: relative;
 }
 
-.line::before {
+:global(.line::before) {
   counter-increment: line;
   content: counter(line);
   position: absolute;
