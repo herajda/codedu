@@ -235,6 +235,49 @@ func publishAssignment(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// uploadTemplate: POST /api/assignments/:id/template
+func uploadTemplate(c *gin.Context) {
+	aid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing file"})
+		return
+	}
+	if err := os.MkdirAll("templates", 0755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "server error"})
+		return
+	}
+	path := fmt.Sprintf("templates/%d_%s", aid, filepath.Base(file.Filename))
+	if err := c.SaveUploadedFile(file, path); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot save"})
+		return
+	}
+	if err := UpdateAssignmentTemplate(aid, &path); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// getTemplate: GET /api/assignments/:id/template
+func getTemplate(c *gin.Context) {
+	aid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	a, err := GetAssignment(aid)
+	if err != nil || a.TemplatePath == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+       c.FileAttachment(*a.TemplatePath, filepath.Base(*a.TemplatePath))
+}
+
 // createTestCase: POST /api/assignments/:id/tests
 func createTestCase(c *gin.Context) {
 	aid, err := strconv.Atoi(c.Param("id"))
