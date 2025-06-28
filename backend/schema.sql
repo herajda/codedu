@@ -12,6 +12,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS bk_class TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS bk_uid TEXT;
 
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS template_path TEXT;
+
 CREATE TABLE IF NOT EXISTS classes (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
@@ -29,6 +31,7 @@ CREATE TABLE IF NOT EXISTS assignments (
   max_points INTEGER NOT NULL DEFAULT 100,
   grading_policy TEXT NOT NULL DEFAULT 'all_or_nothing' CHECK (grading_policy IN ('all_or_nothing','percentage','weighted')),
   published BOOLEAN NOT NULL DEFAULT FALSE,
+  template_path TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE

@@ -25,6 +25,7 @@ const role = get(auth)?.role!;
   let err=''
   let tStdin='', tStdout='', tLimit=''
   let file:File|null=null
+  let templateFile:File|null=null
   let submitDialog: HTMLDialogElement;
 $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100) : 0;
   let editing=false
@@ -71,6 +72,17 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
         body:JSON.stringify({stdin:tStdin, expected_stdout:tStdout, time_limit_sec: parseFloat(tLimit) || undefined})
       })
       tStdin=tStdout=tLimit=''
+      await load()
+    }catch(e:any){ err=e.message }
+  }
+
+  async function uploadTemplate(){
+    if(!templateFile) return
+    const fd = new FormData()
+    fd.append('file', templateFile)
+    try{
+      await apiFetch(`/api/assignments/${id}/template`,{method:'POST', body:fd})
+      templateFile=null
       await load()
     }catch(e:any){ err=e.message }
   }
@@ -181,6 +193,15 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
         <p><strong>Deadline:</strong> {new Date(assignment.deadline).toLocaleString()}</p>
         <p><strong>Max points:</strong> {assignment.max_points}</p>
         <p><strong>Policy:</strong> {assignment.grading_policy}</p>
+        {#if assignment.template_path}
+          <a class="link" href={`/api/assignments/${id}/template`}>Download template</a>
+        {/if}
+        {#if role==='teacher' || role==='admin'}
+          <div class="mt-2 space-x-2">
+            <input type="file" class="file-input file-input-bordered" on:change={e=>templateFile=(e.target as HTMLInputElement).files?.[0] || null}>
+            <button class="btn" on:click={uploadTemplate} disabled={!templateFile}>Upload template</button>
+          </div>
+        {/if}
         {#if done}
           <p class="text-success font-bold">Assignment done.</p>
         {/if}

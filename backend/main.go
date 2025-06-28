@@ -79,6 +79,8 @@ func main() {
 		api.PUT("/assignments/:id", RoleGuard("teacher", "admin"), updateAssignment)
 		api.DELETE("/assignments/:id", RoleGuard("teacher", "admin"), deleteAssignment)
 		api.PUT("/assignments/:id/publish", RoleGuard("teacher", "admin"), publishAssignment)
+		api.POST("/assignments/:id/template", RoleGuard("teacher", "admin"), uploadTemplate)
+		api.GET("/assignments/:id/template", RoleGuard("student", "teacher", "admin"), getTemplate)
 		api.POST("/assignments/:id/tests", RoleGuard("teacher", "admin"), createTestCase)
 		api.DELETE("/tests/:id", RoleGuard("teacher", "admin"), deleteTestCase)
 		api.POST("/assignments/:id/submissions", RoleGuard("student"), createSubmission)
