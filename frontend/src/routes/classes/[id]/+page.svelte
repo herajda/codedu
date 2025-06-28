@@ -205,6 +205,9 @@ import { marked } from 'marked';
                   <div class="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:justify-end w-full sm:w-auto">
                     <span class={`badge ${new Date(a.deadline)<new Date() && !a.completed ? 'badge-error' : 'badge-info'}`}>{new Date(a.deadline).toLocaleString()}</span>
                     <span class="text-sm">{countdown(a.deadline)}</span>
+                    {#if !a.published}
+                      <span class="badge badge-warning">unpublished</span>
+                    {/if}
                     {#if a.completed}
                       <span class="badge badge-success">done</span>
                     {/if}
