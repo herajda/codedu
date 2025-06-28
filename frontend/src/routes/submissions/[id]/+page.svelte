@@ -181,11 +181,11 @@ $: id = $page.params.id
         </div>
         <div class="flex-1">
           <div class="font-mono text-sm mb-2">{selected?.name}</div>
-          <pre class="whitespace-pre bg-base-200 p-2 rounded"><code class="hljs line-numbers">{@html highlighted}</code></pre>
+          <pre class="whitespace-pre bg-base-200 p-2 rounded font-mono text-sm"><code class="hljs line-numbers">{@html highlighted}</code></pre>
         </div>
       </div>
     {:else}
-      <pre class="whitespace-pre bg-base-200 p-2 rounded"><code class="hljs line-numbers">{@html highlighted}</code></pre>
+      <pre class="whitespace-pre bg-base-200 p-2 rounded font-mono text-sm"><code class="hljs line-numbers">{@html highlighted}</code></pre>
     {/if}
   </div>
   <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -198,6 +198,8 @@ pre {
   background: #eee;
   padding: .5rem;
   overflow: auto;
+  font-family: monospace;
+  line-height: 1.25;
 }
 .hljs {
   background: transparent;
@@ -205,12 +207,14 @@ pre {
 
 :global(code.line-numbers) {
   counter-reset: line;
+  font-variant-numeric: tabular-nums;
 }
 
 :global(.line) {
   display: block;
   padding-left: 3em;
   position: relative;
+  line-height: 1.25;
 }
 
 :global(.line::before) {
@@ -222,5 +226,7 @@ pre {
   text-align: right;
   padding-right: 0.5em;
   color: #888;
+  font-family: inherit;
 }
+
 </style>
