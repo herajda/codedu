@@ -13,6 +13,18 @@
   let editor: any = null;
   const dispatch = createEventDispatcher();
 
+  function insertImageWithSize(editor: any) {
+    const url = prompt('Enter image URL');
+    if (!url) return;
+    const width = prompt('Width (optional)');
+    const height = prompt('Height (optional)');
+    let attrs = '';
+    if (width) attrs += ` width="${width}"`;
+    if (height) attrs += ` height="${height}"`;
+    const html = `<img src="${url}"${attrs}>`;
+    editor.codemirror.replaceSelection(html);
+  }
+
   onMount(async () => {
     const mod = await import('easymde');
     await import('easymde/dist/easymde.min.css');
@@ -33,7 +45,12 @@
         'ordered-list',
         '|',
         'link',
-        'image',
+        {
+          name: 'image',
+          action: insertImageWithSize,
+          className: 'fa fa-image',
+          title: 'Insert image'
+        },
         '|',
         'preview',
         'side-by-side',
