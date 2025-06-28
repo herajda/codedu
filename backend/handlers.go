@@ -285,12 +285,14 @@ func createSubmission(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	form, err := c.MultipartForm()
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing files"})
+	if err := c.Request.ParseMultipartForm(32 << 20); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid form"})
 		return
 	}
-	files := form.File["files"]
+	var files []*multipart.FileHeader
+	if c.Request.MultipartForm != nil {
+		files = c.Request.MultipartForm.File["files"]
+	}
 	if len(files) == 0 {
 		// fallback to single "file" field for backwards compatibility
 		if f, err := c.FormFile("file"); err == nil {
