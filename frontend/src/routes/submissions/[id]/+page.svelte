@@ -81,11 +81,7 @@ $: id = $page.params.id
     <div class="card bg-base-100 shadow">
       <div class="card-body space-y-2">
         <h3 class="card-title">Files</h3>
-        {#if files.length}
-          <button class="btn btn-primary" on:click={openFiles}>Show files</button>
-        {:else}
-          <pre class="whitespace-pre-wrap">{submission.code_content}</pre>
-        {/if}
+        <button class="btn btn-primary" on:click={openFiles}>Show files</button>
       </div>
     </div>
     <div class="card bg-base-100 shadow">
@@ -117,18 +113,24 @@ $: id = $page.params.id
 
 <dialog bind:this={fileDialog} class="modal">
   <div class="modal-box w-11/12 max-w-5xl">
-    <div class="flex flex-col md:flex-row gap-4">
-      <ul class="menu bg-base-200 rounded md:w-60">
-        {#each files as f}
-          <li class={selected?.name === f.name ? 'active' : ''}>
-            <button on:click={() => chooseFile(f)}>{f.name}</button>
-          </li>
-        {/each}
-      </ul>
-      <pre class="flex-1 whitespace-pre-wrap bg-base-200 p-2 rounded">
-        {selected?.content}
+    {#if files.length}
+      <div class="flex flex-col md:flex-row gap-4">
+        <ul class="menu bg-base-200 rounded md:w-60">
+          {#each files as f}
+            <li class={selected?.name === f.name ? 'active' : ''}>
+              <button on:click={() => chooseFile(f)}>{f.name}</button>
+            </li>
+          {/each}
+        </ul>
+        <pre class="flex-1 whitespace-pre-wrap bg-base-200 p-2 rounded">
+          {selected?.content}
+        </pre>
+      </div>
+    {:else}
+      <pre class="whitespace-pre-wrap bg-base-200 p-2 rounded">
+        {submission.code_content}
       </pre>
-    </div>
+    {/if}
   </div>
   <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
