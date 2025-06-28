@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -167,13 +168,34 @@ func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, e
 	defer cancel()
 
 	mount := fmt.Sprintf("%s:/code:ro", abs)
-	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", "-i", "-v", mount, pythonImage, "python", "/code/"+file)
+
+	// Measure runtime inside the container. A shell script records timestamps
+	// before and after executing the Python program and prints the elapsed
+	// milliseconds as the last line of stdout with a unique prefix.
+	script := fmt.Sprintf("start=$(date +%%s%%N); python /code/%s; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status", file)
+
+	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", "-i", "-v", mount, pythonImage, "bash", "-c", script)
 	cmd.Stdin = strings.NewReader(stdin)
 
 	start := time.Now()
-	out, err := cmd.CombinedOutput()
-	runtime := time.Since(start)
+	outBytes, err := cmd.CombinedOutput()
+	duration := time.Since(start)
 
 	timedOut := ctx.Err() == context.DeadlineExceeded
-	return string(out), err, timedOut, runtime
+
+	out := strings.TrimSpace(string(outBytes))
+	var runtime time.Duration
+	if lines := strings.Split(out, "\n"); len(lines) > 0 && strings.HasPrefix(lines[len(lines)-1], "===RUNTIME_MS===") {
+		rstr := strings.TrimSpace(strings.TrimPrefix(lines[len(lines)-1], "===RUNTIME_MS==="))
+		if ms, perr := strconv.Atoi(rstr); perr == nil {
+			runtime = time.Duration(ms) * time.Millisecond
+			out = strings.Join(lines[:len(lines)-1], "\n")
+		} else {
+			runtime = duration
+		}
+	} else {
+		runtime = duration
+	}
+
+	return out, err, timedOut, runtime
 }
