@@ -209,7 +209,7 @@ import { marked } from 'marked';
                       <span class="badge badge-success">done</span>
                     {/if}
                     {#if role === 'teacher' || role === 'admin'}
-                      <button class="btn btn-xs btn-error" on:click|stopPropagation={()=>deleteAssignment(a.id)}>Delete</button>
+                      <button class="btn btn-xs btn-error" on:click|preventDefault|stopPropagation={() => deleteAssignment(a.id)}>Delete</button>
                     {/if}
                   </div>
                 </div>
