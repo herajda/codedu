@@ -9,13 +9,13 @@ $: id = $page.params.id
   let submission:any=null
   let results:any[]=[]
   let err=''
-  let files:{name:string,content:string}[]=[]
-  let selected:{name:string,content:string}|null=null
-  let fileDialog:HTMLDialogElement
+  let files: { name: string; content: string }[] = []
+  let selected: { name: string; content: string } | null = null
+  let fileDialog: HTMLDialogElement
 
-  async function load(){
-    err=''
-    try{
+  async function load() {
+    err = ''
+    try {
       const data = await apiJSON(`/api/submissions/${id}`)
       submission = data.submission
       results = data.results
@@ -29,9 +29,19 @@ $: id = $page.params.id
           files.push({ name: file.name, content })
         }
       } catch {
-        // fall back to showing raw base64 if it's not a zip
+        // not a zip, decode as single file
+        try {
+          files = [{ name: 'code', content: atob(submission.code_content) }]
+        } catch {
+          files = [{ name: 'code', content: submission.code_content }]
+        }
       }
-    }catch(e:any){ err=e.message }
+      if (files.length === 1) {
+        selected = files[0]
+      }
+    } catch (e: any) {
+      err = e.message
+    }
   }
 
   function statusColor(s:string){
@@ -66,11 +76,11 @@ $: id = $page.params.id
       <div class="card-body space-y-2">
         <h3 class="card-title">Files</h3>
         {#if files.length}
-          <ul class="menu">
+          <div class="flex flex-wrap gap-2">
             {#each files as f}
-              <li><button class="btn btn-sm btn-outline w-full justify-between" on:click={() => openFile(f)}>{f.name}</button></li>
+              <button class="btn btn-sm btn-outline" on:click={() => openFile(f)}>{f.name}</button>
             {/each}
-          </ul>
+          </div>
         {:else}
           <pre class="whitespace-pre-wrap">{submission.code_content}</pre>
         {/if}
