@@ -225,7 +225,6 @@ import { marked } from 'marked';
         {#if role === 'teacher' || role === 'admin'}
           <form class="mt-4" on:submit|preventDefault={createAssignment}>
             <input class="input input-bordered w-full mb-2" placeholder="Title" bind:value={aTitle} required>
-            <MarkdownEditor bind:value={aDesc} placeholder="Description" className="mb-2" />
             <button class="btn">Create</button>
           </form>
         {/if}
