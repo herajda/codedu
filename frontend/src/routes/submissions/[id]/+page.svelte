@@ -21,6 +21,31 @@ $: id = $page.params.id
     children?: FileNode[]
   }
 
+  async function parseFiles(b64: string) {
+    let bytes: Uint8Array
+    try {
+      const bin = atob(b64)
+      bytes = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+    } catch {
+      return [{ name: 'code', content: b64 }]
+    }
+
+    try {
+      const zip = await JSZip.loadAsync(bytes)
+      const list: { name: string; content: string }[] = []
+      for (const file of Object.values(zip.files)) {
+        if (file.dir) continue
+        const content = await file.async('string')
+        list.push({ name: file.name, content })
+      }
+      return list
+    } catch {
+      const text = new TextDecoder().decode(bytes)
+      return [{ name: 'code', content: text }]
+    }
+  }
+
   async function load() {
     err = ''
     try {
@@ -28,28 +53,9 @@ $: id = $page.params.id
       submission = data.submission
       results = data.results
 
-      files = []
-      tree = []
-      try {
-        const zip = await JSZip.loadAsync(submission.code_content, { base64: true })
-        for (const file of Object.values(zip.files)) {
-          if (file.dir) continue
-          const content = await file.async('string')
-          files.push({ name: file.name, content })
-        }
-      } catch {
-        try {
-          const text = atob(submission.code_content)
-          files = [{ name: 'code', content: text }]
-        } catch {
-          files = [{ name: 'code', content: submission.code_content }]
-        }
-      }
-
-      if (files.length) {
-        selected = files[0]
-        tree = buildTree(files)
-      }
+      files = await parseFiles(submission.code_content)
+      tree = buildTree(files)
+      selected = files[0]
     } catch (e: any) {
       err = e.message
     }
