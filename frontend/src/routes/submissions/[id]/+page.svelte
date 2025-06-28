@@ -15,6 +15,13 @@ $: id = $page.params.id
   let selected: { name: string; content: string } | null = null
   let highlighted = ''
 
+  function addLineNumbers(html: string) {
+    return html
+      .split('\n')
+      .map((line) => `<span class="line">${line}</span>`) 
+      .join('\n')
+  }
+
   import hljs from 'highlight.js'
   import 'highlight.js/styles/github.css'
   let fileDialog: HTMLDialogElement
@@ -112,11 +119,11 @@ $: id = $page.params.id
   }
 
   $: if (selected) {
-    highlighted = hljs.highlightAuto(selected.content).value
+    highlighted = addLineNumbers(hljs.highlightAuto(selected.content).value)
   }
 
   $: if (!selected && submission) {
-    highlighted = hljs.highlightAuto(submission.code_content).value
+    highlighted = addLineNumbers(hljs.highlightAuto(submission.code_content).value)
   }
 
   onMount(load)
@@ -174,11 +181,11 @@ $: id = $page.params.id
         </div>
         <div class="flex-1">
           <div class="font-mono text-sm mb-2">{selected?.name}</div>
-          <pre class="whitespace-pre bg-base-200 p-2 rounded"><code class="hljs">{@html highlighted}</code></pre>
+          <pre class="whitespace-pre bg-base-200 p-2 rounded"><code class="hljs line-numbers">{@html highlighted}</code></pre>
         </div>
       </div>
     {:else}
-      <pre class="whitespace-pre bg-base-200 p-2 rounded"><code class="hljs">{@html highlighted}</code></pre>
+      <pre class="whitespace-pre bg-base-200 p-2 rounded"><code class="hljs line-numbers">{@html highlighted}</code></pre>
     {/if}
   </div>
   <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -194,5 +201,26 @@ pre {
 }
 .hljs {
   background: transparent;
+}
+
+code.line-numbers {
+  counter-reset: line;
+}
+
+.line {
+  display: block;
+  padding-left: 3em;
+  position: relative;
+}
+
+.line::before {
+  counter-increment: line;
+  content: counter(line);
+  position: absolute;
+  left: 0;
+  width: 2.5em;
+  text-align: right;
+  padding-right: 0.5em;
+  color: #888;
 }
 </style>
