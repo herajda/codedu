@@ -24,7 +24,7 @@ const role = get(auth)?.role!;
   let percent=0
   let err=''
   let tStdin='', tStdout='', tLimit=''
-  let file:File|null=null
+  let files: File[] = []
   let templateFile:File|null=null
   let submitDialog: HTMLDialogElement;
 $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100) : 0;
@@ -154,12 +154,14 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
   }
 
   async function submit(){
-    if(!file) return
+    if(files.length === 0) return
     const fd = new FormData()
-    fd.append('file', file)
+    for(const f of files){
+      fd.append('files', f)
+    }
     try{
       await apiFetch(`/api/assignments/${id}/submissions`,{method:'POST', body:fd})
-      file=null
+      files = []
       submitDialog.close()
       alert('Uploaded!')
       await load()
@@ -318,9 +320,9 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
   <dialog bind:this={submitDialog} class="modal">
     <div class="modal-box w-11/12 max-w-md space-y-2">
       <h3 class="font-bold text-lg">Submit solution</h3>
-      <input type="file" accept=".py" class="file-input file-input-bordered w-full" on:change={e=>file=(e.target as HTMLInputElement).files?.[0] || null}>
+      <input type="file" accept=".py" multiple class="file-input file-input-bordered w-full" on:change={e=>files=Array.from((e.target as HTMLInputElement).files||[])}>
       <div class="modal-action">
-        <button class="btn" on:click={submit} disabled={!file}>Upload</button>
+        <button class="btn" on:click={submit} disabled={!files.length}>Upload</button>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
