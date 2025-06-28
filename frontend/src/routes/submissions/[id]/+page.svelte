@@ -13,6 +13,10 @@ $: id = $page.params.id
   let files: { name: string; content: string }[] = []
   let tree: FileNode[] = []
   let selected: { name: string; content: string } | null = null
+  let highlighted = ''
+
+  import hljs from 'highlight.js'
+  import 'highlight.js/styles/github.css'
   let fileDialog: HTMLDialogElement
 
   interface FileNode {
@@ -107,6 +111,14 @@ $: id = $page.params.id
     }
   }
 
+  $: if (selected) {
+    highlighted = hljs.highlightAuto(selected.content).value
+  }
+
+  $: if (!selected && submission) {
+    highlighted = hljs.highlightAuto(submission.code_content).value
+  }
+
   onMount(load)
 </script>
 
@@ -160,14 +172,13 @@ $: id = $page.params.id
         <div class="md:w-60">
           <FileTree nodes={tree} select={chooseFile} />
         </div>
-        <pre class="flex-1 whitespace-pre-wrap bg-base-200 p-2 rounded">
-          {selected?.content}
-        </pre>
+        <div class="flex-1">
+          <div class="font-mono text-sm mb-2">{selected?.name}</div>
+          <pre class="whitespace-pre bg-base-200 p-2 rounded"><code class="hljs">{@html highlighted}</code></pre>
+        </div>
       </div>
     {:else}
-      <pre class="whitespace-pre-wrap bg-base-200 p-2 rounded">
-        {submission?.code_content}
-      </pre>
+      <pre class="whitespace-pre bg-base-200 p-2 rounded"><code class="hljs">{@html highlighted}</code></pre>
     {/if}
   </div>
   <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -176,9 +187,12 @@ $: id = $page.params.id
 {#if err}<p style="color:red">{err}</p>{/if}
 
 <style>
-pre{
-  background:#eee;
-  padding:.5rem;
-  overflow:auto;
+pre {
+  background: #eee;
+  padding: .5rem;
+  overflow: auto;
+}
+.hljs {
+  background: transparent;
 }
 </style>
