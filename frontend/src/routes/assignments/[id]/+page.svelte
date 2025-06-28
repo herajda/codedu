@@ -194,7 +194,7 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
         <p><strong>Max points:</strong> {assignment.max_points}</p>
         <p><strong>Policy:</strong> {assignment.grading_policy}</p>
         {#if assignment.template_path}
-          <a class="link" href={`/api/assignments/${id}/template`}>Download template</a>
+          <a class="link" href={`/api/assignments/${id}/template`} download>Download template</a>
         {/if}
         {#if role==='teacher' || role==='admin'}
           <div class="mt-2 space-x-2">

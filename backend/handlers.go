@@ -271,7 +271,7 @@ func getTemplate(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-	c.File(*a.TemplatePath)
+       c.FileAttachment(*a.TemplatePath, filepath.Base(*a.TemplatePath))
 }
 
 // createTestCase: POST /api/assignments/:id/tests
