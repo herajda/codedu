@@ -9,7 +9,7 @@
   export let placeholder = '';
 
   let textarea: HTMLTextAreaElement;
-  let editor: import('easymde').default | null = null;
+  let editor: any = null;
   const dispatch = createEventDispatcher();
 
   onMount(async () => {
