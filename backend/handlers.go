@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -275,7 +276,7 @@ func getTemplate(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-       c.FileAttachment(*a.TemplatePath, filepath.Base(*a.TemplatePath))
+	c.FileAttachment(*a.TemplatePath, filepath.Base(*a.TemplatePath))
 }
 
 // createTestCase: POST /api/assignments/:id/tests
@@ -673,4 +674,17 @@ func removeStudent(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+// eventsHandler streams submission updates to clients using SSE.
+func eventsHandler(c *gin.Context) {
+	ch := addSubscriber()
+	defer removeSubscriber(ch)
+	c.Stream(func(w io.Writer) bool {
+		if evt, ok := <-ch; ok {
+			c.SSEvent(evt.Event, evt.Data)
+			return true
+		}
+		return false
+	})
 }
