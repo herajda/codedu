@@ -36,7 +36,7 @@ $: id = $page.params.id
           files = [{ name: 'code', content: submission.code_content }]
         }
       }
-      if (files.length === 1) {
+      if (files.length) {
         selected = files[0]
       }
     } catch (e: any) {
@@ -54,9 +54,15 @@ $: id = $page.params.id
     return ''
   }
 
-  function openFile(f:{name:string,content:string}){
+  function openFiles() {
+    if (files.length) {
+      selected = files[0]
+      fileDialog.showModal()
+    }
+  }
+
+  function chooseFile(f: { name: string; content: string }) {
     selected = f
-    fileDialog.showModal()
   }
 
   onMount(load)
@@ -76,11 +82,7 @@ $: id = $page.params.id
       <div class="card-body space-y-2">
         <h3 class="card-title">Files</h3>
         {#if files.length}
-          <div class="flex flex-wrap gap-2">
-            {#each files as f}
-              <button class="btn btn-sm btn-outline" on:click={() => openFile(f)}>{f.name}</button>
-            {/each}
-          </div>
+          <button class="btn btn-primary" on:click={openFiles}>Show files</button>
         {:else}
           <pre class="whitespace-pre-wrap">{submission.code_content}</pre>
         {/if}
@@ -114,9 +116,19 @@ $: id = $page.params.id
 {/if}
 
 <dialog bind:this={fileDialog} class="modal">
-  <div class="modal-box w-11/12 max-w-3xl">
-    <h3 class="font-bold text-lg mb-2">{selected?.name}</h3>
-    <pre class="whitespace-pre-wrap">{selected?.content}</pre>
+  <div class="modal-box w-11/12 max-w-5xl">
+    <div class="flex flex-col md:flex-row gap-4">
+      <ul class="menu bg-base-200 rounded md:w-60">
+        {#each files as f}
+          <li class={selected?.name === f.name ? 'active' : ''}>
+            <button on:click={() => chooseFile(f)}>{f.name}</button>
+          </li>
+        {/each}
+      </ul>
+      <pre class="flex-1 whitespace-pre-wrap bg-base-200 p-2 rounded">
+        {selected?.content}
+      </pre>
+    </div>
   </div>
   <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
