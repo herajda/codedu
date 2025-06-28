@@ -75,7 +75,7 @@ type UserSummary struct {
 }
 
 func ListUsers() ([]UserSummary, error) {
-	var list []UserSummary
+	list := []UserSummary{}
 	err := DB.Select(&list,
 		`SELECT id,email,name,role,created_at
                   FROM users
@@ -117,7 +117,7 @@ func CreateAssignment(a *Assignment) error {
 
 // ListAssignments returns all assignments.
 func ListAssignments(role string) ([]Assignment, error) {
-	var list []Assignment
+	list := []Assignment{}
 	query := `
     SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, template_path, created_at, updated_at, class_id
       FROM assignments`
@@ -272,7 +272,7 @@ func ListClassesForStudent(studentID int) ([]Class, error) {
 }
 
 func ListAllStudents() ([]Student, error) {
-	var list []Student
+	list := []Student{}
 	err := DB.Select(&list, `
             SELECT id, email, name FROM users
              WHERE role = 'student'
@@ -362,7 +362,7 @@ func DeleteUser(id int) error {
 }
 
 func ListSubmissionsForStudent(studentID int) ([]Submission, error) {
-	var subs []Submission
+	subs := []Submission{}
 	err := DB.Select(&subs, `
                SELECT id, assignment_id, student_id, code_path, code_content, status, created_at, updated_at
                  FROM submissions
@@ -394,7 +394,7 @@ type SubmissionWithStudent struct {
 }
 
 func ListSubmissionsForAssignmentAndStudent(aid, sid int) ([]SubmissionWithReason, error) {
-	var subs []SubmissionWithReason
+	subs := []SubmissionWithReason{}
 	err := DB.Select(&subs, `
                SELECT id, assignment_id, student_id, code_path, code_content, status, created_at, updated_at,
                       (SELECT r.status FROM results r
@@ -409,7 +409,7 @@ func ListSubmissionsForAssignmentAndStudent(aid, sid int) ([]SubmissionWithReaso
 // ListSubmissionsForAssignment returns all submissions for a given assignment
 // along with each student's email and first failing result.
 func ListSubmissionsForAssignment(aid int) ([]SubmissionWithStudent, error) {
-	var subs []SubmissionWithStudent
+	subs := []SubmissionWithStudent{}
 	err := DB.Select(&subs, `
                SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.created_at, s.updated_at,
                      u.email, u.name,
@@ -436,7 +436,7 @@ func CreateTestCase(tc *TestCase) error {
 }
 
 func ListTestCases(assignmentID int) ([]TestCase, error) {
-	var list []TestCase
+	list := []TestCase{}
 	err := DB.Select(&list, `
                 SELECT id, assignment_id, stdin, expected_stdout, time_limit_sec, memory_limit_kb, created_at, updated_at
                   FROM test_cases
@@ -492,7 +492,7 @@ func CreateResult(r *Result) error {
 }
 
 func ListResultsForSubmission(subID int) ([]Result, error) {
-	var list []Result
+	list := []Result{}
 	err := DB.Select(&list, `
         SELECT id, submission_id, test_case_id, status, actual_stdout, runtime_ms, created_at
           FROM results
