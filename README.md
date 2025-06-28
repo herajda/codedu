@@ -128,7 +128,7 @@ You can copy `backend/.env.example` and adjust it for your environment.
 - Improved UX/UI
 - Time and memory limits per test case
 - Submission history and feedback view
-- Image size controls in the assignment editor
+- Image resizing via drag handles in the assignment editor
 
 ### Phase 3: Language Support and Administration
 - Support for C++, Java, and other languages

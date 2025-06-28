@@ -11,24 +11,56 @@
 
   let textarea: HTMLTextAreaElement;
   let editor: any = null;
+  let observer: ResizeObserver;
   const dispatch = createEventDispatcher();
 
-  function insertImageWithSize(editor: any) {
+  function insertResizableImage(editor: any) {
     const url = prompt('Enter image URL');
     if (!url) return;
-    const width = prompt('Width (optional)');
-    const height = prompt('Height (optional)');
-    let attrs = '';
-    if (width) attrs += ` width="${width}"`;
-    if (height) attrs += ` height="${height}"`;
-    const html = `<img src="${url}"${attrs}>`;
+    const id = crypto.randomUUID();
+    const html = `<div class="resizable-wrapper" data-img-id="${id}" style="width:200px;height:auto;"><img src="${url}"></div>`;
     editor.codemirror.replaceSelection(html);
+    attachObservers();
+  }
+
+  function attachObservers() {
+    const previews = document.querySelectorAll('.editor-preview, .editor-preview-side');
+    previews.forEach((preview) => {
+      preview.querySelectorAll('.resizable-wrapper').forEach((el) => {
+        observer.observe(el as Element);
+      });
+    });
+  }
+
+  function updateMarkdown(id: string, width: number, height: number) {
+    if (!editor) return;
+    const doc = editor.codemirror.getValue();
+    const regex = new RegExp(`<div class=\"resizable-wrapper\" data-img-id=\"${id}\"[^>]*>(<img[^>]*>)<\\/div>`);
+    const newDiv = `<div class="resizable-wrapper" data-img-id="${id}" style="width:${width}px;height:${height}px;">$1</div>`;
+    const newDoc = doc.replace(regex, newDiv);
+    if (newDoc !== doc) {
+      editor.codemirror.setValue(newDoc);
+      value = newDoc;
+      dispatch('input', value);
+    }
   }
 
   onMount(async () => {
     const mod = await import('easymde');
     await import('easymde/dist/easymde.min.css');
     EasyMDE = mod.default;
+    observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const el = entry.target as HTMLElement;
+        const id = el.dataset.imgId;
+        if (!id) continue;
+        const w = el.offsetWidth;
+        const h = el.offsetHeight;
+        el.style.width = w + 'px';
+        el.style.height = h + 'px';
+        updateMarkdown(id, w, h);
+      }
+    });
     editor = new EasyMDE({
       element: textarea,
       initialValue: value,
@@ -47,7 +79,7 @@
         'link',
         {
           name: 'image',
-          action: insertImageWithSize,
+          action: insertResizableImage,
           className: 'fa fa-image',
           title: 'Insert image'
         },
@@ -62,11 +94,14 @@
     editor.codemirror.on('change', () => {
       value = editor!.value();
       dispatch('input', value);
+      attachObservers();
     });
+    attachObservers();
   });
 
   onDestroy(() => {
     editor?.toTextArea();
+    observer?.disconnect();
     editor = null;
   });
 

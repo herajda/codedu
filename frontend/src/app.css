@@ -33,3 +33,13 @@
   padding: 0.2rem 0.4rem;
   border-radius: 4px;
 }
+.resizable-wrapper {
+  display: inline-block;
+  resize: both;
+  overflow: auto;
+}
+.resizable-wrapper img {
+  max-width: 100%;
+  height: auto;
+  pointer-events: none;
+}
