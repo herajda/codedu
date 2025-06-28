@@ -2,12 +2,16 @@
   import { onMount } from 'svelte'
   import { apiJSON } from '$lib/api'
   import { page } from '$app/stores'
+  import JSZip from 'jszip'
 
 $: id = $page.params.id
 
   let submission:any=null
   let results:any[]=[]
   let err=''
+  let files:{name:string,content:string}[]=[]
+  let selected:{name:string,content:string}|null=null
+  let fileDialog:HTMLDialogElement
 
   async function load(){
     err=''
@@ -15,6 +19,15 @@ $: id = $page.params.id
       const data = await apiJSON(`/api/submissions/${id}`)
       submission = data.submission
       results = data.results
+
+      const bin = Uint8Array.from(atob(submission.code_content), c=>c.charCodeAt(0))
+      const zip = await JSZip.loadAsync(bin)
+      files = []
+      for(const [name, file] of Object.entries(zip.files)){
+        if(file.dir) continue
+        const content = await file.async('string')
+        files.push({name, content})
+      }
     }catch(e:any){ err=e.message }
   }
 
@@ -26,6 +39,11 @@ $: id = $page.params.id
     if(s==='wrong_output') return 'badge-error'
     if(s==='time_limit_exceeded' || s==='memory_limit_exceeded') return 'badge-warning'
     return ''
+  }
+
+  function openFile(f:{name:string,content:string}){
+    selected = f
+    fileDialog.showModal()
   }
 
   onMount(load)
@@ -42,9 +60,17 @@ $: id = $page.params.id
       </div>
     </div>
     <div class="card bg-base-100 shadow">
-      <div class="card-body">
-        <h3 class="card-title">File</h3>
-        <pre class="whitespace-pre-wrap">{submission.code_content}</pre>
+      <div class="card-body space-y-2">
+        <h3 class="card-title">Files</h3>
+        {#if files.length}
+          <ul class="menu">
+            {#each files as f}
+              <li><button class="btn btn-sm btn-outline w-full justify-between" on:click={() => openFile(f)}>{f.name}</button></li>
+            {/each}
+          </ul>
+        {:else}
+          <pre class="whitespace-pre-wrap">{submission.code_content}</pre>
+        {/if}
       </div>
     </div>
     <div class="card bg-base-100 shadow">
@@ -73,6 +99,14 @@ $: id = $page.params.id
     </div>
   </div>
 {/if}
+
+<dialog bind:this={fileDialog} class="modal">
+  <div class="modal-box w-11/12 max-w-3xl">
+    <h3 class="font-bold text-lg mb-2">{selected?.name}</h3>
+    <pre class="whitespace-pre-wrap">{selected?.content}</pre>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
 
 {#if err}<p style="color:red">{err}</p>{/if}
 
