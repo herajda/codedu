@@ -147,26 +147,8 @@ import { marked } from 'marked';
             {#if !students.length}<li><i>No students yet</i></li>{/if}
           </ul>
 
-          <div class="mt-4 space-y-2">
+          <div class="mt-4">
             <button class="btn" on:click={openAddModal}>Add students</button>
-
-            <details class="collapse collapse-arrow mt-2">
-              <summary class="collapse-title font-medium">Import from Bakaláři</summary>
-              <div class="collapse-content space-y-2">
-                <input class="input input-bordered w-full" placeholder="Username" bind:value={bkUser}>
-                <input class="input input-bordered w-full" type="password" placeholder="Password" bind:value={bkPass}>
-                <button class="btn" on:click={fetchAtoms} disabled={loadingAtoms}>Load classes</button>
-                {#if bkAtoms.length}
-                  <ul class="menu">
-                    {#each bkAtoms as a}
-                      <li><button class="btn btn-sm btn-outline w-full justify-between" on:click={()=>importAtom(a.Id)}>{a.Name}</button></li>
-                    {/each}
-                  </ul>
-                {:else if loadingAtoms}
-                  <span class="loading loading-dots"></span>
-                {/if}
-              </div>
-            </details>
           </div>
       </div>
     </div>
@@ -188,6 +170,24 @@ import { marked } from 'marked';
         <div class="modal-action">
           <button class="btn" on:click={addStudents} disabled={!selectedIDs.length}>Add selected</button>
         </div>
+
+        <details class="collapse collapse-arrow mt-4">
+          <summary class="collapse-title font-medium">Import from Bakaláři</summary>
+          <div class="collapse-content space-y-2">
+            <input class="input input-bordered w-full" placeholder="Username" bind:value={bkUser}>
+            <input class="input input-bordered w-full" type="password" placeholder="Password" bind:value={bkPass}>
+            <button class="btn" on:click={fetchAtoms} disabled={loadingAtoms}>Load classes</button>
+            {#if bkAtoms.length}
+              <ul class="menu">
+                {#each bkAtoms as a}
+                  <li><button class="btn btn-sm btn-outline w-full justify-between" on:click={()=>importAtom(a.Id)}>{a.Name}</button></li>
+                {/each}
+              </ul>
+            {:else if loadingAtoms}
+              <span class="loading loading-dots"></span>
+            {/if}
+          </div>
+        </details>
       </div>
       <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
