@@ -2,20 +2,90 @@
   import { onMount } from 'svelte'
   import { apiJSON } from '$lib/api'
   import { page } from '$app/stores'
+  import JSZip from 'jszip'
+  import { FileTree } from '$lib'
 
 $: id = $page.params.id
 
   let submission:any=null
   let results:any[]=[]
-  let err=''
+  let err = ''
+  let files: { name: string; content: string }[] = []
+  let tree: FileNode[] = []
+  let selected: { name: string; content: string } | null = null
+  let highlighted = ''
 
-  async function load(){
-    err=''
-    try{
+  import hljs from 'highlight.js'
+  import 'highlight.js/styles/github.css'
+  let fileDialog: HTMLDialogElement
+
+  interface FileNode {
+    name: string
+    content?: string
+    children?: FileNode[]
+  }
+
+  async function parseFiles(b64: string) {
+    let bytes: Uint8Array
+    try {
+      const bin = atob(b64)
+      bytes = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+    } catch {
+      return [{ name: 'code', content: b64 }]
+    }
+
+    try {
+      const zip = await JSZip.loadAsync(bytes)
+      const list: { name: string; content: string }[] = []
+      for (const file of Object.values(zip.files)) {
+        if (file.dir) continue
+        const content = await file.async('string')
+        list.push({ name: file.name, content })
+      }
+      return list
+    } catch {
+      const text = new TextDecoder().decode(bytes)
+      return [{ name: 'code', content: text }]
+    }
+  }
+
+  async function load() {
+    err = ''
+    try {
       const data = await apiJSON(`/api/submissions/${id}`)
       submission = data.submission
       results = data.results
-    }catch(e:any){ err=e.message }
+
+      files = await parseFiles(submission.code_content)
+      tree = buildTree(files)
+      selected = files[0]
+    } catch (e: any) {
+      err = e.message
+    }
+  }
+
+  function buildTree(list: { name: string; content: string }[]): FileNode[] {
+    const root: FileNode = { name: '', children: [] }
+    for (const f of list) {
+      const parts = f.name.split('/')
+      let node = root
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i]
+        if (!node.children) node.children = []
+        let child = node.children.find((c) => c.name === part)
+        if (!child) {
+          child = { name: part }
+          node.children.push(child)
+        }
+        node = child
+        if (i === parts.length - 1) {
+          node.content = f.content
+          node.children = undefined
+        }
+      }
+    }
+    return root.children ?? []
   }
 
   function statusColor(s:string){
@@ -26,6 +96,27 @@ $: id = $page.params.id
     if(s==='wrong_output') return 'badge-error'
     if(s==='time_limit_exceeded' || s==='memory_limit_exceeded') return 'badge-warning'
     return ''
+  }
+
+  function openFiles() {
+    if (files.length) {
+      selected = files[0]
+      fileDialog.showModal()
+    }
+  }
+
+  function chooseFile(n: FileNode) {
+    if (n.content) {
+      selected = { name: n.name, content: n.content }
+    }
+  }
+
+  $: if (selected) {
+    highlighted = hljs.highlightAuto(selected.content).value
+  }
+
+  $: if (!selected && submission) {
+    highlighted = hljs.highlightAuto(submission.code_content).value
   }
 
   onMount(load)
@@ -42,9 +133,9 @@ $: id = $page.params.id
       </div>
     </div>
     <div class="card bg-base-100 shadow">
-      <div class="card-body">
-        <h3 class="card-title">File</h3>
-        <pre class="whitespace-pre-wrap">{submission.code_content}</pre>
+      <div class="card-body space-y-2">
+        <h3 class="card-title">Files</h3>
+        <button class="btn btn-primary" on:click={openFiles}>Show files</button>
       </div>
     </div>
     <div class="card bg-base-100 shadow">
@@ -74,12 +165,34 @@ $: id = $page.params.id
   </div>
 {/if}
 
+<dialog bind:this={fileDialog} class="modal">
+  <div class="modal-box w-11/12 max-w-5xl">
+    {#if files.length}
+      <div class="flex flex-col md:flex-row gap-4">
+        <div class="md:w-60">
+          <FileTree nodes={tree} select={chooseFile} />
+        </div>
+        <div class="flex-1">
+          <div class="font-mono text-sm mb-2">{selected?.name}</div>
+          <pre class="whitespace-pre bg-base-200 p-2 rounded"><code class="hljs">{@html highlighted}</code></pre>
+        </div>
+      </div>
+    {:else}
+      <pre class="whitespace-pre bg-base-200 p-2 rounded"><code class="hljs">{@html highlighted}</code></pre>
+    {/if}
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
 {#if err}<p style="color:red">{err}</p>{/if}
 
 <style>
-pre{
-  background:#eee;
-  padding:.5rem;
-  overflow:auto;
+pre {
+  background: #eee;
+  padding: .5rem;
+  overflow: auto;
+}
+.hljs {
+  background: transparent;
 }
 </style>

@@ -79,6 +79,11 @@ func main() {
 		api.PUT("/assignments/:id", RoleGuard("teacher", "admin"), updateAssignment)
 		api.DELETE("/assignments/:id", RoleGuard("teacher", "admin"), deleteAssignment)
 		api.PUT("/assignments/:id/publish", RoleGuard("teacher", "admin"), publishAssignment)
+		// allow optional trailing slash for template endpoints
+		api.POST("/assignments/:id/template", RoleGuard("teacher", "admin"), uploadTemplate)
+		api.POST("/assignments/:id/template/", RoleGuard("teacher", "admin"), uploadTemplate)
+		api.GET("/assignments/:id/template", RoleGuard("student", "teacher", "admin"), getTemplate)
+		api.GET("/assignments/:id/template/", RoleGuard("student", "teacher", "admin"), getTemplate)
 		api.POST("/assignments/:id/tests", RoleGuard("teacher", "admin"), createTestCase)
 		api.DELETE("/tests/:id", RoleGuard("teacher", "admin"), deleteTestCase)
 		api.POST("/assignments/:id/submissions", RoleGuard("student"), createSubmission)
@@ -105,6 +110,7 @@ func main() {
 		api.DELETE("/users/:id", RoleGuard("admin"), deleteUser)
 		// List my submissions (student)
 		api.GET("/my-submissions", RoleGuard("student"), listSubs)
+		api.GET("/events", RoleGuard("student", "teacher", "admin"), eventsHandler)
 		api.DELETE("/classes/:id/students/:sid", RoleGuard("teacher", "admin"), removeStudent)
 
 		api.GET("/students", RoleGuard("teacher", "admin"), listStudents)

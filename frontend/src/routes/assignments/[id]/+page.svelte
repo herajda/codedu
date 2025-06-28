@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
+import { onMount, onDestroy } from 'svelte'
   import { get } from 'svelte/store'
   import { auth } from '$lib/auth'
 import { apiFetch, apiJSON } from '$lib/api'
@@ -16,6 +16,9 @@ const role = get(auth)?.role!;
   let assignment:any=null
   let tests:any[]=[] // teacher/admin only
   let submissions:any[]=[] // student submissions
+  let latestSub:any=null
+  let results:any[]=[]
+  let es:EventSource|null=null
   let allSubs:any[]=[]     // teacher view
   let students:any[]=[]    // class roster for teacher
   let progress:any[]=[]    // computed progress per student
@@ -24,7 +27,8 @@ const role = get(auth)?.role!;
   let percent=0
   let err=''
   let tStdin='', tStdout='', tLimit=''
-  let file:File|null=null
+  let files: File[] = []
+  let templateFile:File|null=null
   let submitDialog: HTMLDialogElement;
 $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100) : 0;
   let editing=false
@@ -44,6 +48,12 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
       assignment = data.assignment
       if(role==='student') {
         submissions = data.submissions ?? []
+        latestSub = submissions[0] ?? null
+        results = []
+        if(latestSub){
+          const subData = await apiJSON(`/api/submissions/${latestSub.id}`)
+          results = subData.results ?? []
+        }
         const completed = submissions.find((s:any)=>s.status==='completed')
         done = !!completed
         pointsEarned = completed ? assignment.max_points : 0
@@ -61,7 +71,25 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
     }catch(e:any){ err=e.message }
   }
 
-  onMount(load)
+  onMount(() => {
+    load()
+    es = new EventSource('/api/events')
+    es.addEventListener('status', (ev) => {
+      const d = JSON.parse((ev as MessageEvent).data)
+      if(latestSub && d.submission_id===latestSub.id){
+        latestSub.status = d.status
+        if(d.status!== 'running') load()
+      }
+    })
+    es.addEventListener('result', (ev) => {
+      const d = JSON.parse((ev as MessageEvent).data)
+      if(latestSub && d.submission_id===latestSub.id){
+        results = [...results, d]
+      }
+    })
+  })
+
+  onDestroy(()=>{es?.close()})
 
   async function addTest(){
     try{
@@ -72,6 +100,33 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
       })
       tStdin=tStdout=tLimit=''
       await load()
+    }catch(e:any){ err=e.message }
+  }
+
+  async function uploadTemplate(){
+    if(!templateFile) return
+    const fd = new FormData()
+    fd.append('file', templateFile)
+    try{
+      await apiFetch(`/api/assignments/${id}/template`,{method:'POST', body:fd})
+      templateFile=null
+      await load()
+    }catch(e:any){ err=e.message }
+  }
+
+  async function downloadTemplate(){
+    try{
+      const res = await apiFetch(`/api/assignments/${id}/template`)
+      if(!res.ok) throw new Error('download failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = assignment.template_path.split('/').pop()
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
     }catch(e:any){ err=e.message }
   }
 
@@ -126,12 +181,14 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
   }
 
   async function submit(){
-    if(!file) return
+    if(files.length === 0) return
     const fd = new FormData()
-    fd.append('file', file)
+    for(const f of files){
+      fd.append('files', f)
+    }
     try{
       await apiFetch(`/api/assignments/${id}/submissions`,{method:'POST', body:fd})
-      file=null
+      files = []
       submitDialog.close()
       alert('Uploaded!')
       await load()
@@ -181,6 +238,15 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
         <p><strong>Deadline:</strong> {new Date(assignment.deadline).toLocaleString()}</p>
         <p><strong>Max points:</strong> {assignment.max_points}</p>
         <p><strong>Policy:</strong> {assignment.grading_policy}</p>
+        {#if assignment.template_path}
+          <a class="link" href={`/api/assignments/${id}/template`} on:click|preventDefault={downloadTemplate}>Download template</a>
+        {/if}
+        {#if role==='teacher' || role==='admin'}
+          <div class="mt-2 space-x-2">
+            <input type="file" class="file-input file-input-bordered" on:change={e=>templateFile=(e.target as HTMLInputElement).files?.[0] || null}>
+            <button class="btn" on:click={uploadTemplate} disabled={!templateFile}>Upload template</button>
+          </div>
+        {/if}
         {#if done}
           <p class="text-success font-bold">Assignment done.</p>
         {/if}
@@ -259,6 +325,33 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
         <button class="btn" on:click={openSubmitModal}>Submit new solution</button>
       </div>
     </div>
+    {#if latestSub}
+    <div class="card bg-base-100 shadow mb-4">
+      <div class="card-body space-y-2">
+        <h3 class="card-title">Latest submission results</h3>
+        <p>Status: <span class={`badge ${statusColor(latestSub.status)}`}>{latestSub.status}</span></p>
+        <div class="overflow-x-auto">
+          <table class="table table-zebra">
+            <thead>
+              <tr><th>Test</th><th>Status</th><th>Runtime (ms)</th></tr>
+            </thead>
+            <tbody>
+              {#each results as r, i}
+                <tr>
+                  <td>{i+1}</td>
+                  <td><span class={`badge ${statusColor(r.status)}`}>{r.status}</span></td>
+                  <td>{r.runtime_ms}</td>
+                </tr>
+              {/each}
+              {#if !results.length}
+                <tr><td colspan="3"><i>No results yet</i></td></tr>
+              {/if}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {/if}
   {/if}
 
   {#if role==='teacher' || role==='admin'}
@@ -281,9 +374,9 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
   <dialog bind:this={submitDialog} class="modal">
     <div class="modal-box w-11/12 max-w-md space-y-2">
       <h3 class="font-bold text-lg">Submit solution</h3>
-      <input type="file" accept=".py" class="file-input file-input-bordered w-full" on:change={e=>file=(e.target as HTMLInputElement).files?.[0] || null}>
+      <input type="file" accept=".py" multiple class="file-input file-input-bordered w-full" on:change={e=>files=Array.from((e.target as HTMLInputElement).files||[])}>
       <div class="modal-action">
-        <button class="btn" on:click={submit} disabled={!file}>Upload</button>
+        <button class="btn" on:click={submit} disabled={!files.length}>Upload</button>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>

@@ -1,11 +1,16 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -49,16 +54,76 @@ func runSubmission(id int) {
 
 	UpdateSubmissionStatus(id, "running")
 
-	// Recreate the submitted file from the stored code content. This
-	// avoids relying on the original path which may have been overwritten.
+	// Recreate submitted files from the stored archive
 	tmpDir, err := os.MkdirTemp("", "grader-")
 	if err != nil {
 		UpdateSubmissionStatus(id, "failed")
 		return
 	}
 	defer os.RemoveAll(tmpDir)
-	codePath := filepath.Join(tmpDir, "main.py")
-	if err := os.WriteFile(codePath, []byte(sub.CodeContent), 0644); err != nil {
+
+	data, err := base64.StdEncoding.DecodeString(sub.CodeContent)
+	if err != nil {
+		UpdateSubmissionStatus(id, "failed")
+		return
+	}
+
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		UpdateSubmissionStatus(id, "failed")
+		return
+	}
+	for _, f := range zr.File {
+		fpath := filepath.Join(tmpDir, f.Name)
+		if !strings.HasPrefix(fpath, filepath.Clean(tmpDir)+string(os.PathSeparator)) {
+			continue
+		}
+		if f.FileInfo().IsDir() {
+			os.MkdirAll(fpath, 0755)
+			continue
+		}
+		os.MkdirAll(filepath.Dir(fpath), 0755)
+		rc, err := f.Open()
+		if err != nil {
+			continue
+		}
+		out, err := os.Create(fpath)
+		if err != nil {
+			rc.Close()
+			continue
+		}
+		io.Copy(out, rc)
+		out.Close()
+		rc.Close()
+	}
+
+	var mainFile string
+	var firstPy string
+	filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(info.Name(), ".py") {
+			rel, _ := filepath.Rel(tmpDir, path)
+			if firstPy == "" {
+				firstPy = rel
+			}
+			content, _ := os.ReadFile(path)
+			if strings.Contains(string(content), "__main__") {
+				mainFile = rel
+				return io.EOF
+			}
+		}
+		return nil
+	})
+	if mainFile == "" {
+		if _, err := os.Stat(filepath.Join(tmpDir, "main.py")); err == nil {
+			mainFile = "main.py"
+		} else {
+			mainFile = firstPy
+		}
+	}
+	if mainFile == "" {
 		UpdateSubmissionStatus(id, "failed")
 		return
 	}
@@ -72,7 +137,7 @@ func runSubmission(id int) {
 	allPass := true
 	for _, tc := range tests {
 		timeout := time.Duration(tc.TimeLimitSec * float64(time.Second))
-		out, err, timedOut, runtime := executePython(codePath, tc.Stdin, timeout)
+		out, err, timedOut, runtime := executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
 
 		status := "passed"
 		switch {
@@ -96,19 +161,41 @@ func runSubmission(id int) {
 	}
 }
 
-func executePython(path, stdin string, timeout time.Duration) (string, error, bool, time.Duration) {
-	abs, _ := filepath.Abs(path)
-	fmt.Printf("[worker] Running: %s with timeout %v\n", abs, timeout)
+func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, error, bool, time.Duration) {
+	abs, _ := filepath.Abs(dir)
+	fmt.Printf("[worker] Running: %s/%s with timeout %v\n", abs, file, timeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", "-i", "-v", fmt.Sprintf("%s:/code/main.py:ro", abs), pythonImage, "python", "/code/main.py")
+	mount := fmt.Sprintf("%s:/code:ro", abs)
+
+	// Measure runtime inside the container. A shell script records timestamps
+	// before and after executing the Python program and prints the elapsed
+	// milliseconds as the last line of stdout with a unique prefix.
+	script := fmt.Sprintf("start=$(date +%%s%%N); python /code/%s; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status", file)
+
+	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", "-i", "-v", mount, pythonImage, "bash", "-c", script)
 	cmd.Stdin = strings.NewReader(stdin)
 
 	start := time.Now()
-	out, err := cmd.CombinedOutput()
-	runtime := time.Since(start)
+	outBytes, err := cmd.CombinedOutput()
+	duration := time.Since(start)
 
 	timedOut := ctx.Err() == context.DeadlineExceeded
-	return string(out), err, timedOut, runtime
+
+	out := strings.TrimSpace(string(outBytes))
+	var runtime time.Duration
+	if lines := strings.Split(out, "\n"); len(lines) > 0 && strings.HasPrefix(lines[len(lines)-1], "===RUNTIME_MS===") {
+		rstr := strings.TrimSpace(strings.TrimPrefix(lines[len(lines)-1], "===RUNTIME_MS==="))
+		if ms, perr := strconv.Atoi(rstr); perr == nil {
+			runtime = time.Duration(ms) * time.Millisecond
+			out = strings.Join(lines[:len(lines)-1], "\n")
+		} else {
+			runtime = duration
+		}
+	} else {
+		runtime = duration
+	}
+
+	return out, err, timedOut, runtime
 }
