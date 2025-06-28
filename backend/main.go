@@ -22,21 +22,18 @@ func ensureAdmin() {
 	if password == "" {
 		password = "admin123"
 	}
-	var exists bool
-	if err := DB.Get(&exists,
-		`SELECT EXISTS(SELECT 1 FROM users WHERE email=$1)`, email); err != nil {
-		log.Fatalf("admin check failed: %v", err)
+
+	hashed := clientHash(password)
+	hash, _ := bcrypt.GenerateFromPassword([]byte(hashed), bcrypt.DefaultCost)
+
+	if _, err := DB.Exec(`
+            INSERT INTO users (email, password_hash, role)
+            VALUES ($1,$2,'admin')
+            ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, role='admin'`,
+		email, hash); err != nil {
+		log.Fatalf("could not ensure admin: %v", err)
 	}
-	if !exists {
-		hashed := clientHash(password)
-		hash, _ := bcrypt.GenerateFromPassword([]byte(hashed), bcrypt.DefaultCost)
-		if _, err := DB.Exec(`
-                    INSERT INTO users (email,password_hash,role)
-                    VALUES ($1,$2,'admin')`, email, hash); err != nil {
-			log.Fatalf("could not insert admin: %v", err)
-		}
-		log.Printf("👑  Admin seeded → %s / %s", email, password)
-	}
+	log.Printf("👑  Admin ensured → %s", email)
 }
 
 func main() {
