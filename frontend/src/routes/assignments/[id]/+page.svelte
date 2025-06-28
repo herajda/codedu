@@ -87,6 +87,22 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
     }catch(e:any){ err=e.message }
   }
 
+  async function downloadTemplate(){
+    try{
+      const res = await apiFetch(`/api/assignments/${id}/template`)
+      if(!res.ok) throw new Error('download failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = assignment.template_path.split('/').pop()
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    }catch(e:any){ err=e.message }
+  }
+
   function startEdit(){
     editing=true
     eTitle=assignment.title
@@ -194,7 +210,7 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
         <p><strong>Max points:</strong> {assignment.max_points}</p>
         <p><strong>Policy:</strong> {assignment.grading_policy}</p>
         {#if assignment.template_path}
-          <a class="link" href={`/api/assignments/${id}/template`} download>Download template</a>
+          <a class="link" href={`/api/assignments/${id}/template`} on:click|preventDefault={downloadTemplate}>Download template</a>
         {/if}
         {#if role==='teacher' || role==='admin'}
           <div class="mt-2 space-x-2">
