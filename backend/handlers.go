@@ -1,8 +1,12 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
@@ -101,19 +105,19 @@ func createAssignment(c *gin.Context) {
 		return
 	}
 
-        var req struct {
-                Title       string `json:"title" binding:"required"`
-                Description string `json:"description"`
-        }
-        if err := c.ShouldBindJSON(&req); err != nil {
-                c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-                return
-        }
+	var req struct {
+		Title       string `json:"title" binding:"required"`
+		Description string `json:"description"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
 	a := &Assignment{
 		ClassID:       classID,
-                Title:         req.Title,
-                Description:   req.Description,
+		Title:         req.Title,
+		Description:   req.Description,
 		Deadline:      time.Now().Add(24 * time.Hour),
 		MaxPoints:     100,
 		GradingPolicy: "all_or_nothing",
@@ -281,26 +285,84 @@ func createSubmission(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	file, err := c.FormFile("file")
+	form, err := c.MultipartForm()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing file"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing files"})
+		return
+	}
+	files := form.File["files"]
+	if len(files) == 0 {
+		// fallback to single "file" field for backwards compatibility
+		if f, err := c.FormFile("file"); err == nil {
+			files = []*multipart.FileHeader{f}
+		}
+	}
+	if len(files) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no files"})
 		return
 	}
 	if err := os.MkdirAll("uploads", 0755); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "server error"})
 		return
 	}
-	path := fmt.Sprintf("uploads/%d_%d_%s", aid, c.GetInt("userID"), filepath.Base(file.Filename))
-	if err := c.SaveUploadedFile(file, path); err != nil {
+
+	tmpDir, err := os.MkdirTemp("", "upload-")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "server error"})
+		return
+	}
+	defer os.RemoveAll(tmpDir)
+
+	for _, fh := range files {
+		dst := filepath.Join(tmpDir, filepath.Base(fh.Filename))
+		if err := c.SaveUploadedFile(fh, dst); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot save"})
+			return
+		}
+	}
+
+	buf := new(bytes.Buffer)
+	zw := zip.NewWriter(buf)
+	err = filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		rel := filepath.Base(path)
+		w, err := zw.Create(rel)
+		if err != nil {
+			return err
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		_, err = w.Write(data)
+		return err
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "zip failed"})
+		return
+	}
+	if err := zw.Close(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "zip failed"})
+		return
+	}
+
+	name := fmt.Sprintf("%d_%d_%d.zip", aid, c.GetInt("userID"), time.Now().UnixNano())
+	path := filepath.Join("uploads", name)
+	if err := os.WriteFile(path, buf.Bytes(), 0644); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot save"})
 		return
 	}
-	content, _ := os.ReadFile(path)
+
 	sub := &Submission{
 		AssignmentID: aid,
 		StudentID:    c.GetInt("userID"),
 		CodePath:     path,
-		CodeContent:  string(content),
+		CodeContent:  base64.StdEncoding.EncodeToString(buf.Bytes()),
 	}
 	if err := CreateSubmission(sub); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
