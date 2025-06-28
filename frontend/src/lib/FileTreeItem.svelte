@@ -15,7 +15,7 @@
       <summary class="cursor-pointer">{node.name}</summary>
       <ul class="menu pl-4">
         {#each node.children as child}
-          <FileTreeItem {child} select={select} />
+          <FileTreeItem node={child} select={select} />
         {/each}
       </ul>
     </details>

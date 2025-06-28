@@ -1,5 +1,6 @@
 <script lang="ts">
-  import FileTreeItem, { FileNode } from './FileTreeItem.svelte'
+  import FileTreeItem from './FileTreeItem.svelte'
+  import type { FileNode } from './FileTreeItem.svelte'
   export let nodes: FileNode[] = []
   export let select: (n: FileNode) => void
 </script>
