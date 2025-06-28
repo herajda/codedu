@@ -128,7 +128,7 @@ $: id = $page.params.id
       </div>
     {:else}
       <pre class="whitespace-pre-wrap bg-base-200 p-2 rounded">
-        {submission.code_content}
+        {submission?.code_content}
       </pre>
     {/if}
   </div>
