@@ -31,20 +31,19 @@ $: id = $page.params.id
       files = []
       tree = []
       try {
-        const bytes = Uint8Array.from(atob(submission.code_content), c => c.charCodeAt(0))
-        try {
-          const zip = await JSZip.loadAsync(bytes)
-          for (const file of Object.values(zip.files)) {
-            if (file.dir) continue
-            const content = await file.async('string')
-            files.push({ name: file.name, content })
-          }
-        } catch {
-          const text = new TextDecoder().decode(bytes)
-          files = [{ name: 'code', content: text }]
+        const zip = await JSZip.loadAsync(submission.code_content, { base64: true })
+        for (const file of Object.values(zip.files)) {
+          if (file.dir) continue
+          const content = await file.async('string')
+          files.push({ name: file.name, content })
         }
       } catch {
-        files = [{ name: 'code', content: submission.code_content }]
+        try {
+          const text = atob(submission.code_content)
+          files = [{ name: 'code', content: text }]
+        } catch {
+          files = [{ name: 'code', content: submission.code_content }]
+        }
       }
 
       if (files.length) {
