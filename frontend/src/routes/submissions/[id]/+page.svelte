@@ -3,15 +3,23 @@
   import { apiJSON } from '$lib/api'
   import { page } from '$app/stores'
   import JSZip from 'jszip'
+  import { FileTree } from '$lib'
 
 $: id = $page.params.id
 
   let submission:any=null
   let results:any[]=[]
-  let err=''
+  let err = ''
   let files: { name: string; content: string }[] = []
+  let tree: FileNode[] = []
   let selected: { name: string; content: string } | null = null
   let fileDialog: HTMLDialogElement
+
+  interface FileNode {
+    name: string
+    content?: string
+    children?: FileNode[]
+  }
 
   async function load() {
     err = ''
@@ -21,27 +29,54 @@ $: id = $page.params.id
       results = data.results
 
       files = []
+      tree = []
       try {
-        const zip = await JSZip.loadAsync(submission.code_content, { base64: true })
-        for (const file of Object.values(zip.files)) {
-          if (file.dir) continue
-          const content = await file.async('string')
-          files.push({ name: file.name, content })
+        const bytes = Uint8Array.from(atob(submission.code_content), c => c.charCodeAt(0))
+        try {
+          const zip = await JSZip.loadAsync(bytes)
+          for (const file of Object.values(zip.files)) {
+            if (file.dir) continue
+            const content = await file.async('string')
+            files.push({ name: file.name, content })
+          }
+        } catch {
+          const text = new TextDecoder().decode(bytes)
+          files = [{ name: 'code', content: text }]
         }
       } catch {
-        // not a zip, decode as single file
-        try {
-          files = [{ name: 'code', content: atob(submission.code_content) }]
-        } catch {
-          files = [{ name: 'code', content: submission.code_content }]
-        }
+        files = [{ name: 'code', content: submission.code_content }]
       }
+
       if (files.length) {
         selected = files[0]
+        tree = buildTree(files)
       }
     } catch (e: any) {
       err = e.message
     }
+  }
+
+  function buildTree(list: { name: string; content: string }[]): FileNode[] {
+    const root: FileNode = { name: '', children: [] }
+    for (const f of list) {
+      const parts = f.name.split('/')
+      let node = root
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i]
+        if (!node.children) node.children = []
+        let child = node.children.find((c) => c.name === part)
+        if (!child) {
+          child = { name: part }
+          node.children.push(child)
+        }
+        node = child
+        if (i === parts.length - 1) {
+          node.content = f.content
+          node.children = undefined
+        }
+      }
+    }
+    return root.children ?? []
   }
 
   function statusColor(s:string){
@@ -61,8 +96,10 @@ $: id = $page.params.id
     }
   }
 
-  function chooseFile(f: { name: string; content: string }) {
-    selected = f
+  function chooseFile(n: FileNode) {
+    if (n.content) {
+      selected = { name: n.name, content: n.content }
+    }
   }
 
   onMount(load)
@@ -115,13 +152,9 @@ $: id = $page.params.id
   <div class="modal-box w-11/12 max-w-5xl">
     {#if files.length}
       <div class="flex flex-col md:flex-row gap-4">
-        <ul class="menu bg-base-200 rounded md:w-60">
-          {#each files as f}
-            <li class={selected?.name === f.name ? 'active' : ''}>
-              <button on:click={() => chooseFile(f)}>{f.name}</button>
-            </li>
-          {/each}
-        </ul>
+        <div class="md:w-60">
+          <FileTree nodes={tree} select={chooseFile} />
+        </div>
         <pre class="flex-1 whitespace-pre-wrap bg-base-200 p-2 rounded">
           {selected?.content}
         </pre>
