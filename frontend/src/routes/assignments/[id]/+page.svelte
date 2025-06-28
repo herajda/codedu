@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
+import { onMount, onDestroy } from 'svelte'
   import { get } from 'svelte/store'
   import { auth } from '$lib/auth'
 import { apiFetch, apiJSON } from '$lib/api'
@@ -16,6 +16,9 @@ const role = get(auth)?.role!;
   let assignment:any=null
   let tests:any[]=[] // teacher/admin only
   let submissions:any[]=[] // student submissions
+  let latestSub:any=null
+  let results:any[]=[]
+  let es:EventSource|null=null
   let allSubs:any[]=[]     // teacher view
   let students:any[]=[]    // class roster for teacher
   let progress:any[]=[]    // computed progress per student
@@ -45,6 +48,12 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
       assignment = data.assignment
       if(role==='student') {
         submissions = data.submissions ?? []
+        latestSub = submissions[0] ?? null
+        results = []
+        if(latestSub){
+          const subData = await apiJSON(`/api/submissions/${latestSub.id}`)
+          results = subData.results ?? []
+        }
         const completed = submissions.find((s:any)=>s.status==='completed')
         done = !!completed
         pointsEarned = completed ? assignment.max_points : 0
@@ -62,7 +71,25 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
     }catch(e:any){ err=e.message }
   }
 
-  onMount(load)
+  onMount(() => {
+    load()
+    es = new EventSource('/api/events')
+    es.addEventListener('status', (ev) => {
+      const d = JSON.parse((ev as MessageEvent).data)
+      if(latestSub && d.submission_id===latestSub.id){
+        latestSub.status = d.status
+        if(d.status!== 'running') load()
+      }
+    })
+    es.addEventListener('result', (ev) => {
+      const d = JSON.parse((ev as MessageEvent).data)
+      if(latestSub && d.submission_id===latestSub.id){
+        results = [...results, d]
+      }
+    })
+  })
+
+  onDestroy(()=>{es?.close()})
 
   async function addTest(){
     try{
@@ -298,6 +325,33 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
         <button class="btn" on:click={openSubmitModal}>Submit new solution</button>
       </div>
     </div>
+    {#if latestSub}
+    <div class="card bg-base-100 shadow mb-4">
+      <div class="card-body space-y-2">
+        <h3 class="card-title">Latest submission results</h3>
+        <p>Status: <span class={`badge ${statusColor(latestSub.status)}`}>{latestSub.status}</span></p>
+        <div class="overflow-x-auto">
+          <table class="table table-zebra">
+            <thead>
+              <tr><th>Test</th><th>Status</th><th>Runtime (ms)</th></tr>
+            </thead>
+            <tbody>
+              {#each results as r, i}
+                <tr>
+                  <td>{i+1}</td>
+                  <td><span class={`badge ${statusColor(r.status)}`}>{r.status}</span></td>
+                  <td>{r.runtime_ms}</td>
+                </tr>
+              {/each}
+              {#if !results.length}
+                <tr><td colspan="3"><i>No results yet</i></td></tr>
+              {/if}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {/if}
   {/if}
 
   {#if role==='teacher' || role==='admin'}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gin-contrib/sse"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -479,6 +480,9 @@ func GetSubmission(id int) (*Submission, error) {
 
 func UpdateSubmissionStatus(id int, status string) error {
 	_, err := DB.Exec(`UPDATE submissions SET status=$1, updated_at=now() WHERE id=$2`, status, id)
+	if err == nil {
+		broadcast(sse.Event{Event: "status", Data: map[string]any{"submission_id": id, "status": status}})
+	}
 	return err
 }
 
@@ -487,8 +491,12 @@ func CreateResult(r *Result) error {
         INSERT INTO results (submission_id, test_case_id, status, actual_stdout, runtime_ms)
         VALUES ($1,$2,$3,$4,$5)
         RETURNING id, created_at`
-	return DB.QueryRow(q, r.SubmissionID, r.TestCaseID, r.Status, r.ActualStdout, r.RuntimeMS).
+	err := DB.QueryRow(q, r.SubmissionID, r.TestCaseID, r.Status, r.ActualStdout, r.RuntimeMS).
 		Scan(&r.ID, &r.CreatedAt)
+	if err == nil {
+		broadcast(sse.Event{Event: "result", Data: r})
+	}
+	return err
 }
 
 func ListResultsForSubmission(subID int) ([]Result, error) {
