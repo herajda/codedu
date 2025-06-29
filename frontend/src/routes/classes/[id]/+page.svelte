@@ -4,6 +4,7 @@
   import { auth } from '$lib/auth';
 import { apiFetch, apiJSON } from '$lib/api';
 import { page } from '$app/stores';
+import { goto } from '$app/navigation';
 import { marked } from 'marked';
 
   $: id = $page.params.id;
@@ -21,6 +22,7 @@ import { marked } from 'marked';
   let aTitle='';
   let err='';
   let now = Date.now();
+  let newName = '';
 
   onMount(() => {
     const t = setInterval(() => now = Date.now(), 60000);
@@ -42,6 +44,7 @@ import { marked } from 'marked';
     try {
       const data = await apiJSON(`/api/classes/${id}`);
       cls = data;
+      newName = data.name;
       students = data.students;
       assignments = [...(data.assignments ?? [])].sort((a,b)=>new Date(a.deadline).getTime()-new Date(b.deadline).getTime());
       if (role === 'student') {
@@ -120,12 +123,34 @@ import { marked } from 'marked';
       alert(`Imported ${res.added} students`);
     }catch(e:any){ err=e.message }
   }
+
+  async function renameClass(){
+    try{
+      await apiFetch(`/api/classes/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:newName})});
+      cls.name = newName;
+    }catch(e:any){ err=e.message }
+  }
+
+  async function deleteClass(){
+    if(!confirm('Delete this class?')) return;
+    try{
+      await apiFetch(`/api/classes/${id}`,{method:'DELETE'});
+      goto('/my-classes');
+    }catch(e:any){ err=e.message }
+  }
 </script>
 
 {#if !cls}
   <p>Loading…</p>
 {:else}
   <h1 class="text-2xl font-bold mb-4">{cls.name}</h1>
+  {#if role === 'teacher' || role === 'admin'}
+    <form class="mb-4 flex gap-2 max-w-sm" on:submit|preventDefault={renameClass}>
+      <input class="input input-bordered flex-1" bind:value={newName} />
+      <button class="btn">Rename</button>
+      <button type="button" class="btn btn-error" on:click={deleteClass}>Delete</button>
+    </form>
+  {/if}
   {#if role === 'student'}
     <p class="mb-4"><strong>Teacher:</strong> {cls.teacher.name ?? cls.teacher.email}</p>
   {/if}

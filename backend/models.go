@@ -249,6 +249,34 @@ func CreateClass(c *Class) error {
 	).Scan(&c.ID, &c.CreatedAt, &c.UpdatedAt)
 }
 
+func UpdateClassName(id, teacherID int, name string) error {
+	if teacherID != 0 {
+		var x int
+		if err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, id, teacherID); err != nil {
+			return err
+		}
+	}
+	res, err := DB.Exec(`UPDATE classes SET name=$1, updated_at=now() WHERE id=$2`, name, id)
+	if err != nil {
+		return err
+	}
+	if cnt, _ := res.RowsAffected(); cnt == 0 {
+		return fmt.Errorf("no rows updated")
+	}
+	return nil
+}
+
+func DeleteClass(id, teacherID int) error {
+	if teacherID != 0 {
+		var x int
+		if err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, id, teacherID); err != nil {
+			return err
+		}
+	}
+	_, err := DB.Exec(`DELETE FROM classes WHERE id=$1`, id)
+	return err
+}
+
 func AddStudentsToClass(classID, teacherID int, studentIDs []int) error {
 	if teacherID != 0 {
 		var x int

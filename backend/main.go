@@ -99,6 +99,8 @@ func main() {
 
 		// TEACHER only
 		api.POST("/classes", RoleGuard("teacher"), createClass)
+		api.PUT("/classes/:id", RoleGuard("teacher", "admin"), updateClass)
+		api.DELETE("/classes/:id", RoleGuard("teacher", "admin"), deleteClass)
 
 		// Assignments now tied to class
 		api.POST("/classes/:id/assignments", RoleGuard("teacher", "admin"), createAssignment)
