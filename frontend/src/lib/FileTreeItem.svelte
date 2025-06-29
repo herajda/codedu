@@ -1,9 +1,12 @@
-<script lang="ts">
+<script context="module" lang="ts">
   export interface FileNode {
     name: string
     content?: string
     children?: FileNode[]
   }
+</script>
+
+<script lang="ts">
   export let node: FileNode
   export let select: (n: FileNode) => void
   import FileTreeItem from './FileTreeItem.svelte'

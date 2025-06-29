@@ -52,7 +52,7 @@ import { marked } from 'marked';
       const data = await apiJSON(`/api/classes/${id}`);
       cls = data;
       newName = data.name;
-      students = data.students;
+      students = data.students ?? [];
       assignments = [...(data.assignments ?? [])].sort((a,b)=>new Date(a.deadline).getTime()-new Date(b.deadline).getTime());
       if (role === 'student') {
         mySubs = await apiJSON('/api/my-submissions');
