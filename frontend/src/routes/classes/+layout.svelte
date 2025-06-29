@@ -9,7 +9,8 @@
 
   onMount(async () => {
     try {
-      classes = await apiJSON('/api/classes');
+      const result = await apiJSON('/api/classes');
+      classes = Array.isArray(result) ? result : [];
     } catch (e:any) { err = e.message }
   });
 </script>
