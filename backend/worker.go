@@ -177,30 +177,39 @@ func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, s
 	ctx, cancel := context.WithTimeout(context.Background(), timeout+dockerExtraTime)
 	defer cancel()
 
-	mount := fmt.Sprintf("%s:/code:ro", abs)
-
-	// Measure runtime inside the container. A shell script records timestamps
-	// before and after executing the Python program and prints the elapsed
-	// milliseconds as the last line of stdout with a unique prefix.
+	// shell script run inside the container to measure runtime
 	script := fmt.Sprintf("start=$(date +%%s%%N); python /code/%s; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status", file)
 
-	cmd := exec.CommandContext(ctx, "docker", "run",
-		"--rm",
-		"-i",
+	// create the container but do not start it yet
+	createCmd := exec.CommandContext(ctx, "docker", "create",
 		"--network=none",
 		"--user", dockerUser,
 		"--cpus", dockerCPUs,
 		"--memory", dockerMemory,
-		"-v", mount,
 		pythonImage, "bash", "-c", script)
-	cmd.Stdin = strings.NewReader(stdin)
+	containerIDBytes, err := createCmd.Output()
+	if err != nil {
+		return "", err.Error(), -1, false, 0
+	}
+	containerID := strings.TrimSpace(string(containerIDBytes))
+	defer exec.Command("docker", "rm", "-f", containerID).Run()
+
+	// copy submission files into the container
+	cpCmd := exec.Command("docker", "cp", "--chown", dockerUser+":"+dockerUser,
+		filepath.Join(dir, "."), containerID+":"+"/code")
+	if err := cpCmd.Run(); err != nil {
+		return "", err.Error(), -1, false, 0
+	}
+
+	startCmd := exec.CommandContext(ctx, "docker", "start", "-ai", containerID)
+	startCmd.Stdin = strings.NewReader(stdin)
 
 	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
+	startCmd.Stdout = &stdoutBuf
+	startCmd.Stderr = &stderrBuf
 
 	start := time.Now()
-	err := cmd.Run()
+	err = startCmd.Run()
 	duration := time.Since(start)
 
 	ctxTimedOut := ctx.Err() == context.DeadlineExceeded
