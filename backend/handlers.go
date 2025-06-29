@@ -200,8 +200,11 @@ func updateAssignment(c *gin.Context) {
 	}
 	dl, err := time.Parse(time.RFC3339, req.Deadline)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid deadline"})
-		return
+		dl, err = time.Parse(time.RFC3339Nano, req.Deadline)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid deadline"})
+			return
+		}
 	}
 
 	a := &Assignment{
