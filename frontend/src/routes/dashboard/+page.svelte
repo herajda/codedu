@@ -22,7 +22,8 @@
         loading = false;
         return;
       }
-      classes = await apiJSON('/api/classes');
+      const result = await apiJSON('/api/classes');
+      classes = Array.isArray(result) ? result : [];
 
       if (role === 'student') {
         submissions = await apiJSON('/api/my-submissions');

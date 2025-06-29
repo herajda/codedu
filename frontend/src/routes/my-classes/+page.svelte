@@ -6,7 +6,10 @@
   let list:Class[]=[];
   let err='';
   onMount(async()=>{
-    try { list = await apiJSON('/api/classes'); }
+    try {
+      const result = await apiJSON('/api/classes');
+      list = Array.isArray(result) ? result : [];
+    }
     catch(e:any){ err=e.message }
   });
 </script>
