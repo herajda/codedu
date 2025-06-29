@@ -1,12 +1,23 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"time"
 
 	"github.com/gin-contrib/sse"
 	"golang.org/x/crypto/bcrypt"
 )
+
+// generatePublicID returns a random 8-byte hex string used as a public identifier.
+func generatePublicID() (string, error) {
+	b := make([]byte, 8)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
 
 type User struct {
 	ID           int       `db:"id"`
@@ -20,7 +31,8 @@ type User struct {
 }
 
 type Assignment struct {
-	ID            int       `db:"id" json:"id"`
+	ID            int       `db:"id" json:"-"`
+	PublicID      string    `db:"public_id" json:"id"`
 	Title         string    `db:"title" json:"title"`
 	Description   string    `db:"description" json:"description"`
 	CreatedBy     int       `db:"created_by" json:"created_by"`
@@ -106,12 +118,17 @@ func ListAllClasses() ([]Class, error) {
 // assignments
 // ──────────────────────────────────────────────────────────────────────────────
 func CreateAssignment(a *Assignment) error {
+	pub, err := generatePublicID()
+	if err != nil {
+		return err
+	}
+	a.PublicID = pub
 	const q = `
-          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, template_path, class_id)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          INSERT INTO assignments (public_id, title, description, created_by, deadline, max_points, grading_policy, published, template_path, class_id)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
           RETURNING id, created_at, updated_at`
 	return DB.QueryRow(q,
-		a.Title, a.Description, a.CreatedBy, a.Deadline,
+		a.PublicID, a.Title, a.Description, a.CreatedBy, a.Deadline,
 		a.MaxPoints, a.GradingPolicy, a.Published, a.TemplatePath, a.ClassID,
 	).Scan(&a.ID, &a.CreatedAt, &a.UpdatedAt)
 }
@@ -120,7 +137,7 @@ func CreateAssignment(a *Assignment) error {
 func ListAssignments(role string, userID int) ([]Assignment, error) {
 	list := []Assignment{}
 	query := `
-    SELECT a.id, a.title, a.description, a.created_by, a.deadline,
+    SELECT a.id, a.public_id, a.title, a.description, a.created_by, a.deadline,
            a.max_points, a.grading_policy, a.published, a.template_path,
            a.created_at, a.updated_at, a.class_id
       FROM assignments a`
@@ -146,13 +163,33 @@ func ListAssignments(role string, userID int) ([]Assignment, error) {
 func GetAssignment(id int) (*Assignment, error) {
 	var a Assignment
 	err := DB.Get(&a, `
-    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, template_path, created_at, updated_at, class_id
+    SELECT id, public_id, title, description, created_by, deadline, max_points, grading_policy, published, template_path, created_at, updated_at, class_id
       FROM assignments
      WHERE id = $1`, id)
 	if err != nil {
 		return nil, err
 	}
 	return &a, nil
+}
+
+// GetAssignmentByPublicID returns an assignment identified by its public ID.
+func GetAssignmentByPublicID(pub string) (*Assignment, error) {
+	var a Assignment
+	err := DB.Get(&a, `
+    SELECT id, public_id, title, description, created_by, deadline, max_points, grading_policy, published, template_path, created_at, updated_at, class_id
+      FROM assignments
+     WHERE public_id = $1`, pub)
+	if err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
+// LookupAssignmentID resolves a public ID to its numeric primary key.
+func LookupAssignmentID(pub string) (int, error) {
+	var id int
+	err := DB.Get(&id, `SELECT id FROM assignments WHERE public_id=$1`, pub)
+	return id, err
 }
 
 // UpdateAssignment modifies title/description/deadline of an existing assignment.
@@ -408,7 +445,7 @@ func GetClassDetail(id int, role string, userID int) (*ClassDetail, error) {
 	// 4) Assignments (many) ----------------------------------------------------
 	var asg []Assignment
 	query := `
-                SELECT id, title, description, created_by, deadline,
+                SELECT id, public_id, title, description, created_by, deadline,
                        max_points, grading_policy, published, template_path,
                        created_at, updated_at, class_id
                   FROM assignments

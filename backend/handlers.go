@@ -38,6 +38,15 @@ func getClass(c *gin.Context) {
 	c.JSON(http.StatusOK, detail)
 }
 
+// resolveAssignmentParam converts either a numeric ID or a public ID
+// from the URL into the internal numeric assignment ID.
+func resolveAssignmentParam(p string) (int, error) {
+	if id, err := strconv.Atoi(p); err == nil {
+		return id, nil
+	}
+	return LookupAssignmentID(p)
+}
+
 // ──────────────────────────────────────────
 // basic user helpers (used from auth.go)
 // ──────────────────────────────────────────
@@ -151,7 +160,7 @@ func listAssignments(c *gin.Context) {
 
 // getAssignment: GET /api/assignments/:id
 func getAssignment(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := resolveAssignmentParam(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -191,7 +200,7 @@ func getAssignment(c *gin.Context) {
 
 // updateAssignment: PUT /api/assignments/:id
 func updateAssignment(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := resolveAssignmentParam(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -243,7 +252,7 @@ func updateAssignment(c *gin.Context) {
 
 // deleteAssignment: DELETE /api/assignments/:id
 func deleteAssignment(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := resolveAssignmentParam(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -263,7 +272,7 @@ func deleteAssignment(c *gin.Context) {
 
 // publishAssignment: PUT /api/assignments/:id/publish
 func publishAssignment(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := resolveAssignmentParam(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -283,7 +292,7 @@ func publishAssignment(c *gin.Context) {
 
 // uploadTemplate: POST /api/assignments/:id/template
 func uploadTemplate(c *gin.Context) {
-	aid, err := strconv.Atoi(c.Param("id"))
+	aid, err := resolveAssignmentParam(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -317,7 +326,7 @@ func uploadTemplate(c *gin.Context) {
 
 // getTemplate: GET /api/assignments/:id/template
 func getTemplate(c *gin.Context) {
-	aid, err := strconv.Atoi(c.Param("id"))
+	aid, err := resolveAssignmentParam(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -344,7 +353,7 @@ func getTemplate(c *gin.Context) {
 
 // createTestCase: POST /api/assignments/:id/tests
 func createTestCase(c *gin.Context) {
-	aid, err := strconv.Atoi(c.Param("id"))
+	aid, err := resolveAssignmentParam(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -387,7 +396,7 @@ func deleteTestCase(c *gin.Context) {
 
 // createSubmission: POST /api/assignments/:id/submissions
 func createSubmission(c *gin.Context) {
-	aid, err := strconv.Atoi(c.Param("id"))
+	aid, err := resolveAssignmentParam(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
