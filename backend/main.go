@@ -19,8 +19,8 @@ func ensureAdmin() {
 		email = "admin@example.com"
 	}
 	password := os.Getenv("ADMIN_PASSWORD")
-	if password == "" {
-		password = "admin123"
+	if password == "" || password == "admin123" {
+		log.Fatal("ADMIN_PASSWORD must be set to a non-default value")
 	}
 
 	hashed := clientHash(password)
