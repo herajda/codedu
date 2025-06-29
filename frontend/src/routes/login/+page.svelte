@@ -32,8 +32,7 @@
 
       // 3. Store & smart-redirect
       auth.login(me.id, me.role)
-      if (me.role === 'admin') goto('/admin')
-      else goto('/dashboard')
+      goto('/dashboard')
     }
     async function submitBk() {
       error = ''
@@ -53,8 +52,7 @@
       }
       const me = await meRes.json()
       auth.login(me.id, me.role)
-      if (me.role === 'admin') goto('/admin')
-      else goto('/dashboard')
+      goto('/dashboard')
     }
   </script>
   
