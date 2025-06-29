@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { apiJSON } from '$lib/api';
+  import AdminPanel from '$lib/AdminPanel.svelte';
 
   let role = '';
   let classes:any[] = [];
@@ -17,6 +18,10 @@
     try {
       const me = await apiJSON('/api/me');
       role = me.role;
+      if (role === 'admin') {
+        loading = false;
+        return;
+      }
       classes = await apiJSON('/api/classes');
 
       if (role === 'student') {
@@ -126,6 +131,8 @@
         </a>
       {/each}
     </div>
+  {:else if role === 'admin'}
+    <AdminPanel />
   {/if}
 
   {#if err}
