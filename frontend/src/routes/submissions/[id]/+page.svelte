@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
+  import { onMount, onDestroy } from 'svelte'
   import { apiJSON } from '$lib/api'
   import { page } from '$app/stores'
   import JSZip from 'jszip'
@@ -14,6 +14,7 @@ $: id = $page.params.id
   let tree: FileNode[] = []
   let selected: { name: string; content: string } | null = null
   let highlighted = ''
+  let es: EventSource | null = null
 
   import hljs from 'highlight.js'
   import 'highlight.js/styles/github.css'
@@ -120,7 +121,24 @@ $: id = $page.params.id
     highlighted = hljs.highlightAuto(submission.code_content).value
   }
 
-  onMount(load)
+  onMount(() => {
+    load()
+    es = new EventSource('/api/events')
+    es.addEventListener('status', (ev) => {
+      const d = JSON.parse((ev as MessageEvent).data)
+      if (submission && d.submission_id === submission.id) {
+        submission.status = d.status
+        if (d.status !== 'running') load()
+      }
+    })
+    es.addEventListener('result', (ev) => {
+      const d = JSON.parse((ev as MessageEvent).data)
+      if (submission && d.submission_id === submission.id) {
+        results = [...results, d]
+      }
+    })
+  })
+  onDestroy(() => { es?.close() })
 </script>
 
 {#if !submission}
