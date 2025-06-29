@@ -3,10 +3,10 @@ package main
 import (
 	"archive/zip"
 	"bytes"
-	"io"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -114,8 +114,9 @@ func createAssignment(c *gin.Context) {
 	}
 
 	var req struct {
-		Title       string `json:"title" binding:"required"`
-		Description string `json:"description"`
+		Title         string `json:"title" binding:"required"`
+		Description   string `json:"description"`
+		ShowTraceback bool   `json:"show_traceback"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -130,6 +131,7 @@ func createAssignment(c *gin.Context) {
 		MaxPoints:     100,
 		GradingPolicy: "all_or_nothing",
 		Published:     false,
+		ShowTraceback: req.ShowTraceback,
 		CreatedBy:     c.GetInt("userID"),
 	}
 	if err := CreateAssignment(a); err != nil {
@@ -200,6 +202,7 @@ func updateAssignment(c *gin.Context) {
 		Deadline      string `json:"deadline" binding:"required"`
 		MaxPoints     int    `json:"max_points" binding:"required"`
 		GradingPolicy string `json:"grading_policy" binding:"required"`
+		ShowTraceback bool   `json:"show_traceback"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -208,7 +211,7 @@ func updateAssignment(c *gin.Context) {
 	dl, err := time.Parse(time.RFC3339Nano, req.Deadline)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid deadline"})
-			return
+		return
 	}
 
 	a := &Assignment{
@@ -218,6 +221,7 @@ func updateAssignment(c *gin.Context) {
 		Deadline:      dl,
 		MaxPoints:     req.MaxPoints,
 		GradingPolicy: req.GradingPolicy,
+		ShowTraceback: req.ShowTraceback,
 	}
 	if err := UpdateAssignment(a); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not update"})
@@ -459,6 +463,13 @@ func getSubmission(c *gin.Context) {
 		return
 	}
 	results, _ := ListResultsForSubmission(sid)
+	if c.GetString("role") == "student" {
+		if a, err := GetAssignmentForSubmission(sub.ID); err == nil && !a.ShowTraceback {
+			for i := range results {
+				results[i].Stderr = ""
+			}
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{"submission": sub, "results": results})
 }
 
