@@ -30,7 +30,7 @@ func getClass(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	detail, err := GetClassDetail(id, c.GetString("role"))
+	detail, err := GetClassDetail(id, c.GetString("role"), c.GetInt("userID"))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
@@ -105,6 +105,13 @@ func createAssignment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid class id"})
 		return
 	}
+	if c.GetString("role") == "teacher" {
+		var x int
+		if err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, classID, c.GetInt("userID")); err != nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
 
 	var req struct {
 		Title       string `json:"title" binding:"required"`
@@ -134,7 +141,7 @@ func createAssignment(c *gin.Context) {
 
 // listAssignments: GET /api/assignments
 func listAssignments(c *gin.Context) {
-	list, err := ListAssignments(c.GetString("role"))
+	list, err := ListAssignments(c.GetString("role"), c.GetInt("userID"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not list"})
 		return
@@ -329,6 +336,11 @@ func createSubmission(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
+	var tmp int
+	if err := DB.Get(&tmp, `SELECT 1 FROM assignments a JOIN class_students cs ON cs.class_id=a.class_id WHERE a.id=$1 AND cs.student_id=$2`, aid, c.GetInt("userID")); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
 	if err := c.Request.ParseMultipartForm(32 << 20); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid form"})
 		return
@@ -484,7 +496,11 @@ func addStudents(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := AddStudentsToClass(classID, req.StudentIDs); err != nil {
+	teacherID := 0
+	if c.GetString("role") == "teacher" {
+		teacherID = c.GetInt("userID")
+	}
+	if err := AddStudentsToClass(classID, teacherID, req.StudentIDs); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
@@ -597,7 +613,7 @@ func importBakalariStudents(c *gin.Context) {
 			ids = append(ids, id)
 		}
 	}
-	if err := AddStudentsToClass(localID, ids); err != nil {
+	if err := AddStudentsToClass(localID, c.GetInt("userID"), ids); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
@@ -668,8 +684,11 @@ func listAllClasses(c *gin.Context) {
 func removeStudent(c *gin.Context) {
 	classID, _ := strconv.Atoi(c.Param("id"))
 	studentID, _ := strconv.Atoi(c.Param("sid"))
-
-	if err := RemoveStudentFromClass(classID, studentID); err != nil {
+	teacherID := 0
+	if c.GetString("role") == "teacher" {
+		teacherID = c.GetInt("userID")
+	}
+	if err := RemoveStudentFromClass(classID, teacherID, studentID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
