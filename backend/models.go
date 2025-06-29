@@ -237,6 +237,23 @@ func CreateClass(c *Class) error {
 	).Scan(&c.ID, &c.CreatedAt, &c.UpdatedAt)
 }
 
+func UpdateClass(c *Class) error {
+	res, err := DB.Exec(`UPDATE classes SET name=$1, updated_at=now() WHERE id=$2`,
+		c.Name, c.ID)
+	if err != nil {
+		return err
+	}
+	if cnt, _ := res.RowsAffected(); cnt == 0 {
+		return fmt.Errorf("not found")
+	}
+	return nil
+}
+
+func DeleteClass(id int) error {
+	_, err := DB.Exec(`DELETE FROM classes WHERE id=$1`, id)
+	return err
+}
+
 func AddStudentsToClass(classID int, studentIDs []int) error {
 	tx, err := DB.Beginx()
 	if err != nil {

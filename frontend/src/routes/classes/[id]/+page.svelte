@@ -21,6 +21,7 @@ import { marked } from 'marked';
   let aTitle='';
   let err='';
   let now = Date.now();
+  let newName='';
 
   onMount(() => {
     const t = setInterval(() => now = Date.now(), 60000);
@@ -42,6 +43,7 @@ import { marked } from 'marked';
     try {
       const data = await apiJSON(`/api/classes/${id}`);
       cls = data;
+      newName = data.name;
       students = data.students;
       assignments = [...(data.assignments ?? [])].sort((a,b)=>new Date(a.deadline).getTime()-new Date(b.deadline).getTime());
       if (role === 'student') {
@@ -94,6 +96,25 @@ import { marked } from 'marked';
     }catch(e:any){ err=e.message }
   }
 
+  async function renameClass(){
+    try{
+      await apiFetch(`/api/classes/${id}`,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({name:newName})
+      });
+      await load();
+    }catch(e:any){ err=e.message }
+  }
+
+  async function deleteClass(){
+    if(!confirm('Delete this class?')) return;
+    try{
+      await apiFetch(`/api/classes/${id}`,{method:'DELETE'});
+      window.location.href='/dashboard';
+    }catch(e:any){ err=e.message }
+  }
+
   function openAddModal(){
     addDialog.showModal();
   }
@@ -125,7 +146,15 @@ import { marked } from 'marked';
 {#if !cls}
   <p>Loading…</p>
 {:else}
-  <h1 class="text-2xl font-bold mb-4">{cls.name}</h1>
+  <h1 class="text-2xl font-bold mb-4">
+    {#if role === 'teacher' || role === 'admin'}
+      <input class="input input-bordered mr-2" bind:value={newName} />
+      <button class="btn btn-sm" on:click={renameClass}>Save</button>
+      <button class="btn btn-sm btn-error ml-2" on:click={deleteClass}>Delete</button>
+    {:else}
+      {cls.name}
+    {/if}
+  </h1>
   {#if role === 'student'}
     <p class="mb-4"><strong>Teacher:</strong> {cls.teacher.name ?? cls.teacher.email}</p>
   {/if}

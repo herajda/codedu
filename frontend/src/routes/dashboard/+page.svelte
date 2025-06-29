@@ -9,6 +9,7 @@
   let upcoming:any[] = [];
   let loading = true;
   let err = '';
+  let className='';
 
   function percent(done:number,total:number){
     return total ? Math.round((done/total)*100) : 0;
@@ -65,6 +66,22 @@
     }
     loading = false;
   });
+
+  async function createClass(){
+    try{
+      await apiFetch('/api/classes',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({name:className})
+      });
+      className='';
+      // reload list
+      const result = await apiJSON('/api/classes');
+      classes = Array.isArray(result) ? result : [];
+    }catch(e:any){
+      err=e.message;
+    }
+  }
 </script>
 
 {#if loading}
@@ -132,6 +149,12 @@
         </a>
       {/each}
     </div>
+    <form class="mt-6" on:submit|preventDefault={createClass}>
+      <div class="join">
+        <input class="input input-bordered join-item" placeholder="Class name" bind:value={className} required />
+        <button class="btn join-item" disabled={!className}>Create</button>
+      </div>
+    </form>
   {:else if role === 'admin'}
     <AdminPanel />
   {/if}
