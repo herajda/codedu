@@ -20,7 +20,12 @@ type Job struct{ SubmissionID int }
 
 var taskQueue chan Job
 
-const pythonImage = "python:3.11"
+const (
+	pythonImage  = "python:3.11"
+	dockerUser   = "65534" // run containers as 'nobody'
+	dockerCPUs   = "1"     // limit CPU shares
+	dockerMemory = "256m"  // memory limit
+)
 
 // StartWorker starts n workers processing the grading queue.
 func StartWorker(n int) {
@@ -174,7 +179,15 @@ func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, e
 	// milliseconds as the last line of stdout with a unique prefix.
 	script := fmt.Sprintf("start=$(date +%%s%%N); python /code/%s; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status", file)
 
-	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", "-i", "-v", mount, pythonImage, "bash", "-c", script)
+	cmd := exec.CommandContext(ctx, "docker", "run",
+		"--rm",
+		"-i",
+		"--network=none",
+		"--user", dockerUser,
+		"--cpus", dockerCPUs,
+		"--memory", dockerMemory,
+		"-v", mount,
+		pythonImage, "bash", "-c", script)
 	cmd.Stdin = strings.NewReader(stdin)
 
 	start := time.Now()
