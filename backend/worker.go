@@ -104,6 +104,9 @@ func runSubmission(id int) {
 		rc.Close()
 	}
 
+	// ensure the directory is accessible inside the container
+	os.Chmod(tmpDir, 0755)
+
 	var mainFile string
 	var firstPy string
 	filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
@@ -194,8 +197,10 @@ func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, s
 	containerID := strings.TrimSpace(string(containerIDBytes))
 	defer exec.Command("docker", "rm", "-f", containerID).Run()
 
-	// copy submission files into the container
-	cpCmd := exec.Command("docker", "cp", "--chown", dockerUser+":"+dockerUser,
+	// copy submission files into the container. --chown is avoided for
+	// compatibility with older Docker versions, so ensure the directory is
+	// world-readable before copying.
+	cpCmd := exec.Command("docker", "cp",
 		filepath.Join(dir, "."), containerID+":"+"/code")
 	if err := cpCmd.Run(); err != nil {
 		return "", err.Error(), -1, false, 0
