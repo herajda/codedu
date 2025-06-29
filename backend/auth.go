@@ -145,7 +145,7 @@ func Login(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	log.Printf("[Login] attempt: email=%q password=%q", req.Email, req.Password)
+	log.Printf("[Login] attempt: email=%q", req.Email)
 
 	// 2️⃣ Look up the user by email
 	user, err := FindUserByEmail(req.Email)
@@ -154,7 +154,7 @@ func Login(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 		return
 	}
-	log.Printf("[Login] found user id=%d hash=%q", user.ID, user.PasswordHash)
+	log.Printf("[Login] found user id=%d", user.ID)
 
 	// 3️⃣ Verify the password (the request already contains SHA-256 hash)
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
