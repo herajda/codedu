@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { apiJSON } from '$lib/api';
+  import { apiJSON, apiFetch } from '$lib/api';
   import AdminPanel from '$lib/AdminPanel.svelte';
 
   let role = '';
@@ -9,6 +9,7 @@
   let upcoming:any[] = [];
   let loading = true;
   let err = '';
+  let newClassName = '';
 
   function percent(done:number,total:number){
     return total ? Math.round((done/total)*100) : 0;
@@ -65,6 +66,18 @@
     }
     loading = false;
   });
+
+  async function createClass(){
+    try{
+      const cl = await apiJSON('/api/classes', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({name:newClassName})
+      });
+      classes = [...classes, { ...cl, assignments: [], students: [] }];
+      newClassName='';
+    }catch(e:any){ err = e.message; }
+  }
 </script>
 
 {#if loading}
@@ -132,6 +145,10 @@
         </a>
       {/each}
     </div>
+    <form class="mt-6 flex gap-2 max-w-sm" on:submit|preventDefault={createClass}>
+      <input class="input input-bordered flex-1" placeholder="New class" bind:value={newClassName} required />
+      <button class="btn">Create</button>
+    </form>
   {:else if role === 'admin'}
     <AdminPanel />
   {/if}

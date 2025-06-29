@@ -485,6 +485,41 @@ func createClass(c *gin.Context) {
 	c.JSON(http.StatusCreated, cl)
 }
 
+// ---- TEACHER renames a class ----
+func updateClass(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	var req struct {
+		Name string `json:"name" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	teacherID := 0
+	if c.GetString("role") == "teacher" {
+		teacherID = c.GetInt("userID")
+	}
+	if err := UpdateClassName(id, teacherID, req.Name); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// ---- TEACHER deletes a class ----
+func deleteClass(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	teacherID := 0
+	if c.GetString("role") == "teacher" {
+		teacherID = c.GetInt("userID")
+	}
+	if err := DeleteClass(id, teacherID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 // ---- TEACHER adds students to an existing class ----
 func addStudents(c *gin.Context) {
 	classID, _ := strconv.Atoi(c.Param("id"))
