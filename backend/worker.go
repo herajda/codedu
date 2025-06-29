@@ -104,6 +104,7 @@ func runSubmission(id int) {
 		rc.Close()
 	}
 
+	os.Chmod(tmpDir, 0755) // ensure the temp dir is executable
 	var mainFile string
 	var firstPy string
 	filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
