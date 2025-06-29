@@ -5,6 +5,7 @@ import { onMount, onDestroy } from 'svelte'
 import { apiFetch, apiJSON } from '$lib/api'
 import { MarkdownEditor } from '$lib'
 import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 import { goto } from '$app/navigation'
 import { page } from '$app/stores'
 
@@ -33,6 +34,8 @@ const role = get(auth)?.role!;
 $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100) : 0;
   let editing=false
   let eTitle='', eDesc='', eDeadline='', ePoints=0, ePolicy='all_or_nothing'
+  let safeDesc=''
+$: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.description) as string) : ''
 
   async function publish(){
     try{
@@ -234,7 +237,7 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
             </div>
           {/if}
         </div>
-        <div class="markdown">{@html marked.parse(assignment.description)}</div>
+        <div class="markdown">{@html safeDesc}</div>
         <p><strong>Deadline:</strong> {new Date(assignment.deadline).toLocaleString()}</p>
         <p><strong>Max points:</strong> {assignment.max_points}</p>
         <p><strong>Policy:</strong> {assignment.grading_policy}</p>
