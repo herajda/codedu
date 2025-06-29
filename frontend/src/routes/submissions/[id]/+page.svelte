@@ -94,6 +94,7 @@ $: id = $page.params.id
     if(s==='failed') return 'badge-error'
     if(s==='passed') return 'badge-success'
     if(s==='wrong_output') return 'badge-error'
+    if(s==='runtime_error') return 'badge-error'
     if(s==='time_limit_exceeded' || s==='memory_limit_exceeded') return 'badge-warning'
     return ''
   }
@@ -144,7 +145,7 @@ $: id = $page.params.id
         <div class="overflow-x-auto">
           <table class="table table-zebra">
             <thead>
-              <tr><th>Test</th><th>Status</th><th>Runtime (ms)</th></tr>
+              <tr><th>Test</th><th>Status</th><th>Runtime (ms)</th><th>Exit</th><th>Traceback</th></tr>
             </thead>
             <tbody>
               {#each results as r, i}
@@ -152,10 +153,12 @@ $: id = $page.params.id
                   <td>{i + 1}</td>
                   <td><span class={`badge ${statusColor(r.status)}`}>{r.status}</span></td>
                   <td>{r.runtime_ms}</td>
+                  <td>{r.exit_code}</td>
+                  <td><pre class="whitespace-pre-wrap max-w-xs overflow-x-auto">{r.stderr}</pre></td>
                 </tr>
               {/each}
               {#if Array.isArray(results) && !results.length}
-                <tr><td colspan="3"><i>No results yet</i></td></tr>
+                <tr><td colspan="5"><i>No results yet</i></td></tr>
               {/if}
             </tbody>
           </table>

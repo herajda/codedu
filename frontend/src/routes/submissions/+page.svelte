@@ -18,6 +18,7 @@
   function resultColor(s: string){
     if(s === 'passed') return 'badge-success';
     if(s === 'wrong_output') return 'badge-error';
+    if(s === 'runtime_error') return 'badge-error';
     if(s === 'time_limit_exceeded' || s==='memory_limit_exceeded') return 'badge-warning';
     return '';
   }
@@ -67,7 +68,7 @@
             <td>
               <div class="flex flex-wrap gap-1">
                 {#each s.results ?? [] as r, i}
-                  <span class={`badge badge-sm ${resultColor(r.status)} tooltip`} data-tip={`${r.status} ${r.runtime_ms}ms`}>{i+1}</span>
+                  <span class={`badge badge-sm ${resultColor(r.status)} tooltip`} data-tip={`${r.status} ${r.runtime_ms}ms exit ${r.exit_code}${r.stderr? '\n'+r.stderr:''}`}>{i+1}</span>
                 {/each}
                 {#if !(s.results && s.results.length)}<i>pending</i>{/if}
               </div>
