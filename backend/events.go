@@ -1,39 +1,79 @@
 package main
 
 import (
-	"github.com/gin-contrib/sse"
+	"io"
 	"sync"
+
+	"github.com/gin-contrib/sse"
+	"github.com/gin-gonic/gin"
 )
 
-type subscriber chan sse.Event
+type subscriber struct {
+	userID int
+	ch     chan sse.Event
+}
 
 var (
 	subsMu sync.Mutex
-	subs   = map[subscriber]bool{}
+	subs   = map[*subscriber]bool{}
 )
 
-func addSubscriber() subscriber {
-	ch := make(subscriber, 10)
+func addSubscriber(uid int) *subscriber {
+	sub := &subscriber{userID: uid, ch: make(chan sse.Event, 10)}
 	subsMu.Lock()
-	subs[ch] = true
+	subs[sub] = true
 	subsMu.Unlock()
-	return ch
+	return sub
 }
 
-func removeSubscriber(ch subscriber) {
+func removeSubscriber(sub *subscriber) {
 	subsMu.Lock()
-	delete(subs, ch)
+	delete(subs, sub)
 	subsMu.Unlock()
-	close(ch)
+	close(sub.ch)
 }
 
 func broadcast(evt sse.Event) {
+	// Determine the submission owner
+	var uid int
+	switch evt.Event {
+	case "status":
+		if m, ok := evt.Data.(map[string]any); ok {
+			if sid, ok := m["submission_id"].(int); ok {
+				if s, err := GetSubmission(sid); err == nil {
+					uid = s.StudentID
+				}
+			}
+		}
+	case "result":
+		if r, ok := evt.Data.(*Result); ok {
+			if s, err := GetSubmission(r.SubmissionID); err == nil {
+				uid = s.StudentID
+			}
+		}
+	}
 	subsMu.Lock()
-	for ch := range subs {
-		select {
-		case ch <- evt:
-		default:
+	for sub := range subs {
+		if uid == 0 || sub.userID == uid {
+			select {
+			case sub.ch <- evt:
+			default:
+			}
 		}
 	}
 	subsMu.Unlock()
+}
+
+// eventsHandler streams submission updates to clients using SSE.
+func eventsHandler(c *gin.Context) {
+	uid := c.GetInt("userID")
+	sub := addSubscriber(uid)
+	defer removeSubscriber(sub)
+	c.Stream(func(w io.Writer) bool {
+		if evt, ok := <-sub.ch; ok {
+			c.SSEvent(evt.Event, evt.Data)
+			return true
+		}
+		return false
+	})
 }
