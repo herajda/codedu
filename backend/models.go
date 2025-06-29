@@ -192,6 +192,30 @@ func UpdateAssignmentTemplate(id int, path *string) error {
 	return err
 }
 
+// IsTeacherOfAssignment checks whether the given teacher owns the class the
+// assignment belongs to.
+func IsTeacherOfAssignment(aid, teacherID int) (bool, error) {
+	var x int
+	err := DB.Get(&x, `SELECT 1 FROM assignments a JOIN classes c ON c.id=a.class_id
+                WHERE a.id=$1 AND c.teacher_id=$2`, aid, teacherID)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// IsStudentOfAssignment checks whether the student is enrolled in the class the
+// assignment belongs to.
+func IsStudentOfAssignment(aid, studentID int) (bool, error) {
+	var x int
+	err := DB.Get(&x, `SELECT 1 FROM assignments a JOIN class_students cs ON cs.class_id=a.class_id
+                WHERE a.id=$1 AND cs.student_id=$2`, aid, studentID)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func CreateTeacher(email, hash string, bkUID *string) error {
 	_, err := DB.Exec(`
         INSERT INTO users (email, password_hash, role, bk_uid)
