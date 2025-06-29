@@ -25,6 +25,8 @@ const (
 	dockerUser   = "65534" // run containers as 'nobody'
 	dockerCPUs   = "1"     // limit CPU shares
 	dockerMemory = "256m"  // memory limit
+	// additional grace period for docker startup/shutdown
+	dockerExtraTime = 10 * time.Second
 )
 
 // StartWorker starts n workers processing the grading queue.
@@ -169,7 +171,8 @@ func runSubmission(id int) {
 func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, error, bool, time.Duration) {
 	abs, _ := filepath.Abs(dir)
 	fmt.Printf("[worker] Running: %s/%s with timeout %v\n", abs, file, timeout)
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	// allow some extra time for container startup and shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), timeout+dockerExtraTime)
 	defer cancel()
 
 	mount := fmt.Sprintf("%s:/code:ro", abs)
@@ -194,7 +197,7 @@ func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, e
 	outBytes, err := cmd.CombinedOutput()
 	duration := time.Since(start)
 
-	timedOut := ctx.Err() == context.DeadlineExceeded
+	ctxTimedOut := ctx.Err() == context.DeadlineExceeded
 
 	out := strings.TrimSpace(string(outBytes))
 	var runtime time.Duration
@@ -209,6 +212,8 @@ func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, e
 	} else {
 		runtime = duration
 	}
+	runtimeExceeded := runtime > timeout
+	timedOut := ctxTimedOut || runtimeExceeded
 
 	return out, err, timedOut, runtime
 }
