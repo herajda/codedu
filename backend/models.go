@@ -119,23 +119,26 @@ func CreateAssignment(a *Assignment) error {
 // ListAssignments returns all assignments.
 func ListAssignments(role string, userID int) ([]Assignment, error) {
 	list := []Assignment{}
-	base := `SELECT a.id, a.title, a.description, a.created_by, a.deadline,
-                       a.max_points, a.grading_policy, a.published, a.template_path,
-                       a.created_at, a.updated_at, a.class_id
-                  FROM assignments a`
+	query := `
+    SELECT a.id, a.title, a.description, a.created_by, a.deadline,
+           a.max_points, a.grading_policy, a.published, a.template_path,
+           a.created_at, a.updated_at, a.class_id
+      FROM assignments a`
 	var args []any
 	switch role {
-	case "student":
-		base += ` JOIN class_students cs ON cs.class_id = a.class_id
-                           WHERE cs.student_id = $1 AND a.published = true`
-		args = append(args, userID)
 	case "teacher":
-		base += ` JOIN classes c ON c.id = a.class_id
-                           WHERE c.teacher_id = $1`
+		query += ` JOIN classes c ON c.id = a.class_id
+                WHERE c.teacher_id = $1`
 		args = append(args, userID)
+	case "student":
+		query += ` JOIN class_students cs ON cs.class_id = a.class_id
+                WHERE cs.student_id = $1 AND a.published = true`
+		args = append(args, userID)
+	default:
+		// admin gets everything
 	}
-	base += " ORDER BY a.created_at DESC"
-	err := DB.Select(&list, base, args...)
+	query += " ORDER BY a.created_at DESC"
+	err := DB.Select(&list, query, args...)
 	return list, err
 }
 
@@ -246,7 +249,13 @@ func CreateClass(c *Class) error {
 	).Scan(&c.ID, &c.CreatedAt, &c.UpdatedAt)
 }
 
-func AddStudentsToClass(classID int, studentIDs []int) error {
+func AddStudentsToClass(classID, teacherID int, studentIDs []int) error {
+	if teacherID != 0 {
+		var x int
+		if err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, classID, teacherID); err != nil {
+			return err
+		}
+	}
 	tx, err := DB.Beginx()
 	if err != nil {
 		return err
@@ -306,12 +315,22 @@ type ClassDetail struct {
 	Assignments []Assignment `json:"assignments"`
 }
 
-func GetClassDetail(id int, role string) (*ClassDetail, error) {
-	// 1) Class meta -----------------------------------------------------------
+func GetClassDetail(id int, role string, userID int) (*ClassDetail, error) {
+	// 1) Class meta -------------------------------------------------------
 	var cls Class
-	if err := DB.Get(&cls,
-		`SELECT * FROM classes WHERE id = $1`, id); err != nil {
-		return nil, err
+	switch role {
+	case "teacher":
+		if err := DB.Get(&cls, `SELECT * FROM classes WHERE id=$1 AND teacher_id=$2`, id, userID); err != nil {
+			return nil, err
+		}
+	case "student":
+		if err := DB.Get(&cls, `SELECT c.* FROM classes c JOIN class_students cs ON cs.class_id=c.id WHERE c.id=$1 AND cs.student_id=$2`, id, userID); err != nil {
+			return nil, err
+		}
+	default:
+		if err := DB.Get(&cls, `SELECT * FROM classes WHERE id = $1`, id); err != nil {
+			return nil, err
+		}
 	}
 
 	// 2) Teacher (one row) -----------------------------------------------------
@@ -359,10 +378,14 @@ func GetClassDetail(id int, role string) (*ClassDetail, error) {
 	}, nil
 }
 
-func RemoveStudentFromClass(classID, studentID int) error {
-	_, err := DB.Exec(`DELETE FROM class_students
-                        WHERE class_id=$1 AND student_id=$2`,
-		classID, studentID)
+func RemoveStudentFromClass(classID, teacherID, studentID int) error {
+	if teacherID == 0 {
+		_, err := DB.Exec(`DELETE FROM class_students WHERE class_id=$1 AND student_id=$2`, classID, studentID)
+		return err
+	}
+	_, err := DB.Exec(`DELETE FROM class_students cs USING classes c
+                        WHERE cs.class_id=$1 AND cs.student_id=$2 AND c.id=cs.class_id AND c.teacher_id=$3`,
+		classID, studentID, teacherID)
 	return err
 }
 
@@ -384,7 +407,11 @@ func ListSubmissionsForStudent(studentID int) ([]Submission, error) {
 func CreateSubmission(s *Submission) error {
 	const q = `
           INSERT INTO submissions (assignment_id, student_id, code_path, code_content)
-          VALUES ($1,$2,$3,$4)
+          SELECT $1,$2,$3,$4
+            WHERE EXISTS (
+                SELECT 1 FROM assignments a
+                JOIN class_students cs ON cs.class_id = a.class_id
+               WHERE a.id=$1 AND cs.student_id=$2)
           RETURNING id, status, created_at, updated_at`
 	return DB.QueryRow(q, s.AssignmentID, s.StudentID, s.CodePath, s.CodeContent).
 		Scan(&s.ID, &s.Status, &s.CreatedAt, &s.UpdatedAt)
