@@ -7,10 +7,15 @@ import { page } from '$app/stores';
 import { goto } from '$app/navigation';
 import { marked } from 'marked';
 
-  $: id = $page.params.id;
+  let id = $page.params.id;
+  $: if ($page.params.id !== id) {
+    id = $page.params.id;
+    load();
+  }
   const role: string = get(auth)?.role ?? '';
 
   let cls:any = null;
+  let loading = true;
   let students:any[] = [];
   let assignments:any[] = [];
   let mySubs:any[] = [];
@@ -40,7 +45,9 @@ import { marked } from 'marked';
   }
 
   async function load() {
+    loading = true;
     err='';
+    cls = null;
     try {
       const data = await apiJSON(`/api/classes/${id}`);
       cls = data;
@@ -56,6 +63,7 @@ import { marked } from 'marked';
       }
       if (role === 'teacher' || role === 'admin') allStudents = await apiJSON('/api/students');
     } catch(e:any){ err=e.message }
+    loading = false;
   }
 
   onMount(load);
@@ -140,8 +148,10 @@ import { marked } from 'marked';
   }
 </script>
 
-{#if !cls}
+{#if loading}
   <p>Loading…</p>
+{:else if err}
+  <p class="text-error">{err}</p>
 {:else}
   <h1 class="text-2xl font-bold mb-4">{cls.name}</h1>
   {#if role === 'teacher' || role === 'admin'}
@@ -256,6 +266,5 @@ import { marked } from 'marked';
       </div>
     </div>
 
-    {#if err}<p class="text-error">{err}</p>{/if}
   </div>
 {/if}
