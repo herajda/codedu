@@ -36,6 +36,7 @@ func removeSubscriber(sub *subscriber) {
 func broadcast(evt sse.Event) {
 	// Determine the submission owner
 	var uid int
+	var showTrace bool
 	switch evt.Event {
 	case "status":
 		if m, ok := evt.Data.(map[string]any); ok {
@@ -47,8 +48,14 @@ func broadcast(evt sse.Event) {
 		}
 	case "result":
 		if r, ok := evt.Data.(*Result); ok {
+			if a, err := GetAssignmentForSubmission(r.SubmissionID); err == nil {
+				showTrace = a.ShowTraceback
+			}
 			if s, err := GetSubmission(r.SubmissionID); err == nil {
 				uid = s.StudentID
+			}
+			if !showTrace {
+				r.Stderr = ""
 			}
 		}
 	}
