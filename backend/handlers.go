@@ -3,10 +3,10 @@ package main
 import (
 	"archive/zip"
 	"bytes"
-	"io"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -163,6 +163,10 @@ func getAssignment(c *gin.Context) {
 	}
 	role := c.GetString("role")
 	if role == "student" {
+		if ok, err := IsStudentOfAssignment(id, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
 		if !a.Published {
 			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 			return
@@ -170,6 +174,11 @@ func getAssignment(c *gin.Context) {
 		subs, _ := ListSubmissionsForAssignmentAndStudent(id, c.GetInt("userID"))
 		c.JSON(http.StatusOK, gin.H{"assignment": a, "submissions": subs})
 		return
+	} else if role == "teacher" {
+		if ok, err := IsTeacherOfAssignment(id, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
 	}
 	tests, _ := ListTestCases(id)
 	resp := gin.H{"assignment": a, "tests": tests}
@@ -186,6 +195,12 @@ func updateAssignment(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
+	}
+	if c.GetString("role") == "teacher" {
+		if ok, err := IsTeacherOfAssignment(id, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
 	}
 
 	// Debug: log the entire request body
@@ -208,7 +223,7 @@ func updateAssignment(c *gin.Context) {
 	dl, err := time.Parse(time.RFC3339Nano, req.Deadline)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid deadline"})
-			return
+		return
 	}
 
 	a := &Assignment{
@@ -233,6 +248,12 @@ func deleteAssignment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
+	if c.GetString("role") == "teacher" {
+		if ok, err := IsTeacherOfAssignment(id, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
 	if err := DeleteAssignment(id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not delete"})
 		return
@@ -247,6 +268,12 @@ func publishAssignment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
+	if c.GetString("role") == "teacher" {
+		if ok, err := IsTeacherOfAssignment(id, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
 	if err := SetAssignmentPublished(id, true); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
@@ -260,6 +287,12 @@ func uploadTemplate(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
+	}
+	if c.GetString("role") == "teacher" {
+		if ok, err := IsTeacherOfAssignment(aid, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
 	}
 	file, err := c.FormFile("file")
 	if err != nil {
@@ -293,6 +326,18 @@ func getTemplate(c *gin.Context) {
 	if err != nil || a.TemplatePath == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
+	}
+	role := c.GetString("role")
+	if role == "student" {
+		if ok, err := IsStudentOfAssignment(aid, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	} else if role == "teacher" {
+		if ok, err := IsTeacherOfAssignment(aid, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
 	}
 	c.FileAttachment(*a.TemplatePath, filepath.Base(*a.TemplatePath))
 }
