@@ -144,6 +144,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
 
   async function saveEdit(){
     try{
+      if(new Date(eDeadline)<new Date() && !confirm('The deadline is in the past. Continue?')) return
       await apiFetch(`/api/assignments/${id}`,{
         method:'PUT',
         headers:{'Content-Type':'application/json'},
