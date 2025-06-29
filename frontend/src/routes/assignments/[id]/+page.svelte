@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
+import { onMount, onDestroy } from 'svelte'
   import { get } from 'svelte/store'
   import { auth } from '$lib/auth'
 import { apiFetch, apiJSON } from '$lib/api'
 import { MarkdownEditor } from '$lib'
 import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 import { goto } from '$app/navigation'
 import { page } from '$app/stores'
 
@@ -16,6 +17,9 @@ const role = get(auth)?.role!;
   let assignment:any=null
   let tests:any[]=[] // teacher/admin only
   let submissions:any[]=[] // student submissions
+  let latestSub:any=null
+  let results:any[]=[]
+  let es:EventSource|null=null
   let allSubs:any[]=[]     // teacher view
   let students:any[]=[]    // class roster for teacher
   let progress:any[]=[]    // computed progress per student
@@ -29,7 +33,9 @@ const role = get(auth)?.role!;
   let submitDialog: HTMLDialogElement;
 $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100) : 0;
   let editing=false
-  let eTitle='', eDesc='', eDeadline='', ePoints=0, ePolicy='all_or_nothing'
+  let eTitle='', eDesc='', eDeadline='', ePoints=0, ePolicy='all_or_nothing', eShowTraceback=false
+  let safeDesc=''
+$: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.description) as string) : ''
 
   async function publish(){
     try{
@@ -45,6 +51,12 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
       assignment = data.assignment
       if(role==='student') {
         submissions = data.submissions ?? []
+        latestSub = submissions[0] ?? null
+        results = []
+        if(latestSub){
+          const subData = await apiJSON(`/api/submissions/${latestSub.id}`)
+          results = subData.results ?? []
+        }
         const completed = submissions.find((s:any)=>s.status==='completed')
         done = !!completed
         pointsEarned = completed ? assignment.max_points : 0
@@ -62,7 +74,25 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
     }catch(e:any){ err=e.message }
   }
 
-  onMount(load)
+  onMount(() => {
+    load()
+    es = new EventSource('/api/events')
+    es.addEventListener('status', (ev) => {
+      const d = JSON.parse((ev as MessageEvent).data)
+      if(latestSub && d.submission_id===latestSub.id){
+        latestSub.status = d.status
+        if(d.status!== 'running') load()
+      }
+    })
+    es.addEventListener('result', (ev) => {
+      const d = JSON.parse((ev as MessageEvent).data)
+      if(latestSub && d.submission_id===latestSub.id){
+        results = [...results, d]
+      }
+    })
+  })
+
+  onDestroy(()=>{es?.close()})
 
   async function addTest(){
     try{
@@ -110,10 +140,12 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
     eDeadline=assignment.deadline.slice(0,16)
     ePoints=assignment.max_points
     ePolicy=assignment.grading_policy
+    eShowTraceback=assignment.show_traceback
   }
 
   async function saveEdit(){
     try{
+      if(new Date(eDeadline)<new Date() && !confirm('The deadline is in the past. Continue?')) return
       await apiFetch(`/api/assignments/${id}`,{
         method:'PUT',
         headers:{'Content-Type':'application/json'},
@@ -122,7 +154,8 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
           description:eDesc,
           deadline:new Date(eDeadline).toISOString(),
           max_points:Number(ePoints),
-          grading_policy:ePolicy
+          grading_policy:ePolicy,
+          show_traceback:eShowTraceback
         })
       })
       editing=false
@@ -150,6 +183,10 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
     if(s==='completed') return 'badge-success';
     if(s==='running') return 'badge-info';
     if(s==='failed') return 'badge-error';
+    if(s==='passed') return 'badge-success';
+    if(s==='wrong_output') return 'badge-error';
+    if(s==='runtime_error') return 'badge-error';
+    if(s==='time_limit_exceeded' || s==='memory_limit_exceeded') return 'badge-warning';
     return '';
   }
 
@@ -189,6 +226,10 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
           <option value="weighted">weighted</option>
         </select>
         <input type="datetime-local" class="input input-bordered w-full" bind:value={eDeadline} required>
+        <label class="flex items-center gap-2">
+          <input type="checkbox" class="checkbox" bind:checked={eShowTraceback}>
+          <span class="label-text">Show traceback to students</span>
+        </label>
         <div class="card-actions justify-end">
           <button class="btn btn-primary" on:click={saveEdit}>Save</button>
           <button class="btn" on:click={()=>editing=false}>Cancel</button>
@@ -207,7 +248,7 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
             </div>
           {/if}
         </div>
-        <div class="markdown">{@html marked.parse(assignment.description)}</div>
+        <div class="markdown">{@html safeDesc}</div>
         <p><strong>Deadline:</strong> {new Date(assignment.deadline).toLocaleString()}</p>
         <p><strong>Max points:</strong> {assignment.max_points}</p>
         <p><strong>Policy:</strong> {assignment.grading_policy}</p>
@@ -298,6 +339,35 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
         <button class="btn" on:click={openSubmitModal}>Submit new solution</button>
       </div>
     </div>
+    {#if latestSub}
+    <div class="card bg-base-100 shadow mb-4">
+      <div class="card-body space-y-2">
+        <h3 class="card-title">Latest submission results</h3>
+        <p>Status: <span class={`badge ${statusColor(latestSub.status)}`}>{latestSub.status}</span></p>
+        <div class="overflow-x-auto">
+          <table class="table table-zebra">
+            <thead>
+              <tr><th>Test</th><th>Status</th><th>Runtime (ms)</th><th>Exit</th><th>Traceback</th></tr>
+            </thead>
+            <tbody>
+              {#each results as r, i}
+                <tr>
+                  <td>{i+1}</td>
+                  <td><span class={`badge ${statusColor(r.status)}`}>{r.status}</span></td>
+                  <td>{r.runtime_ms}</td>
+                  <td>{r.exit_code}</td>
+                  <td><pre class="whitespace-pre-wrap max-w-xs overflow-x-auto">{r.stderr}</pre></td>
+                </tr>
+              {/each}
+              {#if !results.length}
+                <tr><td colspan="5"><i>No results yet</i></td></tr>
+              {/if}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {/if}
   {/if}
 
   {#if role==='teacher' || role==='admin'}

@@ -19,24 +19,21 @@ func ensureAdmin() {
 		email = "admin@example.com"
 	}
 	password := os.Getenv("ADMIN_PASSWORD")
-	if password == "" {
-		password = "admin123"
+	if password == "" || password == "admin123" {
+		log.Fatal("ADMIN_PASSWORD must be set to a non-default value")
 	}
-	var exists bool
-	if err := DB.Get(&exists,
-		`SELECT EXISTS(SELECT 1 FROM users WHERE email=$1)`, email); err != nil {
-		log.Fatalf("admin check failed: %v", err)
+
+	hashed := clientHash(password)
+	hash, _ := bcrypt.GenerateFromPassword([]byte(hashed), bcrypt.DefaultCost)
+
+	if _, err := DB.Exec(`
+            INSERT INTO users (email, password_hash, role)
+            VALUES ($1,$2,'admin')
+            ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, role='admin'`,
+		email, hash); err != nil {
+		log.Fatalf("could not ensure admin: %v", err)
 	}
-	if !exists {
-		hashed := clientHash(password)
-		hash, _ := bcrypt.GenerateFromPassword([]byte(hashed), bcrypt.DefaultCost)
-		if _, err := DB.Exec(`
-                    INSERT INTO users (email,password_hash,role)
-                    VALUES ($1,$2,'admin')`, email, hash); err != nil {
-			log.Fatalf("could not insert admin: %v", err)
-		}
-		log.Printf("👑  Admin seeded → %s / %s", email, password)
-	}
+	log.Printf("👑  Admin ensured → %s", email)
 }
 
 func main() {
@@ -102,6 +99,8 @@ func main() {
 
 		// TEACHER only
 		api.POST("/classes", RoleGuard("teacher"), createClass)
+		api.PUT("/classes/:id", RoleGuard("teacher", "admin"), updateClass)
+		api.DELETE("/classes/:id", RoleGuard("teacher", "admin"), deleteClass)
 
 		// Assignments now tied to class
 		api.POST("/classes/:id/assignments", RoleGuard("teacher", "admin"), createAssignment)
@@ -110,6 +109,7 @@ func main() {
 		api.DELETE("/users/:id", RoleGuard("admin"), deleteUser)
 		// List my submissions (student)
 		api.GET("/my-submissions", RoleGuard("student"), listSubs)
+		api.GET("/events", RoleGuard("student", "teacher", "admin"), eventsHandler)
 		api.DELETE("/classes/:id/students/:sid", RoleGuard("teacher", "admin"), removeStudent)
 
 		api.GET("/students", RoleGuard("teacher", "admin"), listStudents)

@@ -12,7 +12,6 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS bk_class TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS bk_uid TEXT;
 
-ALTER TABLE assignments ADD COLUMN IF NOT EXISTS template_path TEXT;
 
 CREATE TABLE IF NOT EXISTS classes (
   id SERIAL PRIMARY KEY,
@@ -31,11 +30,15 @@ CREATE TABLE IF NOT EXISTS assignments (
   max_points INTEGER NOT NULL DEFAULT 100,
   grading_policy TEXT NOT NULL DEFAULT 'all_or_nothing' CHECK (grading_policy IN ('all_or_nothing','percentage','weighted')),
   published BOOLEAN NOT NULL DEFAULT FALSE,
+  show_traceback BOOLEAN NOT NULL DEFAULT FALSE,
   template_path TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE
 );
+
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS template_path TEXT;
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS show_traceback BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE TABLE IF NOT EXISTS test_cases (
   id SERIAL PRIMARY KEY,
@@ -67,7 +70,7 @@ CREATE TABLE IF NOT EXISTS submissions (
 );
 
 DO $$ BEGIN
-    CREATE TYPE result_status AS ENUM ('passed','time_limit_exceeded','memory_limit_exceeded','wrong_output');
+    CREATE TYPE result_status AS ENUM ('passed','time_limit_exceeded','memory_limit_exceeded','wrong_output','runtime_error');
 EXCEPTION
     WHEN duplicate_object THEN NULL;
 END $$;
@@ -78,9 +81,13 @@ CREATE TABLE IF NOT EXISTS results (
   test_case_id INTEGER NOT NULL REFERENCES test_cases(id) ON DELETE CASCADE,
   status result_status NOT NULL,
   actual_stdout TEXT,
+  stderr TEXT,
+  exit_code INTEGER,
   runtime_ms INTEGER,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE results ADD COLUMN IF NOT EXISTS stderr TEXT;
+ALTER TABLE results ADD COLUMN IF NOT EXISTS exit_code INTEGER;
 
 CREATE TABLE IF NOT EXISTS class_students (
   class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,

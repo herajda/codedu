@@ -4,12 +4,18 @@
   import { auth } from '$lib/auth';
 import { apiFetch, apiJSON } from '$lib/api';
 import { page } from '$app/stores';
+import { goto } from '$app/navigation';
 import { marked } from 'marked';
 
-  $: id = $page.params.id;
+  let id = $page.params.id;
+  $: if ($page.params.id !== id) {
+    id = $page.params.id;
+    load();
+  }
   const role: string = get(auth)?.role ?? '';
 
   let cls:any = null;
+  let loading = true;
   let students:any[] = [];
   let assignments:any[] = [];
   let mySubs:any[] = [];
@@ -19,8 +25,10 @@ import { marked } from 'marked';
   let addDialog: HTMLDialogElement;
   $: filtered = allStudents.filter(s => (s.name ?? s.email).toLowerCase().includes(search.toLowerCase()));
   let aTitle='';
+  let aShowTraceback=false;
   let err='';
   let now = Date.now();
+  let newName = '';
 
   onMount(() => {
     const t = setInterval(() => now = Date.now(), 60000);
@@ -38,11 +46,14 @@ import { marked } from 'marked';
   }
 
   async function load() {
+    loading = true;
     err='';
+    cls = null;
     try {
       const data = await apiJSON(`/api/classes/${id}`);
       cls = data;
-      students = data.students;
+      newName = data.name;
+      students = data.students ?? [];
       assignments = [...(data.assignments ?? [])].sort((a,b)=>new Date(a.deadline).getTime()-new Date(b.deadline).getTime());
       if (role === 'student') {
         mySubs = await apiJSON('/api/my-submissions');
@@ -53,6 +64,7 @@ import { marked } from 'marked';
       }
       if (role === 'teacher' || role === 'admin') allStudents = await apiJSON('/api/students');
     } catch(e:any){ err=e.message }
+    loading = false;
   }
 
   onMount(load);
@@ -79,9 +91,10 @@ import { marked } from 'marked';
       await apiFetch(`/api/classes/${id}/assignments`,{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({title:aTitle})
+        body:JSON.stringify({title:aTitle, show_traceback:aShowTraceback})
       });
       aTitle='';
+      aShowTraceback=false;
       await load();
     }catch(e:any){ err=e.message }
   }
@@ -120,12 +133,36 @@ import { marked } from 'marked';
       alert(`Imported ${res.added} students`);
     }catch(e:any){ err=e.message }
   }
+
+  async function renameClass(){
+    try{
+      await apiFetch(`/api/classes/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:newName})});
+      cls.name = newName;
+    }catch(e:any){ err=e.message }
+  }
+
+  async function deleteClass(){
+    if(!confirm('Delete this class?')) return;
+    try{
+      await apiFetch(`/api/classes/${id}`,{method:'DELETE'});
+      goto('/my-classes');
+    }catch(e:any){ err=e.message }
+  }
 </script>
 
-{#if !cls}
+{#if loading}
   <p>Loading…</p>
+{:else if err}
+  <p class="text-error">{err}</p>
 {:else}
   <h1 class="text-2xl font-bold mb-4">{cls.name}</h1>
+  {#if role === 'teacher' || role === 'admin'}
+    <form class="mb-4 flex gap-2 max-w-sm" on:submit|preventDefault={renameClass}>
+      <input class="input input-bordered flex-1" bind:value={newName} />
+      <button class="btn">Rename</button>
+      <button type="button" class="btn btn-error" on:click={deleteClass}>Delete</button>
+    </form>
+  {/if}
   {#if role === 'student'}
     <p class="mb-4"><strong>Teacher:</strong> {cls.teacher.name ?? cls.teacher.email}</p>
   {/if}
@@ -205,11 +242,14 @@ import { marked } from 'marked';
                   <div class="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:justify-end w-full sm:w-auto">
                     <span class={`badge ${new Date(a.deadline)<new Date() && !a.completed ? 'badge-error' : 'badge-info'}`}>{new Date(a.deadline).toLocaleString()}</span>
                     <span class="text-sm">{countdown(a.deadline)}</span>
+                    {#if !a.published}
+                      <span class="badge badge-warning">unpublished</span>
+                    {/if}
                     {#if a.completed}
                       <span class="badge badge-success">done</span>
                     {/if}
                     {#if role === 'teacher' || role === 'admin'}
-                      <button class="btn btn-xs btn-error" on:click|stopPropagation={()=>deleteAssignment(a.id)}>Delete</button>
+                      <button class="btn btn-xs btn-error" on:click|preventDefault|stopPropagation={() => deleteAssignment(a.id)}>Delete</button>
                     {/if}
                   </div>
                 </div>
@@ -220,14 +260,17 @@ import { marked } from 'marked';
         </ul>
 
         {#if role === 'teacher' || role === 'admin'}
-          <form class="mt-4" on:submit|preventDefault={createAssignment}>
-            <input class="input input-bordered w-full mb-2" placeholder="Title" bind:value={aTitle} required>
+          <form class="mt-4 space-y-2" on:submit|preventDefault={createAssignment}>
+            <input class="input input-bordered w-full" placeholder="Title" bind:value={aTitle} required>
+            <label class="flex items-center gap-2">
+              <input type="checkbox" class="checkbox" bind:checked={aShowTraceback}>
+              <span class="label-text">Show traceback to students</span>
+            </label>
             <button class="btn">Create</button>
           </form>
         {/if}
       </div>
     </div>
 
-    {#if err}<p class="text-error">{err}</p>{/if}
   </div>
 {/if}

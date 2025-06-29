@@ -21,7 +21,7 @@
       <div class="flex-1">
         <a href="/dashboard" class="btn btn-ghost text-xl">CodeGrader</a>
         {#if user?.role === 'admin'}
-          <a href="/admin" class="btn btn-ghost">Admin</a>
+          <!-- admin uses dashboard -->
         {:else if user?.role === 'teacher'}
           <a href="/classes" class="btn btn-ghost">Classes</a>
         {:else if user?.role === 'student'}

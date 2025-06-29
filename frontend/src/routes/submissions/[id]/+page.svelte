@@ -1,37 +1,92 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
+  import { onMount, onDestroy } from 'svelte'
   import { apiJSON } from '$lib/api'
   import { page } from '$app/stores'
   import JSZip from 'jszip'
+  import { FileTree } from '$lib'
 
 $: id = $page.params.id
 
   let submission:any=null
   let results:any[]=[]
-  let err=''
-  let files:{name:string,content:string}[]=[]
-  let selected:{name:string,content:string}|null=null
-  let fileDialog:HTMLDialogElement
+  let err = ''
+  let files: { name: string; content: string }[] = []
+  let tree: FileNode[] = []
+  let selected: { name: string; content: string } | null = null
+  let highlighted = ''
+  let es: EventSource | null = null
 
-  async function load(){
-    err=''
-    try{
+  import hljs from 'highlight.js'
+  import 'highlight.js/styles/github.css'
+  let fileDialog: HTMLDialogElement
+
+  interface FileNode {
+    name: string
+    content?: string
+    children?: FileNode[]
+  }
+
+  async function parseFiles(b64: string) {
+    let bytes: Uint8Array
+    try {
+      const bin = atob(b64)
+      bytes = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+    } catch {
+      return [{ name: 'code', content: b64 }]
+    }
+
+    try {
+      const zip = await JSZip.loadAsync(bytes)
+      const list: { name: string; content: string }[] = []
+      for (const file of Object.values(zip.files)) {
+        if (file.dir) continue
+        const content = await file.async('string')
+        list.push({ name: file.name, content })
+      }
+      return list
+    } catch {
+      const text = new TextDecoder().decode(bytes)
+      return [{ name: 'code', content: text }]
+    }
+  }
+
+  async function load() {
+    err = ''
+    try {
       const data = await apiJSON(`/api/submissions/${id}`)
       submission = data.submission
       results = data.results
 
-      files = []
-      try {
-        const zip = await JSZip.loadAsync(submission.code_content, { base64: true })
-        for (const file of Object.values(zip.files)) {
-          if (file.dir) continue
-          const content = await file.async('string')
-          files.push({ name: file.name, content })
+      files = await parseFiles(submission.code_content)
+      tree = buildTree(files)
+      selected = files[0]
+    } catch (e: any) {
+      err = e.message
+    }
+  }
+
+  function buildTree(list: { name: string; content: string }[]): FileNode[] {
+    const root: FileNode = { name: '', children: [] }
+    for (const f of list) {
+      const parts = f.name.split('/')
+      let node = root
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i]
+        if (!node.children) node.children = []
+        let child = node.children.find((c) => c.name === part)
+        if (!child) {
+          child = { name: part }
+          node.children.push(child)
         }
-      } catch {
-        // fall back to showing raw base64 if it's not a zip
+        node = child
+        if (i === parts.length - 1) {
+          node.content = f.content
+          node.children = undefined
+        }
       }
-    }catch(e:any){ err=e.message }
+    }
+    return root.children ?? []
   }
 
   function statusColor(s:string){
@@ -40,16 +95,50 @@ $: id = $page.params.id
     if(s==='failed') return 'badge-error'
     if(s==='passed') return 'badge-success'
     if(s==='wrong_output') return 'badge-error'
+    if(s==='runtime_error') return 'badge-error'
     if(s==='time_limit_exceeded' || s==='memory_limit_exceeded') return 'badge-warning'
     return ''
   }
 
-  function openFile(f:{name:string,content:string}){
-    selected = f
-    fileDialog.showModal()
+  function openFiles() {
+    if (files.length) {
+      selected = files[0]
+      fileDialog.showModal()
+    }
   }
 
-  onMount(load)
+  function chooseFile(n: FileNode) {
+    if (n.content) {
+      selected = { name: n.name, content: n.content }
+    }
+  }
+
+  $: if (selected) {
+    highlighted = hljs.highlightAuto(selected.content).value
+  }
+
+  $: if (!selected && submission) {
+    highlighted = hljs.highlightAuto(submission.code_content).value
+  }
+
+  onMount(() => {
+    load()
+    es = new EventSource('/api/events')
+    es.addEventListener('status', (ev) => {
+      const d = JSON.parse((ev as MessageEvent).data)
+      if (submission && d.submission_id === submission.id) {
+        submission.status = d.status
+        if (d.status !== 'running') load()
+      }
+    })
+    es.addEventListener('result', (ev) => {
+      const d = JSON.parse((ev as MessageEvent).data)
+      if (submission && d.submission_id === submission.id) {
+        results = [...results, d]
+      }
+    })
+  })
+  onDestroy(() => { es?.close() })
 </script>
 
 {#if !submission}
@@ -65,15 +154,7 @@ $: id = $page.params.id
     <div class="card bg-base-100 shadow">
       <div class="card-body space-y-2">
         <h3 class="card-title">Files</h3>
-        {#if files.length}
-          <ul class="menu">
-            {#each files as f}
-              <li><button class="btn btn-sm btn-outline w-full justify-between" on:click={() => openFile(f)}>{f.name}</button></li>
-            {/each}
-          </ul>
-        {:else}
-          <pre class="whitespace-pre-wrap">{submission.code_content}</pre>
-        {/if}
+        <button class="btn btn-primary" on:click={openFiles}>Show files</button>
       </div>
     </div>
     <div class="card bg-base-100 shadow">
@@ -82,7 +163,7 @@ $: id = $page.params.id
         <div class="overflow-x-auto">
           <table class="table table-zebra">
             <thead>
-              <tr><th>Test</th><th>Status</th><th>Runtime (ms)</th></tr>
+              <tr><th>Test</th><th>Status</th><th>Runtime (ms)</th><th>Exit</th><th>Traceback</th></tr>
             </thead>
             <tbody>
               {#each results as r, i}
@@ -90,10 +171,12 @@ $: id = $page.params.id
                   <td>{i + 1}</td>
                   <td><span class={`badge ${statusColor(r.status)}`}>{r.status}</span></td>
                   <td>{r.runtime_ms}</td>
+                  <td>{r.exit_code}</td>
+                  <td><pre class="whitespace-pre-wrap max-w-xs overflow-x-auto">{r.stderr}</pre></td>
                 </tr>
               {/each}
               {#if Array.isArray(results) && !results.length}
-                <tr><td colspan="3"><i>No results yet</i></td></tr>
+                <tr><td colspan="5"><i>No results yet</i></td></tr>
               {/if}
             </tbody>
           </table>
@@ -104,9 +187,20 @@ $: id = $page.params.id
 {/if}
 
 <dialog bind:this={fileDialog} class="modal">
-  <div class="modal-box w-11/12 max-w-3xl">
-    <h3 class="font-bold text-lg mb-2">{selected?.name}</h3>
-    <pre class="whitespace-pre-wrap">{selected?.content}</pre>
+  <div class="modal-box w-11/12 max-w-5xl">
+    {#if files.length}
+      <div class="flex flex-col md:flex-row gap-4">
+        <div class="md:w-60">
+          <FileTree nodes={tree} select={chooseFile} />
+        </div>
+        <div class="flex-1">
+          <div class="font-mono text-sm mb-2">{selected?.name}</div>
+          <pre class="whitespace-pre bg-base-200 p-2 rounded"><code class="hljs">{@html highlighted}</code></pre>
+        </div>
+      </div>
+    {:else}
+      <pre class="whitespace-pre bg-base-200 p-2 rounded"><code class="hljs">{@html highlighted}</code></pre>
+    {/if}
   </div>
   <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
@@ -114,9 +208,12 @@ $: id = $page.params.id
 {#if err}<p style="color:red">{err}</p>{/if}
 
 <style>
-pre{
-  background:#eee;
-  padding:.5rem;
-  overflow:auto;
+pre {
+  background: #eee;
+  padding: .5rem;
+  overflow: auto;
+}
+.hljs {
+  background: transparent;
 }
 </style>

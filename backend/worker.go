@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -19,7 +20,14 @@ type Job struct{ SubmissionID int }
 
 var taskQueue chan Job
 
-const pythonImage = "python:3.11"
+const (
+	pythonImage  = "python:3.11"
+	dockerUser   = "65534" // run containers as 'nobody'
+	dockerCPUs   = "1"     // limit CPU shares
+	dockerMemory = "256m"  // memory limit
+	// additional grace period for docker startup/shutdown
+	dockerExtraTime = 10 * time.Second
+)
 
 // StartWorker starts n workers processing the grading queue.
 func StartWorker(n int) {
@@ -96,6 +104,7 @@ func runSubmission(id int) {
 		rc.Close()
 	}
 
+	os.Chmod(tmpDir, 0755) // ensure the temp dir is executable
 	var mainFile string
 	var firstPy string
 	filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
@@ -136,17 +145,19 @@ func runSubmission(id int) {
 	allPass := true
 	for _, tc := range tests {
 		timeout := time.Duration(tc.TimeLimitSec * float64(time.Second))
-		out, err, timedOut, runtime := executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
+		stdout, stderr, exitCode, timedOut, runtime := executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
 
 		status := "passed"
 		switch {
 		case timedOut:
 			status = "time_limit_exceeded"
-		case err != nil || strings.TrimSpace(out) != strings.TrimSpace(tc.ExpectedStdout):
+		case exitCode != 0:
+			status = "runtime_error"
+		case strings.TrimSpace(stdout) != strings.TrimSpace(tc.ExpectedStdout):
 			status = "wrong_output"
 		}
 
-		res := &Result{SubmissionID: id, TestCaseID: tc.ID, Status: status, ActualStdout: out, RuntimeMS: int(runtime.Milliseconds())}
+		res := &Result{SubmissionID: id, TestCaseID: tc.ID, Status: status, ActualStdout: stdout, Stderr: stderr, ExitCode: exitCode, RuntimeMS: int(runtime.Milliseconds())}
 		CreateResult(res)
 		if status != "passed" {
 			allPass = false
@@ -160,20 +171,65 @@ func runSubmission(id int) {
 	}
 }
 
-func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, error, bool, time.Duration) {
+func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, string, int, bool, time.Duration) {
 	abs, _ := filepath.Abs(dir)
 	fmt.Printf("[worker] Running: %s/%s with timeout %v\n", abs, file, timeout)
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	// allow some extra time for container startup and shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), timeout+dockerExtraTime)
 	defer cancel()
 
 	mount := fmt.Sprintf("%s:/code:ro", abs)
-	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", "-i", "-v", mount, pythonImage, "python", "/code/"+file)
+
+	// Measure runtime inside the container. A shell script records timestamps
+	// before and after executing the Python program and prints the elapsed
+	// milliseconds as the last line of stdout with a unique prefix.
+	script := fmt.Sprintf("start=$(date +%%s%%N); python /code/%s; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status", file)
+
+	cmd := exec.CommandContext(ctx, "docker", "run",
+		"--rm",
+		"-i",
+		"--network=none",
+		"--user", dockerUser,
+		"--cpus", dockerCPUs,
+		"--memory", dockerMemory,
+		"-v", mount,
+		pythonImage, "bash", "-c", script)
 	cmd.Stdin = strings.NewReader(stdin)
 
-	start := time.Now()
-	out, err := cmd.CombinedOutput()
-	runtime := time.Since(start)
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
 
-	timedOut := ctx.Err() == context.DeadlineExceeded
-	return string(out), err, timedOut, runtime
+	start := time.Now()
+	err := cmd.Run()
+	duration := time.Since(start)
+
+	ctxTimedOut := ctx.Err() == context.DeadlineExceeded
+
+	out := strings.TrimSpace(stdoutBuf.String())
+	var runtime time.Duration
+	if lines := strings.Split(out, "\n"); len(lines) > 0 && strings.HasPrefix(lines[len(lines)-1], "===RUNTIME_MS===") {
+		rstr := strings.TrimSpace(strings.TrimPrefix(lines[len(lines)-1], "===RUNTIME_MS==="))
+		if ms, perr := strconv.Atoi(rstr); perr == nil {
+			runtime = time.Duration(ms) * time.Millisecond
+			out = strings.Join(lines[:len(lines)-1], "\n")
+		} else {
+			runtime = duration
+		}
+	} else {
+		runtime = duration
+	}
+	runtimeExceeded := runtime > timeout
+	timedOut := ctxTimedOut || runtimeExceeded
+
+	exitCode := 0
+	if err != nil {
+		if ee, ok := err.(*exec.ExitError); ok {
+			exitCode = ee.ExitCode()
+		} else {
+			exitCode = -1
+		}
+	}
+
+	return out, strings.TrimSpace(stderrBuf.String()), exitCode, timedOut, runtime
 }
