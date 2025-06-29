@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { apiJSON } from '$lib/api';
+  import { apiJSON, apiFetch } from '$lib/api';
   import AdminPanel from '$lib/AdminPanel.svelte';
 
   let role = '';
