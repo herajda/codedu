@@ -33,7 +33,7 @@ const role = get(auth)?.role!;
   let submitDialog: HTMLDialogElement;
 $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100) : 0;
   let editing=false
-  let eTitle='', eDesc='', eDeadline='', ePoints=0, ePolicy='all_or_nothing'
+  let eTitle='', eDesc='', eDeadline='', ePoints=0, ePolicy='all_or_nothing', eShowTraceback=false
   let safeDesc=''
 $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.description) as string) : ''
 
@@ -140,6 +140,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     eDeadline=assignment.deadline.slice(0,16)
     ePoints=assignment.max_points
     ePolicy=assignment.grading_policy
+    eShowTraceback=assignment.show_traceback
   }
 
   async function saveEdit(){
@@ -153,7 +154,8 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           description:eDesc,
           deadline:new Date(eDeadline).toISOString(),
           max_points:Number(ePoints),
-          grading_policy:ePolicy
+          grading_policy:ePolicy,
+          show_traceback:eShowTraceback
         })
       })
       editing=false
@@ -181,6 +183,10 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     if(s==='completed') return 'badge-success';
     if(s==='running') return 'badge-info';
     if(s==='failed') return 'badge-error';
+    if(s==='passed') return 'badge-success';
+    if(s==='wrong_output') return 'badge-error';
+    if(s==='runtime_error') return 'badge-error';
+    if(s==='time_limit_exceeded' || s==='memory_limit_exceeded') return 'badge-warning';
     return '';
   }
 
@@ -220,6 +226,10 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           <option value="weighted">weighted</option>
         </select>
         <input type="datetime-local" class="input input-bordered w-full" bind:value={eDeadline} required>
+        <label class="flex items-center gap-2">
+          <input type="checkbox" class="checkbox" bind:checked={eShowTraceback}>
+          <span class="label-text">Show traceback to students</span>
+        </label>
         <div class="card-actions justify-end">
           <button class="btn btn-primary" on:click={saveEdit}>Save</button>
           <button class="btn" on:click={()=>editing=false}>Cancel</button>
@@ -337,7 +347,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         <div class="overflow-x-auto">
           <table class="table table-zebra">
             <thead>
-              <tr><th>Test</th><th>Status</th><th>Runtime (ms)</th></tr>
+              <tr><th>Test</th><th>Status</th><th>Runtime (ms)</th><th>Exit</th><th>Traceback</th></tr>
             </thead>
             <tbody>
               {#each results as r, i}
@@ -345,10 +355,12 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                   <td>{i+1}</td>
                   <td><span class={`badge ${statusColor(r.status)}`}>{r.status}</span></td>
                   <td>{r.runtime_ms}</td>
+                  <td>{r.exit_code}</td>
+                  <td><pre class="whitespace-pre-wrap max-w-xs overflow-x-auto">{r.stderr}</pre></td>
                 </tr>
               {/each}
               {#if !results.length}
-                <tr><td colspan="3"><i>No results yet</i></td></tr>
+                <tr><td colspan="5"><i>No results yet</i></td></tr>
               {/if}
             </tbody>
           </table>

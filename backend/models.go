@@ -28,6 +28,7 @@ type Assignment struct {
 	MaxPoints     int       `db:"max_points" json:"max_points"`
 	GradingPolicy string    `db:"grading_policy" json:"grading_policy"`
 	Published     bool      `db:"published" json:"published"`
+	ShowTraceback bool      `db:"show_traceback" json:"show_traceback"`
 	TemplatePath  *string   `db:"template_path" json:"template_path"`
 	CreatedAt     time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
@@ -107,12 +108,12 @@ func ListAllClasses() ([]Class, error) {
 // ──────────────────────────────────────────────────────────────────────────────
 func CreateAssignment(a *Assignment) error {
 	const q = `
-          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, template_path, class_id)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, template_path, class_id)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
           RETURNING id, created_at, updated_at`
 	return DB.QueryRow(q,
 		a.Title, a.Description, a.CreatedBy, a.Deadline,
-		a.MaxPoints, a.GradingPolicy, a.Published, a.TemplatePath, a.ClassID,
+		a.MaxPoints, a.GradingPolicy, a.Published, a.ShowTraceback, a.TemplatePath, a.ClassID,
 	).Scan(&a.ID, &a.CreatedAt, &a.UpdatedAt)
 }
 
@@ -121,7 +122,7 @@ func ListAssignments(role string, userID int) ([]Assignment, error) {
 	list := []Assignment{}
 	query := `
     SELECT a.id, a.title, a.description, a.created_by, a.deadline,
-           a.max_points, a.grading_policy, a.published, a.template_path,
+           a.max_points, a.grading_policy, a.published, a.show_traceback, a.template_path,
            a.created_at, a.updated_at, a.class_id
       FROM assignments a`
 	var args []any
@@ -146,9 +147,25 @@ func ListAssignments(role string, userID int) ([]Assignment, error) {
 func GetAssignment(id int) (*Assignment, error) {
 	var a Assignment
 	err := DB.Get(&a, `
-    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, template_path, created_at, updated_at, class_id
+    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, template_path, created_at, updated_at, class_id
       FROM assignments
      WHERE id = $1`, id)
+	if err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
+// GetAssignmentForSubmission retrieves the assignment associated with a submission.
+func GetAssignmentForSubmission(subID int) (*Assignment, error) {
+	var a Assignment
+	err := DB.Get(&a, `
+        SELECT a.id, a.title, a.description, a.created_by, a.deadline,
+               a.max_points, a.grading_policy, a.published, a.show_traceback, a.template_path,
+               a.created_at, a.updated_at, a.class_id
+          FROM assignments a
+          JOIN submissions s ON s.assignment_id = a.id
+         WHERE s.id=$1`, subID)
 	if err != nil {
 		return nil, err
 	}
@@ -160,11 +177,11 @@ func UpdateAssignment(a *Assignment) error {
 	res, err := DB.Exec(`
     UPDATE assignments
        SET title=$1, description=$2, deadline=$3,
-           max_points=$4, grading_policy=$5,
+           max_points=$4, grading_policy=$5, show_traceback=$6,
            updated_at=now()
-     WHERE id=$6`,
+     WHERE id=$7`,
 		a.Title, a.Description, a.Deadline,
-		a.MaxPoints, a.GradingPolicy,
+		a.MaxPoints, a.GradingPolicy, a.ShowTraceback,
 		a.ID)
 	if err != nil {
 		return err
@@ -550,6 +567,8 @@ type Result struct {
 	TestCaseID   int       `db:"test_case_id" json:"test_case_id"`
 	Status       string    `db:"status" json:"status"`
 	ActualStdout string    `db:"actual_stdout" json:"actual_stdout"`
+	Stderr       string    `db:"stderr" json:"stderr"`
+	ExitCode     int       `db:"exit_code" json:"exit_code"`
 	RuntimeMS    int       `db:"runtime_ms" json:"runtime_ms"`
 	CreatedAt    time.Time `db:"created_at" json:"created_at"`
 }
@@ -576,10 +595,10 @@ func UpdateSubmissionStatus(id int, status string) error {
 
 func CreateResult(r *Result) error {
 	const q = `
-        INSERT INTO results (submission_id, test_case_id, status, actual_stdout, runtime_ms)
-        VALUES ($1,$2,$3,$4,$5)
+        INSERT INTO results (submission_id, test_case_id, status, actual_stdout, stderr, exit_code, runtime_ms)
+        VALUES ($1,$2,$3,$4,$5,$6,$7)
         RETURNING id, created_at`
-	err := DB.QueryRow(q, r.SubmissionID, r.TestCaseID, r.Status, r.ActualStdout, r.RuntimeMS).
+	err := DB.QueryRow(q, r.SubmissionID, r.TestCaseID, r.Status, r.ActualStdout, r.Stderr, r.ExitCode, r.RuntimeMS).
 		Scan(&r.ID, &r.CreatedAt)
 	if err == nil {
 		broadcast(sse.Event{Event: "result", Data: r})
@@ -590,7 +609,7 @@ func CreateResult(r *Result) error {
 func ListResultsForSubmission(subID int) ([]Result, error) {
 	list := []Result{}
 	err := DB.Select(&list, `
-        SELECT id, submission_id, test_case_id, status, actual_stdout, runtime_ms, created_at
+        SELECT id, submission_id, test_case_id, status, actual_stdout, stderr, exit_code, runtime_ms, created_at
           FROM results
          WHERE submission_id=$1
          ORDER BY id`, subID)

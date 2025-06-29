@@ -144,17 +144,19 @@ func runSubmission(id int) {
 	allPass := true
 	for _, tc := range tests {
 		timeout := time.Duration(tc.TimeLimitSec * float64(time.Second))
-		out, err, timedOut, runtime := executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
+		stdout, stderr, exitCode, timedOut, runtime := executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
 
 		status := "passed"
 		switch {
 		case timedOut:
 			status = "time_limit_exceeded"
-		case err != nil || strings.TrimSpace(out) != strings.TrimSpace(tc.ExpectedStdout):
+		case exitCode != 0:
+			status = "runtime_error"
+		case strings.TrimSpace(stdout) != strings.TrimSpace(tc.ExpectedStdout):
 			status = "wrong_output"
 		}
 
-		res := &Result{SubmissionID: id, TestCaseID: tc.ID, Status: status, ActualStdout: out, RuntimeMS: int(runtime.Milliseconds())}
+		res := &Result{SubmissionID: id, TestCaseID: tc.ID, Status: status, ActualStdout: stdout, Stderr: stderr, ExitCode: exitCode, RuntimeMS: int(runtime.Milliseconds())}
 		CreateResult(res)
 		if status != "passed" {
 			allPass = false
@@ -168,7 +170,7 @@ func runSubmission(id int) {
 	}
 }
 
-func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, error, bool, time.Duration) {
+func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, string, int, bool, time.Duration) {
 	abs, _ := filepath.Abs(dir)
 	fmt.Printf("[worker] Running: %s/%s with timeout %v\n", abs, file, timeout)
 	// allow some extra time for container startup and shutdown
@@ -193,13 +195,17 @@ func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, e
 		pythonImage, "bash", "-c", script)
 	cmd.Stdin = strings.NewReader(stdin)
 
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+
 	start := time.Now()
-	outBytes, err := cmd.CombinedOutput()
+	err := cmd.Run()
 	duration := time.Since(start)
 
 	ctxTimedOut := ctx.Err() == context.DeadlineExceeded
 
-	out := strings.TrimSpace(string(outBytes))
+	out := strings.TrimSpace(stdoutBuf.String())
 	var runtime time.Duration
 	if lines := strings.Split(out, "\n"); len(lines) > 0 && strings.HasPrefix(lines[len(lines)-1], "===RUNTIME_MS===") {
 		rstr := strings.TrimSpace(strings.TrimPrefix(lines[len(lines)-1], "===RUNTIME_MS==="))
@@ -215,5 +221,14 @@ func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, e
 	runtimeExceeded := runtime > timeout
 	timedOut := ctxTimedOut || runtimeExceeded
 
-	return out, err, timedOut, runtime
+	exitCode := 0
+	if err != nil {
+		if ee, ok := err.(*exec.ExitError); ok {
+			exitCode = ee.ExitCode()
+		} else {
+			exitCode = -1
+		}
+	}
+
+	return out, strings.TrimSpace(stderrBuf.String()), exitCode, timedOut, runtime
 }

@@ -25,6 +25,7 @@ import { marked } from 'marked';
   let addDialog: HTMLDialogElement;
   $: filtered = allStudents.filter(s => (s.name ?? s.email).toLowerCase().includes(search.toLowerCase()));
   let aTitle='';
+  let aShowTraceback=false;
   let err='';
   let now = Date.now();
   let newName = '';
@@ -90,9 +91,10 @@ import { marked } from 'marked';
       await apiFetch(`/api/classes/${id}/assignments`,{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({title:aTitle})
+        body:JSON.stringify({title:aTitle, show_traceback:aShowTraceback})
       });
       aTitle='';
+      aShowTraceback=false;
       await load();
     }catch(e:any){ err=e.message }
   }
@@ -258,8 +260,12 @@ import { marked } from 'marked';
         </ul>
 
         {#if role === 'teacher' || role === 'admin'}
-          <form class="mt-4" on:submit|preventDefault={createAssignment}>
-            <input class="input input-bordered w-full mb-2" placeholder="Title" bind:value={aTitle} required>
+          <form class="mt-4 space-y-2" on:submit|preventDefault={createAssignment}>
+            <input class="input input-bordered w-full" placeholder="Title" bind:value={aTitle} required>
+            <label class="flex items-center gap-2">
+              <input type="checkbox" class="checkbox" bind:checked={aShowTraceback}>
+              <span class="label-text">Show traceback to students</span>
+            </label>
             <button class="btn">Create</button>
           </form>
         {/if}

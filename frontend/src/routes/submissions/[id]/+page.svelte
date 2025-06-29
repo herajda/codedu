@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
+  import { onMount, onDestroy } from 'svelte'
   import { apiJSON } from '$lib/api'
   import { page } from '$app/stores'
   import JSZip from 'jszip'
@@ -14,6 +14,7 @@ $: id = $page.params.id
   let tree: FileNode[] = []
   let selected: { name: string; content: string } | null = null
   let highlighted = ''
+  let es: EventSource | null = null
 
   import hljs from 'highlight.js'
   import 'highlight.js/styles/github.css'
@@ -94,6 +95,7 @@ $: id = $page.params.id
     if(s==='failed') return 'badge-error'
     if(s==='passed') return 'badge-success'
     if(s==='wrong_output') return 'badge-error'
+    if(s==='runtime_error') return 'badge-error'
     if(s==='time_limit_exceeded' || s==='memory_limit_exceeded') return 'badge-warning'
     return ''
   }
@@ -119,7 +121,24 @@ $: id = $page.params.id
     highlighted = hljs.highlightAuto(submission.code_content).value
   }
 
-  onMount(load)
+  onMount(() => {
+    load()
+    es = new EventSource('/api/events')
+    es.addEventListener('status', (ev) => {
+      const d = JSON.parse((ev as MessageEvent).data)
+      if (submission && d.submission_id === submission.id) {
+        submission.status = d.status
+        if (d.status !== 'running') load()
+      }
+    })
+    es.addEventListener('result', (ev) => {
+      const d = JSON.parse((ev as MessageEvent).data)
+      if (submission && d.submission_id === submission.id) {
+        results = [...results, d]
+      }
+    })
+  })
+  onDestroy(() => { es?.close() })
 </script>
 
 {#if !submission}
@@ -144,7 +163,7 @@ $: id = $page.params.id
         <div class="overflow-x-auto">
           <table class="table table-zebra">
             <thead>
-              <tr><th>Test</th><th>Status</th><th>Runtime (ms)</th></tr>
+              <tr><th>Test</th><th>Status</th><th>Runtime (ms)</th><th>Exit</th><th>Traceback</th></tr>
             </thead>
             <tbody>
               {#each results as r, i}
@@ -152,10 +171,12 @@ $: id = $page.params.id
                   <td>{i + 1}</td>
                   <td><span class={`badge ${statusColor(r.status)}`}>{r.status}</span></td>
                   <td>{r.runtime_ms}</td>
+                  <td>{r.exit_code}</td>
+                  <td><pre class="whitespace-pre-wrap max-w-xs overflow-x-auto">{r.stderr}</pre></td>
                 </tr>
               {/each}
               {#if Array.isArray(results) && !results.length}
-                <tr><td colspan="3"><i>No results yet</i></td></tr>
+                <tr><td colspan="5"><i>No results yet</i></td></tr>
               {/if}
             </tbody>
           </table>
