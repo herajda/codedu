@@ -134,7 +134,7 @@ func createAssignment(c *gin.Context) {
 
 // listAssignments: GET /api/assignments
 func listAssignments(c *gin.Context) {
-	list, err := ListAssignments(c.GetString("role"))
+	list, err := ListAssignments(c.GetString("role"), c.GetInt("userID"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not list"})
 		return

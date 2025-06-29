@@ -117,16 +117,25 @@ func CreateAssignment(a *Assignment) error {
 }
 
 // ListAssignments returns all assignments.
-func ListAssignments(role string) ([]Assignment, error) {
+func ListAssignments(role string, userID int) ([]Assignment, error) {
 	list := []Assignment{}
-	query := `
-    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, template_path, created_at, updated_at, class_id
-      FROM assignments`
-	if role == "student" {
-		query += " WHERE published = true"
+	base := `SELECT a.id, a.title, a.description, a.created_by, a.deadline,
+                       a.max_points, a.grading_policy, a.published, a.template_path,
+                       a.created_at, a.updated_at, a.class_id
+                  FROM assignments a`
+	var args []any
+	switch role {
+	case "student":
+		base += ` JOIN class_students cs ON cs.class_id = a.class_id
+                           WHERE cs.student_id = $1 AND a.published = true`
+		args = append(args, userID)
+	case "teacher":
+		base += ` JOIN classes c ON c.id = a.class_id
+                           WHERE c.teacher_id = $1`
+		args = append(args, userID)
 	}
-	query += " ORDER BY created_at DESC"
-	err := DB.Select(&list, query)
+	base += " ORDER BY a.created_at DESC"
+	err := DB.Select(&list, base, args...)
 	return list, err
 }
 
