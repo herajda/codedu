@@ -151,16 +151,13 @@ func listAssignments(c *gin.Context) {
 
 // getAssignment: GET /api/assignments/:id
 func getAssignment(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-		return
-	}
-	a, err := GetAssignment(id)
+	pub := c.Param("id")
+	a, err := GetAssignmentByPublic(pub)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
+	id := a.ID
 	role := c.GetString("role")
 	if role == "student" {
 		if ok, err := IsStudentOfAssignment(id, c.GetInt("userID")); err != nil || !ok {
@@ -191,11 +188,13 @@ func getAssignment(c *gin.Context) {
 
 // updateAssignment: PUT /api/assignments/:id
 func updateAssignment(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	pub := c.Param("id")
+	aDB, err := GetAssignmentByPublic(pub)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
+	id := aDB.ID
 	if c.GetString("role") == "teacher" {
 		if ok, err := IsTeacherOfAssignment(id, c.GetInt("userID")); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
@@ -228,6 +227,7 @@ func updateAssignment(c *gin.Context) {
 
 	a := &Assignment{
 		ID:            id,
+		PublicID:      aDB.PublicID,
 		Title:         req.Title,
 		Description:   req.Description,
 		Deadline:      dl,
@@ -243,11 +243,13 @@ func updateAssignment(c *gin.Context) {
 
 // deleteAssignment: DELETE /api/assignments/:id
 func deleteAssignment(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	pub := c.Param("id")
+	a, err := GetAssignmentByPublic(pub)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
+	id := a.ID
 	if c.GetString("role") == "teacher" {
 		if ok, err := IsTeacherOfAssignment(id, c.GetInt("userID")); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
@@ -263,11 +265,13 @@ func deleteAssignment(c *gin.Context) {
 
 // publishAssignment: PUT /api/assignments/:id/publish
 func publishAssignment(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	pub := c.Param("id")
+	a, err := GetAssignmentByPublic(pub)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
+	id := a.ID
 	if c.GetString("role") == "teacher" {
 		if ok, err := IsTeacherOfAssignment(id, c.GetInt("userID")); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
@@ -283,11 +287,13 @@ func publishAssignment(c *gin.Context) {
 
 // uploadTemplate: POST /api/assignments/:id/template
 func uploadTemplate(c *gin.Context) {
-	aid, err := strconv.Atoi(c.Param("id"))
+	pub := c.Param("id")
+	a, err := GetAssignmentByPublic(pub)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
+	aid := a.ID
 	if c.GetString("role") == "teacher" {
 		if ok, err := IsTeacherOfAssignment(aid, c.GetInt("userID")); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
@@ -317,16 +323,13 @@ func uploadTemplate(c *gin.Context) {
 
 // getTemplate: GET /api/assignments/:id/template
 func getTemplate(c *gin.Context) {
-	aid, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-		return
-	}
-	a, err := GetAssignment(aid)
+	pub := c.Param("id")
+	a, err := GetAssignmentByPublic(pub)
 	if err != nil || a.TemplatePath == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
+	aid := a.ID
 	role := c.GetString("role")
 	if role == "student" {
 		if ok, err := IsStudentOfAssignment(aid, c.GetInt("userID")); err != nil || !ok {
@@ -344,11 +347,13 @@ func getTemplate(c *gin.Context) {
 
 // createTestCase: POST /api/assignments/:id/tests
 func createTestCase(c *gin.Context) {
-	aid, err := strconv.Atoi(c.Param("id"))
+	pub := c.Param("id")
+	a, err := GetAssignmentByPublic(pub)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
+	aid := a.ID
 	var req struct {
 		Stdin          string  `json:"stdin" binding:"required"`
 		ExpectedStdout string  `json:"expected_stdout" binding:"required"`
@@ -387,11 +392,13 @@ func deleteTestCase(c *gin.Context) {
 
 // createSubmission: POST /api/assignments/:id/submissions
 func createSubmission(c *gin.Context) {
-	aid, err := strconv.Atoi(c.Param("id"))
+	pub := c.Param("id")
+	a, err := GetAssignmentByPublic(pub)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
+	aid := a.ID
 	var tmp int
 	if err := DB.Get(&tmp, `SELECT 1 FROM assignments a JOIN class_students cs ON cs.class_id=a.class_id WHERE a.id=$1 AND cs.student_id=$2`, aid, c.GetInt("userID")); err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
@@ -489,16 +496,13 @@ func createSubmission(c *gin.Context) {
 
 // getSubmission: GET /api/submissions/:id
 func getSubmission(c *gin.Context) {
-	sid, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-		return
-	}
-	sub, err := GetSubmission(sid)
+	pub := c.Param("id")
+	sub, err := GetSubmissionByPublic(pub)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
+	sid := sub.ID
 	if c.GetString("role") == "student" && c.GetInt("userID") != sub.StudentID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 		return

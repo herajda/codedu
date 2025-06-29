@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-contrib/sse"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -20,7 +21,8 @@ type User struct {
 }
 
 type Assignment struct {
-	ID            int       `db:"id" json:"id"`
+	ID            int       `db:"id" json:"-"`
+	PublicID      string    `db:"public_id" json:"id"`
 	Title         string    `db:"title" json:"title"`
 	Description   string    `db:"description" json:"description"`
 	CreatedBy     int       `db:"created_by" json:"created_by"`
@@ -42,14 +44,16 @@ type Class struct {
 }
 
 type Submission struct {
-	ID           int       `db:"id" json:"id"`
-	AssignmentID int       `db:"assignment_id" json:"assignment_id"`
-	StudentID    int       `db:"student_id" json:"student_id"`
-	CodePath     string    `db:"code_path" json:"code_path"`
-	CodeContent  string    `db:"code_content" json:"code_content"`
-	Status       string    `db:"status" json:"status"`
-	CreatedAt    time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
+	ID            int       `db:"id" json:"-"`
+	PublicID      string    `db:"public_id" json:"id"`
+	AssignmentID  int       `db:"assignment_id" json:"-"`
+	AssignmentPID string    `db:"assignment_public_id" json:"assignment_id"`
+	StudentID     int       `db:"student_id" json:"student_id"`
+	CodePath      string    `db:"code_path" json:"code_path"`
+	CodeContent   string    `db:"code_content" json:"code_content"`
+	Status        string    `db:"status" json:"status"`
+	CreatedAt     time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
 }
 
 type TestCase struct {
@@ -106,12 +110,13 @@ func ListAllClasses() ([]Class, error) {
 // assignments
 // ──────────────────────────────────────────────────────────────────────────────
 func CreateAssignment(a *Assignment) error {
+	a.PublicID = uuid.NewString()
 	const q = `
-          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, template_path, class_id)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          INSERT INTO assignments (public_id, title, description, created_by, deadline, max_points, grading_policy, published, template_path, class_id)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
           RETURNING id, created_at, updated_at`
 	return DB.QueryRow(q,
-		a.Title, a.Description, a.CreatedBy, a.Deadline,
+		a.PublicID, a.Title, a.Description, a.CreatedBy, a.Deadline,
 		a.MaxPoints, a.GradingPolicy, a.Published, a.TemplatePath, a.ClassID,
 	).Scan(&a.ID, &a.CreatedAt, &a.UpdatedAt)
 }
@@ -120,7 +125,7 @@ func CreateAssignment(a *Assignment) error {
 func ListAssignments(role string, userID int) ([]Assignment, error) {
 	list := []Assignment{}
 	query := `
-    SELECT a.id, a.title, a.description, a.created_by, a.deadline,
+    SELECT a.id, a.public_id, a.title, a.description, a.created_by, a.deadline,
            a.max_points, a.grading_policy, a.published, a.template_path,
            a.created_at, a.updated_at, a.class_id
       FROM assignments a`
@@ -146,9 +151,21 @@ func ListAssignments(role string, userID int) ([]Assignment, error) {
 func GetAssignment(id int) (*Assignment, error) {
 	var a Assignment
 	err := DB.Get(&a, `
-    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, template_path, created_at, updated_at, class_id
+    SELECT id, public_id, title, description, created_by, deadline, max_points, grading_policy, published, template_path, created_at, updated_at, class_id
       FROM assignments
      WHERE id = $1`, id)
+	if err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
+func GetAssignmentByPublic(pid string) (*Assignment, error) {
+	var a Assignment
+	err := DB.Get(&a, `
+    SELECT id, public_id, title, description, created_by, deadline, max_points, grading_policy, published, template_path, created_at, updated_at, class_id
+      FROM assignments
+     WHERE public_id = $1`, pid)
 	if err != nil {
 		return nil, err
 	}
@@ -449,24 +466,31 @@ func DeleteUser(id int) error {
 func ListSubmissionsForStudent(studentID int) ([]Submission, error) {
 	subs := []Submission{}
 	err := DB.Select(&subs, `
-               SELECT id, assignment_id, student_id, code_path, code_content, status, created_at, updated_at
-                 FROM submissions
-                WHERE student_id = $1
-                ORDER BY created_at DESC`, studentID)
+               SELECT s.id, s.public_id, s.assignment_id, a.public_id AS assignment_public_id,
+                      s.student_id, s.code_path, s.code_content, s.status, s.created_at, s.updated_at
+                 FROM submissions s
+                 JOIN assignments a ON a.id = s.assignment_id
+                WHERE s.student_id = $1
+                ORDER BY s.created_at DESC`, studentID)
 	return subs, err
 }
 
 func CreateSubmission(s *Submission) error {
+	s.PublicID = uuid.NewString()
 	const q = `
-          INSERT INTO submissions (assignment_id, student_id, code_path, code_content)
-          SELECT $1,$2,$3,$4
+          INSERT INTO submissions (public_id, assignment_id, student_id, code_path, code_content)
+          SELECT $1,$2,$3,$4,$5
             WHERE EXISTS (
                 SELECT 1 FROM assignments a
                 JOIN class_students cs ON cs.class_id = a.class_id
-               WHERE a.id=$1 AND cs.student_id=$2)
+               WHERE a.id=$2 AND cs.student_id=$3)
           RETURNING id, status, created_at, updated_at`
-	return DB.QueryRow(q, s.AssignmentID, s.StudentID, s.CodePath, s.CodeContent).
+	err := DB.QueryRow(q, s.PublicID, s.AssignmentID, s.StudentID, s.CodePath, s.CodeContent).
 		Scan(&s.ID, &s.Status, &s.CreatedAt, &s.UpdatedAt)
+	if err != nil {
+		return err
+	}
+	return DB.Get(&s.AssignmentPID, `SELECT public_id FROM assignments WHERE id=$1`, s.AssignmentID)
 }
 
 type SubmissionWithReason struct {
@@ -485,13 +509,15 @@ type SubmissionWithStudent struct {
 func ListSubmissionsForAssignmentAndStudent(aid, sid int) ([]SubmissionWithReason, error) {
 	subs := []SubmissionWithReason{}
 	err := DB.Select(&subs, `
-               SELECT id, assignment_id, student_id, code_path, code_content, status, created_at, updated_at,
+               SELECT s.id, s.public_id, s.assignment_id, a.public_id AS assignment_public_id,
+                      s.student_id, s.code_path, s.code_content, s.status, s.created_at, s.updated_at,
                       (SELECT r.status FROM results r
-                         WHERE r.submission_id = submissions.id AND r.status <> 'passed'
+                         WHERE r.submission_id = s.id AND r.status <> 'passed'
                          ORDER BY r.id LIMIT 1) AS failure_reason
-                 FROM submissions
-                WHERE assignment_id=$1 AND student_id=$2
-                ORDER BY created_at DESC`, aid, sid)
+                 FROM submissions s
+                 JOIN assignments a ON a.id = s.assignment_id
+                WHERE s.assignment_id=$1 AND s.student_id=$2
+                ORDER BY s.created_at DESC`, aid, sid)
 	return subs, err
 }
 
@@ -500,13 +526,15 @@ func ListSubmissionsForAssignmentAndStudent(aid, sid int) ([]SubmissionWithReaso
 func ListSubmissionsForAssignment(aid int) ([]SubmissionWithStudent, error) {
 	subs := []SubmissionWithStudent{}
 	err := DB.Select(&subs, `
-               SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.created_at, s.updated_at,
+               SELECT s.id, s.public_id, s.assignment_id, a.public_id AS assignment_public_id,
+                     s.student_id, s.code_path, s.code_content, s.status, s.created_at, s.updated_at,
                      u.email, u.name,
                      (SELECT r.status FROM results r
                         WHERE r.submission_id = s.id AND r.status <> 'passed'
                          ORDER BY r.id LIMIT 1) AS failure_reason
                  FROM submissions s
                  JOIN users u ON u.id = s.student_id
+                 JOIN assignments a ON a.id = s.assignment_id
                 WHERE s.assignment_id = $1
                 ORDER BY s.created_at DESC`, aid)
 	return subs, err
@@ -557,9 +585,25 @@ type Result struct {
 func GetSubmission(id int) (*Submission, error) {
 	var s Submission
 	err := DB.Get(&s, `
-        SELECT id, assignment_id, student_id, code_path, code_content, status, created_at, updated_at
-          FROM submissions
-         WHERE id=$1`, id)
+        SELECT s.id, s.public_id, s.assignment_id, a.public_id AS assignment_public_id,
+               s.student_id, s.code_path, s.code_content, s.status, s.created_at, s.updated_at
+          FROM submissions s
+          JOIN assignments a ON a.id = s.assignment_id
+         WHERE s.id=$1`, id)
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
+func GetSubmissionByPublic(pid string) (*Submission, error) {
+	var s Submission
+	err := DB.Get(&s, `
+        SELECT s.id, s.public_id, s.assignment_id, a.public_id AS assignment_public_id,
+               s.student_id, s.code_path, s.code_content, s.status, s.created_at, s.updated_at
+          FROM submissions s
+          JOIN assignments a ON a.id = s.assignment_id
+         WHERE s.public_id=$1`, pid)
 	if err != nil {
 		return nil, err
 	}

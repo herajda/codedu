@@ -3,15 +3,15 @@
   import { apiJSON } from '$lib/api';
 
   interface Submission {
-    id: number;
-    assignment_id: number;
+    id: string;
+    assignment_id: string;
     status: string;
     created_at: string;
     results?: any[];
   }
 
   let subs: Submission[] = [];
-  let titles: Record<number,string> = {};
+  let titles: Record<string,string> = {};
   let loading = true;
   let err = '';
 
