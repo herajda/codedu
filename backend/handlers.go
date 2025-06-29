@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"io"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -187,9 +188,15 @@ func updateAssignment(c *gin.Context) {
 		return
 	}
 
+	// Debug: log the entire request body
+	bodyBytes, _ := c.GetRawData()
+	fmt.Printf("updateAssignment received body: %s\n", string(bodyBytes))
+	// Re-inject the body for ShouldBindJSON
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
 	var req struct {
 		Title         string `json:"title" binding:"required"`
-		Description   string `json:"description" binding:"required"`
+		Description   string `json:"description"`
 		Deadline      string `json:"deadline" binding:"required"`
 		MaxPoints     int    `json:"max_points" binding:"required"`
 		GradingPolicy string `json:"grading_policy" binding:"required"`
@@ -198,16 +205,10 @@ func updateAssignment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	dl, err := time.Parse(time.RFC3339, req.Deadline)
+	dl, err := time.Parse(time.RFC3339Nano, req.Deadline)
 	if err != nil {
-		dl, err = time.Parse(time.RFC3339Nano, req.Deadline)
-		if err != nil {
-			dl, err = time.Parse("2006-01-02T15:04", req.Deadline)
-			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid deadline"})
-				return
-			}
-		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid deadline"})
+			return
 	}
 
 	a := &Assignment{
