@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { apiJSON } from '$lib/api';
   import { page } from '$app/stores';
+  import '@fortawesome/fontawesome-free/css/all.min.css';
   let classes:any[] = [];
   let err = '';
   onMount(async () => {
@@ -16,7 +17,13 @@
   <ul class="menu">
     {#each classes as c}
       <li>
-        <a class={$page.params.id == c.id.toString() ? 'active' : ''} href={`/classes/${c.id}`}>{c.name}</a>
+        <a
+          class={`flex items-center gap-2 ${$page.params.id == c.id.toString() ? 'bg-primary/20 font-semibold' : ''}`}
+          href={`/classes/${c.id}`}
+        >
+          <i class="fa-solid fa-book"></i>
+          {c.name}
+        </a>
       </li>
     {/each}
     {#if !classes.length && !err}
