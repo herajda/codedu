@@ -119,6 +119,9 @@ func main() {
 
 	// 5) Frontend
 	buildPath := filepath.Join("..", "frontend", "build")
+	if _, err := os.Stat(filepath.Join(buildPath, "index.html")); err != nil {
+		log.Fatalf("frontend not built: %v. Run 'npm run build' inside the frontend directory", err)
+	}
 
 	// serve built assets without conflicting with /api routes
 	r.Static("/_app", filepath.Join(buildPath, "_app"))
