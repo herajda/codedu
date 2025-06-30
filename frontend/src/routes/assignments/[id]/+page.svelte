@@ -31,6 +31,7 @@ const role = get(auth)?.role!;
   let files: File[] = []
   let templateFile:File|null=null
   let submitDialog: HTMLDialogElement;
+  let testsDialog: HTMLDialogElement;
 $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100) : 0;
   let editing=false
   let eTitle='', eDesc='', eDeadline='', ePoints=0, ePolicy='all_or_nothing', eShowTraceback=false
@@ -208,6 +209,21 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
   function openSubmitModal(){
     submitDialog.showModal()
   }
+
+  function openTestsModal(){
+    testsDialog.showModal()
+  }
+
+  async function updateTest(t:any){
+    try{
+      await apiFetch(`/api/tests/${t.id}`,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({stdin:t.stdin, expected_stdout:t.expected_stdout, time_limit_sec: parseFloat(t.time_limit_sec) || undefined})
+      })
+      await load()
+    }catch(e:any){ err=e.message }
+  }
 </script>
 
 {#if !assignment}
@@ -266,6 +282,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         {/if}
         {#if role==='teacher' || role==='admin'}
           <div class="card-actions justify-end">
+            <button class="btn" on:click={openTestsModal}>Manage tests</button>
             <button class="btn" on:click={startEdit}>Edit</button>
             <button class="btn btn-error" on:click={delAssignment}>Delete</button>
           </div>
@@ -274,20 +291,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     </div>
   {/if}
 
-  {#if role !== 'student'}
-    <h2>Tests</h2>
-    <ul>
-      {#each tests ?? [] as t, i}
-        <li>
-          <pre>Test {i + 1}</pre> <pre>{t.stdin}</pre>→<pre>{t.expected_stdout}</pre> <span>({t.time_limit_sec} s)</span>
-          {#if role==='teacher' || role==='admin'}
-            <button on:click={()=>delTest(t.id)}>✕</button>
-          {/if}
-        </li>
-      {/each}
-      {#if !(tests && tests.length)}<i>No tests</i>{/if}
-    </ul>
-  {/if}
+  <!-- tests list moved to modal -->
 
   {#if role==='teacher' || role==='admin'}
     <h3>Student progress</h3>
@@ -370,22 +374,11 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     {/if}
   {/if}
 
-  {#if role==='teacher' || role==='admin'}
+{#if role==='teacher' || role==='admin'}
     {#if !assignment.published}
       <button class="btn btn-secondary mb-4" on:click={publish}>Publish assignment</button>
     {/if}
-    <div class="card bg-base-100 shadow mb-4">
-      <div class="card-body space-y-2">
-        <h3 class="card-title">Add test</h3>
-        <input class="input input-bordered w-full" placeholder="stdin" bind:value={tStdin}>
-        <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={tStdout}>
-        <input class="input input-bordered w-full" placeholder="time limit (s)" bind:value={tLimit}>
-        <div class="card-actions justify-end">
-          <button class="btn btn-primary" on:click={addTest}>Add</button>
-        </div>
-      </div>
-    </div>
-  {/if}
+{/if}
 
   <dialog bind:this={submitDialog} class="modal">
     <div class="modal-box w-11/12 max-w-md space-y-2">
@@ -393,6 +386,56 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
       <input type="file" accept=".py" multiple class="file-input file-input-bordered w-full" on:change={e=>files=Array.from((e.target as HTMLInputElement).files||[])}>
       <div class="modal-action">
         <button class="btn" on:click={submit} disabled={!files.length}>Upload</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>
+
+  <dialog bind:this={testsDialog} class="modal">
+    <div class="modal-box w-11/12 max-w-xl space-y-4">
+      <h3 class="font-bold text-lg mb-2">Manage tests</h3>
+      <p class="text-sm text-gray-500">Specify the program input, expected output and time limit in seconds.</p>
+      <div class="space-y-4 max-h-60 overflow-y-auto">
+        {#each tests as t, i}
+          <div class="border rounded p-2 space-y-2">
+            <div class="font-semibold">Test {i+1}</div>
+            <label class="form-control w-full space-y-1">
+              <span class="label-text">Input</span>
+              <input class="input input-bordered w-full" placeholder="stdin" bind:value={t.stdin}>
+            </label>
+            <label class="form-control w-full space-y-1">
+              <span class="label-text">Expected output</span>
+              <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={t.expected_stdout}>
+            </label>
+            <label class="form-control w-full space-y-1">
+              <span class="label-text">Time limit (s)</span>
+              <input class="input input-bordered w-full" placeholder="seconds" bind:value={t.time_limit_sec}>
+            </label>
+            <div class="flex justify-end gap-2">
+              <button class="btn btn-sm" on:click={()=>updateTest(t)}>Save</button>
+              <button class="btn btn-sm btn-error" on:click={()=>delTest(t.id)}>Delete</button>
+            </div>
+          </div>
+        {/each}
+        {#if !(tests && tests.length)}<p><i>No tests</i></p>{/if}
+      </div>
+      <div class="border-t pt-2 space-y-2">
+        <h4 class="font-semibold">Add test</h4>
+        <label class="form-control w-full space-y-1">
+          <span class="label-text">Input</span>
+          <input class="input input-bordered w-full" placeholder="stdin" bind:value={tStdin}>
+        </label>
+        <label class="form-control w-full space-y-1">
+          <span class="label-text">Expected output</span>
+          <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={tStdout}>
+        </label>
+        <label class="form-control w-full space-y-1">
+          <span class="label-text">Time limit (s)</span>
+          <input class="input input-bordered w-full" placeholder="seconds" bind:value={tLimit}>
+        </label>
+        <div class="modal-action">
+          <button class="btn btn-primary" on:click={addTest} disabled={!tStdin || !tStdout}>Add</button>
+        </div>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>

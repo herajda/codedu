@@ -375,6 +375,30 @@ func createTestCase(c *gin.Context) {
 	c.JSON(http.StatusCreated, tc)
 }
 
+// updateTestCase: PUT /api/tests/:id
+func updateTestCase(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var req struct {
+		Stdin          string  `json:"stdin" binding:"required"`
+		ExpectedStdout string  `json:"expected_stdout" binding:"required"`
+		TimeLimitSec   float64 `json:"time_limit_sec"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	tc := &TestCase{ID: id, Stdin: req.Stdin, ExpectedStdout: req.ExpectedStdout, TimeLimitSec: req.TimeLimitSec}
+	if err := UpdateTestCase(tc); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, tc)
+}
+
 // deleteTestCase: DELETE /api/tests/:id
 func deleteTestCase(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
