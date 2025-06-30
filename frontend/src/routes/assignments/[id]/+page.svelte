@@ -262,7 +262,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           </div>
         {/if}
         {#if done}
-          <p class="text-success font-bold">Assignment done.</p>
+          <span class="badge badge-success">Done</span>
         {/if}
         {#if role==='teacher' || role==='admin'}
           <div class="card-actions justify-end">
@@ -290,9 +290,10 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
   {/if}
 
   {#if role==='teacher' || role==='admin'}
-    <h3>Student progress</h3>
-    <div class="overflow-x-auto">
-      <table class="table table-zebra">
+    <details class="mb-4">
+      <summary class="cursor-pointer font-semibold">Student progress</summary>
+      <div class="overflow-x-auto mt-2">
+        <table class="table table-zebra">
         <thead>
           <tr><th>Student</th><th>Status</th><th>Last submission</th><th></th></tr>
         </thead>
@@ -310,14 +311,17 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           {/if}
         </tbody>
       </table>
-    </div>
+      </div>
+    </details>
   {/if}
 
   {#if role==='student'}
     <div class="card bg-base-100 shadow mb-4">
       <div class="card-body space-y-2">
         <h3 class="card-title">Your submissions</h3>
-        <div class="overflow-x-auto">
+        <details class="mt-2">
+          <summary class="cursor-pointer">View table</summary>
+          <div class="overflow-x-auto mt-2">
           <table class="table table-zebra">
             <thead>
               <tr><th>Date</th><th>Status</th><th></th></tr>
@@ -335,7 +339,8 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
               {/if}
             </tbody>
           </table>
-        </div>
+          </div>
+        </details>
         <button class="btn" on:click={openSubmitModal}>Submit new solution</button>
       </div>
     </div>
@@ -344,7 +349,9 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
       <div class="card-body space-y-2">
         <h3 class="card-title">Latest submission results</h3>
         <p>Status: <span class={`badge ${statusColor(latestSub.status)}`}>{latestSub.status}</span></p>
-        <div class="overflow-x-auto">
+        <details class="mt-2">
+          <summary class="cursor-pointer">View results</summary>
+          <div class="overflow-x-auto mt-2">
           <table class="table table-zebra">
             <thead>
               <tr><th>Test</th><th>Status</th><th>Runtime (ms)</th><th>Exit</th><th>Traceback</th></tr>
@@ -364,7 +371,8 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
               {/if}
             </tbody>
           </table>
-        </div>
+          </div>
+        </details>
       </div>
     </div>
     {/if}
