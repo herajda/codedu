@@ -541,6 +541,26 @@ func CreateTestCase(tc *TestCase) error {
 		Scan(&tc.ID, &tc.TimeLimitSec, &tc.MemoryLimitKB, &tc.CreatedAt, &tc.UpdatedAt)
 }
 
+// UpdateTestCase modifies stdin/stdout/time limit of an existing test case.
+func UpdateTestCase(tc *TestCase) error {
+	if tc.TimeLimitSec == 0 {
+		tc.TimeLimitSec = 1
+	}
+	res, err := DB.Exec(`
+                UPDATE test_cases
+                   SET stdin=$1, expected_stdout=$2, time_limit_sec=$3,
+                       updated_at=now()
+                 WHERE id=$4`,
+		tc.Stdin, tc.ExpectedStdout, tc.TimeLimitSec, tc.ID)
+	if err != nil {
+		return err
+	}
+	if cnt, _ := res.RowsAffected(); cnt == 0 {
+		return fmt.Errorf("no rows updated")
+	}
+	return nil
+}
+
 func ListTestCases(assignmentID int) ([]TestCase, error) {
 	list := []TestCase{}
 	err := DB.Select(&list, `
