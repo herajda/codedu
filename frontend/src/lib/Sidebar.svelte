@@ -13,9 +13,9 @@
   });
 </script>
 <aside
-  class={`fixed top-0 left-0 z-40 w-60 bg-base-200 p-4 h-screen overflow-y-auto transition-transform relative
-      ${$sidebarOpen ? 'block translate-x-0' : 'hidden -translate-x-full'}
-      sm:block sm:translate-x-0`}
+  class={`fixed top-0 left-0 z-40 w-60 bg-base-200 p-4 h-screen overflow-y-auto transition-transform duration-300 relative
+      ${$sidebarOpen ? 'translate-x-0' : '-translate-x-full pointer-events-none'}
+      sm:translate-x-0 sm:pointer-events-auto`}
 >
   <button
     class="btn btn-square btn-ghost absolute right-2 top-2 sm:hidden"
