@@ -34,10 +34,12 @@
         <a
           class={`flex items-center gap-2 ${$page.params.id == c.id.toString() ? 'bg-primary/20 font-semibold' : ''}`}
           href={`/classes/${c.id}`}
+          on:click={() => sidebarOpen.set(false)}
         >
           <i class="fa-solid fa-book"></i>
           {c.name}
         </a>
+
       </li>
     {/each}
     {#if !classes.length && !err}
