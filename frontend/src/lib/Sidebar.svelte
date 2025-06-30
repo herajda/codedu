@@ -3,6 +3,7 @@
   import { apiJSON } from '$lib/api';
   import { page } from '$app/stores';
   import '@fortawesome/fontawesome-free/css/all.min.css';
+  import { sidebarOpen } from '$lib/sidebar';
   let classes:any[] = [];
   let err = '';
   onMount(async () => {
@@ -12,18 +13,29 @@
     } catch(e:any){ err = e.message }
   });
 </script>
-<aside class="w-60 bg-base-200 p-4 h-screen fixed top-0 left-0 overflow-y-auto">
+<aside
+  class={`fixed top-0 left-0 z-40 w-60 bg-base-200 p-4 h-screen overflow-y-auto transition-transform relative
+      ${$sidebarOpen ? 'block translate-x-0' : 'hidden -translate-x-full'}
+      sm:block sm:translate-x-0`}
+>
+  <button
+    class="btn btn-square btn-ghost absolute right-2 top-2 sm:hidden"
+    on:click={() => sidebarOpen.set(false)}
+    aria-label="Close sidebar"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="w-5 h-5">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  </button>
   <h2 class="font-bold mb-2">Classes</h2>
   <ul class="menu">
     {#each classes as c}
       <li>
         <a
-          class={`flex items-center gap-2 ${$page.params.id == c.id.toString() ? 'bg-primary/20 font-semibold' : ''}`}
+          class={$page.params.id == c.id.toString() ? 'active' : ''}
           href={`/classes/${c.id}`}
-        >
-          <i class="fa-solid fa-book"></i>
-          {c.name}
-        </a>
+          on:click={() => sidebarOpen.set(false)}
+        >{c.name}</a>
       </li>
     {/each}
     {#if !classes.length && !err}
