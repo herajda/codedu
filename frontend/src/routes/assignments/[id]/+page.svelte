@@ -394,13 +394,23 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
   <dialog bind:this={testsDialog} class="modal">
     <div class="modal-box w-11/12 max-w-xl space-y-4">
       <h3 class="font-bold text-lg mb-2">Manage tests</h3>
+      <p class="text-sm text-gray-500">Specify the program input, expected output and time limit in seconds.</p>
       <div class="space-y-4 max-h-60 overflow-y-auto">
         {#each tests as t, i}
           <div class="border rounded p-2 space-y-2">
             <div class="font-semibold">Test {i+1}</div>
-            <input class="input input-bordered w-full" placeholder="stdin" bind:value={t.stdin}>
-            <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={t.expected_stdout}>
-            <input class="input input-bordered w-full" placeholder="time limit (s)" bind:value={t.time_limit_sec}>
+            <label class="form-control w-full space-y-1">
+              <span class="label-text">Input</span>
+              <input class="input input-bordered w-full" placeholder="stdin" bind:value={t.stdin}>
+            </label>
+            <label class="form-control w-full space-y-1">
+              <span class="label-text">Expected output</span>
+              <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={t.expected_stdout}>
+            </label>
+            <label class="form-control w-full space-y-1">
+              <span class="label-text">Time limit (s)</span>
+              <input class="input input-bordered w-full" placeholder="seconds" bind:value={t.time_limit_sec}>
+            </label>
             <div class="flex justify-end gap-2">
               <button class="btn btn-sm" on:click={()=>updateTest(t)}>Save</button>
               <button class="btn btn-sm btn-error" on:click={()=>delTest(t.id)}>Delete</button>
@@ -411,9 +421,18 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
       </div>
       <div class="border-t pt-2 space-y-2">
         <h4 class="font-semibold">Add test</h4>
-        <input class="input input-bordered w-full" placeholder="stdin" bind:value={tStdin}>
-        <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={tStdout}>
-        <input class="input input-bordered w-full" placeholder="time limit (s)" bind:value={tLimit}>
+        <label class="form-control w-full space-y-1">
+          <span class="label-text">Input</span>
+          <input class="input input-bordered w-full" placeholder="stdin" bind:value={tStdin}>
+        </label>
+        <label class="form-control w-full space-y-1">
+          <span class="label-text">Expected output</span>
+          <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={tStdout}>
+        </label>
+        <label class="form-control w-full space-y-1">
+          <span class="label-text">Time limit (s)</span>
+          <input class="input input-bordered w-full" placeholder="seconds" bind:value={tLimit}>
+        </label>
         <div class="modal-action">
           <button class="btn btn-primary" on:click={addTest} disabled={!tStdin || !tStdout}>Add</button>
         </div>
