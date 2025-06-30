@@ -13,7 +13,7 @@
   });
 </script>
 <aside
-  class={`fixed top-0 left-0 z-40 w-60 bg-base-200 p-4 h-screen overflow-y-auto transition-transform relative
+  class={`fixed top-0 left-0 z-40 w-60 bg-base-200 p-4 h-screen overflow-y-auto transition-transform
       ${$sidebarOpen ? 'block translate-x-0' : 'hidden -translate-x-full'}
       sm:block sm:translate-x-0`}
 >
