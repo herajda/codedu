@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
   import '../app.css';
   import Sidebar from '$lib/Sidebar.svelte';
+  import { sidebarOpen } from '$lib/sidebar';
 
   function logout() {
     auth.logout();
@@ -21,9 +22,30 @@
     <Sidebar />
   {/if}
 
-  <div class={`min-h-screen flex flex-col ${user ? 'ml-60' : ''}`}>
+  <div class={`min-h-screen flex flex-col ${user ? 'sm:ml-60' : ''}`}>
     <div class="navbar bg-base-200 shadow">
       <div class="flex-1">
+        {#if user}
+          <button
+            class="btn btn-square btn-ghost mr-2 sm:hidden"
+            on:click={() => sidebarOpen.update((v) => !v)}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              class="w-6 h-6"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 6h16M4 12h16M4 18h16"
+              />
+            </svg>
+          </button>
+        {/if}
         <a href="/dashboard" class="btn btn-ghost text-xl">CodeGrader</a>
         {#if user?.role === 'admin'}
           <!-- admin uses dashboard -->

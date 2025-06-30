@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { apiJSON } from '$lib/api';
   import { page } from '$app/stores';
+  import { sidebarOpen } from '$lib/sidebar';
   let classes:any[] = [];
   let err = '';
   onMount(async () => {
@@ -11,7 +12,11 @@
     } catch(e:any){ err = e.message }
   });
 </script>
-<aside class="w-60 bg-base-200 p-4 h-screen fixed top-0 left-0 overflow-y-auto">
+<aside
+  class={`fixed top-0 left-0 z-40 w-60 bg-base-200 p-4 h-screen overflow-y-auto transition-transform
+    ${$sidebarOpen ? 'block translate-x-0' : 'hidden -translate-x-full'}
+    sm:block sm:translate-x-0`}
+>
   <h2 class="font-bold mb-2">Classes</h2>
   <ul class="menu">
     {#each classes as c}
