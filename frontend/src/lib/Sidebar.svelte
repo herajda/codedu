@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { apiJSON } from '$lib/api';
   import { page } from '$app/stores';
+  import '@fortawesome/fontawesome-free/css/all.min.css';
   import { sidebarOpen } from '$lib/sidebar';
   let classes:any[] = [];
   let err = '';
