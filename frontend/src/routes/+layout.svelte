@@ -22,10 +22,7 @@
     <Sidebar />
   {/if}
 
-  <div
-    class="min-h-screen flex flex-col sm:ml-60"
-    style:margin-left={!user ? '0' : undefined}
-  >
+  <div class="min-h-screen flex flex-col" class:sm\\:ml-60={user}>
     <div class="navbar bg-base-200 shadow">
       <div class="flex-1">
         {#if user}
