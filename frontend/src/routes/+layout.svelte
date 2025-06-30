@@ -71,7 +71,7 @@
       </div>
     </div>
 
-    <main class="flex-1 p-4">
+    <main class="container mx-auto flex-1 p-4">
       <slot />
     </main>
 

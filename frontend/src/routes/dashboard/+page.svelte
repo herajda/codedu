@@ -36,9 +36,11 @@
         c.students = detail.students ?? [];
         c.pointsTotal = c.assignments.reduce((s:any,a:any)=>s+a.max_points,0);
         if (role === 'student') {
-          c.completed = c.assignments.filter((a:any)=>
-            submissions.find((s:any)=>s.assignment_id===a.id && s.status==='completed')
-          ).length;
+          c.assignmentProgress = c.assignments.map((a:any)=>{
+            const done = submissions.find((s:any)=>s.assignment_id===a.id && s.status==='completed');
+            return { id:a.id, title:a.title, done: !!done };
+          });
+          c.completed = c.assignmentProgress.filter((p:any)=>p.done).length;
           c.pointsEarned = c.assignments.filter((a:any)=>
             submissions.find((s:any)=>s.assignment_id===a.id && s.status==='completed')
           ).reduce((s:any,a:any)=>s+a.max_points,0);
@@ -102,6 +104,17 @@
                 <div class="stat-value">{c.pointsEarned}/{c.pointsTotal}</div>
               </div>
             </div>
+            <ul class="mt-4 space-y-2">
+              {#each c.assignmentProgress as a}
+                <li class="flex items-center gap-2">
+                  <span class="flex-1">{a.title}</span>
+                  <progress class="progress progress-primary flex-1" value={a.done ? 100 : 0} max="100"></progress>
+                </li>
+              {/each}
+              {#if !c.assignmentProgress.length}
+                <li><i>No assignments</i></li>
+              {/if}
+            </ul>
           </div>
         </a>
       {/each}
