@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import '../app.css';
+  import Sidebar from '$lib/Sidebar.svelte';
 
   function logout() {
     auth.logout();
@@ -16,7 +17,11 @@
   });
 </script>
 
-  <div class="min-h-screen flex flex-col">
+  {#if user}
+    <Sidebar />
+  {/if}
+
+  <div class={`min-h-screen flex flex-col ${user ? 'ml-60' : ''}`}>
     <div class="navbar bg-base-200 shadow">
       <div class="flex-1">
         <a href="/dashboard" class="btn btn-ghost text-xl">CodeGrader</a>
@@ -44,7 +49,7 @@
       </div>
     </div>
 
-    <main class="container mx-auto flex-1 p-4">
+    <main class="flex-1 p-4">
       <slot />
     </main>
 
