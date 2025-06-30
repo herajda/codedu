@@ -30,7 +30,11 @@
   <ul class="menu">
     {#each classes as c}
       <li>
-        <a class={$page.params.id == c.id.toString() ? 'active' : ''} href={`/classes/${c.id}`}>{c.name}</a>
+        <a
+          class={$page.params.id == c.id.toString() ? 'active' : ''}
+          href={`/classes/${c.id}`}
+          on:click={() => sidebarOpen.set(false)}
+        >{c.name}</a>
       </li>
     {/each}
     {#if !classes.length && !err}
