@@ -85,7 +85,6 @@
 {#if loading}
   <div class="flex justify-center mt-8"><span class="loading loading-dots loading-lg"></span></div>
 {:else}
-  <h1 class="text-2xl font-bold mb-6">Dashboard</h1>
 
   {#if role === 'student'}
     <div class="grid gap-6 md:grid-cols-2">
