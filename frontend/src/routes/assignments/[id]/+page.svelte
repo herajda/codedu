@@ -309,12 +309,26 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
               <td>{p.latest ? new Date(p.latest.created_at).toLocaleString() : '-'}</td>
               <td>
                 {#if p.all && p.all.length}
-                  <ul class="timeline timeline-compact">
-                    {#each p.all as s}
+                  <ul class="timeline timeline-vertical">
+                    {#each p.all as s, i}
                       <li>
-                        <div class="timeline-start">{new Date(s.created_at).toLocaleString()}</div>
-                        <div class="timeline-middle"><span class={`badge ${statusColor(s.status)}`}>{s.status}</span></div>
-                        <div class="timeline-end"><a class="link" href={`/submissions/${s.id}`}>view</a></div>
+                        {#if i !== 0}<hr />{/if}
+                        <div class="timeline-middle">
+                          {#if s.status === 'completed' || s.status === 'passed'}
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-success">
+                              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
+                            </svg>
+                          {:else}
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-error">
+                              <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM8.28 7.22a.75.75 0 0 0-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 1 0 1.06 1.06L10 11.06l1.72 1.72a.75.75 0 1 0 1.06-1.06L11.06 10l1.72-1.72a.75.75 0 0 0-1.06-1.06L10 8.94 8.28 7.22Z" clip-rule="evenodd" />
+                            </svg>
+                          {/if}
+                        </div>
+                        <div class="timeline-end timeline-box flex items-center gap-2">
+                          <span class={`badge ${statusColor(s.status)}`}>{s.status}</span>
+                          <a class="link" href={`/submissions/${s.id}`}>{new Date(s.created_at).toLocaleString()}</a>
+                        </div>
+                        {#if i !== p.all.length - 1}<hr />{/if}
                       </li>
                     {/each}
                   </ul>
