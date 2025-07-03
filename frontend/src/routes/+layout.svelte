@@ -23,7 +23,7 @@
   {/if}
 
   <div class={`min-h-screen flex flex-col ${user ? 'sm:ml-60' : ''}`}>
-    <div class="navbar bg-base-200 shadow">
+    <div class="navbar bg-base-200 shadow sticky top-0 z-50">
       <div class="flex-1">
         {#if user}
           <button
