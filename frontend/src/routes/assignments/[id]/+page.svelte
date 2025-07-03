@@ -293,11 +293,12 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
 
   <!-- tests list moved to modal -->
 
-  {#if role==='teacher' || role==='admin'}
-    <details class="mb-4">
-      <summary class="cursor-pointer font-semibold">Student progress</summary>
-      <div class="overflow-x-auto mt-2">
-        <table class="table table-zebra">
+{#if role==='teacher' || role==='admin'}
+  <div class="collapse collapse-arrow mb-4 bg-base-100 border border-base-200 rounded-box">
+    <input type="checkbox" />
+    <div class="collapse-title font-semibold">Student progress</div>
+    <div class="collapse-content overflow-x-auto mt-2">
+      <table class="table table-zebra">
         <thead>
           <tr><th>Student</th><th>Status</th><th>Last submission</th><th>Attempts</th></tr>
         </thead>
@@ -309,14 +310,19 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
               <td>{p.latest ? new Date(p.latest.created_at).toLocaleString() : '-'}</td>
               <td>
                 {#if p.all && p.all.length}
-                  <details>
-                    <summary class="cursor-pointer">{p.all.length} attempt{p.all.length === 1 ? '' : 's'}</summary>
-                    <ul class="ml-4 list-disc">
-                      {#each p.all as s}
-                        <li>{new Date(s.created_at).toLocaleString()} - <span class={`badge ${statusColor(s.status)}`}>{s.status}</span> <a href={`/submissions/${s.id}`}>view</a></li>
-                      {/each}
-                    </ul>
-                  </details>
+                  <div class="collapse collapse-arrow join-item border border-base-200 bg-base-100 rounded-box">
+                    <input type="checkbox" />
+                    <div class="collapse-title p-0">
+                      {p.all.length} attempt{p.all.length === 1 ? '' : 's'}
+                    </div>
+                    <div class="collapse-content">
+                      <ul class="ml-4 list-disc">
+                        {#each p.all as s}
+                          <li>{new Date(s.created_at).toLocaleString()} - <span class={`badge ${statusColor(s.status)}`}>{s.status}</span> <a class="link" href={`/submissions/${s.id}`}>view</a></li>
+                        {/each}
+                      </ul>
+                    </div>
+                  </div>
                 {/if}
               </td>
             </tr>
@@ -326,9 +332,9 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           {/if}
         </tbody>
       </table>
-      </div>
-    </details>
-  {/if}
+    </div>
+  </div>
+{/if}
 
   {#if role==='student'}
     <div class="card bg-base-100 shadow mb-4">
