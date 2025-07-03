@@ -69,7 +69,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         progress = students.map((s:any)=>{
           const subs = allSubs.filter((x:any)=>x.student_id===s.id)
           const latest = subs[0]
-          return {student:s, latest}
+          return {student:s, latest, all: subs}
         })
       }
     }catch(e:any){ err=e.message }
@@ -299,7 +299,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
       <div class="overflow-x-auto mt-2">
         <table class="table table-zebra">
         <thead>
-          <tr><th>Student</th><th>Status</th><th>Last submission</th><th></th></tr>
+          <tr><th>Student</th><th>Status</th><th>Last submission</th><th>Attempts</th></tr>
         </thead>
         <tbody>
           {#each progress as p}
@@ -307,7 +307,18 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
               <td>{p.student.name ?? p.student.email}</td>
               <td><span class={`badge ${statusColor(p.latest ? p.latest.status : 'none')}`}>{p.latest ? p.latest.status : 'none'}</span></td>
               <td>{p.latest ? new Date(p.latest.created_at).toLocaleString() : '-'}</td>
-              <td>{#if p.latest}<a href={`/submissions/${p.latest.id}`}>view</a>{/if}</td>
+              <td>
+                {#if p.all && p.all.length}
+                  <details>
+                    <summary class="cursor-pointer">{p.all.length} attempt{p.all.length === 1 ? '' : 's'}</summary>
+                    <ul class="ml-4 list-disc">
+                      {#each p.all as s}
+                        <li>{new Date(s.created_at).toLocaleString()} - <span class={`badge ${statusColor(s.status)}`}>{s.status}</span> <a href={`/submissions/${s.id}`}>view</a></li>
+                      {/each}
+                    </ul>
+                  </details>
+                {/if}
+              </td>
             </tr>
           {/each}
           {#if !progress.length}
