@@ -309,7 +309,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
               <td>{p.latest ? new Date(p.latest.created_at).toLocaleString() : '-'}</td>
               <td>
                 {#if p.all && p.all.length}
-                  <ul class="timeline timeline-vertical m-0 p-0">
+                  <ul class="timeline timeline-vertical timeline-compact m-0 p-0">
                     {#each p.all as s, i}
                       <li>
                         {#if i !== 0}<hr />{/if}
