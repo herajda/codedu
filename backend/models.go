@@ -49,6 +49,8 @@ type Submission struct {
 	CodePath     string    `db:"code_path" json:"code_path"`
 	CodeContent  string    `db:"code_content" json:"code_content"`
 	Status       string    `db:"status" json:"status"`
+	Points       *float64  `db:"points" json:"points"`
+	OverridePts  *float64  `db:"override_points" json:"override_points"`
 	CreatedAt    time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
 }
@@ -466,7 +468,7 @@ func DeleteUser(id int) error {
 func ListSubmissionsForStudent(studentID int) ([]Submission, error) {
 	subs := []Submission{}
 	err := DB.Select(&subs, `
-               SELECT id, assignment_id, student_id, code_path, code_content, status, created_at, updated_at
+               SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, created_at, updated_at
                  FROM submissions
                 WHERE student_id = $1
                 ORDER BY created_at DESC`, studentID)
@@ -502,7 +504,7 @@ type SubmissionWithStudent struct {
 func ListSubmissionsForAssignmentAndStudent(aid, sid int) ([]SubmissionWithReason, error) {
 	subs := []SubmissionWithReason{}
 	err := DB.Select(&subs, `
-               SELECT id, assignment_id, student_id, code_path, code_content, status, created_at, updated_at,
+               SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, created_at, updated_at,
                       (SELECT r.status FROM results r
                          WHERE r.submission_id = submissions.id AND r.status <> 'passed'
                          ORDER BY r.id LIMIT 1) AS failure_reason
@@ -517,7 +519,7 @@ func ListSubmissionsForAssignmentAndStudent(aid, sid int) ([]SubmissionWithReaso
 func ListSubmissionsForAssignment(aid int) ([]SubmissionWithStudent, error) {
 	subs := []SubmissionWithStudent{}
 	err := DB.Select(&subs, `
-               SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.created_at, s.updated_at,
+               SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.points, s.override_points, s.created_at, s.updated_at,
                      u.email, u.name,
                      (SELECT r.status FROM results r
                         WHERE r.submission_id = s.id AND r.status <> 'passed'
@@ -596,7 +598,7 @@ type Result struct {
 func GetSubmission(id int) (*Submission, error) {
 	var s Submission
 	err := DB.Get(&s, `
-        SELECT id, assignment_id, student_id, code_path, code_content, status, created_at, updated_at
+        SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, created_at, updated_at
           FROM submissions
          WHERE id=$1`, id)
 	if err != nil {
@@ -634,4 +636,14 @@ func ListResultsForSubmission(subID int) ([]Result, error) {
          WHERE submission_id=$1
          ORDER BY id`, subID)
 	return list, err
+}
+
+func SetSubmissionPoints(id int, pts float64) error {
+	_, err := DB.Exec(`UPDATE submissions SET points=$1 WHERE id=$2`, pts, id)
+	return err
+}
+
+func SetSubmissionOverridePoints(id int, pts *float64) error {
+	_, err := DB.Exec(`UPDATE submissions SET override_points=$1 WHERE id=$2`, pts, id)
+	return err
 }

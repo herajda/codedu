@@ -69,6 +69,9 @@ CREATE TABLE IF NOT EXISTS submissions (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS points NUMERIC;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS override_points NUMERIC;
+
 DO $$ BEGIN
     CREATE TYPE result_status AS ENUM ('passed','time_limit_exceeded','memory_limit_exceeded','wrong_output','runtime_error');
 EXCEPTION
