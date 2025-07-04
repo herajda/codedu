@@ -190,7 +190,7 @@ func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, s
 	ctx, cancel := context.WithTimeout(context.Background(), timeout+dockerExtraTime)
 	defer cancel()
 
-	mount := fmt.Sprintf("%s:/code:ro", abs)
+	mount := fmt.Sprintf("%s:/code:ro,z", abs)
 
 	// Measure runtime inside the container. A shell script records timestamps
 	// before and after executing the Python program and prints the elapsed
