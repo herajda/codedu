@@ -94,7 +94,7 @@ func runSubmission(id int) {
 		if err != nil {
 			continue
 		}
-		out, err := os.Create(fpath)
+		out, err := os.OpenFile(fpath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
 			rc.Close()
 			continue
@@ -105,7 +105,18 @@ func runSubmission(id int) {
 		rc.Close()
 	}
 
-	os.Chmod(tmpDir, 0755) // ensure the temp dir is executable
+	// enforce permissions after extraction
+	filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			os.Chmod(path, 0755)
+		} else {
+			os.Chmod(path, 0644)
+		}
+		return nil
+	})
 	var mainFile string
 	var firstPy string
 	filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
