@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { apiJSON } from '$lib/api';
 
   interface Submission {
@@ -14,6 +14,7 @@
   let titles: Record<number,string> = {};
   let loading = true;
   let err = '';
+  let es: EventSource | null = null;
 
   function resultColor(s: string){
     if(s === 'passed') return 'badge-success';
@@ -47,7 +48,26 @@
     loading = false;
   }
 
-  onMount(load);
+  onMount(() => {
+    load();
+    es = new EventSource('/api/events');
+    es.addEventListener('status', (ev) => {
+      const d = JSON.parse((ev as MessageEvent).data);
+      const s = subs.find((x) => x.id === d.submission_id);
+      if (s) {
+        s.status = d.status;
+        if (d.status !== 'running') load();
+      }
+    });
+    es.addEventListener('result', (ev) => {
+      const d = JSON.parse((ev as MessageEvent).data);
+      const s = subs.find((x) => x.id === d.submission_id);
+      if (s) {
+        s.results = [...(s.results ?? []), d];
+      }
+    });
+  });
+  onDestroy(() => { es?.close(); });
 </script>
 
 {#if loading}
