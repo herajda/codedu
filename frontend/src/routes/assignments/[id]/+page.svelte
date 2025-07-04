@@ -58,9 +58,12 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           const subData = await apiJSON(`/api/submissions/${latestSub.id}`)
           results = subData.results ?? []
         }
-        const completed = submissions.find((s:any)=>s.status==='completed')
-        done = !!completed
-        pointsEarned = completed ? assignment.max_points : 0
+        const best = submissions.reduce((m:number,s:any)=>{
+          const p = s.override_points ?? s.points ?? 0
+          return p>m ? p : m
+        },0)
+        pointsEarned = best
+        done = best >= assignment.max_points
       } else {
         tests = data.tests ?? []
         allSubs = data.submissions ?? []
