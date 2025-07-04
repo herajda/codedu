@@ -155,6 +155,7 @@ func runSubmission(id int) {
 	}
 
 	allPass := true
+	passed := 0
 	for _, tc := range tests {
 		timeout := time.Duration(tc.TimeLimitSec * float64(time.Second))
 		stdout, stderr, exitCode, timedOut, runtime := executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
@@ -173,7 +174,29 @@ func runSubmission(id int) {
 		CreateResult(res)
 		if status != "passed" {
 			allPass = false
+		} else {
+			passed++
 		}
+	}
+
+	a, err := GetAssignment(sub.AssignmentID)
+	if err == nil {
+		total := len(tests)
+		score := 0.0
+		switch a.GradingPolicy {
+		case "all_or_nothing":
+			if allPass {
+				score = float64(a.MaxPoints)
+			}
+		default: // percentage
+			if total > 0 {
+				score = float64(a.MaxPoints) * float64(passed) / float64(total)
+			}
+		}
+		if sub.CreatedAt.After(a.Deadline) {
+			score = 0
+		}
+		SetSubmissionPoints(id, score)
 	}
 
 	if allPass {

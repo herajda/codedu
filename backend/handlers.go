@@ -820,3 +820,35 @@ func removeStudent(c *gin.Context) {
 	}
 	c.Status(http.StatusNoContent)
 }
+
+// overrideSubmissionPoints allows a teacher or admin to set custom points for a submission.
+func overrideSubmissionPoints(c *gin.Context) {
+	sid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var req struct {
+		Points *float64 `json:"points"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	a, err := GetAssignmentForSubmission(sid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if c.GetString("role") == "teacher" {
+		if ok, err := IsTeacherOfAssignment(a.ID, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	if err := SetSubmissionOverridePoints(sid, req.Points); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
