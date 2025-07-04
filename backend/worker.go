@@ -94,17 +94,29 @@ func runSubmission(id int) {
 		if err != nil {
 			continue
 		}
-		out, err := os.Create(fpath)
+		out, err := os.OpenFile(fpath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
 			rc.Close()
 			continue
 		}
 		io.Copy(out, rc)
 		out.Close()
+		os.Chmod(fpath, 0644)
 		rc.Close()
 	}
 
-	os.Chmod(tmpDir, 0755) // ensure the temp dir is executable
+	// enforce permissions after extraction
+	filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			os.Chmod(path, 0755)
+		} else {
+			os.Chmod(path, 0644)
+		}
+		return nil
+	})
 	var mainFile string
 	var firstPy string
 	filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
@@ -178,7 +190,7 @@ func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, s
 	ctx, cancel := context.WithTimeout(context.Background(), timeout+dockerExtraTime)
 	defer cancel()
 
-	mount := fmt.Sprintf("%s:/code:ro", abs)
+	mount := fmt.Sprintf("%s:/code:ro,z", abs)
 
 	// Measure runtime inside the container. A shell script records timestamps
 	// before and after executing the Python program and prints the elapsed
