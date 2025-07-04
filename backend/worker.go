@@ -101,6 +101,7 @@ func runSubmission(id int) {
 		}
 		io.Copy(out, rc)
 		out.Close()
+		os.Chmod(fpath, 0644)
 		rc.Close()
 	}
 
