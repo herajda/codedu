@@ -309,7 +309,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
               <td>{p.latest ? new Date(p.latest.created_at).toLocaleString() : '-'}</td>
               <td>
                 {#if p.all && p.all.length}
-                  <ul class="timeline timeline-vertical">
+                  <ul class="timeline timeline-vertical m-0 p-0">
                     {#each p.all as s, i}
                       <li>
                         {#if i !== 0}<hr />{/if}
@@ -324,8 +324,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                             </svg>
                           {/if}
                         </div>
-                        <div class="timeline-end timeline-box flex items-center gap-2">
-                          <span class={`badge ${statusColor(s.status)}`}>{s.status}</span>
+                        <div class="timeline-end timeline-box flex items-center m-0">
                           <a class="link" href={`/submissions/${s.id}`}>{new Date(s.created_at).toLocaleString()}</a>
                         </div>
                         {#if i !== p.all.length - 1}<hr />{/if}
