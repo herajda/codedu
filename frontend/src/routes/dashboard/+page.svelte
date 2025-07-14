@@ -37,13 +37,24 @@
         c.pointsTotal = c.assignments.reduce((s:any,a:any)=>s+a.max_points,0);
         if (role === 'student') {
           c.assignmentProgress = c.assignments.map((a:any)=>{
-            const done = submissions.find((s:any)=>s.assignment_id===a.id && s.status==='completed');
-            return { id:a.id, title:a.title, done: !!done };
+            const best = submissions
+              .filter((s:any)=>s.assignment_id===a.id)
+              .reduce((m:number,s:any)=>{
+                const p = s.override_points ?? s.points ?? 0;
+                return p>m ? p : m;
+              },0);
+            return { id:a.id, title:a.title, done: best >= a.max_points };
           });
           c.completed = c.assignmentProgress.filter((p:any)=>p.done).length;
-          c.pointsEarned = c.assignments.filter((a:any)=>
-            submissions.find((s:any)=>s.assignment_id===a.id && s.status==='completed')
-          ).reduce((s:any,a:any)=>s+a.max_points,0);
+          c.pointsEarned = c.assignments.reduce((tot:any,a:any)=>{
+            const best = submissions
+              .filter((s:any)=>s.assignment_id===a.id)
+              .reduce((m:number,s:any)=>{
+                const p = s.override_points ?? s.points ?? 0;
+                return p>m ? p : m;
+              },0);
+            return tot + best;
+          },0);
         } else if (role === 'teacher') {
           c.progress = [];
           for (const a of c.assignments) {
@@ -85,7 +96,6 @@
 {#if loading}
   <div class="flex justify-center mt-8"><span class="loading loading-dots loading-lg"></span></div>
 {:else}
-  <h1 class="text-2xl font-bold mb-6">Dashboard</h1>
 
   {#if role === 'student'}
     <div class="grid gap-6 md:grid-cols-2">

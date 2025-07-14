@@ -4,6 +4,7 @@
   import { page } from '$app/stores';
   import '@fortawesome/fontawesome-free/css/all.min.css';
   import { sidebarOpen } from '$lib/sidebar';
+  import { auth } from '$lib/auth';
   let classes:any[] = [];
   let err = '';
   onMount(async () => {
@@ -31,11 +32,20 @@
   <ul class="menu">
     {#each classes as c}
       <li>
-        <a
-          class={$page.params.id == c.id.toString() ? 'active' : ''}
-          href={`/classes/${c.id}`}
-          on:click={() => sidebarOpen.set(false)}
-        >{c.name}</a>
+        <details open={$page.url.pathname.startsWith(`/classes/${c.id}`)}>
+          <summary class="flex items-center gap-2">
+            <i class="fa-solid fa-book"></i>
+            {c.name}
+          </summary>
+          <ul>
+            <li><a class={$page.url.pathname===`/classes/${c.id}` ? 'active' : ''} href={`/classes/${c.id}`} on:click={() => sidebarOpen.set(false)}>Assignments</a></li>
+            {#if $auth?.role === 'student'}
+              <li><a class={$page.url.pathname===`/classes/${c.id}/overview` ? 'active' : ''} href={`/classes/${c.id}/overview`} on:click={() => sidebarOpen.set(false)}>Overview</a></li>
+            {:else}
+              <li><a class={$page.url.pathname===`/classes/${c.id}/progress` ? 'active' : ''} href={`/classes/${c.id}/progress`} on:click={() => sidebarOpen.set(false)}>Progress</a></li>
+            {/if}
+          </ul>
+        </details>
       </li>
     {/each}
     {#if !classes.length && !err}

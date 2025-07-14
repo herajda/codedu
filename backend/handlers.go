@@ -38,6 +38,27 @@ func getClass(c *gin.Context) {
 	c.JSON(http.StatusOK, detail)
 }
 
+func getClassProgress(c *gin.Context) {
+        id, err := strconv.Atoi(c.Param("id"))
+        if err != nil {
+                c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+                return
+        }
+        if c.GetString("role") == "teacher" {
+                var x int
+                if err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, id, c.GetInt("userID")); err != nil {
+                        c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+                        return
+                }
+        }
+        prog, err := GetClassProgress(id)
+        if err != nil {
+                c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+                return
+        }
+        c.JSON(http.StatusOK, prog)
+}
+
 // ──────────────────────────────────────────
 // basic user helpers (used from auth.go)
 // ──────────────────────────────────────────
@@ -183,6 +204,13 @@ func getAssignment(c *gin.Context) {
 		}
 	}
 	tests, _ := ListTestCases(id)
+	if a.GradingPolicy == "weighted" {
+		sum := 0.0
+		for _, t := range tests {
+			sum += t.Weight
+		}
+		a.MaxPoints = int(sum)
+	}
 	resp := gin.H{"assignment": a, "tests": tests}
 	if role == "teacher" || role == "admin" {
 		subs, _ := ListSubmissionsForAssignment(id)
@@ -356,16 +384,21 @@ func createTestCase(c *gin.Context) {
 	var req struct {
 		Stdin          string  `json:"stdin" binding:"required"`
 		ExpectedStdout string  `json:"expected_stdout" binding:"required"`
+		Weight         float64 `json:"weight"`
 		TimeLimitSec   float64 `json:"time_limit_sec"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	if req.Weight == 0 {
+		req.Weight = 1
+	}
 	tc := &TestCase{
 		AssignmentID:   aid,
 		Stdin:          req.Stdin,
 		ExpectedStdout: req.ExpectedStdout,
+		Weight:         req.Weight,
 		TimeLimitSec:   req.TimeLimitSec,
 	}
 	if err := CreateTestCase(tc); err != nil {
@@ -385,13 +418,17 @@ func updateTestCase(c *gin.Context) {
 	var req struct {
 		Stdin          string  `json:"stdin" binding:"required"`
 		ExpectedStdout string  `json:"expected_stdout" binding:"required"`
+		Weight         float64 `json:"weight"`
 		TimeLimitSec   float64 `json:"time_limit_sec"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	tc := &TestCase{ID: id, Stdin: req.Stdin, ExpectedStdout: req.ExpectedStdout, TimeLimitSec: req.TimeLimitSec}
+	if req.Weight == 0 {
+		req.Weight = 1
+	}
+	tc := &TestCase{ID: id, Stdin: req.Stdin, ExpectedStdout: req.ExpectedStdout, Weight: req.Weight, TimeLimitSec: req.TimeLimitSec}
 	if err := UpdateTestCase(tc); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
@@ -815,6 +852,38 @@ func removeStudent(c *gin.Context) {
 		teacherID = c.GetInt("userID")
 	}
 	if err := RemoveStudentFromClass(classID, teacherID, studentID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// overrideSubmissionPoints allows a teacher or admin to set custom points for a submission.
+func overrideSubmissionPoints(c *gin.Context) {
+	sid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var req struct {
+		Points *float64 `json:"points"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	a, err := GetAssignmentForSubmission(sid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if c.GetString("role") == "teacher" {
+		if ok, err := IsTeacherOfAssignment(a.ID, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	if err := SetSubmissionOverridePoints(sid, req.Points); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}

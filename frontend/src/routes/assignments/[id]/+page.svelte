@@ -27,7 +27,7 @@ const role = get(auth)?.role!;
   let done=false
   let percent=0
   let err=''
-  let tStdin='', tStdout='', tLimit=''
+  let tStdin='', tStdout='', tLimit='', tWeight='1'
   let files: File[] = []
   let templateFile:File|null=null
   let submitDialog: HTMLDialogElement;
@@ -58,9 +58,12 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           const subData = await apiJSON(`/api/submissions/${latestSub.id}`)
           results = subData.results ?? []
         }
-        const completed = submissions.find((s:any)=>s.status==='completed')
-        done = !!completed
-        pointsEarned = completed ? assignment.max_points : 0
+        const best = submissions.reduce((m:number,s:any)=>{
+          const p = s.override_points ?? s.points ?? 0
+          return p>m ? p : m
+        },0)
+        pointsEarned = best
+        done = best >= assignment.max_points
       } else {
         tests = data.tests ?? []
         allSubs = data.submissions ?? []
@@ -69,7 +72,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         progress = students.map((s:any)=>{
           const subs = allSubs.filter((x:any)=>x.student_id===s.id)
           const latest = subs[0]
-          return {student:s, latest}
+          return {student:s, latest, all: subs}
         })
       }
     }catch(e:any){ err=e.message }
@@ -100,9 +103,10 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
       await apiFetch(`/api/assignments/${id}/tests`,{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({stdin:tStdin, expected_stdout:tStdout, time_limit_sec: parseFloat(tLimit) || undefined})
+        body:JSON.stringify({stdin:tStdin, expected_stdout:tStdout, weight: parseFloat(tWeight) || 1, time_limit_sec: parseFloat(tLimit) || undefined})
       })
       tStdin=tStdout=tLimit=''
+      tWeight='1'
       await load()
     }catch(e:any){ err=e.message }
   }
@@ -219,7 +223,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
       await apiFetch(`/api/tests/${t.id}`,{
         method:'PUT',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({stdin:t.stdin, expected_stdout:t.expected_stdout, time_limit_sec: parseFloat(t.time_limit_sec) || undefined})
+        body:JSON.stringify({stdin:t.stdin, expected_stdout:t.expected_stdout, weight: parseFloat(t.weight) || 1, time_limit_sec: parseFloat(t.time_limit_sec) || undefined})
       })
       await load()
     }catch(e:any){ err=e.message }
@@ -238,7 +242,6 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         <input type="number" min="1" class="input input-bordered w-full" bind:value={ePoints} placeholder="Max points" required>
         <select class="select select-bordered w-full" bind:value={ePolicy}>
           <option value="all_or_nothing">all_or_nothing</option>
-          <option value="percentage">percentage</option>
           <option value="weighted">weighted</option>
         </select>
         <input type="datetime-local" class="input input-bordered w-full" bind:value={eDeadline} required>
@@ -293,13 +296,13 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
 
   <!-- tests list moved to modal -->
 
-  {#if role==='teacher' || role==='admin'}
-    <details class="mb-4">
-      <summary class="cursor-pointer font-semibold">Student progress</summary>
-      <div class="overflow-x-auto mt-2">
-        <table class="table table-zebra">
+{#if role==='teacher' || role==='admin'}
+  <details class="mb-4">
+    <summary class="cursor-pointer font-semibold">Student progress</summary>
+    <div class="overflow-x-auto mt-2">
+      <table class="table table-zebra">
         <thead>
-          <tr><th>Student</th><th>Status</th><th>Last submission</th><th></th></tr>
+          <tr><th>Student</th><th>Status</th><th>Last submission</th><th>Attempts</th></tr>
         </thead>
         <tbody>
           {#each progress as p}
@@ -307,7 +310,32 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
               <td>{p.student.name ?? p.student.email}</td>
               <td><span class={`badge ${statusColor(p.latest ? p.latest.status : 'none')}`}>{p.latest ? p.latest.status : 'none'}</span></td>
               <td>{p.latest ? new Date(p.latest.created_at).toLocaleString() : '-'}</td>
-              <td>{#if p.latest}<a href={`/submissions/${p.latest.id}`}>view</a>{/if}</td>
+              <td>
+                {#if p.all && p.all.length}
+                  <ul class="timeline timeline-vertical timeline-compact m-0 p-0">
+                    {#each p.all as s, i}
+                      <li>
+                        {#if i !== 0}<hr />{/if}
+                        <div class="timeline-middle">
+                          {#if s.status === 'completed' || s.status === 'passed'}
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-success">
+                              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
+                            </svg>
+                          {:else}
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-error">
+                              <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM8.28 7.22a.75.75 0 0 0-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 1 0 1.06 1.06L10 11.06l1.72 1.72a.75.75 0 1 0 1.06-1.06L11.06 10l1.72-1.72a.75.75 0 0 0-1.06-1.06L10 8.94 8.28 7.22Z" clip-rule="evenodd" />
+                            </svg>
+                          {/if}
+                        </div>
+                        <div class="timeline-end timeline-box flex items-center m-0">
+                          <a class="link" href={`/submissions/${s.id}`}>{new Date(s.created_at).toLocaleString()}</a>
+                        </div>
+                        {#if i !== p.all.length - 1}<hr />{/if}
+                      </li>
+                    {/each}
+                  </ul>
+                {/if}
+              </td>
             </tr>
           {/each}
           {#if !progress.length}
@@ -315,9 +343,9 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           {/if}
         </tbody>
       </table>
-      </div>
-    </details>
-  {/if}
+    </div>
+  </details>
+{/if}
 
   {#if role==='student'}
     <div class="card bg-base-100 shadow mb-4">
@@ -419,6 +447,10 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
               <span class="label-text">Time limit (s)</span>
               <input class="input input-bordered w-full" placeholder="seconds" bind:value={t.time_limit_sec}>
             </label>
+            <label class="form-control w-full space-y-1">
+              <span class="label-text">Weight</span>
+              <input class="input input-bordered w-full" placeholder="points" bind:value={t.weight}>
+            </label>
             <div class="flex justify-end gap-2">
               <button class="btn btn-sm" on:click={()=>updateTest(t)}>Save</button>
               <button class="btn btn-sm btn-error" on:click={()=>delTest(t.id)}>Delete</button>
@@ -440,6 +472,10 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         <label class="form-control w-full space-y-1">
           <span class="label-text">Time limit (s)</span>
           <input class="input input-bordered w-full" placeholder="seconds" bind:value={tLimit}>
+        </label>
+        <label class="form-control w-full space-y-1">
+          <span class="label-text">Weight</span>
+          <input class="input input-bordered w-full" placeholder="points" bind:value={tWeight}>
         </label>
         <div class="modal-action">
           <button class="btn btn-primary" on:click={addTest} disabled={!tStdin || !tStdout}>Add</button>

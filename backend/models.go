@@ -49,6 +49,8 @@ type Submission struct {
 	CodePath     string    `db:"code_path" json:"code_path"`
 	CodeContent  string    `db:"code_content" json:"code_content"`
 	Status       string    `db:"status" json:"status"`
+	Points       *float64  `db:"points" json:"points"`
+	OverridePts  *float64  `db:"override_points" json:"override_points"`
 	CreatedAt    time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
 }
@@ -58,6 +60,7 @@ type TestCase struct {
 	AssignmentID   int       `db:"assignment_id" json:"assignment_id"`
 	Stdin          string    `db:"stdin" json:"stdin"`
 	ExpectedStdout string    `db:"expected_stdout" json:"expected_stdout"`
+	Weight         float64   `db:"weight" json:"weight"`
 	TimeLimitSec   float64   `db:"time_limit_sec" json:"time_limit_sec"`
 	MemoryLimitKB  int       `db:"memory_limit_kb" json:"memory_limit_kb"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
@@ -466,7 +469,7 @@ func DeleteUser(id int) error {
 func ListSubmissionsForStudent(studentID int) ([]Submission, error) {
 	subs := []Submission{}
 	err := DB.Select(&subs, `
-               SELECT id, assignment_id, student_id, code_path, code_content, status, created_at, updated_at
+               SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, created_at, updated_at
                  FROM submissions
                 WHERE student_id = $1
                 ORDER BY created_at DESC`, studentID)
@@ -502,7 +505,7 @@ type SubmissionWithStudent struct {
 func ListSubmissionsForAssignmentAndStudent(aid, sid int) ([]SubmissionWithReason, error) {
 	subs := []SubmissionWithReason{}
 	err := DB.Select(&subs, `
-               SELECT id, assignment_id, student_id, code_path, code_content, status, created_at, updated_at,
+               SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, created_at, updated_at,
                       (SELECT r.status FROM results r
                          WHERE r.submission_id = submissions.id AND r.status <> 'passed'
                          ORDER BY r.id LIMIT 1) AS failure_reason
@@ -517,7 +520,7 @@ func ListSubmissionsForAssignmentAndStudent(aid, sid int) ([]SubmissionWithReaso
 func ListSubmissionsForAssignment(aid int) ([]SubmissionWithStudent, error) {
 	subs := []SubmissionWithStudent{}
 	err := DB.Select(&subs, `
-               SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.created_at, s.updated_at,
+               SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.points, s.override_points, s.created_at, s.updated_at,
                      u.email, u.name,
                      (SELECT r.status FROM results r
                         WHERE r.submission_id = s.id AND r.status <> 'passed'
@@ -534,11 +537,11 @@ func CreateTestCase(tc *TestCase) error {
 		tc.TimeLimitSec = 1
 	}
 	const q = `
-          INSERT INTO test_cases (assignment_id, stdin, expected_stdout, time_limit_sec)
-          VALUES ($1,$2,$3,$4)
-          RETURNING id, time_limit_sec, memory_limit_kb, created_at, updated_at`
-	return DB.QueryRow(q, tc.AssignmentID, tc.Stdin, tc.ExpectedStdout, tc.TimeLimitSec).
-		Scan(&tc.ID, &tc.TimeLimitSec, &tc.MemoryLimitKB, &tc.CreatedAt, &tc.UpdatedAt)
+          INSERT INTO test_cases (assignment_id, stdin, expected_stdout, weight, time_limit_sec)
+          VALUES ($1,$2,$3,$4,$5)
+          RETURNING id, weight, time_limit_sec, memory_limit_kb, created_at, updated_at`
+	return DB.QueryRow(q, tc.AssignmentID, tc.Stdin, tc.ExpectedStdout, tc.Weight, tc.TimeLimitSec).
+		Scan(&tc.ID, &tc.Weight, &tc.TimeLimitSec, &tc.MemoryLimitKB, &tc.CreatedAt, &tc.UpdatedAt)
 }
 
 // UpdateTestCase modifies stdin/stdout/time limit of an existing test case.
@@ -548,10 +551,10 @@ func UpdateTestCase(tc *TestCase) error {
 	}
 	res, err := DB.Exec(`
                 UPDATE test_cases
-                   SET stdin=$1, expected_stdout=$2, time_limit_sec=$3,
+                   SET stdin=$1, expected_stdout=$2, weight=$3, time_limit_sec=$4,
                        updated_at=now()
-                 WHERE id=$4`,
-		tc.Stdin, tc.ExpectedStdout, tc.TimeLimitSec, tc.ID)
+                 WHERE id=$5`,
+		tc.Stdin, tc.ExpectedStdout, tc.Weight, tc.TimeLimitSec, tc.ID)
 	if err != nil {
 		return err
 	}
@@ -564,7 +567,7 @@ func UpdateTestCase(tc *TestCase) error {
 func ListTestCases(assignmentID int) ([]TestCase, error) {
 	list := []TestCase{}
 	err := DB.Select(&list, `
-                SELECT id, assignment_id, stdin, expected_stdout, time_limit_sec, memory_limit_kb, created_at, updated_at
+                SELECT id, assignment_id, stdin, expected_stdout, weight, time_limit_sec, memory_limit_kb, created_at, updated_at
                   FROM test_cases
                  WHERE assignment_id = $1
                  ORDER BY id`, assignmentID)
@@ -596,7 +599,7 @@ type Result struct {
 func GetSubmission(id int) (*Submission, error) {
 	var s Submission
 	err := DB.Get(&s, `
-        SELECT id, assignment_id, student_id, code_path, code_content, status, created_at, updated_at
+        SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, created_at, updated_at
           FROM submissions
          WHERE id=$1`, id)
 	if err != nil {
@@ -634,4 +637,65 @@ func ListResultsForSubmission(subID int) ([]Result, error) {
          WHERE submission_id=$1
          ORDER BY id`, subID)
 	return list, err
+}
+
+func SetSubmissionPoints(id int, pts float64) error {
+	_, err := DB.Exec(`UPDATE submissions SET points=$1 WHERE id=$2`, pts, id)
+	return err
+}
+
+func SetSubmissionOverridePoints(id int, pts *float64) error {
+        _, err := DB.Exec(`UPDATE submissions SET override_points=$1 WHERE id=$2`, pts, id)
+        return err
+}
+
+type ScoreCell struct {
+        StudentID    int      `db:"student_id" json:"student_id"`
+        AssignmentID int      `db:"assignment_id" json:"assignment_id"`
+        Points       *float64 `db:"points" json:"points"`
+}
+
+type ClassProgress struct {
+        Students    []Student    `json:"students"`
+        Assignments []Assignment `json:"assignments"`
+        Scores      []ScoreCell  `json:"scores"`
+}
+
+// GetClassProgress returns score cells for each student/assignment pair in a class.
+func GetClassProgress(classID int) (*ClassProgress, error) {
+        var students []Student
+        if err := DB.Select(&students, `
+                SELECT u.id, u.email, u.name
+                  FROM users u
+                  JOIN class_students cs ON cs.student_id=u.id
+                 WHERE cs.class_id=$1
+                 ORDER BY u.email`, classID); err != nil {
+                return nil, err
+        }
+
+        var asg []Assignment
+        if err := DB.Select(&asg, `
+                SELECT id, title, description, created_by, deadline,
+                       max_points, grading_policy, published, template_path,
+                       created_at, updated_at, class_id
+                  FROM assignments
+                 WHERE class_id=$1
+                 ORDER BY deadline ASC`, classID); err != nil {
+                return nil, err
+        }
+
+        var cells []ScoreCell
+        if err := DB.Select(&cells, `
+                SELECT cs.student_id, a.id AS assignment_id,
+                       MAX(COALESCE(s.override_points, s.points)) AS points
+                  FROM class_students cs
+                  JOIN assignments a ON a.class_id=cs.class_id
+                  LEFT JOIN submissions s ON s.assignment_id=a.id AND s.student_id=cs.student_id
+                 WHERE cs.class_id=$1
+                 GROUP BY cs.student_id, a.id
+                 ORDER BY cs.student_id, a.id`, classID); err != nil {
+                return nil, err
+        }
+
+        return &ClassProgress{Students: students, Assignments: asg, Scores: cells}, nil
 }

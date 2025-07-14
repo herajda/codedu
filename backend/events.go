@@ -76,6 +76,17 @@ func eventsHandler(c *gin.Context) {
 	uid := c.GetInt("userID")
 	sub := addSubscriber(uid)
 	defer removeSubscriber(sub)
+	// Send current statuses and results so clients don't miss recent updates
+	if subs, err := ListSubmissionsForStudent(uid); err == nil {
+		for _, s := range subs {
+			c.SSEvent("status", map[string]any{"submission_id": s.ID, "status": s.Status})
+			if results, err := ListResultsForSubmission(s.ID); err == nil {
+				for _, r := range results {
+					c.SSEvent("result", r)
+				}
+			}
+		}
+	}
 	c.Stream(func(w io.Writer) bool {
 		if evt, ok := <-sub.ch; ok {
 			c.SSEvent(evt.Event, evt.Data)

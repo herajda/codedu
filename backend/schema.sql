@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS assignments (
   created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   deadline TIMESTAMPTZ NOT NULL,
   max_points INTEGER NOT NULL DEFAULT 100,
-  grading_policy TEXT NOT NULL DEFAULT 'all_or_nothing' CHECK (grading_policy IN ('all_or_nothing','percentage','weighted')),
+  grading_policy TEXT NOT NULL DEFAULT 'all_or_nothing' CHECK (grading_policy IN ('all_or_nothing','weighted')),
   published BOOLEAN NOT NULL DEFAULT FALSE,
   show_traceback BOOLEAN NOT NULL DEFAULT FALSE,
   template_path TEXT,
@@ -68,6 +68,9 @@ CREATE TABLE IF NOT EXISTS submissions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS points NUMERIC;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS override_points NUMERIC;
 
 DO $$ BEGIN
     CREATE TYPE result_status AS ENUM ('passed','time_limit_exceeded','memory_limit_exceeded','wrong_output','runtime_error');

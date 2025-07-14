@@ -23,7 +23,7 @@
   {/if}
 
   <div class={`min-h-screen flex flex-col ${user ? 'sm:ml-60' : ''}`}>
-    <div class="navbar bg-base-200 shadow">
+    <div class="navbar bg-base-200 shadow sticky top-0 z-50">
       <div class="flex-1">
         {#if user}
           <button
@@ -47,14 +47,6 @@
           </button>
         {/if}
         <a href="/dashboard" class="btn btn-ghost text-xl">CodeGrader</a>
-        {#if user?.role === 'admin'}
-          <!-- admin uses dashboard -->
-        {:else if user?.role === 'teacher'}
-          <a href="/classes" class="btn btn-ghost">Classes</a>
-        {:else if user?.role === 'student'}
-          <a href="/classes" class="btn btn-ghost">My Classes</a>
-          <a href="/submissions" class="btn btn-ghost">Submissions</a>
-        {/if}
       </div>
       <div class="flex-none gap-2">
         {#if user}

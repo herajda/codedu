@@ -94,17 +94,29 @@ func runSubmission(id int) {
 		if err != nil {
 			continue
 		}
-		out, err := os.Create(fpath)
+		out, err := os.OpenFile(fpath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
 			rc.Close()
 			continue
 		}
 		io.Copy(out, rc)
 		out.Close()
+		os.Chmod(fpath, 0644)
 		rc.Close()
 	}
 
-	os.Chmod(tmpDir, 0755) // ensure the temp dir is executable
+	// enforce permissions after extraction
+	filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			os.Chmod(path, 0755)
+		} else {
+			os.Chmod(path, 0644)
+		}
+		return nil
+	})
 	var mainFile string
 	var firstPy string
 	filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
@@ -143,6 +155,8 @@ func runSubmission(id int) {
 	}
 
 	allPass := true
+	totalWeight := 0.0
+	earnedWeight := 0.0
 	for _, tc := range tests {
 		timeout := time.Duration(tc.TimeLimitSec * float64(time.Second))
 		stdout, stderr, exitCode, timedOut, runtime := executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
@@ -159,9 +173,29 @@ func runSubmission(id int) {
 
 		res := &Result{SubmissionID: id, TestCaseID: tc.ID, Status: status, ActualStdout: stdout, Stderr: stderr, ExitCode: exitCode, RuntimeMS: int(runtime.Milliseconds())}
 		CreateResult(res)
+		totalWeight += tc.Weight
 		if status != "passed" {
 			allPass = false
+		} else {
+			earnedWeight += tc.Weight
 		}
+	}
+
+	a, err := GetAssignment(sub.AssignmentID)
+	if err == nil {
+		score := 0.0
+		switch a.GradingPolicy {
+		case "all_or_nothing":
+			if allPass {
+				score = float64(a.MaxPoints)
+			}
+		case "weighted":
+			score = earnedWeight
+		}
+		if sub.CreatedAt.After(a.Deadline) {
+			score = 0
+		}
+		SetSubmissionPoints(id, score)
 	}
 
 	if allPass {
@@ -178,7 +212,7 @@ func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, s
 	ctx, cancel := context.WithTimeout(context.Background(), timeout+dockerExtraTime)
 	defer cancel()
 
-	mount := fmt.Sprintf("%s:/code:ro", abs)
+	mount := fmt.Sprintf("%s:/code:ro,z", abs)
 
 	// Measure runtime inside the container. A shell script records timestamps
 	// before and after executing the Python program and prints the elapsed
