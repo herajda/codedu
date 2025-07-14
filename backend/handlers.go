@@ -39,24 +39,24 @@ func getClass(c *gin.Context) {
 }
 
 func getClassProgress(c *gin.Context) {
-        id, err := strconv.Atoi(c.Param("id"))
-        if err != nil {
-                c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-                return
-        }
-        if c.GetString("role") == "teacher" {
-                var x int
-                if err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, id, c.GetInt("userID")); err != nil {
-                        c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-                        return
-                }
-        }
-        prog, err := GetClassProgress(id)
-        if err != nil {
-                c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-                return
-        }
-        c.JSON(http.StatusOK, prog)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if c.GetString("role") == "teacher" {
+		var x int
+		if err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, id, c.GetInt("userID")); err != nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	prog, err := GetClassProgress(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, prog)
 }
 
 // ──────────────────────────────────────────
@@ -884,6 +884,89 @@ func overrideSubmissionPoints(c *gin.Context) {
 		}
 	}
 	if err := SetSubmissionOverridePoints(sid, req.Points); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// ──────────────────────────────────────────────────────
+// notes handlers
+// ──────────────────────────────────────────────────────
+
+func listNotes(c *gin.Context) {
+	cid, _ := strconv.Atoi(c.Param("id"))
+	publishedOnly := c.GetString("role") == "student"
+	notes, err := ListNotes(cid, publishedOnly)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, notes)
+}
+
+func createNote(c *gin.Context) {
+	cid, _ := strconv.Atoi(c.Param("id"))
+	var req struct {
+		Path    string `json:"path" binding:"required"`
+		Content string `json:"content" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	n := &Note{ClassID: cid, Path: req.Path, Content: req.Content, Published: false}
+	if err := CreateNote(n); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusCreated, n)
+}
+
+func getNote(c *gin.Context) {
+	nid, _ := strconv.Atoi(c.Param("id"))
+	n, err := GetNote(nid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if c.GetString("role") == "student" && !n.Published {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	c.JSON(http.StatusOK, n)
+}
+
+func updateNote(c *gin.Context) {
+	nid, _ := strconv.Atoi(c.Param("id"))
+	var req struct {
+		Path    string `json:"path" binding:"required"`
+		Content string `json:"content" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	n := &Note{ID: nid, Path: req.Path, Content: req.Content}
+	if err := UpdateNote(n); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func deleteNote(c *gin.Context) {
+	nid, _ := strconv.Atoi(c.Param("id"))
+	if err := DeleteNote(nid); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func publishNote(c *gin.Context) {
+	nid, _ := strconv.Atoi(c.Param("id"))
+	if err := SetNotePublished(nid, true); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
