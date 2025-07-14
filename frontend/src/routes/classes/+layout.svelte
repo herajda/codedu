@@ -2,10 +2,12 @@
   import { onMount } from 'svelte';
   import { apiJSON } from '$lib/api';
   import { page } from '$app/stores';
+  import { auth } from '$lib/auth';
   import type { Page } from '@sveltejs/kit';
 
   let classes:any[] = [];
   let err = '';
+  $: role = $auth?.role ?? '';
 
   onMount(async () => {
     try {
@@ -21,7 +23,17 @@
     <ul class="menu">
       {#each classes as c}
         <li>
-          <a class={($page.params.id == c.id.toString()) ? 'active' : ''} href={`/classes/${c.id}`}>{c.name}</a>
+          {#if role === 'student' && $page.url.pathname.startsWith(`/classes/${c.id}`)}
+            <details open>
+              <summary>{c.name}</summary>
+              <ul>
+                <li><a class={$page.url.pathname === `/classes/${c.id}/overview` ? 'active' : ''} href={`/classes/${c.id}/overview`}>Overview</a></li>
+                <li><a class={$page.url.pathname === `/classes/${c.id}` ? 'active' : ''} href={`/classes/${c.id}`}>Assignments</a></li>
+              </ul>
+            </details>
+          {:else}
+            <a class={($page.params.id == c.id.toString()) ? 'active' : ''} href={`/classes/${c.id}`}>{c.name}</a>
+          {/if}
         </li>
       {/each}
       {#if !classes.length && !err}
