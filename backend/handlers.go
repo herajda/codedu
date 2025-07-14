@@ -183,6 +183,13 @@ func getAssignment(c *gin.Context) {
 		}
 	}
 	tests, _ := ListTestCases(id)
+	if a.GradingPolicy == "weighted" {
+		sum := 0.0
+		for _, t := range tests {
+			sum += t.Weight
+		}
+		a.MaxPoints = int(sum)
+	}
 	resp := gin.H{"assignment": a, "tests": tests}
 	if role == "teacher" || role == "admin" {
 		subs, _ := ListSubmissionsForAssignment(id)
@@ -356,16 +363,21 @@ func createTestCase(c *gin.Context) {
 	var req struct {
 		Stdin          string  `json:"stdin" binding:"required"`
 		ExpectedStdout string  `json:"expected_stdout" binding:"required"`
+		Weight         float64 `json:"weight"`
 		TimeLimitSec   float64 `json:"time_limit_sec"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	if req.Weight == 0 {
+		req.Weight = 1
+	}
 	tc := &TestCase{
 		AssignmentID:   aid,
 		Stdin:          req.Stdin,
 		ExpectedStdout: req.ExpectedStdout,
+		Weight:         req.Weight,
 		TimeLimitSec:   req.TimeLimitSec,
 	}
 	if err := CreateTestCase(tc); err != nil {
@@ -385,13 +397,17 @@ func updateTestCase(c *gin.Context) {
 	var req struct {
 		Stdin          string  `json:"stdin" binding:"required"`
 		ExpectedStdout string  `json:"expected_stdout" binding:"required"`
+		Weight         float64 `json:"weight"`
 		TimeLimitSec   float64 `json:"time_limit_sec"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	tc := &TestCase{ID: id, Stdin: req.Stdin, ExpectedStdout: req.ExpectedStdout, TimeLimitSec: req.TimeLimitSec}
+	if req.Weight == 0 {
+		req.Weight = 1
+	}
+	tc := &TestCase{ID: id, Stdin: req.Stdin, ExpectedStdout: req.ExpectedStdout, Weight: req.Weight, TimeLimitSec: req.TimeLimitSec}
 	if err := UpdateTestCase(tc); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return

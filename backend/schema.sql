@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS assignments (
   created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   deadline TIMESTAMPTZ NOT NULL,
   max_points INTEGER NOT NULL DEFAULT 100,
-  grading_policy TEXT NOT NULL DEFAULT 'all_or_nothing' CHECK (grading_policy IN ('all_or_nothing','percentage','weighted')),
+  grading_policy TEXT NOT NULL DEFAULT 'all_or_nothing' CHECK (grading_policy IN ('all_or_nothing','weighted')),
   published BOOLEAN NOT NULL DEFAULT FALSE,
   show_traceback BOOLEAN NOT NULL DEFAULT FALSE,
   template_path TEXT,

@@ -27,7 +27,7 @@ const role = get(auth)?.role!;
   let done=false
   let percent=0
   let err=''
-  let tStdin='', tStdout='', tLimit=''
+  let tStdin='', tStdout='', tLimit='', tWeight='1'
   let files: File[] = []
   let templateFile:File|null=null
   let submitDialog: HTMLDialogElement;
@@ -103,9 +103,10 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
       await apiFetch(`/api/assignments/${id}/tests`,{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({stdin:tStdin, expected_stdout:tStdout, time_limit_sec: parseFloat(tLimit) || undefined})
+        body:JSON.stringify({stdin:tStdin, expected_stdout:tStdout, weight: parseFloat(tWeight) || 1, time_limit_sec: parseFloat(tLimit) || undefined})
       })
       tStdin=tStdout=tLimit=''
+      tWeight='1'
       await load()
     }catch(e:any){ err=e.message }
   }
@@ -222,7 +223,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
       await apiFetch(`/api/tests/${t.id}`,{
         method:'PUT',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({stdin:t.stdin, expected_stdout:t.expected_stdout, time_limit_sec: parseFloat(t.time_limit_sec) || undefined})
+        body:JSON.stringify({stdin:t.stdin, expected_stdout:t.expected_stdout, weight: parseFloat(t.weight) || 1, time_limit_sec: parseFloat(t.time_limit_sec) || undefined})
       })
       await load()
     }catch(e:any){ err=e.message }
@@ -241,7 +242,6 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         <input type="number" min="1" class="input input-bordered w-full" bind:value={ePoints} placeholder="Max points" required>
         <select class="select select-bordered w-full" bind:value={ePolicy}>
           <option value="all_or_nothing">all_or_nothing</option>
-          <option value="percentage">percentage</option>
           <option value="weighted">weighted</option>
         </select>
         <input type="datetime-local" class="input input-bordered w-full" bind:value={eDeadline} required>
@@ -447,6 +447,10 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
               <span class="label-text">Time limit (s)</span>
               <input class="input input-bordered w-full" placeholder="seconds" bind:value={t.time_limit_sec}>
             </label>
+            <label class="form-control w-full space-y-1">
+              <span class="label-text">Weight</span>
+              <input class="input input-bordered w-full" placeholder="points" bind:value={t.weight}>
+            </label>
             <div class="flex justify-end gap-2">
               <button class="btn btn-sm" on:click={()=>updateTest(t)}>Save</button>
               <button class="btn btn-sm btn-error" on:click={()=>delTest(t.id)}>Delete</button>
@@ -468,6 +472,10 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         <label class="form-control w-full space-y-1">
           <span class="label-text">Time limit (s)</span>
           <input class="input input-bordered w-full" placeholder="seconds" bind:value={tLimit}>
+        </label>
+        <label class="form-control w-full space-y-1">
+          <span class="label-text">Weight</span>
+          <input class="input input-bordered w-full" placeholder="points" bind:value={tWeight}>
         </label>
         <div class="modal-action">
           <button class="btn btn-primary" on:click={addTest} disabled={!tStdin || !tStdout}>Add</button>

@@ -155,7 +155,8 @@ func runSubmission(id int) {
 	}
 
 	allPass := true
-	passed := 0
+	totalWeight := 0.0
+	earnedWeight := 0.0
 	for _, tc := range tests {
 		timeout := time.Duration(tc.TimeLimitSec * float64(time.Second))
 		stdout, stderr, exitCode, timedOut, runtime := executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
@@ -172,26 +173,24 @@ func runSubmission(id int) {
 
 		res := &Result{SubmissionID: id, TestCaseID: tc.ID, Status: status, ActualStdout: stdout, Stderr: stderr, ExitCode: exitCode, RuntimeMS: int(runtime.Milliseconds())}
 		CreateResult(res)
+		totalWeight += tc.Weight
 		if status != "passed" {
 			allPass = false
 		} else {
-			passed++
+			earnedWeight += tc.Weight
 		}
 	}
 
 	a, err := GetAssignment(sub.AssignmentID)
 	if err == nil {
-		total := len(tests)
 		score := 0.0
 		switch a.GradingPolicy {
 		case "all_or_nothing":
 			if allPass {
 				score = float64(a.MaxPoints)
 			}
-		default: // percentage
-			if total > 0 {
-				score = float64(a.MaxPoints) * float64(passed) / float64(total)
-			}
+		case "weighted":
+			score = earnedWeight
 		}
 		if sub.CreatedAt.After(a.Deadline) {
 			score = 0
