@@ -60,6 +60,7 @@ type TestCase struct {
 	AssignmentID   int       `db:"assignment_id" json:"assignment_id"`
 	Stdin          string    `db:"stdin" json:"stdin"`
 	ExpectedStdout string    `db:"expected_stdout" json:"expected_stdout"`
+	Weight         float64   `db:"weight" json:"weight"`
 	TimeLimitSec   float64   `db:"time_limit_sec" json:"time_limit_sec"`
 	MemoryLimitKB  int       `db:"memory_limit_kb" json:"memory_limit_kb"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
@@ -536,11 +537,11 @@ func CreateTestCase(tc *TestCase) error {
 		tc.TimeLimitSec = 1
 	}
 	const q = `
-          INSERT INTO test_cases (assignment_id, stdin, expected_stdout, time_limit_sec)
-          VALUES ($1,$2,$3,$4)
-          RETURNING id, time_limit_sec, memory_limit_kb, created_at, updated_at`
-	return DB.QueryRow(q, tc.AssignmentID, tc.Stdin, tc.ExpectedStdout, tc.TimeLimitSec).
-		Scan(&tc.ID, &tc.TimeLimitSec, &tc.MemoryLimitKB, &tc.CreatedAt, &tc.UpdatedAt)
+          INSERT INTO test_cases (assignment_id, stdin, expected_stdout, weight, time_limit_sec)
+          VALUES ($1,$2,$3,$4,$5)
+          RETURNING id, weight, time_limit_sec, memory_limit_kb, created_at, updated_at`
+	return DB.QueryRow(q, tc.AssignmentID, tc.Stdin, tc.ExpectedStdout, tc.Weight, tc.TimeLimitSec).
+		Scan(&tc.ID, &tc.Weight, &tc.TimeLimitSec, &tc.MemoryLimitKB, &tc.CreatedAt, &tc.UpdatedAt)
 }
 
 // UpdateTestCase modifies stdin/stdout/time limit of an existing test case.
@@ -550,10 +551,10 @@ func UpdateTestCase(tc *TestCase) error {
 	}
 	res, err := DB.Exec(`
                 UPDATE test_cases
-                   SET stdin=$1, expected_stdout=$2, time_limit_sec=$3,
+                   SET stdin=$1, expected_stdout=$2, weight=$3, time_limit_sec=$4,
                        updated_at=now()
-                 WHERE id=$4`,
-		tc.Stdin, tc.ExpectedStdout, tc.TimeLimitSec, tc.ID)
+                 WHERE id=$5`,
+		tc.Stdin, tc.ExpectedStdout, tc.Weight, tc.TimeLimitSec, tc.ID)
 	if err != nil {
 		return err
 	}
@@ -566,7 +567,7 @@ func UpdateTestCase(tc *TestCase) error {
 func ListTestCases(assignmentID int) ([]TestCase, error) {
 	list := []TestCase{}
 	err := DB.Select(&list, `
-                SELECT id, assignment_id, stdin, expected_stdout, time_limit_sec, memory_limit_kb, created_at, updated_at
+                SELECT id, assignment_id, stdin, expected_stdout, weight, time_limit_sec, memory_limit_kb, created_at, updated_at
                   FROM test_cases
                  WHERE assignment_id = $1
                  ORDER BY id`, assignmentID)

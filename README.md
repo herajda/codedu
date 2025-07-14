@@ -140,7 +140,7 @@ You can copy `backend/.env.example` and adjust it for your environment.
 
 The current PostgreSQL schema is stored in `backend/schema.sql` and is executed automatically when the backend starts. This eliminates the need for external migration tools during early development.
 
-Each assignment stores a `max_points` value and a `grading_policy`. The policy controls how points are awarded and can be one of `all_or_nothing`, `percentage` or `weighted`.
+Each assignment stores a `max_points` value and a `grading_policy`. The policy controls how points are awarded and can be either `all_or_nothing` or `weighted`.
 
 ---
 
