@@ -111,11 +111,12 @@ func main() {
 		api.DELETE("/users/:id", RoleGuard("admin"), deleteUser)
 		// List my submissions (student)
 		api.GET("/my-submissions", RoleGuard("student"), listSubs)
-		api.GET("/events", RoleGuard("student", "teacher", "admin"), eventsHandler)
-		api.DELETE("/classes/:id/students/:sid", RoleGuard("teacher", "admin"), removeStudent)
+                api.GET("/events", RoleGuard("student", "teacher", "admin"), eventsHandler)
+                api.DELETE("/classes/:id/students/:sid", RoleGuard("teacher", "admin"), removeStudent)
 
-		api.GET("/students", RoleGuard("teacher", "admin"), listStudents)
-		api.GET("/classes/:id", RoleGuard("teacher", "student", "admin"), getClass)
+                api.GET("/students", RoleGuard("teacher", "admin"), listStudents)
+                api.GET("/classes/:id/progress", RoleGuard("teacher", "admin"), getClassProgress)
+                api.GET("/classes/:id", RoleGuard("teacher", "student", "admin"), getClass)
 
 	}
 

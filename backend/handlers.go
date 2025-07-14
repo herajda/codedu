@@ -38,6 +38,27 @@ func getClass(c *gin.Context) {
 	c.JSON(http.StatusOK, detail)
 }
 
+func getClassProgress(c *gin.Context) {
+        id, err := strconv.Atoi(c.Param("id"))
+        if err != nil {
+                c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+                return
+        }
+        if c.GetString("role") == "teacher" {
+                var x int
+                if err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, id, c.GetInt("userID")); err != nil {
+                        c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+                        return
+                }
+        }
+        prog, err := GetClassProgress(id)
+        if err != nil {
+                c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+                return
+        }
+        c.JSON(http.StatusOK, prog)
+}
+
 // ──────────────────────────────────────────
 // basic user helpers (used from auth.go)
 // ──────────────────────────────────────────
