@@ -112,3 +112,75 @@ func TestListAssignmentsForTeacher(t *testing.T) {
 		t.Fatalf("unmet expectations: %v", err)
 	}
 }
+
+func TestCreateAndGetNote(t *testing.T) {
+        db, mock, err := sqlmock.New()
+        if err != nil {
+                t.Fatalf("failed to open sqlmock: %v", err)
+        }
+        defer db.Close()
+
+        DB = sqlx.NewDb(db, "sqlmock")
+
+        now := time.Now()
+        mock.ExpectQuery(regexp.QuoteMeta(`
+        INSERT INTO class_notes (class_id, author_id, content)
+        VALUES ($1,$2,$3)
+        RETURNING id, created_at`)).
+                WithArgs(3, 5, "hello").
+                WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(7, now))
+
+        n := &ClassNote{ClassID: 3, AuthorID: 5, Content: "hello"}
+        if err := CreateNote(n); err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+        if n.ID != 7 {
+                t.Fatalf("expected id 7, got %d", n.ID)
+        }
+
+        q := `SELECT id, class_id, author_id, content, created_at FROM class_notes WHERE id=$1`
+        mock.ExpectQuery(regexp.QuoteMeta(q)).WithArgs(7).
+                WillReturnRows(sqlmock.NewRows([]string{"id", "class_id", "author_id", "content", "created_at"}).
+                        AddRow(7, 3, 5, "hello", now))
+
+        got, err := GetNote(7)
+        if err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+        if got.Content != "hello" || got.ClassID != 3 {
+                t.Fatalf("wrong note returned: %+v", got)
+        }
+
+        if err := mock.ExpectationsWereMet(); err != nil {
+                t.Fatalf("unmet expectations: %v", err)
+        }
+}
+
+func TestListNotes(t *testing.T) {
+        db, mock, err := sqlmock.New()
+        if err != nil {
+                t.Fatalf("failed to open sqlmock: %v", err)
+        }
+        defer db.Close()
+
+        DB = sqlx.NewDb(db, "sqlmock")
+
+        now := time.Now()
+        q := `SELECT id, class_id, author_id, content, created_at FROM class_notes WHERE class_id=$1 ORDER BY created_at DESC`
+        rows := sqlmock.NewRows([]string{"id", "class_id", "author_id", "content", "created_at"}).
+                AddRow(1, 3, 5, "a", now).
+                AddRow(2, 3, 5, "b", now)
+        mock.ExpectQuery(regexp.QuoteMeta(q)).WithArgs(3).WillReturnRows(rows)
+
+        list, err := ListNotes(3)
+        if err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+        if len(list) != 2 {
+                t.Fatalf("expected 2 notes, got %d", len(list))
+        }
+
+        if err := mock.ExpectationsWereMet(); err != nil {
+                t.Fatalf("unmet expectations: %v", err)
+        }
+}

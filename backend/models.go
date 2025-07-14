@@ -699,3 +699,55 @@ func GetClassProgress(classID int) (*ClassProgress, error) {
 
         return &ClassProgress{Students: students, Assignments: asg, Scores: cells}, nil
 }
+
+// ──────────────────────────────────────────────────────
+// class notes
+// ──────────────────────────────────────────────────────
+
+type ClassNote struct {
+        ID       int       `db:"id" json:"id"`
+        ClassID  int       `db:"class_id" json:"class_id"`
+        AuthorID int       `db:"author_id" json:"author_id"`
+        Content  string    `db:"content" json:"content"`
+        CreatedAt time.Time `db:"created_at" json:"created_at"`
+}
+
+// CreateNote inserts a new class note.
+func CreateNote(n *ClassNote) error {
+        const q = `
+        INSERT INTO class_notes (class_id, author_id, content)
+        VALUES ($1,$2,$3)
+        RETURNING id, created_at`
+        return DB.QueryRow(q, n.ClassID, n.AuthorID, n.Content).
+                Scan(&n.ID, &n.CreatedAt)
+}
+
+// ListNotes returns notes for a class ordered by creation time.
+func ListNotes(classID int) ([]ClassNote, error) {
+        notes := []ClassNote{}
+        err := DB.Select(&notes, `
+                SELECT id, class_id, author_id, content, created_at
+                  FROM class_notes
+                 WHERE class_id=$1
+                 ORDER BY created_at DESC`, classID)
+        return notes, err
+}
+
+// GetNote returns a single note by id.
+func GetNote(id int) (*ClassNote, error) {
+        var n ClassNote
+        err := DB.Get(&n, `
+                SELECT id, class_id, author_id, content, created_at
+                  FROM class_notes
+                 WHERE id=$1`, id)
+        if err != nil {
+                return nil, err
+        }
+        return &n, nil
+}
+
+// DeleteNote removes a note from the database.
+func DeleteNote(id int) error {
+        _, err := DB.Exec(`DELETE FROM class_notes WHERE id=$1`, id)
+        return err
+}
