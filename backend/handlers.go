@@ -39,24 +39,24 @@ func getClass(c *gin.Context) {
 }
 
 func getClassProgress(c *gin.Context) {
-        id, err := strconv.Atoi(c.Param("id"))
-        if err != nil {
-                c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-                return
-        }
-        if c.GetString("role") == "teacher" {
-                var x int
-                if err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, id, c.GetInt("userID")); err != nil {
-                        c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-                        return
-                }
-        }
-        prog, err := GetClassProgress(id)
-        if err != nil {
-                c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-                return
-        }
-        c.JSON(http.StatusOK, prog)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if c.GetString("role") == "teacher" {
+		var x int
+		if err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, id, c.GetInt("userID")); err != nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	prog, err := GetClassProgress(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, prog)
 }
 
 // ──────────────────────────────────────────
@@ -884,6 +884,162 @@ func overrideSubmissionPoints(c *gin.Context) {
 		}
 	}
 	if err := SetSubmissionOverridePoints(sid, req.Points); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// ──────────────────────────────────────────────────────
+// notes handlers
+// ──────────────────────────────────────────────────────
+
+func listNotes(c *gin.Context) {
+	classID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	role := c.GetString("role")
+	uid := c.GetInt("userID")
+	if role == "teacher" {
+		if ok, err := IsTeacherOfClass(classID, uid); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	} else if role == "student" {
+		if ok, err := IsStudentOfClass(classID, uid); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	notes, err := ListNotes(classID, role)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, notes)
+}
+
+func createNote(c *gin.Context) {
+	classID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if c.GetString("role") == "teacher" {
+		if ok, err := IsTeacherOfClass(classID, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	var req struct {
+		Path    string `json:"path" binding:"required"`
+		Content string `json:"content" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	n := &Note{ClassID: classID, Path: req.Path, Content: req.Content, AuthorID: c.GetInt("userID"), Published: false}
+	if err := CreateNote(n); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusCreated, n)
+}
+
+func getNote(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	note, err := GetNote(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	role := c.GetString("role")
+	uid := c.GetInt("userID")
+	if role == "teacher" {
+		if ok, err := IsTeacherOfClass(note.ClassID, uid); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	} else if role == "student" {
+		if !note.Published {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
+		if ok, err := IsStudentOfClass(note.ClassID, uid); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	c.JSON(http.StatusOK, note)
+}
+
+func updateNote(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	note, err := GetNote(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if c.GetString("role") == "teacher" {
+		if ok, err := IsTeacherOfClass(note.ClassID, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	var req struct {
+		Path      string `json:"path"`
+		Content   string `json:"content"`
+		Published *bool  `json:"published"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.Path != "" {
+		note.Path = req.Path
+	}
+	if req.Content != "" {
+		note.Content = req.Content
+	}
+	if req.Published != nil {
+		note.Published = *req.Published
+	}
+	if err := UpdateNote(note); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, note)
+}
+
+func deleteNote(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	note, err := GetNote(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if c.GetString("role") == "teacher" {
+		if ok, err := IsTeacherOfClass(note.ClassID, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	if err := DeleteNote(id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}

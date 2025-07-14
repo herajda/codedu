@@ -67,6 +67,17 @@ type TestCase struct {
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
 }
 
+type Note struct {
+	ID        int       `db:"id" json:"id"`
+	ClassID   int       `db:"class_id" json:"class_id"`
+	Path      string    `db:"path" json:"path"`
+	Content   string    `db:"content" json:"content"`
+	Published bool      `db:"published" json:"published"`
+	AuthorID  int       `db:"author_id" json:"author_id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
 // ──────────────────────────────────────────────────────
 // admin helpers
 // ──────────────────────────────────────────────────────
@@ -319,6 +330,24 @@ func DeleteClass(id, teacherID int) error {
 	}
 	_, err := DB.Exec(`DELETE FROM classes WHERE id=$1`, id)
 	return err
+}
+
+func IsTeacherOfClass(classID, teacherID int) (bool, error) {
+	var x int
+	err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, classID, teacherID)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func IsStudentOfClass(classID, studentID int) (bool, error) {
+	var x int
+	err := DB.Get(&x, `SELECT 1 FROM class_students WHERE class_id=$1 AND student_id=$2`, classID, studentID)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func AddStudentsToClass(classID, teacherID int, studentIDs []int) error {
@@ -645,47 +674,47 @@ func SetSubmissionPoints(id int, pts float64) error {
 }
 
 func SetSubmissionOverridePoints(id int, pts *float64) error {
-        _, err := DB.Exec(`UPDATE submissions SET override_points=$1 WHERE id=$2`, pts, id)
-        return err
+	_, err := DB.Exec(`UPDATE submissions SET override_points=$1 WHERE id=$2`, pts, id)
+	return err
 }
 
 type ScoreCell struct {
-        StudentID    int      `db:"student_id" json:"student_id"`
-        AssignmentID int      `db:"assignment_id" json:"assignment_id"`
-        Points       *float64 `db:"points" json:"points"`
+	StudentID    int      `db:"student_id" json:"student_id"`
+	AssignmentID int      `db:"assignment_id" json:"assignment_id"`
+	Points       *float64 `db:"points" json:"points"`
 }
 
 type ClassProgress struct {
-        Students    []Student    `json:"students"`
-        Assignments []Assignment `json:"assignments"`
-        Scores      []ScoreCell  `json:"scores"`
+	Students    []Student    `json:"students"`
+	Assignments []Assignment `json:"assignments"`
+	Scores      []ScoreCell  `json:"scores"`
 }
 
 // GetClassProgress returns score cells for each student/assignment pair in a class.
 func GetClassProgress(classID int) (*ClassProgress, error) {
-        var students []Student
-        if err := DB.Select(&students, `
+	var students []Student
+	if err := DB.Select(&students, `
                 SELECT u.id, u.email, u.name
                   FROM users u
                   JOIN class_students cs ON cs.student_id=u.id
                  WHERE cs.class_id=$1
                  ORDER BY u.email`, classID); err != nil {
-                return nil, err
-        }
+		return nil, err
+	}
 
-        var asg []Assignment
-        if err := DB.Select(&asg, `
+	var asg []Assignment
+	if err := DB.Select(&asg, `
                 SELECT id, title, description, created_by, deadline,
                        max_points, grading_policy, published, template_path,
                        created_at, updated_at, class_id
                   FROM assignments
                  WHERE class_id=$1
                  ORDER BY deadline ASC`, classID); err != nil {
-                return nil, err
-        }
+		return nil, err
+	}
 
-        var cells []ScoreCell
-        if err := DB.Select(&cells, `
+	var cells []ScoreCell
+	if err := DB.Select(&cells, `
                 SELECT cs.student_id, a.id AS assignment_id,
                        MAX(COALESCE(s.override_points, s.points)) AS points
                   FROM class_students cs
@@ -694,8 +723,53 @@ func GetClassProgress(classID int) (*ClassProgress, error) {
                  WHERE cs.class_id=$1
                  GROUP BY cs.student_id, a.id
                  ORDER BY cs.student_id, a.id`, classID); err != nil {
-                return nil, err
-        }
+		return nil, err
+	}
 
-        return &ClassProgress{Students: students, Assignments: asg, Scores: cells}, nil
+	return &ClassProgress{Students: students, Assignments: asg, Scores: cells}, nil
+}
+
+// ──────────────────────────────────────────────────────
+// notes
+// ──────────────────────────────────────────────────────
+
+func CreateNote(n *Note) error {
+	const q = `INSERT INTO notes (class_id, path, content, author_id, published)
+                    VALUES ($1,$2,$3,$4,$5)
+                    RETURNING id, created_at, updated_at`
+	return DB.QueryRow(q, n.ClassID, n.Path, n.Content, n.AuthorID, n.Published).
+		Scan(&n.ID, &n.CreatedAt, &n.UpdatedAt)
+}
+
+func ListNotes(classID int, role string) ([]Note, error) {
+	var notes []Note
+	query := `SELECT id, class_id, path, content, published, author_id, created_at, updated_at
+                     FROM notes WHERE class_id=$1`
+	if role == "student" {
+		query += " AND published = true"
+	}
+	query += " ORDER BY path"
+	err := DB.Select(&notes, query, classID)
+	return notes, err
+}
+
+func GetNote(id int) (*Note, error) {
+	var n Note
+	err := DB.Get(&n, `SELECT id, class_id, path, content, published, author_id, created_at, updated_at
+                              FROM notes WHERE id=$1`, id)
+	if err != nil {
+		return nil, err
+	}
+	return &n, nil
+}
+
+func UpdateNote(n *Note) error {
+	_, err := DB.Exec(`UPDATE notes SET path=$1, content=$2, published=$3, updated_at=now() WHERE id=$4`,
+		n.Path, n.Content, n.Published, n.ID)
+	return err
+}
+
+func DeleteNote(id int) error {
+	_, err := DB.Exec(`DELETE FROM notes WHERE id=$1`, id)
+	return err
 }

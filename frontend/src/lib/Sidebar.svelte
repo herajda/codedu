@@ -39,6 +39,7 @@
           </summary>
           <ul>
             <li><a class={$page.url.pathname===`/classes/${c.id}` ? 'active' : ''} href={`/classes/${c.id}`} on:click={() => sidebarOpen.set(false)}>Assignments</a></li>
+            <li><a class={$page.url.pathname===`/classes/${c.id}/notes` ? 'active' : ''} href={`/classes/${c.id}/notes`} on:click={() => sidebarOpen.set(false)}>Notes</a></li>
             {#if $auth?.role === 'student'}
               <li><a class={$page.url.pathname===`/classes/${c.id}/overview` ? 'active' : ''} href={`/classes/${c.id}/overview`} on:click={() => sidebarOpen.set(false)}>Overview</a></li>
             {:else}
