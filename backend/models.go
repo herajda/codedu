@@ -644,6 +644,57 @@ func SetSubmissionPoints(id int, pts float64) error {
 }
 
 func SetSubmissionOverridePoints(id int, pts *float64) error {
-	_, err := DB.Exec(`UPDATE submissions SET override_points=$1 WHERE id=$2`, pts, id)
-	return err
+        _, err := DB.Exec(`UPDATE submissions SET override_points=$1 WHERE id=$2`, pts, id)
+        return err
+}
+
+type ScoreCell struct {
+        StudentID    int      `db:"student_id" json:"student_id"`
+        AssignmentID int      `db:"assignment_id" json:"assignment_id"`
+        Points       *float64 `db:"points" json:"points"`
+}
+
+type ClassProgress struct {
+        Students    []Student    `json:"students"`
+        Assignments []Assignment `json:"assignments"`
+        Scores      []ScoreCell  `json:"scores"`
+}
+
+// GetClassProgress returns score cells for each student/assignment pair in a class.
+func GetClassProgress(classID int) (*ClassProgress, error) {
+        var students []Student
+        if err := DB.Select(&students, `
+                SELECT u.id, u.email, u.name
+                  FROM users u
+                  JOIN class_students cs ON cs.student_id=u.id
+                 WHERE cs.class_id=$1
+                 ORDER BY u.email`, classID); err != nil {
+                return nil, err
+        }
+
+        var asg []Assignment
+        if err := DB.Select(&asg, `
+                SELECT id, title, description, created_by, deadline,
+                       max_points, grading_policy, published, template_path,
+                       created_at, updated_at, class_id
+                  FROM assignments
+                 WHERE class_id=$1
+                 ORDER BY deadline ASC`, classID); err != nil {
+                return nil, err
+        }
+
+        var cells []ScoreCell
+        if err := DB.Select(&cells, `
+                SELECT cs.student_id, a.id AS assignment_id,
+                       MAX(COALESCE(s.override_points, s.points)) AS points
+                  FROM class_students cs
+                  JOIN assignments a ON a.class_id=cs.class_id
+                  LEFT JOIN submissions s ON s.assignment_id=a.id AND s.student_id=cs.student_id
+                 WHERE cs.class_id=$1
+                 GROUP BY cs.student_id, a.id
+                 ORDER BY cs.student_id, a.id`, classID); err != nil {
+                return nil, err
+        }
+
+        return &ClassProgress{Students: students, Assignments: asg, Scores: cells}, nil
 }

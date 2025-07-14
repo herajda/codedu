@@ -31,15 +31,16 @@
   <ul class="menu">
     {#each classes as c}
       <li>
-        <a
-          class={`flex items-center gap-2 ${$page.params.id == c.id.toString() ? 'bg-primary/20 font-semibold' : ''}`}
-          href={`/classes/${c.id}`}
-          on:click={() => sidebarOpen.set(false)}
-        >
-          <i class="fa-solid fa-book"></i>
-          {c.name}
-        </a>
-
+        <details open={$page.url.pathname.startsWith(`/classes/${c.id}`)}>
+          <summary class="flex items-center gap-2">
+            <i class="fa-solid fa-book"></i>
+            {c.name}
+          </summary>
+          <ul>
+            <li><a class={$page.url.pathname===`/classes/${c.id}` ? 'active' : ''} href={`/classes/${c.id}`} on:click={() => sidebarOpen.set(false)}>Overview</a></li>
+            <li><a class={$page.url.pathname===`/classes/${c.id}/progress` ? 'active' : ''} href={`/classes/${c.id}/progress`} on:click={() => sidebarOpen.set(false)}>Progress</a></li>
+          </ul>
+        </details>
       </li>
     {/each}
     {#if !classes.length && !err}
