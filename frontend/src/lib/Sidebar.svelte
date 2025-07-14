@@ -4,6 +4,7 @@
   import { page } from '$app/stores';
   import '@fortawesome/fontawesome-free/css/all.min.css';
   import { sidebarOpen } from '$lib/sidebar';
+  import { auth } from '$lib/auth';
   let classes:any[] = [];
   let err = '';
   onMount(async () => {
@@ -37,8 +38,10 @@
             {c.name}
           </summary>
           <ul>
-            <li><a class={$page.url.pathname===`/classes/${c.id}` ? 'active' : ''} href={`/classes/${c.id}`} on:click={() => sidebarOpen.set(false)}>Overview</a></li>
-            <li><a class={$page.url.pathname===`/classes/${c.id}/progress` ? 'active' : ''} href={`/classes/${c.id}/progress`} on:click={() => sidebarOpen.set(false)}>Progress</a></li>
+            <li><a class={$page.url.pathname===`/classes/${c.id}` ? 'active' : ''} href={`/classes/${c.id}`} on:click={() => sidebarOpen.set(false)}>Assignments</a></li>
+            {#if $auth?.role !== 'student'}
+              <li><a class={$page.url.pathname===`/classes/${c.id}/progress` ? 'active' : ''} href={`/classes/${c.id}/progress`} on:click={() => sidebarOpen.set(false)}>Progress</a></li>
+            {/if}
           </ul>
         </details>
       </li>
