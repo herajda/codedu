@@ -97,3 +97,12 @@ CREATE TABLE IF NOT EXISTS class_students (
   student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   PRIMARY KEY (class_id, student_id)
 );
+
+CREATE TABLE IF NOT EXISTS class_notes (
+  id SERIAL PRIMARY KEY,
+  class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+  title TEXT,
+  file_path TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
