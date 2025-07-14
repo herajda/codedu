@@ -90,6 +90,10 @@ func main() {
 		// TEACHER / STUDENT common
 		api.GET("/classes", RoleGuard("teacher", "student"), myClasses)
 		api.POST("/classes/:id/students", RoleGuard("teacher", "admin"), addStudents)
+		api.POST("/classes/:id/notes", RoleGuard("teacher"), uploadNote)
+		api.GET("/classes/:id/notes", RoleGuard("student", "teacher", "admin"), listNotes)
+		api.GET("/notes/:noteId", RoleGuard("student", "teacher", "admin"), downloadNote)
+		api.DELETE("/notes/:noteId", RoleGuard("teacher"), deleteNote)
 		api.POST("/bakalari/atoms", RoleGuard("teacher"), bakalariAtoms)
 		api.POST("/classes/:id/import-bakalari", RoleGuard("teacher"), importBakalariStudents)
 		api.GET("/classes/all", RoleGuard("admin"), listAllClasses) // new
@@ -111,12 +115,12 @@ func main() {
 		api.DELETE("/users/:id", RoleGuard("admin"), deleteUser)
 		// List my submissions (student)
 		api.GET("/my-submissions", RoleGuard("student"), listSubs)
-                api.GET("/events", RoleGuard("student", "teacher", "admin"), eventsHandler)
-                api.DELETE("/classes/:id/students/:sid", RoleGuard("teacher", "admin"), removeStudent)
+		api.GET("/events", RoleGuard("student", "teacher", "admin"), eventsHandler)
+		api.DELETE("/classes/:id/students/:sid", RoleGuard("teacher", "admin"), removeStudent)
 
-                api.GET("/students", RoleGuard("teacher", "admin"), listStudents)
-                api.GET("/classes/:id/progress", RoleGuard("teacher", "admin"), getClassProgress)
-                api.GET("/classes/:id", RoleGuard("teacher", "student", "admin"), getClass)
+		api.GET("/students", RoleGuard("teacher", "admin"), listStudents)
+		api.GET("/classes/:id/progress", RoleGuard("teacher", "admin"), getClassProgress)
+		api.GET("/classes/:id", RoleGuard("teacher", "student", "admin"), getClass)
 
 	}
 

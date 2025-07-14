@@ -67,6 +67,15 @@ type TestCase struct {
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
 }
 
+// Note represents a class note (uploaded notebook).
+type Note struct {
+	ID           int       `db:"id" json:"id"`
+	ClassID      int       `db:"class_id" json:"class_id"`
+	FilePath     string    `db:"file_path" json:"file_path"`
+	OriginalName string    `db:"original_name" json:"original_name"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+}
+
 // ──────────────────────────────────────────────────────
 // admin helpers
 // ──────────────────────────────────────────────────────
@@ -645,47 +654,47 @@ func SetSubmissionPoints(id int, pts float64) error {
 }
 
 func SetSubmissionOverridePoints(id int, pts *float64) error {
-        _, err := DB.Exec(`UPDATE submissions SET override_points=$1 WHERE id=$2`, pts, id)
-        return err
+	_, err := DB.Exec(`UPDATE submissions SET override_points=$1 WHERE id=$2`, pts, id)
+	return err
 }
 
 type ScoreCell struct {
-        StudentID    int      `db:"student_id" json:"student_id"`
-        AssignmentID int      `db:"assignment_id" json:"assignment_id"`
-        Points       *float64 `db:"points" json:"points"`
+	StudentID    int      `db:"student_id" json:"student_id"`
+	AssignmentID int      `db:"assignment_id" json:"assignment_id"`
+	Points       *float64 `db:"points" json:"points"`
 }
 
 type ClassProgress struct {
-        Students    []Student    `json:"students"`
-        Assignments []Assignment `json:"assignments"`
-        Scores      []ScoreCell  `json:"scores"`
+	Students    []Student    `json:"students"`
+	Assignments []Assignment `json:"assignments"`
+	Scores      []ScoreCell  `json:"scores"`
 }
 
 // GetClassProgress returns score cells for each student/assignment pair in a class.
 func GetClassProgress(classID int) (*ClassProgress, error) {
-        var students []Student
-        if err := DB.Select(&students, `
+	var students []Student
+	if err := DB.Select(&students, `
                 SELECT u.id, u.email, u.name
                   FROM users u
                   JOIN class_students cs ON cs.student_id=u.id
                  WHERE cs.class_id=$1
                  ORDER BY u.email`, classID); err != nil {
-                return nil, err
-        }
+		return nil, err
+	}
 
-        var asg []Assignment
-        if err := DB.Select(&asg, `
+	var asg []Assignment
+	if err := DB.Select(&asg, `
                 SELECT id, title, description, created_by, deadline,
                        max_points, grading_policy, published, template_path,
                        created_at, updated_at, class_id
                   FROM assignments
                  WHERE class_id=$1
                  ORDER BY deadline ASC`, classID); err != nil {
-                return nil, err
-        }
+		return nil, err
+	}
 
-        var cells []ScoreCell
-        if err := DB.Select(&cells, `
+	var cells []ScoreCell
+	if err := DB.Select(&cells, `
                 SELECT cs.student_id, a.id AS assignment_id,
                        MAX(COALESCE(s.override_points, s.points)) AS points
                   FROM class_students cs
@@ -694,8 +703,72 @@ func GetClassProgress(classID int) (*ClassProgress, error) {
                  WHERE cs.class_id=$1
                  GROUP BY cs.student_id, a.id
                  ORDER BY cs.student_id, a.id`, classID); err != nil {
-                return nil, err
-        }
+		return nil, err
+	}
 
-        return &ClassProgress{Students: students, Assignments: asg, Scores: cells}, nil
+	return &ClassProgress{Students: students, Assignments: asg, Scores: cells}, nil
+}
+
+// ──────────────────────────────────────────────────────
+// notes
+// ──────────────────────────────────────────────────────
+
+// CreateNote stores a new notebook path for a class.
+func CreateNote(n *Note) error {
+	const q = `
+        INSERT INTO notes (class_id, file_path, original_name)
+        VALUES ($1,$2,$3)
+        RETURNING id, created_at`
+	return DB.QueryRow(q, n.ClassID, n.FilePath, n.OriginalName).
+		Scan(&n.ID, &n.CreatedAt)
+}
+
+// ListNotes returns notes for a class ordered by creation time.
+func ListNotes(classID int) ([]Note, error) {
+	list := []Note{}
+	err := DB.Select(&list, `
+        SELECT id, class_id, file_path, original_name, created_at
+          FROM notes
+         WHERE class_id=$1
+         ORDER BY created_at DESC`, classID)
+	return list, err
+}
+
+// GetNote retrieves a single note by ID.
+func GetNote(id int) (*Note, error) {
+	var n Note
+	err := DB.Get(&n, `
+        SELECT id, class_id, file_path, original_name, created_at
+          FROM notes
+         WHERE id=$1`, id)
+	if err != nil {
+		return nil, err
+	}
+	return &n, nil
+}
+
+// DeleteNote removes a note entry.
+func DeleteNote(id int) error {
+	_, err := DB.Exec(`DELETE FROM notes WHERE id=$1`, id)
+	return err
+}
+
+// IsTeacherOfClass returns true if the user is teacher of the class.
+func IsTeacherOfClass(classID, teacherID int) (bool, error) {
+	var x int
+	err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, classID, teacherID)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// IsStudentOfClass checks if the student is enrolled in the class.
+func IsStudentOfClass(classID, studentID int) (bool, error) {
+	var x int
+	err := DB.Get(&x, `SELECT 1 FROM class_students WHERE class_id=$1 AND student_id=$2`, classID, studentID)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
