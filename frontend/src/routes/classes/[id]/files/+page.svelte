@@ -11,7 +11,6 @@ $: if ($page.params.id !== id) { id = $page.params.id; load(currentParent); }
 const role: string = get(auth)?.role ?? '';
 
 let items:any[] = [];
-let breadcrumbs:{id:number|null,name:string}[] = [{id:null,name:'root'}];
 let currentParent:number|null = null;
 let loading = false;
 let err = '';
@@ -61,14 +60,7 @@ async function load(parent:number|null){
 }
 
 async function openDir(item:any){
-  breadcrumbs.push({id:item.id,name:item.name});
   await load(item.id);
-}
-
-function crumbTo(i:number){
-  const b = breadcrumbs[i];
-  breadcrumbs = breadcrumbs.slice(0,i+1);
-  load(b.id);
 }
 
 async function upload(){
@@ -104,13 +96,6 @@ onMount(()=>load(null));
 </script>
 
 <h1 class="text-2xl font-bold mb-4">Files</h1>
-<nav class="mb-4">
-  <ul class="breadcrumbs">
-    {#each breadcrumbs as b,i}
-      <li><a href="#" on:click|preventDefault={() => crumbTo(i)}>{b.name}</a></li>
-    {/each}
-  </ul>
-</nav>
 
 {#if loading}
 <p>Loading…</p>
