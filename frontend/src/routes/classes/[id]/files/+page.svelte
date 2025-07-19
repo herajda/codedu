@@ -4,18 +4,51 @@ import { page } from '$app/stores';
 import { get } from 'svelte/store';
 import { auth } from '$lib/auth';
 import { apiJSON, apiFetch } from '$lib/api';
+import '@fortawesome/fontawesome-free/css/all.min.css';
 
 let id = $page.params.id;
 $: if ($page.params.id !== id) { id = $page.params.id; load(currentParent); }
 const role: string = get(auth)?.role ?? '';
 
 let items:any[] = [];
-let breadcrumbs:{id:number|null,name:string}[] = [{id:null,name:'root'}];
+let breadcrumbs:{id:number|null,name:string}[] = [{id:null,name:'/'}];
 let currentParent:number|null = null;
 let loading = false;
 let err = '';
 let uploadInput: HTMLInputElement;
 let newDir = '';
+
+function iconClass(name: string) {
+  const ext = name.split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'pdf':
+      return 'fa-file-pdf text-error';
+    case 'png':
+    case 'jpg':
+    case 'jpeg':
+    case 'gif':
+      return 'fa-file-image text-success';
+    case 'zip':
+    case 'tar':
+    case 'gz':
+      return 'fa-file-zipper';
+    case 'js':
+    case 'ts':
+    case 'svelte':
+    case 'py':
+    case 'go':
+    case 'java':
+    case 'cpp':
+      return 'fa-file-code text-primary';
+    default:
+      return 'fa-file';
+  }
+}
+
+function open(item: any) {
+  if (item.is_dir) openDir(item);
+  else window.open(`/api/files/${item.id}`, '_blank');
+}
 
 async function load(parent:number|null){
   loading = true; err='';
@@ -28,7 +61,7 @@ async function load(parent:number|null){
 }
 
 async function openDir(item:any){
-  breadcrumbs.push({id:item.id,name:item.name});
+  breadcrumbs = [...breadcrumbs, {id:item.id,name:item.name}];
   await load(item.id);
 }
 
@@ -72,9 +105,11 @@ onMount(()=>load(null));
 
 <h1 class="text-2xl font-bold mb-4">Files</h1>
 <nav class="mb-4">
-  <ul class="breadcrumbs">
+  <ul class="flex flex-wrap gap-1 text-sm items-center">
     {#each breadcrumbs as b,i}
-      <li><a href="#" on:click|preventDefault={() => crumbTo(i)}>{b.name}</a></li>
+      <li class="after:mx-1 after:content-['/'] last:after:hidden first:after:content-none">
+        <a href="#" class="link" on:click|preventDefault={() => crumbTo(i)}>{b.name}</a>
+      </li>
     {/each}
   </ul>
 </nav>
@@ -84,23 +119,33 @@ onMount(()=>load(null));
 {:else if err}
 <p class="text-error">{err}</p>
 {:else}
-<ul class="space-y-1 mb-4">
+<div class="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 mb-4">
   {#each items as it}
-  <li class="flex gap-2 items-center">
-    {#if it.is_dir}
-      <button class="link flex-1 text-left" on:click={()=>openDir(it)}>{it.name}</button>
-    {:else}
-      <a class="link flex-1" href={`/api/files/${it.id}`}>{it.name}</a>
-      <span class="text-sm">{it.size} B</span>
-    {/if}
-    {#if role==='teacher' || role==='admin'}
-      <button class="btn btn-xs" on:click={()=>rename(it)}>Rename</button>
-      <button class="btn btn-xs btn-error" on:click={()=>del(it)}>Delete</button>
-    {/if}
-  </li>
+    <div class="relative border rounded p-3 flex flex-col items-center group hover:shadow cursor-pointer" on:click={() => open(it)}>
+      <div class="text-5xl mb-2">
+        {#if it.is_dir}
+          <i class="fa-solid fa-folder text-warning"></i>
+        {:else}
+          <i class="fa-solid {iconClass(it.name)}"></i>
+        {/if}
+      </div>
+      <span class="text-sm text-center break-all">{it.name}</span>
+      {#if role==='teacher' || role==='admin'}
+        <div class="absolute top-1 right-1 hidden group-hover:flex gap-1">
+          <button class="btn btn-xs btn-circle" title="Rename" on:click|stopPropagation={() => rename(it)}>
+            <i class="fa-solid fa-pen"></i>
+          </button>
+          <button class="btn btn-xs btn-circle btn-error" title="Delete" on:click|stopPropagation={() => del(it)}>
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </div>
+      {/if}
+    </div>
   {/each}
-  {#if !items.length}<li><i>Empty</i></li>{/if}
-</ul>
+  {#if !items.length}
+    <p class="col-span-full"><i>Empty</i></p>
+  {/if}
+</div>
 {#if role==='teacher' || role==='admin'}
 <div class="space-y-2">
   <input type="file" bind:this={uploadInput} class="file-input" />
