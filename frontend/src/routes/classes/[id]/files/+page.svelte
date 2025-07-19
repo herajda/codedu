@@ -107,7 +107,7 @@ onMount(()=>load(null));
 <nav class="mb-4">
   <ul class="flex flex-wrap gap-1 text-sm items-center">
     {#each breadcrumbs as b,i}
-      <li class="after:mx-1 after:content-['/'] last:after:hidden">
+      <li class="after:mx-1 after:content-['/'] last:after:hidden first:after:content-none">
         <a href="#" class="link" on:click|preventDefault={() => crumbTo(i)}>{b.name}</a>
       </li>
     {/each}
