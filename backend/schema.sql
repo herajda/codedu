@@ -97,3 +97,19 @@ CREATE TABLE IF NOT EXISTS class_students (
   student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   PRIMARY KEY (class_id, student_id)
 );
+
+CREATE TABLE IF NOT EXISTS class_files (
+  id SERIAL PRIMARY KEY,
+  class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+  parent_id INTEGER REFERENCES class_files(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  path TEXT NOT NULL,
+  is_dir BOOLEAN NOT NULL DEFAULT FALSE,
+  content BYTEA,
+  size INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(class_id, path)
+);
+CREATE INDEX IF NOT EXISTS idx_class_files_path ON class_files(class_id, path);
+

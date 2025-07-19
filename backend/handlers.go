@@ -39,24 +39,24 @@ func getClass(c *gin.Context) {
 }
 
 func getClassProgress(c *gin.Context) {
-        id, err := strconv.Atoi(c.Param("id"))
-        if err != nil {
-                c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-                return
-        }
-        if c.GetString("role") == "teacher" {
-                var x int
-                if err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, id, c.GetInt("userID")); err != nil {
-                        c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-                        return
-                }
-        }
-        prog, err := GetClassProgress(id)
-        if err != nil {
-                c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-                return
-        }
-        c.JSON(http.StatusOK, prog)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if c.GetString("role") == "teacher" {
+		var x int
+		if err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, id, c.GetInt("userID")); err != nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	prog, err := GetClassProgress(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, prog)
 }
 
 // ──────────────────────────────────────────
@@ -884,6 +884,185 @@ func overrideSubmissionPoints(c *gin.Context) {
 		}
 	}
 	if err := SetSubmissionOverridePoints(sid, req.Points); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// ──────────────────────────────────────────
+// File system handlers
+// ──────────────────────────────────────────
+
+func listClassFiles(c *gin.Context) {
+	cid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	role := c.GetString("role")
+	if role == "teacher" {
+		if ok, err := IsTeacherOfClass(cid, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	} else if role == "student" {
+		if ok, err := IsStudentOfClass(cid, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	var parentID *int
+	if pidStr := c.Query("parent"); pidStr != "" {
+		if pid, err := strconv.Atoi(pidStr); err == nil {
+			parentID = &pid
+		}
+	}
+	list, err := ListFiles(cid, parentID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, list)
+}
+
+func uploadClassFile(c *gin.Context) {
+	cid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if c.GetString("role") == "teacher" {
+		if ok, err := IsTeacherOfClass(cid, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	var parentID *int
+	pidStr := c.Request.FormValue("parent_id")
+	if pidStr != "" {
+		if pid, err := strconv.Atoi(pidStr); err == nil {
+			parentID = &pid
+		}
+	}
+	if strings.HasPrefix(c.GetHeader("Content-Type"), "multipart/form-data") {
+		file, err := c.FormFile("file")
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "missing file"})
+			return
+		}
+		f, err := file.Open()
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "open"})
+			return
+		}
+		defer f.Close()
+		data, _ := io.ReadAll(f)
+		cf, err := SaveFile(cid, parentID, filepath.Base(file.Filename), data, false)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+			return
+		}
+		c.JSON(http.StatusCreated, cf)
+		return
+	}
+	var req struct {
+		Name     string `json:"name" binding:"required"`
+		ParentID *int   `json:"parent_id"`
+		IsDir    bool   `json:"is_dir"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	cf, err := SaveFile(cid, req.ParentID, req.Name, nil, req.IsDir)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusCreated, cf)
+}
+
+func downloadClassFile(c *gin.Context) {
+	fid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	f, err := GetFile(fid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	role := c.GetString("role")
+	if role == "teacher" {
+		if ok, err := IsTeacherOfClass(f.ClassID, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	} else if role == "student" {
+		if ok, err := IsStudentOfClass(f.ClassID, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	if f.IsDir {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "not a file"})
+		return
+	}
+	c.Writer.Header().Set("Content-Disposition", "attachment; filename="+strconv.Quote(f.Name))
+	c.Data(http.StatusOK, "application/octet-stream", f.Content)
+}
+
+func renameClassFile(c *gin.Context) {
+	fid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var req struct {
+		Name string `json:"name" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	f, err := GetFile(fid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if c.GetString("role") == "teacher" {
+		if ok, err := IsTeacherOfClass(f.ClassID, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	if err := RenameFile(fid, req.Name); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func deleteClassFile(c *gin.Context) {
+	fid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	f, err := GetFile(fid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if c.GetString("role") == "teacher" {
+		if ok, err := IsTeacherOfClass(f.ClassID, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	if err := DeleteFile(fid); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}

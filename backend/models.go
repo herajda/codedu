@@ -645,47 +645,47 @@ func SetSubmissionPoints(id int, pts float64) error {
 }
 
 func SetSubmissionOverridePoints(id int, pts *float64) error {
-        _, err := DB.Exec(`UPDATE submissions SET override_points=$1 WHERE id=$2`, pts, id)
-        return err
+	_, err := DB.Exec(`UPDATE submissions SET override_points=$1 WHERE id=$2`, pts, id)
+	return err
 }
 
 type ScoreCell struct {
-        StudentID    int      `db:"student_id" json:"student_id"`
-        AssignmentID int      `db:"assignment_id" json:"assignment_id"`
-        Points       *float64 `db:"points" json:"points"`
+	StudentID    int      `db:"student_id" json:"student_id"`
+	AssignmentID int      `db:"assignment_id" json:"assignment_id"`
+	Points       *float64 `db:"points" json:"points"`
 }
 
 type ClassProgress struct {
-        Students    []Student    `json:"students"`
-        Assignments []Assignment `json:"assignments"`
-        Scores      []ScoreCell  `json:"scores"`
+	Students    []Student    `json:"students"`
+	Assignments []Assignment `json:"assignments"`
+	Scores      []ScoreCell  `json:"scores"`
 }
 
 // GetClassProgress returns score cells for each student/assignment pair in a class.
 func GetClassProgress(classID int) (*ClassProgress, error) {
-        var students []Student
-        if err := DB.Select(&students, `
+	var students []Student
+	if err := DB.Select(&students, `
                 SELECT u.id, u.email, u.name
                   FROM users u
                   JOIN class_students cs ON cs.student_id=u.id
                  WHERE cs.class_id=$1
                  ORDER BY u.email`, classID); err != nil {
-                return nil, err
-        }
+		return nil, err
+	}
 
-        var asg []Assignment
-        if err := DB.Select(&asg, `
+	var asg []Assignment
+	if err := DB.Select(&asg, `
                 SELECT id, title, description, created_by, deadline,
                        max_points, grading_policy, published, template_path,
                        created_at, updated_at, class_id
                   FROM assignments
                  WHERE class_id=$1
                  ORDER BY deadline ASC`, classID); err != nil {
-                return nil, err
-        }
+		return nil, err
+	}
 
-        var cells []ScoreCell
-        if err := DB.Select(&cells, `
+	var cells []ScoreCell
+	if err := DB.Select(&cells, `
                 SELECT cs.student_id, a.id AS assignment_id,
                        MAX(COALESCE(s.override_points, s.points)) AS points
                   FROM class_students cs
@@ -694,8 +694,142 @@ func GetClassProgress(classID int) (*ClassProgress, error) {
                  WHERE cs.class_id=$1
                  GROUP BY cs.student_id, a.id
                  ORDER BY cs.student_id, a.id`, classID); err != nil {
-                return nil, err
-        }
+		return nil, err
+	}
 
-        return &ClassProgress{Students: students, Assignments: asg, Scores: cells}, nil
+	return &ClassProgress{Students: students, Assignments: asg, Scores: cells}, nil
+}
+
+// ──────────────────────────────────────────
+// File management
+// ──────────────────────────────────────────
+
+type ClassFile struct {
+	ID        int       `db:"id" json:"id"`
+	ClassID   int       `db:"class_id" json:"class_id"`
+	ParentID  *int      `db:"parent_id" json:"parent_id"`
+	Name      string    `db:"name" json:"name"`
+	Path      string    `db:"path" json:"path"`
+	IsDir     bool      `db:"is_dir" json:"is_dir"`
+	Size      int       `db:"size" json:"size"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+type ClassFileWithContent struct {
+	ClassFile
+	Content []byte `db:"content" json:"content"`
+}
+
+func buildFilePath(parentID *int, name string) (string, error) {
+	if parentID == nil {
+		return "/" + name, nil
+	}
+	var p string
+	if err := DB.Get(&p, `SELECT path FROM class_files WHERE id=$1`, *parentID); err != nil {
+		return "", err
+	}
+	return p + "/" + name, nil
+}
+
+func ListFiles(classID int, parentID *int) ([]ClassFile, error) {
+	list := []ClassFile{}
+	query := `SELECT id,class_id,parent_id,name,path,is_dir,size,created_at,updated_at
+                   FROM class_files WHERE class_id=$1`
+	args := []any{classID}
+	if parentID == nil {
+		query += ` AND parent_id IS NULL`
+	} else {
+		query += ` AND parent_id=$2`
+		args = append(args, *parentID)
+	}
+	query += ` ORDER BY is_dir DESC, name`
+	err := DB.Select(&list, query, args...)
+	return list, err
+}
+
+func SaveFile(classID int, parentID *int, name string, data []byte, isDir bool) (*ClassFile, error) {
+	path, err := buildFilePath(parentID, name)
+	if err != nil {
+		return nil, err
+	}
+	size := len(data)
+	var cf ClassFile
+	err = DB.QueryRow(`INSERT INTO class_files (class_id,parent_id,name,path,is_dir,content,size)
+                        VALUES ($1,$2,$3,$4,$5,$6,$7)
+                        RETURNING id,class_id,parent_id,name,path,is_dir,size,created_at,updated_at`,
+		classID, parentID, name, path, isDir, data, size).Scan(
+		&cf.ID, &cf.ClassID, &cf.ParentID, &cf.Name, &cf.Path, &cf.IsDir, &cf.Size, &cf.CreatedAt, &cf.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &cf, nil
+}
+
+func GetFile(id int) (*ClassFileWithContent, error) {
+	var cf ClassFileWithContent
+	err := DB.Get(&cf, `SELECT id,class_id,parent_id,name,path,is_dir,size,created_at,updated_at,content FROM class_files WHERE id=$1`, id)
+	if err != nil {
+		return nil, err
+	}
+	return &cf, nil
+}
+
+func RenameFile(id int, newName string) error {
+	var f ClassFile
+	if err := DB.Get(&f, `SELECT id,class_id,parent_id,name,path FROM class_files WHERE id=$1`, id); err != nil {
+		return err
+	}
+	newPath, err := buildFilePath(f.ParentID, newName)
+	if err != nil {
+		return err
+	}
+	tx, err := DB.Beginx()
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE class_files SET name=$1, path=$2 WHERE id=$3`, newName, newPath, id); err != nil {
+		tx.Rollback()
+		return err
+	}
+	oldPrefix := f.Path + "/"
+	newPrefix := newPath + "/"
+	rows := []ClassFile{}
+	if err := tx.Select(&rows, `SELECT id,path FROM class_files WHERE class_id=$1 AND path LIKE $2`, f.ClassID, oldPrefix+"%"); err == nil {
+		for _, r := range rows {
+			np := newPrefix + r.Path[len(oldPrefix):]
+			if _, err := tx.Exec(`UPDATE class_files SET path=$1 WHERE id=$2`, np, r.ID); err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
+	}
+	return tx.Commit()
+}
+
+func DeleteFile(id int) error {
+	var f ClassFile
+	if err := DB.Get(&f, `SELECT class_id,path FROM class_files WHERE id=$1`, id); err != nil {
+		return err
+	}
+	_, err := DB.Exec(`DELETE FROM class_files WHERE class_id=$1 AND (id=$2 OR path LIKE $3)`, f.ClassID, id, f.Path+"/%")
+	return err
+}
+
+func IsTeacherOfClass(cid, teacherID int) (bool, error) {
+	var x int
+	err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, cid, teacherID)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func IsStudentOfClass(cid, studentID int) (bool, error) {
+	var x int
+	err := DB.Get(&x, `SELECT 1 FROM class_students WHERE class_id=$1 AND student_id=$2`, cid, studentID)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
