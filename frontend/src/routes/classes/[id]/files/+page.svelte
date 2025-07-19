@@ -105,9 +105,11 @@ onMount(()=>load(null));
 
 <h1 class="text-2xl font-bold mb-4">Files</h1>
 <nav class="mb-4">
-  <ul class="breadcrumbs">
+  <ul class="flex flex-wrap gap-1 text-sm items-center">
     {#each breadcrumbs as b,i}
-      <li><a href="#" on:click|preventDefault={() => crumbTo(i)}>{b.name}</a></li>
+      <li class="after:mx-1 after:content-['/'] last:after:hidden">
+        <a href="#" class="link" on:click|preventDefault={() => crumbTo(i)}>{b.name}</a>
+      </li>
     {/each}
   </ul>
 </nav>
