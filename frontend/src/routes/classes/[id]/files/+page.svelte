@@ -11,7 +11,7 @@ $: if ($page.params.id !== id) { id = $page.params.id; load(currentParent); }
 const role: string = get(auth)?.role ?? '';
 
 let items:any[] = [];
-let breadcrumbs:{id:number|null,name:string}[] = [{id:null,name:'root'}];
+let breadcrumbs:{id:number|null,name:string}[] = [{id:null,name:'/'}];
 let currentParent:number|null = null;
 let loading = false;
 let err = '';
@@ -61,7 +61,7 @@ async function load(parent:number|null){
 }
 
 async function openDir(item:any){
-  breadcrumbs.push({id:item.id,name:item.name});
+  breadcrumbs = [...breadcrumbs, {id:item.id,name:item.name}];
   await load(item.id);
 }
 
