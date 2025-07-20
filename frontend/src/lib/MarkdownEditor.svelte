@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { createEventDispatcher } from 'svelte';
+  import { sidebarCollapsed, sidebarOpen } from '$lib/sidebar';
   import '@fortawesome/fontawesome-free/css/all.min.css';
 
   let EasyMDE: any;
@@ -46,15 +47,74 @@
       value = editor!.value();
       dispatch('input', value);
     });
+
+    const updateSidebar = () => {
+      const side = editor?.isSideBySideActive && editor.isSideBySideActive();
+      const fs = editor?.isFullscreenActive && editor.isFullscreenActive();
+      sidebarCollapsed.set(side || fs);
+      if (side || fs) {
+        sidebarOpen.set(false);
+      }
+      document.body.classList.toggle('hide-navbar', fs);
+    };
+
+    const handleSideBySide = () => {
+      if (!editor) return;
+      const active = editor.isSideBySideActive();
+      if (!active && editor.isFullscreenActive()) {
+        editor.toggleFullScreen();
+      }
+      updateSidebar();
+    };
+
+    const btnSide = editor.toolbarElements?.['side-by-side'];
+    btnSide?.addEventListener('click', handleSideBySide);
+    const btnFull = editor.toolbarElements?.fullscreen;
+    btnFull?.addEventListener('click', updateSidebar);
+
+    const preview = editor.codemirror.getWrapperElement().nextSibling;
+    const sideObserver = new MutationObserver(handleSideBySide);
+    sideObserver.observe(preview, { attributes: true, attributeFilter: ['class'] });
+
+    const wrapper = editor.codemirror.getWrapperElement();
+    const fsObserver = new MutationObserver(updateSidebar);
+    fsObserver.observe(wrapper, { attributes: true, attributeFilter: ['class'] });
+
+    updateSidebar();
+    onDestroy(() => {
+      btnSide?.removeEventListener('click', handleSideBySide);
+      btnFull?.removeEventListener('click', updateSidebar);
+      sideObserver.disconnect();
+      fsObserver.disconnect();
+    });
   });
 
+  export function destroyEditor() {
+    if (!editor) return;
+    try {
+      // EasyMDE leaves additional DOM when destroyed from preview mode
+      if (typeof editor.isPreviewActive === 'function' && editor.isPreviewActive()) {
+        editor.togglePreview();
+      }
+      editor.toTextArea();
+    } catch (err) {
+      console.warn('Failed to destroy editor', err);
+    } finally {
+      editor = null;
+    }
+    document.body.classList.remove('hide-navbar');
+  }
+
   onDestroy(() => {
-    editor?.toTextArea();
-    editor = null;
+    destroyEditor();
   });
 
   $: if (editor && value !== editor.value()) {
     editor.value(value);
+  }
+
+  export function focus() {
+    textarea?.focus();
   }
 </script>
 
