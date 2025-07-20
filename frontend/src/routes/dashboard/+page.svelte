@@ -158,7 +158,7 @@
               {#each c.assignments as a}
                 <li class="grid grid-cols-[10rem_1fr_auto] items-center gap-2">
                   <span class="truncate w-40">{a.title}</span>
-                  <progress class="progress progress-primary w-24" value={c.progress.find((x:any)=>x.id===a.id)?.done || 0} max={c.students.length}></progress>
+                  <progress class="progress progress-primary w-full" value={c.progress.find((x:any)=>x.id===a.id)?.done || 0} max={c.students.length}></progress>
                   <span class="text-sm">{c.progress.find((x:any)=>x.id===a.id)?.done || 0}/{c.students.length}</span>
                 </li>
               {/each}
