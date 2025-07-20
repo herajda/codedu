@@ -237,7 +237,9 @@ onMount(()=>load(null));
           <th>Name</th>
           <th>Size</th>
           <th>Modified</th>
-          {#if role==='teacher' || role==='admin'}<th></th>{/if}
+          {#if role==='teacher' || role==='admin'}
+            <th class="w-16"></th>
+          {/if}
         </tr>
       </thead>
       <tbody>
@@ -255,7 +257,7 @@ onMount(()=>load(null));
             <td class="text-right">{it.is_dir ? '' : it.size}</td>
             <td class="text-right">{new Date(it.updated_at).toLocaleString()}</td>
             {#if role==='teacher' || role==='admin'}
-              <td class="text-right whitespace-nowrap">
+              <td class="text-right whitespace-nowrap w-16">
                 <button class="btn btn-xs btn-circle invisible group-hover:visible" title="Rename" on:click|stopPropagation={() => rename(it)}>
                   <i class="fa-solid fa-pen"></i>
                 </button>
@@ -267,7 +269,9 @@ onMount(()=>load(null));
           </tr>
         {/each}
         {#if !items.length}
-          <tr><td colspan="4"><i>Empty</i></td></tr>
+          <tr>
+            <td colspan={role==='teacher' || role==='admin' ? 4 : 3}><i>Empty</i></td>
+          </tr>
         {/if}
       </tbody>
     </table>
