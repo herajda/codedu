@@ -6,10 +6,14 @@
   import Sidebar from '$lib/Sidebar.svelte';
   import { sidebarOpen, sidebarCollapsed } from '$lib/sidebar';
   import { apiFetch } from '$lib/api';
+  import { sha256 } from '$lib/hash';
 
   let settingsDialog: HTMLDialogElement;
+  let avatarInput: HTMLInputElement;
   let name = '';
   let avatarFile: string | null = null;
+  let oldPassword = '';
+  let newPassword = '';
 
   function logout() {
     auth.logout();
@@ -21,6 +25,8 @@
       name = user.name ?? '';
     }
     avatarFile = null;
+    oldPassword = '';
+    newPassword = '';
     settingsDialog.showModal();
   }
 
@@ -32,6 +38,10 @@
     reader.readAsDataURL(file);
   }
 
+  function chooseAvatar() {
+    avatarInput.click();
+  }
+
   async function saveSettings() {
     const body: any = {};
     if (avatarFile !== null) body.avatar = avatarFile;
@@ -41,8 +51,18 @@
       const meRes = await apiFetch('/api/me');
       if (meRes.ok) {
         const me = await meRes.json();
-        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null);
+        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null);
       }
+    }
+    if (user && user.bk_uid == null && oldPassword && newPassword) {
+      await apiFetch('/api/me/password', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          old_password: await sha256(oldPassword),
+          new_password: await sha256(newPassword)
+        })
+      });
     }
     settingsDialog.close();
   }
@@ -104,16 +124,40 @@
           <dialog bind:this={settingsDialog} class="modal">
             <div class="modal-box space-y-4">
               <h3 class="font-bold text-lg">Settings</h3>
+              <div class="flex items-center space-x-4">
+                <div class="avatar cursor-pointer" on:click={chooseAvatar}>
+                  {#if avatarFile}
+                    <div class="w-16 rounded-full"><img src={avatarFile} /></div>
+                  {:else if user.avatar}
+                    <div class="w-16 rounded-full"><img src={user.avatar} /></div>
+                  {:else}
+                    <div class="w-16 rounded-full bg-neutral text-neutral-content flex items-center justify-center">
+                      {user.role.slice(0,1).toUpperCase()}
+                    </div>
+                  {/if}
+                  <input type="file" accept="image/*" on:change={onAvatarChange} bind:this={avatarInput} class="hidden" />
+                </div>
+                <div class="flex-1 space-y-1">
+                  {#if user.bk_uid == null}
+                    <input class="input input-bordered w-full" bind:value={name} />
+                  {:else}
+                    <p class="font-bold">{user.name}</p>
+                  {/if}
+                  {#if user.email}
+                    <p class="text-sm text-base-content/70">{user.email}</p>
+                  {/if}
+                </div>
+              </div>
               {#if user.bk_uid == null}
                 <label class="form-control w-full space-y-1">
-                  <span class="label-text">Name</span>
-                  <input class="input input-bordered w-full" bind:value={name} />
+                  <span class="label-text">Old Password</span>
+                  <input type="password" class="input input-bordered w-full" bind:value={oldPassword} />
+                </label>
+                <label class="form-control w-full space-y-1">
+                  <span class="label-text">New Password</span>
+                  <input type="password" class="input input-bordered w-full" bind:value={newPassword} />
                 </label>
               {/if}
-              <label class="form-control w-full space-y-1">
-                <span class="label-text">Avatar</span>
-                <input type="file" accept="image/*" on:change={onAvatarChange} />
-              </label>
               <div class="modal-action">
                 <button class="btn" on:click={saveSettings}>Save</button>
               </div>

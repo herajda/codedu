@@ -117,6 +117,11 @@ func UpdateUserProfile(id int, name, avatar *string) error {
 	return err
 }
 
+func UpdateUserPassword(id int, hash string) error {
+	_, err := DB.Exec(`UPDATE users SET password_hash=$1 WHERE id=$2`, hash, id)
+	return err
+}
+
 func ListAllClasses() ([]Class, error) {
 	var cls []Class
 	err := DB.Select(&cls,

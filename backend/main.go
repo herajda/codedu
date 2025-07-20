@@ -74,9 +74,11 @@ func main() {
 				"name":   u.Name,
 				"avatar": u.Avatar,
 				"bk_uid": u.BkUID,
+				"email":  u.Email,
 			})
 		})
 		api.PUT("/me", updateProfile)
+		api.PUT("/me/password", changePassword)
 
 		// Assignments
 		api.GET("/assignments", RoleGuard("student", "teacher", "admin"), listAssignments)
