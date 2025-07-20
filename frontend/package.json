@@ -43,7 +43,6 @@
 		"pyodide": "^0.28.0",
 		"shiki": "^3.8.1",
 		"tailwindcss": "^4.1.11",
-		"ui": "github:shadcn/ui",
 		"uuid": "^11.1.0"
 	},
 	"overrides": {
