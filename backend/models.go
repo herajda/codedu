@@ -816,6 +816,11 @@ func DeleteFile(id int) error {
 	return err
 }
 
+func UpdateFileContent(id int, data []byte) error {
+	_, err := DB.Exec(`UPDATE class_files SET content=$1, size=$2, updated_at=now() WHERE id=$3`, data, len(data), id)
+	return err
+}
+
 func IsTeacherOfClass(cid, teacherID int) (bool, error) {
 	var x int
 	err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, cid, teacherID)

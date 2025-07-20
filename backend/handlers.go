@@ -1068,3 +1068,36 @@ func deleteClassFile(c *gin.Context) {
 	}
 	c.Status(http.StatusNoContent)
 }
+
+func updateFileContent(c *gin.Context) {
+	fid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	data, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "read"})
+		return
+	}
+	f, err := GetFile(fid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if c.GetString("role") == "teacher" {
+		if ok, err := IsTeacherOfClass(f.ClassID, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	if f.IsDir {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "not a file"})
+		return
+	}
+	if err := UpdateFileContent(fid, data); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}

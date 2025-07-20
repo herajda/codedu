@@ -123,6 +123,7 @@ func main() {
 		api.POST("/classes/:id/files", RoleGuard("teacher", "admin"), uploadClassFile)
 		api.GET("/files/:id", RoleGuard("teacher", "student", "admin"), downloadClassFile)
 		api.PUT("/files/:id", RoleGuard("teacher", "admin"), renameClassFile)
+		api.PUT("/files/:id/content", RoleGuard("teacher", "admin"), updateFileContent)
 		api.DELETE("/files/:id", RoleGuard("teacher", "admin"), deleteClassFile)
 
 	}

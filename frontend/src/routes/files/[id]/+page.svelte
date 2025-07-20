@@ -23,5 +23,5 @@
 </script>
 
 <h1 class="text-2xl font-bold mb-4">Notebook</h1>
-<NotebookEditor />
+<NotebookEditor fileId={id} />
 
