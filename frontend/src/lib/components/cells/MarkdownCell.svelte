@@ -1,5 +1,7 @@
 <script lang="ts">
   import { marked } from "marked";
+  import { tick } from 'svelte';
+  import { MarkdownEditor } from '$lib';
   import {
     notebookStore,
     moveCellUp,
@@ -14,7 +16,9 @@
 
   let editing = !cell.source;
 
-  // keep a local string bound to textarea
+  let editorRef: any;
+
+  // keep a local string bound to the editor
   let sourceStr = Array.isArray(cell.source) ? cell.source.join("") : (cell.source ?? "");
 
   $: {
@@ -23,8 +27,15 @@
     if (s !== sourceStr) sourceStr = s;
   }
 
-  function toggle() {
+  async function toggle() {
     editing = !editing;
+    if (editing) {
+      sourceStr = Array.isArray(cell.source)
+        ? cell.source.join("")
+        : (cell.source ?? "");
+      await tick();
+      editorRef?.focus?.();
+    }
   }
 
   function onInput() {
@@ -69,6 +80,18 @@
         <path d="M6 7h12M9 7v10m6-10v10M4 7h16l-1 12a2 2 0 01-2 2H7a2 2 0 01-2-2L4 7zM10 4h4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
       </svg>
     </button>
+    {#if !editing}
+      <button
+        aria-label="Edit cell"
+        title="Edit cell"
+        on:click={toggle}
+        class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
+      >
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M4 17.25V21h3.75L17.81 10.94l-3.75-3.75L4 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
+        </svg>
+      </button>
+    {/if}
     <div class="relative">
       <button
         aria-label="Insert cell"
@@ -110,18 +133,18 @@
     </div>
   </div>
   {#if editing}
-    <textarea
-      class="w-full bg-gray-100 p-2 rounded"
-      rows="4"
+    <MarkdownEditor
+      bind:this={editorRef}
       bind:value={sourceStr}
+      className="w-full bg-gray-100 p-2 rounded"
       on:input={onInput}
-    ></textarea>
+    />
     <button
       class="text-blue-600 mt-2 p-1 rounded hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
       on:click={toggle}
     >Preview</button>
   {:else}
-  <div class="prose">
+  <div class="markdown">
     {@html marked.parse(sourceStr)}
     </div>
   {/if}

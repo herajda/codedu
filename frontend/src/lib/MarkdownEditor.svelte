@@ -56,6 +56,10 @@
   $: if (editor && value !== editor.value()) {
     editor.value(value);
   }
+
+  export function focus() {
+    textarea?.focus();
+  }
 </script>
 
 <textarea bind:this={textarea} class={className}></textarea>
