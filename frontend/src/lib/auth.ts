@@ -7,6 +7,7 @@ export type User = {
   role: string;
   name?: string | null;
   avatar?: string | null;
+  email?: string | null;
   bk_uid?: string | null;
 } | null;
 
@@ -21,8 +22,9 @@ function createAuth() {
     name?: string | null,
     avatar?: string | null,
     bk_uid?: string | null,
+    email?: string | null,
   ) {
-    set({ id, role, name, avatar, bk_uid });
+    set({ id, role, name, avatar, bk_uid, email });
   }
 
   /** Log out everywhere */
@@ -50,6 +52,7 @@ function createAuth() {
         me.name ?? null,
         me.avatar ?? null,
         me.bk_uid ?? null,
+        me.email ?? null,
       );
     } else {
       logout();

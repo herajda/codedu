@@ -1182,3 +1182,34 @@ func updateProfile(c *gin.Context) {
 	}
 	c.Status(http.StatusNoContent)
 }
+
+func changePassword(c *gin.Context) {
+	uid := c.GetInt("userID")
+	var req struct {
+		Old string `json:"old_password" binding:"required"`
+		New string `json:"new_password" binding:"required,min=6"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	user, err := GetUser(uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	if user.BkUID != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "bakalari account"})
+		return
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Old)); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "wrong password"})
+		return
+	}
+	hash, _ := bcrypt.GenerateFromPassword([]byte(req.New), bcrypt.DefaultCost)
+	if err := UpdateUserPassword(uid, string(hash)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
