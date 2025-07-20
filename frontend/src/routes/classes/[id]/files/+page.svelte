@@ -12,11 +12,19 @@ $: if ($page.params.id !== id) { id = $page.params.id; load(currentParent); }
 const role: string = get(auth)?.role ?? '';
 
 let items:any[] = [];
+let search = '';
+let searchOpen = false;
+$: filtered = items.filter(it => it.name.toLowerCase().includes(search.toLowerCase()));
 let breadcrumbs:{id:number|null,name:string}[] = [{id:null,name:'🏠'}];
 let currentParent:number|null = null;
 let loading = false;
 let err = '';
 let uploadInput: HTMLInputElement;
+
+function toggleSearch() {
+  searchOpen = !searchOpen;
+  if (!searchOpen) search = '';
+}
 
 function isImage(name: string) {
   const ext = name.split('.').pop()?.toLowerCase();
@@ -146,8 +154,8 @@ async function rename(item:any){
 onMount(()=>load(null));
 </script>
 
-<nav class="mb-4 sticky top-16 z-30 bg-base-200 rounded-box shadow px-4 py-2 flex items-center justify-between flex-wrap gap-2">
-  <ul class="flex flex-wrap gap-1 text-sm items-center">
+<nav class="mb-4 sticky top-16 z-30 bg-base-200 rounded-box shadow px-4 py-2 flex items-center flex-wrap gap-2">
+  <ul class="flex flex-wrap gap-1 text-sm items-center flex-grow">
     {#each breadcrumbs as b,i}
       <li class="after:mx-1 after:content-['/'] last:after:hidden">
         <a
@@ -159,7 +167,22 @@ onMount(()=>load(null));
       </li>
     {/each}
   </ul>
-  {#if role==='teacher' || role==='admin'}
+  <div class="flex items-center gap-2 ml-auto">
+    <div class="relative overflow-hidden flex items-center">
+      <button class="btn btn-sm btn-circle" on:click={toggleSearch} aria-label="Search">
+        <i class="fa-solid fa-search"></i>
+      </button>
+      <input
+        class="input input-sm input-bordered ml-2 transition-all duration-300"
+        style:width={searchOpen ? '12rem' : '0'}
+        style:padding-left={searchOpen ? '0.5rem' : '0'}
+        style:padding-right={searchOpen ? '0.5rem' : '0'}
+        style:opacity={searchOpen ? '1' : '0'}
+        placeholder="Search"
+        bind:value={search}
+      />
+    </div>
+    {#if role==='teacher' || role==='admin'}
     <div class="flex items-center gap-2">
       <input type="file" bind:this={uploadInput} class="hidden" on:change={upload} />
       <button class="btn btn-sm btn-circle" on:click={() => uploadInput.click()} title="Upload file">
@@ -172,7 +195,8 @@ onMount(()=>load(null));
         <i class="fa-solid fa-book-medical"></i>
       </button>
     </div>
-  {/if}
+    {/if}
+  </div>
 </nav>
 
 {#if loading}
@@ -181,7 +205,7 @@ onMount(()=>load(null));
 <p class="text-error">{err}</p>
 {:else}
 <div class="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 mb-4">
-  {#each items as it}
+  {#each filtered as it}
     <div class="relative border rounded p-3 flex flex-col items-center group hover:shadow cursor-pointer" on:click={() => open(it)}>
       <div class="text-5xl mb-2">
         {#if it.is_dir}
@@ -205,8 +229,8 @@ onMount(()=>load(null));
       {/if}
     </div>
   {/each}
-  {#if !items.length}
-    <p class="col-span-full"><i>Empty</i></p>
+  {#if !filtered.length}
+    <p class="col-span-full"><i>No files</i></p>
   {/if}
 </div>
 {/if}
