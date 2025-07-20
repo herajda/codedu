@@ -154,6 +154,19 @@ function toggleView() {
     localStorage.setItem('fileViewMode', viewMode);
   }
 }
+function fmtSize(bytes: number | null | undefined, decimals = 1) {
+  if (bytes == null) return '';
+  if (bytes < 1024) return `${bytes} B`;
+
+  const units = ['KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+  let i = -1;
+  do {
+    bytes /= 1024;
+    i++;
+  } while (bytes >= 1024 && i < units.length - 1);
+
+  return `${bytes.toFixed(decimals)} ${units[i]}`;
+}
 
 onMount(()=>load(null));
 </script>
@@ -234,9 +247,9 @@ onMount(()=>load(null));
     <table class="table table-zebra w-full">
       <thead>
         <tr>
-          <th>Name</th>
-          <th>Size</th>
-          <th>Modified</th>
+          <th class="text-left">Name</th>
+          <th class="text-right">Size</th>
+          <th class="text-right">Modified</th>
           {#if role==='teacher' || role==='admin'}
             <th class="w-16"></th>
           {/if}
@@ -254,7 +267,7 @@ onMount(()=>load(null));
                 <i class="fa-solid {iconClass(it.name)} mr-2"></i>{it.name}
               {/if}
             </td>
-            <td class="text-right">{it.is_dir ? '' : it.size}</td>
+            <td class="text-right">{it.is_dir ? '' : fmtSize(it.size)}</td>
             <td class="text-right">{new Date(it.updated_at).toLocaleString()}</td>
             {#if role==='teacher' || role==='admin'}
               <td class="text-right whitespace-nowrap w-16">
