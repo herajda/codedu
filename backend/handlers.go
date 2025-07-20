@@ -913,29 +913,29 @@ func listClassFiles(c *gin.Context) {
 			return
 		}
 	}
-        search := c.Query("search")
-        if search != "" {
-                list, err := SearchFiles(cid, search)
-                if err != nil {
-                        c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-                        return
-                }
-                c.JSON(http.StatusOK, list)
-                return
-        }
+	search := c.Query("search")
+	if search != "" {
+		list, err := SearchFiles(cid, search)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+			return
+		}
+		c.JSON(http.StatusOK, list)
+		return
+	}
 
-        var parentID *int
-        if pidStr := c.Query("parent"); pidStr != "" {
-                if pid, err := strconv.Atoi(pidStr); err == nil {
-                        parentID = &pid
-                }
-        }
-        list, err := ListFiles(cid, parentID)
-        if err != nil {
-                c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-                return
-        }
-        c.JSON(http.StatusOK, list)
+	var parentID *int
+	if pidStr := c.Query("parent"); pidStr != "" {
+		if pid, err := strconv.Atoi(pidStr); err == nil {
+			parentID = &pid
+		}
+	}
+	list, err := ListFiles(cid, parentID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, list)
 }
 
 func listClassNotebooks(c *gin.Context) {
@@ -995,7 +995,15 @@ func uploadClassFile(c *gin.Context) {
 			return
 		}
 		defer f.Close()
-		data, _ := io.ReadAll(f)
+		data, err := io.ReadAll(f)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "read"})
+			return
+		}
+		if len(data) > maxFileSize {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "file too large"})
+			return
+		}
 		cf, err := SaveFile(cid, parentID, filepath.Base(file.Filename), data, false)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
@@ -1122,6 +1130,10 @@ func updateFileContent(c *gin.Context) {
 	data, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "read"})
+		return
+	}
+	if len(data) > maxFileSize {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file too large"})
 		return
 	}
 	f, err := GetFile(fid)

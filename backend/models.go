@@ -8,6 +8,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const maxFileSize = 20 * 1024 * 1024 // 20 MB
+
 type User struct {
 	ID           int       `db:"id"`
 	Email        string    `db:"email"`
@@ -749,14 +751,14 @@ func ListFiles(classID int, parentID *int) ([]ClassFile, error) {
 }
 
 func SearchFiles(classID int, term string) ([]ClassFile, error) {
-        list := []ClassFile{}
-        err := DB.Select(&list, `
+	list := []ClassFile{}
+	err := DB.Select(&list, `
                 SELECT id,class_id,parent_id,name,path,is_dir,size,created_at,updated_at
                   FROM class_files
                  WHERE class_id=$1 AND (name ILIKE $2 OR path ILIKE $2)
                  ORDER BY is_dir DESC, path`,
-                classID, "%"+term+"%")
-        return list, err
+		classID, "%"+term+"%")
+	return list, err
 }
 
 func ListNotebooks(classID int) ([]ClassFile, error) {
@@ -769,6 +771,9 @@ func ListNotebooks(classID int) ([]ClassFile, error) {
 }
 
 func SaveFile(classID int, parentID *int, name string, data []byte, isDir bool) (*ClassFile, error) {
+	if !isDir && len(data) > maxFileSize {
+		return nil, fmt.Errorf("file too large")
+	}
 	path, err := buildFilePath(parentID, name)
 	if err != nil {
 		return nil, err
@@ -837,6 +842,9 @@ func DeleteFile(id int) error {
 }
 
 func UpdateFileContent(id int, data []byte) error {
+	if len(data) > maxFileSize {
+		return fmt.Errorf("file too large")
+	}
 	_, err := DB.Exec(`UPDATE class_files SET content=$1, size=$2, updated_at=now() WHERE id=$3`, data, len(data), id)
 	return err
 }
