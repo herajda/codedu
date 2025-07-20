@@ -179,12 +179,12 @@
       {/each}
     </div>
     {#if showNewClassInput}
-      <form class="mt-6 flex gap-2 max-w-sm" on:submit|preventDefault={createClass} in:slide>
+      <form class="mt-6 flex gap-2 max-w-sm" on:submit|preventDefault={createClass} in:slide={{axis:'x'}} out:slide={{axis:'x'}}>
         <input class="input input-bordered flex-1" placeholder="New class" bind:value={newClassName} bind:this={newClassInput} required />
         <button class="btn">Create</button>
       </form>
     {:else}
-      <button class="btn mt-6" on:click={showInput}>Create New Class</button>
+      <button class="btn mt-6" on:click={showInput} in:slide={{axis:'x'}} out:slide={{axis:'x'}}>Create New Class</button>
     {/if}
   {:else if role === 'admin'}
     <AdminPanel />
