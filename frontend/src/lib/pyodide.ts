@@ -3,6 +3,21 @@ import { writable, get } from "svelte/store";
 let worker: Worker | null = null;
 let msgId = 0;
 const pending = new Map<number, (res: PythonRunResult) => void>();
+let preloadPosted = false;
+
+function ensureWorker() {
+  if (!worker) {
+    worker = new Worker(new URL('./pyWorker.ts', import.meta.url), { type: 'module' });
+    worker.onmessage = (e: MessageEvent) => {
+      const { id, ...res } = e.data as any;
+      const cb = pending.get(id);
+      if (cb) {
+        pending.delete(id);
+        cb(res as PythonRunResult);
+      }
+    };
+  }
+}
 
 export interface PythonRunResult {
   result: any;
@@ -27,22 +42,24 @@ export const pyodideStore = writable<PythonAPI | null>(null);
  */
 let loadingPromise: Promise<PythonAPI> | null = null;
 
+export function preloadPyodide() {
+  ensureWorker();
+  if (!preloadPosted) {
+    worker.postMessage({ type: 'init' });
+    preloadPosted = true;
+  }
+}
+
 export async function initPyodide(): Promise<PythonAPI> {
   const current = get(pyodideStore);
   if (current) return current;
   if (loadingPromise) return loadingPromise;
 
   loadingPromise = (async () => {
-    if (!worker) {
-      worker = new Worker(new URL('./pyWorker.ts', import.meta.url), { type: 'module' });
-      worker.onmessage = (e: MessageEvent) => {
-        const { id, ...res } = e.data as any;
-        const cb = pending.get(id);
-        if (cb) {
-          pending.delete(id);
-          cb(res as PythonRunResult);
-        }
-      };
+    ensureWorker();
+    if (!preloadPosted) {
+      worker.postMessage({ type: 'init' });
+      preloadPosted = true;
     }
 
     async function runCell(code: string): Promise<PythonRunResult> {
@@ -75,5 +92,6 @@ export function terminatePyodide() {
   }
   pending.clear();
   loadingPromise = null;
+  preloadPosted = false;
   pyodideStore.set(null);
 }
