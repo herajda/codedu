@@ -49,8 +49,14 @@
   });
 
   onDestroy(() => {
-    editor?.toTextArea();
-    editor = null;
+    if (editor) {
+      // EasyMDE leaves additional DOM when destroyed from preview mode
+      if (typeof editor.isPreviewActive === 'function' && editor.isPreviewActive()) {
+        editor.togglePreview();
+      }
+      editor.toTextArea();
+      editor = null;
+    }
   });
 
   $: if (editor && value !== editor.value()) {
