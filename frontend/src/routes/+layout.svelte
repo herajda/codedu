@@ -4,7 +4,7 @@
   import { onMount } from 'svelte';
   import '../app.css';
   import Sidebar from '$lib/Sidebar.svelte';
-  import { sidebarOpen } from '$lib/sidebar';
+  import { sidebarOpen, sidebarCollapsed } from '$lib/sidebar';
 
   function logout() {
     auth.logout();
@@ -22,10 +22,25 @@
     <Sidebar />
   {/if}
 
-  <div class={`min-h-screen flex flex-col ${user ? 'sm:ml-60' : ''}`}>
+  <div class={`min-h-screen flex flex-col ${user && !$sidebarCollapsed ? 'sm:ml-60' : ''}`}>
     <div class="navbar bg-base-200 shadow sticky top-0 z-50">
       <div class="flex-1">
         {#if user}
+          <button
+            class="btn btn-square btn-ghost mr-2 hidden sm:inline-flex"
+            on:click={() => sidebarCollapsed.update(v => !v)}
+            aria-label="Toggle sidebar"
+          >
+            {#if $sidebarCollapsed}
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                <path d="M9.75 5.25L16.5 12l-6.75 6.75" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            {:else}
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                <path d="M14.25 5.25L7.5 12l6.75 6.75" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            {/if}
+          </button>
           <button
             class="btn btn-square btn-ghost mr-2 sm:hidden"
             on:click={() => sidebarOpen.update((v) => !v)}

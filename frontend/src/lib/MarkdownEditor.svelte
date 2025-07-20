@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { createEventDispatcher } from 'svelte';
+  import { sidebarCollapsed, sidebarOpen } from '$lib/sidebar';
   import '@fortawesome/fontawesome-free/css/all.min.css';
 
   let EasyMDE: any;
@@ -45,6 +46,25 @@
     editor.codemirror.on('change', () => {
       value = editor!.value();
       dispatch('input', value);
+    });
+
+    const updateSidebar = () => {
+      if (editor?.isSideBySideActive && editor.isSideBySideActive()) {
+        sidebarCollapsed.set(true);
+        sidebarOpen.set(false);
+      } else {
+        sidebarCollapsed.set(false);
+      }
+    };
+    const btn = editor.toolbarElements?.['side-by-side'];
+    btn?.addEventListener('click', updateSidebar);
+    const preview = editor.codemirror.getWrapperElement().nextSibling;
+    const observer = new MutationObserver(updateSidebar);
+    observer.observe(preview, { attributes: true, attributeFilter: ['class'] });
+    updateSidebar();
+    onDestroy(() => {
+      btn?.removeEventListener('click', updateSidebar);
+      observer.disconnect();
     });
   });
 

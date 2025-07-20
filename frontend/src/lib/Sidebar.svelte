@@ -3,7 +3,7 @@
   import { apiJSON } from '$lib/api';
   import { page } from '$app/stores';
   import '@fortawesome/fontawesome-free/css/all.min.css';
-  import { sidebarOpen } from '$lib/sidebar';
+  import { sidebarOpen, sidebarCollapsed } from '$lib/sidebar';
   import { auth } from '$lib/auth';
   let classes:any[] = [];
   let err = '';
@@ -17,7 +17,7 @@
 <aside
   class={`fixed top-0 left-0 z-40 w-60 bg-base-200 p-4 h-screen overflow-y-auto transition-transform
       ${$sidebarOpen ? 'block translate-x-0' : 'hidden -translate-x-full'}
-      sm:block sm:translate-x-0`}
+      sm:block ${$sidebarCollapsed ? '-translate-x-full' : 'translate-x-0'}`}
 >
   <button
     class="btn btn-square btn-ghost absolute right-2 top-2 sm:hidden"
