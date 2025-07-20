@@ -104,11 +104,16 @@ onMount(()=>load(null));
 </script>
 
 <h1 class="text-2xl font-bold mb-4">Files</h1>
-<nav class="mb-4">
+<nav class="mb-4 sticky top-16 z-40 bg-base-200 rounded-box shadow px-4 py-2">
   <ul class="flex flex-wrap gap-1 text-sm items-center">
     {#each breadcrumbs as b,i}
       <li class="after:mx-1 after:content-['/'] last:after:hidden first:after:content-none">
-        <a href="#" class="link" on:click|preventDefault={() => crumbTo(i)}>{b.name}</a>
+        <a
+          href="#"
+          class="link px-2 py-1 rounded hover:bg-base-300"
+          on:click|preventDefault={() => crumbTo(i)}
+          >{b.name}</a
+        >
       </li>
     {/each}
   </ul>
