@@ -120,6 +120,7 @@ func main() {
 
 		// Class file system
 		api.GET("/classes/:id/files", RoleGuard("teacher", "student", "admin"), listClassFiles)
+		api.GET("/classes/:id/notebooks", RoleGuard("teacher", "student", "admin"), listClassNotebooks)
 		api.POST("/classes/:id/files", RoleGuard("teacher", "admin"), uploadClassFile)
 		api.GET("/files/:id", RoleGuard("teacher", "student", "admin"), downloadClassFile)
 		api.PUT("/files/:id", RoleGuard("teacher", "admin"), renameClassFile)
