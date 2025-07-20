@@ -6,6 +6,10 @@
   import MarkdownCell from "./cells/MarkdownCell.svelte";
   import { v4 as uuid } from "uuid";
   import { serializeNotebook } from "$lib/notebook";
+  import { apiFetch } from "$lib/api";
+  import { auth } from "$lib/auth";
+
+  export let fileId: string | number | undefined;
   $: nb = $notebookStore;
 
   let cellRefs: any[] = [];
@@ -28,10 +32,22 @@
 
   }
 
-  function saveNotebook() {
+  async function saveNotebook() {
+    // run all cells so outputs are included in the saved notebook
+    await runAllCells();
+
     const json = serializeNotebook(nb);
-    const blob = new Blob([json], { type: "application/json" });
-    saveAs(blob, "notebook.ipynb");
+    if (fileId && $auth?.role === 'teacher') {
+      await apiFetch(`/api/files/${fileId}/content`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: json
+      });
+      alert('Saved!');
+    } else {
+      const blob = new Blob([json], { type: 'application/json' });
+      saveAs(blob, 'notebook.ipynb');
+    }
   }
 </script>
 
@@ -83,13 +99,15 @@
           <path d="M16 18l6-6-6-6M8 6L2 12l6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
       </button>
-      <button
-        on:click={saveNotebook}
-        aria-label="Save notebook"
-        class="px-3 py-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
-      >
-        Save
-      </button>
+      {#if $auth?.role === 'teacher' && fileId}
+        <button
+          on:click={saveNotebook}
+          aria-label="Save notebook"
+          class="px-3 py-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
+        >
+          Save
+        </button>
+      {/if}
     </div>
     <div class="flex justify-end">
       <button
