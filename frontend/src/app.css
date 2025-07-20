@@ -36,12 +36,14 @@
 
 /* Ensure the markdown editor toolbar stays visible below the sticky navbar */
 .editor-toolbar.fullscreen {
-  top: 4rem;
+  top: 4rem !important;
+  z-index: 60 !important;
 }
 .editor-toolbar.fullscreen::before,
 .editor-toolbar.fullscreen::after {
-  top: 4rem;
+  top: 4rem !important;
+  z-index: 60 !important;
 }
 .CodeMirror-fullscreen {
-  top: calc(4rem + 50px);
+  top: calc(4rem + 50px) !important;
 }
