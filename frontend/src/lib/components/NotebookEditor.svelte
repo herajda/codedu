@@ -1,19 +1,37 @@
 
 <script lang="ts">
-  import { notebookStore } from "$lib/stores/notebookStore";
-  import pkg from "file-saver";
-  import CodeCell from "./cells/CodeCell.svelte";
-  import MarkdownCell from "./cells/MarkdownCell.svelte";
-  import { v4 as uuid } from "uuid";
-  import { serializeNotebook } from "$lib/notebook";
-  import { apiFetch } from "$lib/api";
-  import { auth } from "$lib/auth";
+import { notebookStore } from "$lib/stores/notebookStore";
+import pkg from "file-saver";
+import CodeCell from "./cells/CodeCell.svelte";
+import MarkdownCell from "./cells/MarkdownCell.svelte";
+import { v4 as uuid } from "uuid";
+import { serializeNotebook } from "$lib/notebook";
+import { apiFetch } from "$lib/api";
+import { auth } from "$lib/auth";
+import { onMount, afterUpdate } from 'svelte';
 
   export let fileId: string | number | undefined;
   $: nb = $notebookStore;
 
   let cellRefs: any[] = [];
   const { saveAs } = pkg;
+
+  let container: HTMLDivElement | null = null;
+  let showBottomButton = false;
+  function checkHeight() {
+    if (!container) return;
+    showBottomButton = container.scrollHeight > window.innerHeight;
+  }
+
+  onMount(() => {
+    checkHeight();
+    window.addEventListener('resize', checkHeight);
+    return () => window.removeEventListener('resize', checkHeight);
+  });
+
+  afterUpdate(() => {
+    checkHeight();
+  });
 
   async function runAllCells() {
     for (const ref of cellRefs) {
@@ -52,7 +70,7 @@
 </script>
 
 {#if nb}
-  <div class="space-y-4">
+  <div class="space-y-4" bind:this={container}>
     <div class="flex justify-end">
       <button
         on:click={runAllCells}
@@ -109,14 +127,16 @@
         </button>
       {/if}
     </div>
-    <div class="flex justify-end">
-      <button
-        on:click={runAllCells}
-        class="px-3 py-1 rounded text-green-600 hover:text-white hover:bg-green-600 hover:scale-110 transition-transform"
-      >
-        Run All
-      </button>
-    </div>
+    {#if showBottomButton}
+      <div class="flex justify-end">
+        <button
+          on:click={runAllCells}
+          class="px-3 py-1 rounded text-green-600 hover:text-white hover:bg-green-600 hover:scale-110 transition-transform"
+        >
+          Run All
+        </button>
+      </div>
+    {/if}
   </div>
 {:else}
   <p>Loading…</p>
