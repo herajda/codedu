@@ -1,6 +1,7 @@
 <script lang="ts">
 import { onMount } from 'svelte';
 import { page } from '$app/stores';
+import { goto } from '$app/navigation';
 import { get } from 'svelte/store';
 import { auth } from '$lib/auth';
 import { apiJSON, apiFetch } from '$lib/api';
@@ -54,7 +55,7 @@ function iconClass(name: string) {
 function open(item: any) {
   if (item.is_dir) openDir(item);
   else if (item.name.toLowerCase().endsWith('.ipynb') || isImage(item.name))
-    window.open(`/files/${item.id}`, '_blank');
+    goto(`/files/${item.id}`);
   else window.open(`/api/files/${item.id}`, '_blank');
 }
 
