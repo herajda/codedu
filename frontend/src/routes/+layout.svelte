@@ -16,6 +16,7 @@
   let oldPassword = '';
   let newPassword = '';
   let newPassword2 = '';
+  let passwordError = '';
 
   function logout() {
     auth.logout();
@@ -46,20 +47,34 @@
     oldPassword = '';
     newPassword = '';
     newPassword2 = '';
+    passwordError = '';
     passwordDialog.showModal();
   }
 
   async function savePassword() {
-    if (newPassword !== newPassword2) return;
-    await apiFetch('/api/me/password', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        old_password: await sha256(oldPassword),
-        new_password: await sha256(newPassword)
-      })
-    });
-    passwordDialog.close();
+    passwordError = '';
+    if (newPassword !== newPassword2) {
+      passwordError = 'Passwords do not match';
+      return;
+    }
+    try {
+      const res = await apiFetch('/api/me/password', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          old_password: await sha256(oldPassword),
+          new_password: await sha256(newPassword)
+        })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        passwordError = data.error ?? res.statusText;
+        return;
+      }
+      passwordDialog.close();
+    } catch (e: any) {
+      passwordError = e.message;
+    }
   }
 
   async function saveSettings() {
@@ -182,6 +197,9 @@
                 <span class="label-text">Repeat Password</span>
                 <input type="password" class="input input-bordered w-full" bind:value={newPassword2} />
               </label>
+              {#if passwordError}
+                <p class="text-error">{passwordError}</p>
+              {/if}
               <div class="modal-action">
                 <button class="btn" on:click={savePassword}>Save</button>
               </div>
