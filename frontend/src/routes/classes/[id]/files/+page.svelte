@@ -11,7 +11,7 @@ $: if ($page.params.id !== id) { id = $page.params.id; load(currentParent); }
 const role: string = get(auth)?.role ?? '';
 
 let items:any[] = [];
-let breadcrumbs:{id:number|null,name:string}[] = [{id:null,name:'/'}];
+let breadcrumbs:{id:number|null,name:string}[] = [{id:null,name:'🏠'}];
 let currentParent:number|null = null;
 let loading = false;
 let err = '';
@@ -107,7 +107,7 @@ onMount(()=>load(null));
 <nav class="mb-4 sticky top-16 z-40 bg-base-200 rounded-box shadow px-4 py-2">
   <ul class="flex flex-wrap gap-1 text-sm items-center">
     {#each breadcrumbs as b,i}
-      <li class="after:mx-1 after:content-['/'] last:after:hidden first:after:content-none">
+      <li class="after:mx-1 after:content-['/'] last:after:hidden">
         <a
           href="#"
           class="link px-2 py-1 rounded hover:bg-base-300"
