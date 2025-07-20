@@ -52,12 +52,10 @@
   <i class="fa-solid fa-arrow-left"></i> Back
 </button>
 {#if isImage}
-  <h1 class="text-2xl font-bold mb-4">Image</h1>
   {#if imgUrl}
     <img src={imgUrl} alt="image" class="max-w-full" />
   {/if}
 {:else}
-  <h1 class="text-2xl font-bold mb-4">Notebook</h1>
   <NotebookEditor fileId={id} />
 {/if}
 
