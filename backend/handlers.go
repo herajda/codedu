@@ -1157,3 +1157,28 @@ func updateFileContent(c *gin.Context) {
 	}
 	c.Status(http.StatusNoContent)
 }
+
+func updateProfile(c *gin.Context) {
+	uid := c.GetInt("userID")
+	var req struct {
+		Name   *string `json:"name"`
+		Avatar *string `json:"avatar"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	user, err := GetUser(uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	if user.BkUID != nil {
+		req.Name = nil // Bakalari users cannot change name
+	}
+	if err := UpdateUserProfile(uid, req.Name, req.Avatar); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
