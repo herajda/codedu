@@ -48,13 +48,31 @@
     });
   });
 
+  export function destroyEditor() {
+    if (!editor) return;
+    try {
+      // EasyMDE leaves additional DOM when destroyed from preview mode
+      if (typeof editor.isPreviewActive === 'function' && editor.isPreviewActive()) {
+        editor.togglePreview();
+      }
+      editor.toTextArea();
+    } catch (err) {
+      console.warn('Failed to destroy editor', err);
+    } finally {
+      editor = null;
+    }
+  }
+
   onDestroy(() => {
-    editor?.toTextArea();
-    editor = null;
+    destroyEditor();
   });
 
   $: if (editor && value !== editor.value()) {
     editor.value(value);
+  }
+
+  export function focus() {
+    textarea?.focus();
   }
 </script>
 

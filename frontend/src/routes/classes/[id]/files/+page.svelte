@@ -31,6 +31,8 @@ function iconClass(name: string) {
     case 'tar':
     case 'gz':
       return 'fa-file-zipper';
+    case 'ipynb':
+      return 'fa-book text-secondary';
     case 'js':
     case 'ts':
     case 'svelte':
@@ -46,6 +48,8 @@ function iconClass(name: string) {
 
 function open(item: any) {
   if (item.is_dir) openDir(item);
+  else if (item.name.toLowerCase().endsWith('.ipynb'))
+    window.open(`/files/${item.id}`, '_blank');
   else window.open(`/api/files/${item.id}`, '_blank');
 }
 
