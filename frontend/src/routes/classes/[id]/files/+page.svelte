@@ -14,7 +14,13 @@ const role: string = get(auth)?.role ?? '';
 let items:any[] = [];
 let search = '';
 let searchOpen = false;
-$: filtered = items.filter(it => it.name.toLowerCase().includes(search.toLowerCase()));
+let searchResults:any[] = [];
+$: if (searchOpen && search.trim() !== '') {
+  fetchSearch(search.trim());
+} else {
+  searchResults = [];
+}
+$: displayed = searchOpen && search.trim() !== '' ? searchResults : items;
 let breadcrumbs:{id:number|null,name:string}[] = [{id:null,name:'🏠'}];
 let currentParent:number|null = null;
 let loading = false;
@@ -73,6 +79,14 @@ async function load(parent:number|null){
     const q = parent===null ? '' : `?parent=${parent}`;
     items = await apiJSON(`/api/classes/${id}/files${q}`);
     currentParent = parent;
+  }catch(e:any){ err = e.message }
+  loading = false;
+}
+
+async function fetchSearch(q:string){
+  loading = true; err='';
+  try{
+    searchResults = await apiJSON(`/api/classes/${id}/files?search=${encodeURIComponent(q)}`);
   }catch(e:any){ err = e.message }
   loading = false;
 }
@@ -205,7 +219,7 @@ onMount(()=>load(null));
 <p class="text-error">{err}</p>
 {:else}
 <div class="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 mb-4">
-  {#each filtered as it}
+  {#each displayed as it}
     <div class="relative border rounded p-3 flex flex-col items-center group hover:shadow cursor-pointer" on:click={() => open(it)}>
       <div class="text-5xl mb-2">
         {#if it.is_dir}
@@ -217,6 +231,9 @@ onMount(()=>load(null));
         {/if}
       </div>
       <span class="text-sm text-center break-all">{it.name}</span>
+      {#if searchOpen && search.trim() !== ''}
+        <span class="text-xs text-center text-gray-500 break-all">{it.path}</span>
+      {/if}
       {#if role==='teacher' || role==='admin'}
         <div class="absolute top-1 right-1 hidden group-hover:flex gap-1">
           <button class="btn btn-xs btn-circle" title="Rename" on:click|stopPropagation={() => rename(it)}>
@@ -229,7 +246,7 @@ onMount(()=>load(null));
       {/if}
     </div>
   {/each}
-  {#if !filtered.length}
+  {#if !(searchOpen && search.trim()!=='' ? searchResults.length : items.length)}
     <p class="col-span-full"><i>No files</i></p>
   {/if}
 </div>

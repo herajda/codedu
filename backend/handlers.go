@@ -913,18 +913,29 @@ func listClassFiles(c *gin.Context) {
 			return
 		}
 	}
-	var parentID *int
-	if pidStr := c.Query("parent"); pidStr != "" {
-		if pid, err := strconv.Atoi(pidStr); err == nil {
-			parentID = &pid
-		}
-	}
-	list, err := ListFiles(cid, parentID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-		return
-	}
-	c.JSON(http.StatusOK, list)
+        search := c.Query("search")
+        if search != "" {
+                list, err := SearchFiles(cid, search)
+                if err != nil {
+                        c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+                        return
+                }
+                c.JSON(http.StatusOK, list)
+                return
+        }
+
+        var parentID *int
+        if pidStr := c.Query("parent"); pidStr != "" {
+                if pid, err := strconv.Atoi(pidStr); err == nil {
+                        parentID = &pid
+                }
+        }
+        list, err := ListFiles(cid, parentID)
+        if err != nil {
+                c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+                return
+        }
+        c.JSON(http.StatusOK, list)
 }
 
 func uploadClassFile(c *gin.Context) {
