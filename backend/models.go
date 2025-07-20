@@ -748,6 +748,26 @@ func ListFiles(classID int, parentID *int) ([]ClassFile, error) {
 	return list, err
 }
 
+func SearchFiles(classID int, term string) ([]ClassFile, error) {
+        list := []ClassFile{}
+        err := DB.Select(&list, `
+                SELECT id,class_id,parent_id,name,path,is_dir,size,created_at,updated_at
+                  FROM class_files
+                 WHERE class_id=$1 AND (name ILIKE $2 OR path ILIKE $2)
+                 ORDER BY is_dir DESC, path`,
+                classID, "%"+term+"%")
+        return list, err
+}
+
+func ListNotebooks(classID int) ([]ClassFile, error) {
+	list := []ClassFile{}
+	err := DB.Select(&list, `SELECT id,class_id,parent_id,name,path,is_dir,size,created_at,updated_at
+                FROM class_files
+               WHERE class_id=$1 AND NOT is_dir AND lower(name) LIKE '%.ipynb'
+               ORDER BY updated_at DESC`, classID)
+	return list, err
+}
+
 func SaveFile(classID int, parentID *int, name string, data []byte, isDir bool) (*ClassFile, error) {
 	path, err := buildFilePath(parentID, name)
 	if err != nil {

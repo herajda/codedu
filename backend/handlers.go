@@ -913,13 +913,50 @@ func listClassFiles(c *gin.Context) {
 			return
 		}
 	}
-	var parentID *int
-	if pidStr := c.Query("parent"); pidStr != "" {
-		if pid, err := strconv.Atoi(pidStr); err == nil {
-			parentID = &pid
+        search := c.Query("search")
+        if search != "" {
+                list, err := SearchFiles(cid, search)
+                if err != nil {
+                        c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+                        return
+                }
+                c.JSON(http.StatusOK, list)
+                return
+        }
+
+        var parentID *int
+        if pidStr := c.Query("parent"); pidStr != "" {
+                if pid, err := strconv.Atoi(pidStr); err == nil {
+                        parentID = &pid
+                }
+        }
+        list, err := ListFiles(cid, parentID)
+        if err != nil {
+                c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+                return
+        }
+        c.JSON(http.StatusOK, list)
+}
+
+func listClassNotebooks(c *gin.Context) {
+	cid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	role := c.GetString("role")
+	if role == "teacher" {
+		if ok, err := IsTeacherOfClass(cid, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	} else if role == "student" {
+		if ok, err := IsStudentOfClass(cid, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
 		}
 	}
-	list, err := ListFiles(cid, parentID)
+	list, err := ListNotebooks(cid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
