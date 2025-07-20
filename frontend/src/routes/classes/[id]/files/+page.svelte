@@ -17,6 +17,11 @@ let currentParent:number|null = null;
 let loading = false;
 let err = '';
 let uploadInput: HTMLInputElement;
+let viewMode: 'grid' | 'list' =
+  typeof localStorage !== 'undefined' &&
+  localStorage.getItem('fileViewMode') === 'list'
+    ? 'list'
+    : 'grid';
 
 function isImage(name: string) {
   const ext = name.split('.').pop()?.toLowerCase();
@@ -143,6 +148,13 @@ async function rename(item:any){
   await load(currentParent);
 }
 
+function toggleView() {
+  viewMode = viewMode === 'grid' ? 'list' : 'grid';
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('fileViewMode', viewMode);
+  }
+}
+
 onMount(()=>load(null));
 </script>
 
@@ -159,8 +171,15 @@ onMount(()=>load(null));
       </li>
     {/each}
   </ul>
-  {#if role==='teacher' || role==='admin'}
-    <div class="flex items-center gap-2">
+  <div class="flex items-center gap-2">
+    <button class="btn btn-sm btn-circle" on:click={toggleView} title="Toggle view">
+      {#if viewMode === 'grid'}
+        <i class="fa-solid fa-list"></i>
+      {:else}
+        <i class="fa-solid fa-th"></i>
+      {/if}
+    </button>
+    {#if role==='teacher' || role==='admin'}
       <input type="file" bind:this={uploadInput} class="hidden" on:change={upload} />
       <button class="btn btn-sm btn-circle" on:click={() => uploadInput.click()} title="Upload file">
         <i class="fa-solid fa-upload"></i>
@@ -171,8 +190,8 @@ onMount(()=>load(null));
       <button class="btn btn-sm btn-circle" on:click={promptNotebook} title="New notebook">
         <i class="fa-solid fa-book-medical"></i>
       </button>
-    </div>
-  {/if}
+    {/if}
+  </div>
 </nav>
 
 {#if loading}
@@ -180,33 +199,78 @@ onMount(()=>load(null));
 {:else if err}
 <p class="text-error">{err}</p>
 {:else}
-<div class="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 mb-4">
-  {#each items as it}
-    <div class="relative border rounded p-3 flex flex-col items-center group hover:shadow cursor-pointer" on:click={() => open(it)}>
-      <div class="text-5xl mb-2">
-        {#if it.is_dir}
-          <i class="fa-solid fa-folder text-warning"></i>
-        {:else if isImage(it.name)}
-          <img src={`/api/files/${it.id}`} alt={it.name} class="w-16 h-16 object-cover rounded" />
-        {:else}
-          <i class="fa-solid {iconClass(it.name)}"></i>
+{#if viewMode === 'grid'}
+  <div class="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 mb-4">
+    {#each items as it}
+      <div class="relative border rounded p-3 flex flex-col items-center group hover:shadow cursor-pointer" on:click={() => open(it)}>
+        <div class="text-5xl mb-2">
+          {#if it.is_dir}
+            <i class="fa-solid fa-folder text-warning"></i>
+          {:else if isImage(it.name)}
+            <img src={`/api/files/${it.id}`} alt={it.name} class="w-16 h-16 object-cover rounded" />
+          {:else}
+            <i class="fa-solid {iconClass(it.name)}"></i>
+          {/if}
+        </div>
+        <span class="text-sm text-center break-all">{it.name}</span>
+        {#if role==='teacher' || role==='admin'}
+          <div class="absolute top-1 right-1 hidden group-hover:flex gap-1">
+            <button class="btn btn-xs btn-circle" title="Rename" on:click|stopPropagation={() => rename(it)}>
+              <i class="fa-solid fa-pen"></i>
+            </button>
+            <button class="btn btn-xs btn-circle btn-error" title="Delete" on:click|stopPropagation={() => del(it)}>
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
         {/if}
       </div>
-      <span class="text-sm text-center break-all">{it.name}</span>
-      {#if role==='teacher' || role==='admin'}
-        <div class="absolute top-1 right-1 hidden group-hover:flex gap-1">
-          <button class="btn btn-xs btn-circle" title="Rename" on:click|stopPropagation={() => rename(it)}>
-            <i class="fa-solid fa-pen"></i>
-          </button>
-          <button class="btn btn-xs btn-circle btn-error" title="Delete" on:click|stopPropagation={() => del(it)}>
-            <i class="fa-solid fa-trash"></i>
-          </button>
-        </div>
-      {/if}
-    </div>
-  {/each}
-  {#if !items.length}
-    <p class="col-span-full"><i>Empty</i></p>
-  {/if}
-</div>
+    {/each}
+    {#if !items.length}
+      <p class="col-span-full"><i>Empty</i></p>
+    {/if}
+  </div>
+{:else}
+  <div class="overflow-x-auto mb-4">
+    <table class="table table-zebra w-full">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Size</th>
+          <th>Modified</th>
+          {#if role==='teacher' || role==='admin'}<th></th>{/if}
+        </tr>
+      </thead>
+      <tbody>
+        {#each items as it}
+          <tr class="hover:bg-base-200 cursor-pointer group" on:click={() => open(it)}>
+            <td class="whitespace-nowrap">
+              {#if it.is_dir}
+                <i class="fa-solid fa-folder text-warning mr-2"></i>{it.name}
+              {:else if isImage(it.name)}
+                <i class="fa-solid fa-file-image text-success mr-2"></i>{it.name}
+              {:else}
+                <i class="fa-solid {iconClass(it.name)} mr-2"></i>{it.name}
+              {/if}
+            </td>
+            <td class="text-right">{it.is_dir ? '' : it.size}</td>
+            <td class="text-right">{new Date(it.updated_at).toLocaleString()}</td>
+            {#if role==='teacher' || role==='admin'}
+              <td class="text-right whitespace-nowrap">
+                <button class="btn btn-xs btn-circle invisible group-hover:visible" title="Rename" on:click|stopPropagation={() => rename(it)}>
+                  <i class="fa-solid fa-pen"></i>
+                </button>
+                <button class="btn btn-xs btn-circle btn-error invisible group-hover:visible" title="Delete" on:click|stopPropagation={() => del(it)}>
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </td>
+            {/if}
+          </tr>
+        {/each}
+        {#if !items.length}
+          <tr><td colspan="4"><i>Empty</i></td></tr>
+        {/if}
+      </tbody>
+    </table>
+  </div>
+{/if}
 {/if}
