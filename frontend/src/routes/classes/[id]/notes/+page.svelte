@@ -59,7 +59,7 @@ onMount(load);
         {#each notes as n}
           <tr class="hover:bg-base-200 cursor-pointer" on:click={() => open(n)}>
             <td class="whitespace-nowrap">
-              <i class="fa-solid fa-book text-secondary mr-2"></i>{n.path}
+              <i class="fa-solid fa-book text-secondary mr-2"></i>{n.name}
             </td>
             <td class="text-right">{fmtSize(n.size)}</td>
             <td class="text-right">{new Date(n.updated_at).toLocaleString()}</td>
