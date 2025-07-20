@@ -6,6 +6,12 @@
   import NotebookEditor from '$lib/components/NotebookEditor.svelte';
   import { apiFetch } from '$lib/api';
   import { onDestroy } from 'svelte';
+  import '@fortawesome/fontawesome-free/css/all.min.css';
+
+  function goBack() {
+    if (history.length > 1) history.back();
+    else window.close();
+  }
 
   let id = $page.params.id;
   $: if ($page.params.id !== id) {
@@ -42,6 +48,9 @@
   onMount(load);
 </script>
 
+<button class="btn btn-sm mb-4" on:click={goBack} aria-label="Back to files">
+  <i class="fa-solid fa-arrow-left"></i> Back
+</button>
 {#if isImage}
   <h1 class="text-2xl font-bold mb-4">Image</h1>
   {#if imgUrl}
