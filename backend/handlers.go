@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -346,6 +347,74 @@ func uploadTemplate(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+// uploadUnitTests: POST /api/assignments/:id/tests/upload
+func uploadUnitTests(c *gin.Context) {
+	aid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if c.GetString("role") == "teacher" {
+		if ok, err := IsTeacherOfAssignment(aid, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing file"})
+		return
+	}
+	f, err := file.Open()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot read"})
+		return
+	}
+	defer f.Close()
+	data, _ := io.ReadAll(f)
+	methods := parseUnittestMethods(string(data))
+	if len(methods) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no tests found"})
+		return
+	}
+	for _, m := range methods {
+		code := string(data)
+		name := m
+		tc := &TestCase{AssignmentID: aid, Weight: 1, Stdin: "", ExpectedStdout: "", UnittestCode: &code, UnittestName: &name}
+		if err := CreateTestCase(tc); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+			return
+		}
+	}
+	c.Status(http.StatusCreated)
+}
+
+func parseUnittestMethods(src string) []string {
+	lines := strings.Split(src, "\n")
+	classRE := regexp.MustCompile(`^class\s+(\w+)\(.*unittest\.TestCase.*\):`)
+	methodRE := regexp.MustCompile(`^\s*def\s+(test_[a-zA-Z0-9_]+)\s*\(`)
+	var methods []string
+	var current string
+	var indent int
+	for _, line := range lines {
+		if m := classRE.FindStringSubmatch(line); m != nil {
+			current = m[1]
+			indent = len(line) - len(strings.TrimLeft(line, " \t"))
+			continue
+		}
+		if current != "" {
+			if len(line)-len(strings.TrimLeft(line, " \t")) <= indent && strings.TrimSpace(line) != "" {
+				current = ""
+				continue
+			}
+			if m := methodRE.FindStringSubmatch(line); m != nil {
+				methods = append(methods, current+"."+m[1])
+			}
+		}
+	}
+	return methods
 }
 
 // getTemplate: GET /api/assignments/:id/template

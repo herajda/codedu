@@ -48,9 +48,14 @@ CREATE TABLE IF NOT EXISTS test_cases (
   weight NUMERIC NOT NULL DEFAULT 1 CHECK (weight > 0),
   time_limit_sec NUMERIC NOT NULL DEFAULT 1.0,
   memory_limit_kb INTEGER NOT NULL DEFAULT 65536,
+  unittest_code TEXT,
+  unittest_name TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS unittest_code TEXT;
+ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS unittest_name TEXT;
 
 DO $$ BEGIN
     CREATE TYPE submission_status AS ENUM ('pending','running','completed','failed');

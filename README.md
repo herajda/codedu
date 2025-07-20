@@ -155,6 +155,7 @@ The backend now exposes two additional endpoints:
   The endpoint stores the user's Bakaláři class abbreviation and short ID when available.
 - `POST /api/bakalari/atoms` – Teacher endpoint returning the teacher's class atoms from Bakaláři.
 - `POST /api/classes/:id/import-bakalari` – Import all students from a selected Bakaláři class into the local class.
+- `POST /api/assignments/:id/tests/upload` – Teacher/admin endpoint that parses a Python `unittest` file and creates individual test cases for each method.
 
 ---
 

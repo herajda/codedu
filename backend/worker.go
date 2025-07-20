@@ -159,16 +159,32 @@ func runSubmission(id int) {
 	earnedWeight := 0.0
 	for _, tc := range tests {
 		timeout := time.Duration(tc.TimeLimitSec * float64(time.Second))
-		stdout, stderr, exitCode, timedOut, runtime := executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
+		var stdout, stderr string
+		var exitCode int
+		var timedOut bool
+		var runtime time.Duration
+		if tc.UnittestCode != nil && tc.UnittestName != nil {
+			stdout, stderr, exitCode, timedOut, runtime = executePythonUnit(tmpDir, mainFile, *tc.UnittestCode, *tc.UnittestName, timeout)
+		} else {
+			stdout, stderr, exitCode, timedOut, runtime = executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
+		}
 
 		status := "passed"
-		switch {
-		case timedOut:
-			status = "time_limit_exceeded"
-		case exitCode != 0:
-			status = "runtime_error"
-		case strings.TrimSpace(stdout) != strings.TrimSpace(tc.ExpectedStdout):
-			status = "wrong_output"
+		if tc.UnittestCode != nil && tc.UnittestName != nil {
+			if timedOut {
+				status = "time_limit_exceeded"
+			} else if exitCode != 0 {
+				status = "wrong_output"
+			}
+		} else {
+			switch {
+			case timedOut:
+				status = "time_limit_exceeded"
+			case exitCode != 0:
+				status = "runtime_error"
+			case strings.TrimSpace(stdout) != strings.TrimSpace(tc.ExpectedStdout):
+				status = "wrong_output"
+			}
 		}
 
 		res := &Result{SubmissionID: id, TestCaseID: tc.ID, Status: status, ActualStdout: stdout, Stderr: stderr, ExitCode: exitCode, RuntimeMS: int(runtime.Milliseconds())}
@@ -229,6 +245,80 @@ func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, s
 		"-v", mount,
 		pythonImage, "bash", "-c", script)
 	cmd.Stdin = strings.NewReader(stdin)
+
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+
+	start := time.Now()
+	err := cmd.Run()
+	duration := time.Since(start)
+
+	ctxTimedOut := ctx.Err() == context.DeadlineExceeded
+
+	out := strings.TrimSpace(stdoutBuf.String())
+	var runtime time.Duration
+	if lines := strings.Split(out, "\n"); len(lines) > 0 && strings.HasPrefix(lines[len(lines)-1], "===RUNTIME_MS===") {
+		rstr := strings.TrimSpace(strings.TrimPrefix(lines[len(lines)-1], "===RUNTIME_MS==="))
+		if ms, perr := strconv.Atoi(rstr); perr == nil {
+			runtime = time.Duration(ms) * time.Millisecond
+			out = strings.Join(lines[:len(lines)-1], "\n")
+		} else {
+			runtime = duration
+		}
+	} else {
+		runtime = duration
+	}
+	runtimeExceeded := runtime > timeout
+	timedOut := ctxTimedOut || runtimeExceeded
+
+	exitCode := 0
+	if err != nil {
+		if ee, ok := err.(*exec.ExitError); ok {
+			exitCode = ee.ExitCode()
+		} else {
+			exitCode = -1
+		}
+	}
+
+	return out, strings.TrimSpace(stderrBuf.String()), exitCode, timedOut, runtime
+}
+
+func executePythonUnit(dir, mainFile, testCode, testName string, timeout time.Duration) (string, string, int, bool, time.Duration) {
+	abs, _ := filepath.Abs(dir)
+	testPath := filepath.Join(dir, "run_test.py")
+	content := fmt.Sprintf(`import sys, unittest, builtins, io
+
+student_source = open('%s').read()
+
+def student_code(*args):
+    it = iter(str(a) for a in args)
+    builtins.input = lambda prompt=None: next(it)
+    out = io.StringIO()
+    old = sys.stdout
+    sys.stdout = out
+    glb = {'__name__':'__main__'}
+    exec(student_source, glb)
+    sys.stdout = old
+    return out.getvalue().strip()
+
+%s
+
+if __name__ == '__main__':
+    suite = unittest.defaultTestLoader.loadTestsFromName('%s')
+    result = unittest.TextTestRunner().run(suite)
+    sys.exit(0 if result.wasSuccessful() else 1)
+`, "/code/"+mainFile, testCode, testName)
+	os.WriteFile(testPath, []byte(content), 0644)
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout+dockerExtraTime)
+	defer cancel()
+	mount := fmt.Sprintf("%s:/code:ro,z", abs)
+	script := fmt.Sprintf("start=$(date +%%s%%N); python /code/run_test.py; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status")
+	cmd := exec.CommandContext(ctx, "docker", "run",
+		"--rm", "-i", "--network=none", "--user", dockerUser,
+		"--cpus", dockerCPUs, "--memory", dockerMemory,
+		"-v", mount, pythonImage, "bash", "-c", script)
 
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf

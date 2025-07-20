@@ -65,6 +65,8 @@ type TestCase struct {
 	Weight         float64   `db:"weight" json:"weight"`
 	TimeLimitSec   float64   `db:"time_limit_sec" json:"time_limit_sec"`
 	MemoryLimitKB  int       `db:"memory_limit_kb" json:"memory_limit_kb"`
+	UnittestCode   *string   `db:"unittest_code" json:"unittest_code"`
+	UnittestName   *string   `db:"unittest_name" json:"unittest_name"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
 }
@@ -539,11 +541,11 @@ func CreateTestCase(tc *TestCase) error {
 		tc.TimeLimitSec = 1
 	}
 	const q = `
-          INSERT INTO test_cases (assignment_id, stdin, expected_stdout, weight, time_limit_sec)
-          VALUES ($1,$2,$3,$4,$5)
-          RETURNING id, weight, time_limit_sec, memory_limit_kb, created_at, updated_at`
-	return DB.QueryRow(q, tc.AssignmentID, tc.Stdin, tc.ExpectedStdout, tc.Weight, tc.TimeLimitSec).
-		Scan(&tc.ID, &tc.Weight, &tc.TimeLimitSec, &tc.MemoryLimitKB, &tc.CreatedAt, &tc.UpdatedAt)
+         INSERT INTO test_cases (assignment_id, stdin, expected_stdout, weight, time_limit_sec, unittest_code, unittest_name)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)
+         RETURNING id, weight, time_limit_sec, memory_limit_kb, unittest_code, unittest_name, created_at, updated_at`
+	return DB.QueryRow(q, tc.AssignmentID, tc.Stdin, tc.ExpectedStdout, tc.Weight, tc.TimeLimitSec, tc.UnittestCode, tc.UnittestName).
+		Scan(&tc.ID, &tc.Weight, &tc.TimeLimitSec, &tc.MemoryLimitKB, &tc.UnittestCode, &tc.UnittestName, &tc.CreatedAt, &tc.UpdatedAt)
 }
 
 // UpdateTestCase modifies stdin/stdout/time limit of an existing test case.
@@ -554,9 +556,10 @@ func UpdateTestCase(tc *TestCase) error {
 	res, err := DB.Exec(`
                 UPDATE test_cases
                    SET stdin=$1, expected_stdout=$2, weight=$3, time_limit_sec=$4,
+                       unittest_code=$5, unittest_name=$6,
                        updated_at=now()
-                 WHERE id=$5`,
-		tc.Stdin, tc.ExpectedStdout, tc.Weight, tc.TimeLimitSec, tc.ID)
+                 WHERE id=$7`,
+		tc.Stdin, tc.ExpectedStdout, tc.Weight, tc.TimeLimitSec, tc.UnittestCode, tc.UnittestName, tc.ID)
 	if err != nil {
 		return err
 	}
@@ -569,8 +572,8 @@ func UpdateTestCase(tc *TestCase) error {
 func ListTestCases(assignmentID int) ([]TestCase, error) {
 	list := []TestCase{}
 	err := DB.Select(&list, `
-                SELECT id, assignment_id, stdin, expected_stdout, weight, time_limit_sec, memory_limit_kb, created_at, updated_at
-                  FROM test_cases
+               SELECT id, assignment_id, stdin, expected_stdout, weight, time_limit_sec, memory_limit_kb, unittest_code, unittest_name, created_at, updated_at
+                 FROM test_cases
                  WHERE assignment_id = $1
                  ORDER BY id`, assignmentID)
 	return list, err
