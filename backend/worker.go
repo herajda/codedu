@@ -305,7 +305,7 @@ def student_code(*args):
 %s
 
 if __name__ == '__main__':
-    suite = unittest.defaultTestLoader.loadTestsFromName('%s')
+    suite = unittest.defaultTestLoader.loadTestsFromName('__main__.%s')
     result = unittest.TextTestRunner().run(suite)
     sys.exit(0 if result.wasSuccessful() else 1)
 `, "/code/"+mainFile, testCode, testName)
