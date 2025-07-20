@@ -1,18 +1,24 @@
 <script lang="ts">
-  import { auth } from '$lib/auth';
-  import { goto } from '$app/navigation';
-  import { onMount } from 'svelte';
-  import '../app.css';
-  import Sidebar from '$lib/Sidebar.svelte';
-  import { sidebarOpen, sidebarCollapsed } from '$lib/sidebar';
-  import { apiFetch } from '$lib/api';
-  import { sha256 } from '$lib/hash';
+import { auth } from '$lib/auth';
+import { goto } from '$app/navigation';
+import { onMount, tick } from 'svelte';
+import '../app.css';
+import Sidebar from '$lib/Sidebar.svelte';
+import { sidebarOpen, sidebarCollapsed } from '$lib/sidebar';
+import { apiFetch } from '$lib/api';
+import { sha256 } from '$lib/hash';
+import Cropper from 'cropperjs';
+import 'cropperjs/dist/cropper.css';
 
   let settingsDialog: HTMLDialogElement;
   let passwordDialog: HTMLDialogElement;
   let avatarInput: HTMLInputElement;
   let name = '';
   let avatarFile: string | null = null;
+  let cropper: Cropper | null = null;
+  let cropDialog: HTMLDialogElement;
+  let cropImage: HTMLImageElement;
+  let cropSrc: string | null = null;
   let oldPassword = '';
   let newPassword = '';
   let newPassword2 = '';
@@ -35,7 +41,20 @@
     const file = (e.target as HTMLInputElement).files?.[0];
     if (!file) { avatarFile = null; return; }
     const reader = new FileReader();
-    reader.onload = () => { avatarFile = reader.result as string; };
+    reader.onload = () => {
+      const url = reader.result as string;
+      const img = new Image();
+      img.onload = () => {
+        if (img.width !== img.height || img.width > 256 || img.height > 256) {
+          cropSrc = url;
+          avatarFile = null;
+          cropDialog.showModal();
+        } else {
+          avatarFile = url;
+        }
+      };
+      img.src = url;
+    };
     reader.readAsDataURL(file);
   }
 
@@ -49,6 +68,16 @@
     newPassword2 = '';
     passwordError = '';
     passwordDialog.showModal();
+  }
+
+  function applyCrop() {
+    if (cropper) {
+      const canvas = cropper.getCroppedCanvas({ width: 256, height: 256 });
+      avatarFile = canvas.toDataURL('image/png');
+      cropper.destroy();
+      cropper = null;
+    }
+    cropDialog.close();
   }
 
   async function savePassword() {
@@ -93,6 +122,20 @@
   }
 
   $: user = $auth;
+
+  $: if (cropDialog?.open && cropSrc && cropImage) {
+    tick().then(() => {
+      if (cropper) cropper.destroy();
+      cropper = new Cropper(cropImage, {
+        aspectRatio: 1,
+        viewMode: 1,
+        dragMode: 'move',
+        guides: false,
+        background: false,
+        autoCropArea: 1
+      });
+    });
+  }
 
   onMount(() => {
     auth.init();
@@ -204,8 +247,22 @@
                 <button class="btn" on:click={savePassword}>Save</button>
               </div>
             </div>
-            <form method="dialog" class="modal-backdrop"><button>close</button></form>
-          </dialog>
+          <form method="dialog" class="modal-backdrop"><button>close</button></form>
+        </dialog>
+        <dialog bind:this={cropDialog} class="modal">
+          <div class="modal-box space-y-4">
+            <h3 class="font-bold text-lg">Crop Avatar</h3>
+            {#if cropSrc}
+              <div class="w-64 h-64 mx-auto">
+                <img bind:this={cropImage} src={cropSrc} class="max-w-full" />
+              </div>
+            {/if}
+            <div class="modal-action">
+              <button class="btn" on:click={applyCrop}>Done</button>
+            </div>
+          </div>
+          <form method="dialog" class="modal-backdrop"><button>close</button></form>
+        </dialog>
         {:else}
           <a href="/login" class="btn">Login</a>
           <a href="/register" class="btn btn-outline">Register</a>
@@ -218,4 +275,11 @@
     </main>
 
   </div>
+
+  <style>
+    :global(.cropper-view-box),
+    :global(.cropper-face) {
+      border-radius: 9999px;
+    }
+  </style>
 
