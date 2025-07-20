@@ -28,6 +28,10 @@
   }
 
   async function toggle() {
+    if (editing) {
+      // clean up the EasyMDE instance before the component unmounts
+      editorRef?.destroyEditor?.();
+    }
     editing = !editing;
     if (editing) {
       sourceStr = Array.isArray(cell.source)
