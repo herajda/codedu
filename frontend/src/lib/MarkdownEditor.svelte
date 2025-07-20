@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { createEventDispatcher } from 'svelte';
+  import { sidebarCollapsed, sidebarOpen } from '$lib/sidebar';
   import '@fortawesome/fontawesome-free/css/all.min.css';
 
   let EasyMDE: any;
@@ -45,6 +46,45 @@
     editor.codemirror.on('change', () => {
       value = editor!.value();
       dispatch('input', value);
+    });
+
+    const updateSidebar = () => {
+      const side = editor?.isSideBySideActive && editor.isSideBySideActive();
+      const fs = editor?.isFullscreenActive && editor.isFullscreenActive();
+      sidebarCollapsed.set(side || fs);
+      if (side || fs) {
+        sidebarOpen.set(false);
+      }
+    };
+
+    const handleSideBySide = () => {
+      if (!editor) return;
+      const active = editor.isSideBySideActive();
+      if (!active && editor.isFullscreenActive()) {
+        editor.toggleFullScreen();
+      }
+      updateSidebar();
+    };
+
+    const btnSide = editor.toolbarElements?.['side-by-side'];
+    btnSide?.addEventListener('click', handleSideBySide);
+    const btnFull = editor.toolbarElements?.fullscreen;
+    btnFull?.addEventListener('click', updateSidebar);
+
+    const preview = editor.codemirror.getWrapperElement().nextSibling;
+    const sideObserver = new MutationObserver(handleSideBySide);
+    sideObserver.observe(preview, { attributes: true, attributeFilter: ['class'] });
+
+    const wrapper = editor.codemirror.getWrapperElement();
+    const fsObserver = new MutationObserver(updateSidebar);
+    fsObserver.observe(wrapper, { attributes: true, attributeFilter: ['class'] });
+
+    updateSidebar();
+    onDestroy(() => {
+      btnSide?.removeEventListener('click', handleSideBySide);
+      btnFull?.removeEventListener('click', updateSidebar);
+      sideObserver.disconnect();
+      fsObserver.disconnect();
     });
   });
 
