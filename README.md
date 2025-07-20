@@ -24,6 +24,7 @@
   - Role-based dashboards and interfaces
   - Assignment browsing, submission upload, and result display
   - Teacher tools for class and assignment management
+  - Upload Python `unittest` files to generate test cases
 
 ### Backend
 - **Language**: Go
