@@ -289,6 +289,12 @@ func executePythonUnit(dir, mainFile, testCode, testName string, timeout time.Du
 	testPath := filepath.Join(dir, "run_test.py")
 	content := fmt.Sprintf(`import sys, unittest, builtins, io
 
+# patch assertEqual so comparisons use string values
+orig_assertEqual = unittest.TestCase.assertEqual
+def _assertEqual(self, first, second, msg=None):
+    orig_assertEqual(self, str(first), str(second), msg)
+unittest.TestCase.assertEqual = _assertEqual
+
 student_source = open('%s').read()
 
 def student_code(*args):
