@@ -116,9 +116,9 @@
             </div>
             <ul class="mt-4 space-y-2">
               {#each c.assignmentProgress as a}
-                <li class="flex items-center gap-2">
-                  <span class="flex-1">{a.title}</span>
-                  <progress class="progress progress-primary flex-1" value={a.done ? 100 : 0} max="100"></progress>
+                <li class="grid grid-cols-[10rem_1fr] items-center gap-2">
+                  <span class="truncate w-40">{a.title}</span>
+                  <progress class="progress progress-primary w-full" value={a.done ? 100 : 0} max="100"></progress>
                 </li>
               {/each}
               {#if !c.assignmentProgress.length}
@@ -156,9 +156,9 @@
             <p class="text-sm mb-2">{c.students.length} students</p>
             <ul class="space-y-2">
               {#each c.assignments as a}
-                <li class="flex items-center justify-between">
-                  <span>{a.title}</span>
-                  <progress class="progress progress-primary w-24" value={c.progress.find((x:any)=>x.id===a.id)?.done || 0} max={c.students.length}></progress>
+                <li class="grid grid-cols-[10rem_1fr_auto] items-center gap-2">
+                  <span class="truncate w-40">{a.title}</span>
+                  <progress class="progress progress-primary w-full" value={c.progress.find((x:any)=>x.id===a.id)?.done || 0} max={c.students.length}></progress>
                   <span class="text-sm">{c.progress.find((x:any)=>x.id===a.id)?.done || 0}/{c.students.length}</span>
                 </li>
               {/each}
