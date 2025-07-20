@@ -36,5 +36,12 @@
 		"jwt-decode": "^4.0.0",
 		"marked": "^16.0.0",
 		"tailwindcss": "^4.1.11"
+	},
+	"overrides": {
+		"cookie": "^0.7.2",
+		"cross-spawn": "^7.0.1",
+		"package-json": "^8.1.1",
+		"got": "^11.8.5",
+		"esbuild": "^0.25.6"
 	}
 }
