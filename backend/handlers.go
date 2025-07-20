@@ -938,6 +938,32 @@ func listClassFiles(c *gin.Context) {
         c.JSON(http.StatusOK, list)
 }
 
+func listClassNotebooks(c *gin.Context) {
+	cid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	role := c.GetString("role")
+	if role == "teacher" {
+		if ok, err := IsTeacherOfClass(cid, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	} else if role == "student" {
+		if ok, err := IsStudentOfClass(cid, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	list, err := ListNotebooks(cid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, list)
+}
+
 func uploadClassFile(c *gin.Context) {
 	cid, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

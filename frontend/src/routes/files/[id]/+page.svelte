@@ -48,8 +48,8 @@
   onMount(load);
 </script>
 
-<button class="btn btn-sm mb-4" on:click={goBack} aria-label="Back to files">
-  <i class="fa-solid fa-arrow-left"></i> Back
+<button class="btn btn-sm btn-circle mb-4" on:click={goBack} aria-label="Back to files">
+  <i class="fa-solid fa-arrow-left"></i>
 </button>
 {#if isImage}
   {#if imgUrl}
