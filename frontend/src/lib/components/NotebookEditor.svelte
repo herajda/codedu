@@ -33,6 +33,9 @@
   }
 
   async function saveNotebook() {
+    // run all cells so outputs are included in the saved notebook
+    await runAllCells();
+
     const json = serializeNotebook(nb);
     if (fileId && $auth?.role === 'teacher') {
       await apiFetch(`/api/files/${fileId}/content`, {
@@ -40,6 +43,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: json
       });
+      alert('Saved!');
     } else {
       const blob = new Blob([json], { type: 'application/json' });
       saveAs(blob, 'notebook.ipynb');
