@@ -4,7 +4,7 @@
   import { onMount } from 'svelte';
   import '../app.css';
   import Sidebar from '$lib/Sidebar.svelte';
-  import { sidebarOpen } from '$lib/sidebar';
+  import { sidebarOpen, sidebarCollapsed } from '$lib/sidebar';
 
   function logout() {
     auth.logout();
@@ -22,7 +22,7 @@
     <Sidebar />
   {/if}
 
-  <div class={`min-h-screen flex flex-col ${user ? 'sm:ml-60' : ''}`}>
+  <div class={`min-h-screen flex flex-col ${user && !$sidebarCollapsed ? 'sm:ml-60' : ''}`}>
     <div class="navbar bg-base-200 shadow sticky top-0 z-50">
       <div class="flex-1">
         {#if user}
@@ -67,10 +67,5 @@
       <slot />
     </main>
 
-    <footer class="footer footer-center p-4 bg-base-200 text-base-content">
-      <aside>
-        <p>© 2025 CodeGrader</p>
-      </aside>
-    </footer>
   </div>
 
