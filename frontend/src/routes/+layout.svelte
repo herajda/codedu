@@ -9,11 +9,13 @@
   import { sha256 } from '$lib/hash';
 
   let settingsDialog: HTMLDialogElement;
+  let passwordDialog: HTMLDialogElement;
   let avatarInput: HTMLInputElement;
   let name = '';
   let avatarFile: string | null = null;
   let oldPassword = '';
   let newPassword = '';
+  let newPassword2 = '';
 
   function logout() {
     auth.logout();
@@ -25,8 +27,6 @@
       name = user.name ?? '';
     }
     avatarFile = null;
-    oldPassword = '';
-    newPassword = '';
     settingsDialog.showModal();
   }
 
@@ -42,6 +42,26 @@
     avatarInput.click();
   }
 
+  function openPasswordDialog() {
+    oldPassword = '';
+    newPassword = '';
+    newPassword2 = '';
+    passwordDialog.showModal();
+  }
+
+  async function savePassword() {
+    if (newPassword !== newPassword2) return;
+    await apiFetch('/api/me/password', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        old_password: await sha256(oldPassword),
+        new_password: await sha256(newPassword)
+      })
+    });
+    passwordDialog.close();
+  }
+
   async function saveSettings() {
     const body: any = {};
     if (avatarFile !== null) body.avatar = avatarFile;
@@ -53,16 +73,6 @@
         const me = await meRes.json();
         auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null);
       }
-    }
-    if (user && user.bk_uid == null && oldPassword && newPassword) {
-      await apiFetch('/api/me/password', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          old_password: await sha256(oldPassword),
-          new_password: await sha256(newPassword)
-        })
-      });
     }
     settingsDialog.close();
   }
@@ -149,17 +159,31 @@
                 </div>
               </div>
               {#if user.bk_uid == null}
-                <label class="form-control w-full space-y-1">
-                  <span class="label-text">Old Password</span>
-                  <input type="password" class="input input-bordered w-full" bind:value={oldPassword} />
-                </label>
-                <label class="form-control w-full space-y-1">
-                  <span class="label-text">New Password</span>
-                  <input type="password" class="input input-bordered w-full" bind:value={newPassword} />
-                </label>
+                <button class="btn" on:click={openPasswordDialog}>Change password</button>
               {/if}
               <div class="modal-action">
                 <button class="btn" on:click={saveSettings}>Save</button>
+              </div>
+            </div>
+            <form method="dialog" class="modal-backdrop"><button>close</button></form>
+          </dialog>
+          <dialog bind:this={passwordDialog} class="modal">
+            <div class="modal-box space-y-4">
+              <h3 class="font-bold text-lg">Change Password</h3>
+              <label class="form-control w-full space-y-1">
+                <span class="label-text">Current Password</span>
+                <input type="password" class="input input-bordered w-full" bind:value={oldPassword} />
+              </label>
+              <label class="form-control w-full space-y-1">
+                <span class="label-text">New Password</span>
+                <input type="password" class="input input-bordered w-full" bind:value={newPassword} />
+              </label>
+              <label class="form-control w-full space-y-1">
+                <span class="label-text">Repeat Password</span>
+                <input type="password" class="input input-bordered w-full" bind:value={newPassword2} />
+              </label>
+              <div class="modal-action">
+                <button class="btn" on:click={savePassword}>Save</button>
               </div>
             </div>
             <form method="dialog" class="modal-backdrop"><button>close</button></form>
