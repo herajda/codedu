@@ -49,22 +49,42 @@
     });
 
     const updateSidebar = () => {
-      if (editor?.isSideBySideActive && editor.isSideBySideActive()) {
-        sidebarCollapsed.set(true);
+      const side = editor?.isSideBySideActive && editor.isSideBySideActive();
+      const fs = editor?.isFullscreenActive && editor.isFullscreenActive();
+      sidebarCollapsed.set(side || fs);
+      if (side || fs) {
         sidebarOpen.set(false);
-      } else {
-        sidebarCollapsed.set(false);
       }
     };
-    const btn = editor.toolbarElements?.['side-by-side'];
-    btn?.addEventListener('click', updateSidebar);
+
+    const handleSideBySide = () => {
+      if (!editor) return;
+      const active = editor.isSideBySideActive();
+      if (!active && editor.isFullscreenActive()) {
+        editor.toggleFullScreen();
+      }
+      updateSidebar();
+    };
+
+    const btnSide = editor.toolbarElements?.['side-by-side'];
+    btnSide?.addEventListener('click', handleSideBySide);
+    const btnFull = editor.toolbarElements?.fullscreen;
+    btnFull?.addEventListener('click', updateSidebar);
+
     const preview = editor.codemirror.getWrapperElement().nextSibling;
-    const observer = new MutationObserver(updateSidebar);
-    observer.observe(preview, { attributes: true, attributeFilter: ['class'] });
+    const sideObserver = new MutationObserver(handleSideBySide);
+    sideObserver.observe(preview, { attributes: true, attributeFilter: ['class'] });
+
+    const wrapper = editor.codemirror.getWrapperElement();
+    const fsObserver = new MutationObserver(updateSidebar);
+    fsObserver.observe(wrapper, { attributes: true, attributeFilter: ['class'] });
+
     updateSidebar();
     onDestroy(() => {
-      btn?.removeEventListener('click', updateSidebar);
-      observer.disconnect();
+      btnSide?.removeEventListener('click', handleSideBySide);
+      btnFull?.removeEventListener('click', updateSidebar);
+      sideObserver.disconnect();
+      fsObserver.disconnect();
     });
   });
 
