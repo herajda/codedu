@@ -146,7 +146,7 @@ async function rename(item:any){
 onMount(()=>load(null));
 </script>
 
-<nav class="mb-4 sticky top-16 z-40 bg-base-200 rounded-box shadow px-4 py-2 flex items-center justify-between flex-wrap gap-2">
+<nav class="mb-4 sticky top-16 z-30 bg-base-200 rounded-box shadow px-4 py-2 flex items-center justify-between flex-wrap gap-2">
   <ul class="flex flex-wrap gap-1 text-sm items-center">
     {#each breadcrumbs as b,i}
       <li class="after:mx-1 after:content-['/'] last:after:hidden">
