@@ -9,6 +9,7 @@ import { serializeNotebook } from "$lib/notebook";
 import { apiFetch } from "$lib/api";
 import { auth } from "$lib/auth";
 import { onMount, afterUpdate } from 'svelte';
+import { initPyodide } from '$lib/pyodide';
 
   export let fileId: string | number | undefined;
   $: nb = $notebookStore;
@@ -24,6 +25,10 @@ import { onMount, afterUpdate } from 'svelte';
   }
 
   onMount(() => {
+    // Preload the Pyodide runtime in the background so that executing
+    // the first cell is instantaneous. This does not block the main thread
+    // because the loading happens inside a Web Worker.
+    void initPyodide();
     checkHeight();
     window.addEventListener('resize', checkHeight);
     return () => window.removeEventListener('resize', checkHeight);
