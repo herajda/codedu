@@ -25,7 +25,11 @@ let breadcrumbs:{id:number|null,name:string}[] = [{id:null,name:'🏠'}];
 let currentParent:number|null = null;
 let loading = false;
 let err = '';
-let uploadInput: HTMLInputElement;
+let uploadDialog: HTMLDialogElement;
+let uploadFile: File | null = null;
+let uploadErr = '';
+let uploading = false;
+const maxFileSize = 20 * 1024 * 1024;
 let viewMode: 'grid' | 'list' =
   typeof localStorage !== 'undefined' &&
   localStorage.getItem('fileViewMode') === 'list'
@@ -107,13 +111,31 @@ function crumbTo(i:number){
   load(b.id);
 }
 
-async function upload(){
-  if(!uploadInput.files?.length) return;
+function openUploadDialog() {
+  uploadErr = '';
+  uploadFile = null;
+  uploading = false;
+  uploadDialog.showModal();
+}
+
+async function doUpload() {
+  if (!uploadFile) return;
+  if (uploadFile.size > maxFileSize) {
+    uploadErr = 'File exceeds 20 MB limit';
+    return;
+  }
   const fd = new FormData();
-  if(currentParent!==null) fd.append('parent_id', String(currentParent));
-  fd.append('file', uploadInput.files[0]);
-  await apiFetch(`/api/classes/${id}/files`,{method:'POST',body:fd});
-  uploadInput.value='';
+  if (currentParent !== null) fd.append('parent_id', String(currentParent));
+  fd.append('file', uploadFile);
+  uploading = true;
+  const res = await apiFetch(`/api/classes/${id}/files`, { method: 'POST', body: fd });
+  if (!res.ok) {
+    uploadErr = (await res.json()).error || res.statusText;
+    uploading = false;
+    return;
+  }
+  uploadDialog.close();
+  uploading = false;
   await load(currentParent);
 }
 
@@ -234,8 +256,7 @@ onMount(()=>load(null));
     {#if role==='teacher' || role==='admin'}
     <div class="flex items-center gap-2">
     </div>
-      <input type="file" bind:this={uploadInput} class="hidden" on:change={upload} />
-      <button class="btn btn-sm btn-circle" on:click={() => uploadInput.click()} title="Upload file">
+      <button class="btn btn-sm btn-circle" on:click={openUploadDialog} title="Upload file">
         <i class="fa-solid fa-upload"></i>
       </button>
       <button class="btn btn-sm btn-circle" on:click={promptDir} title="New folder">
@@ -246,6 +267,20 @@ onMount(()=>load(null));
       </button>
     {/if}
 </nav>
+
+<dialog bind:this={uploadDialog} class="modal">
+  <div class="modal-box w-11/12 max-w-md space-y-2">
+    <h3 class="font-bold text-lg">Upload file</h3>
+    {#if uploadErr}<p class="text-error">{uploadErr}</p>{/if}
+    <input type="file" class="file-input file-input-bordered w-full" on:change={e => uploadFile=(e.target as HTMLInputElement).files?.[0] || null}>
+    <div class="modal-action">
+      <button class="btn" on:click={doUpload} disabled={!uploadFile || uploading}>
+        {#if uploading}<span class="loading loading-dots"></span>{:else}Upload{/if}
+      </button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
 
 {#if loading}
 <p>Loading…</p>
