@@ -1,7 +1,7 @@
 
 <script lang="ts">
   import { notebookStore } from "$lib/stores/notebookStore";
-  import { saveAs } from "file-saver";
+  import pkg from "file-saver";
   import CodeCell from "./cells/CodeCell.svelte";
   import MarkdownCell from "./cells/MarkdownCell.svelte";
   import { v4 as uuid } from "uuid";
@@ -9,6 +9,7 @@
   $: nb = $notebookStore;
 
   let cellRefs: any[] = [];
+  const { saveAs } = pkg;
 
   async function runAllCells() {
     for (const ref of cellRefs) {
