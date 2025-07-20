@@ -98,6 +98,32 @@ function promptDir(){
   if(nm) createDir(nm);
 }
 
+async function createNotebook(name: string) {
+  const cf = await apiJSON(`/api/classes/${id}/files`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, parent_id: currentParent })
+  });
+  const nb = {
+    cells: [],
+    metadata: {},
+    nbformat: 4,
+    nbformat_minor: 5
+  };
+  await apiFetch(`/api/files/${cf.id}/content`, {
+    method: 'PUT',
+    body: JSON.stringify(nb)
+  });
+  await load(currentParent);
+}
+
+function promptNotebook() {
+  let nm = prompt('Notebook name', 'Untitled.ipynb');
+  if (!nm) return;
+  if (!nm.toLowerCase().endsWith('.ipynb')) nm += '.ipynb';
+  createNotebook(nm);
+}
+
 async function del(item:any){
   if(!confirm('Delete?')) return;
   await apiFetch(`/api/files/${item.id}`,{method:'DELETE'});
@@ -136,6 +162,9 @@ onMount(()=>load(null));
       </button>
       <button class="btn btn-sm btn-circle" on:click={promptDir} title="New folder">
         <i class="fa-solid fa-folder-plus"></i>
+      </button>
+      <button class="btn btn-sm btn-circle" on:click={promptNotebook} title="New notebook">
+        <i class="fa-solid fa-book-medical"></i>
       </button>
     </div>
   {/if}
