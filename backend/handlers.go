@@ -6,6 +6,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/jpeg"
+	"image/png"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -17,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/disintegration/imaging"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -1152,6 +1156,106 @@ func updateFileContent(c *gin.Context) {
 		return
 	}
 	if err := UpdateFileContent(fid, data); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func resizeAvatar(data string) (string, error) {
+	const avatarSize = 256
+
+	parts := strings.SplitN(data, ",", 2)
+	if len(parts) != 2 {
+		return "", fmt.Errorf("invalid data url")
+	}
+	meta, enc := parts[0], parts[1]
+	b, err := base64.StdEncoding.DecodeString(enc)
+	if err != nil {
+		return "", err
+	}
+
+	img, format, err := image.Decode(bytes.NewReader(b))
+	if err != nil {
+		return "", err
+	}
+
+	dst := imaging.Resize(img, avatarSize, avatarSize, imaging.Lanczos)
+
+	buf := bytes.Buffer{}
+	switch format {
+	case "jpeg", "jpg":
+		err = jpeg.Encode(&buf, dst, &jpeg.Options{Quality: 90})
+		meta = "data:image/jpeg;base64"
+	default:
+		err = png.Encode(&buf, dst)
+		meta = "data:image/png;base64"
+	}
+	if err != nil {
+		return "", err
+	}
+
+	return meta + "," + base64.StdEncoding.EncodeToString(buf.Bytes()), nil
+}
+
+func updateProfile(c *gin.Context) {
+	uid := c.GetInt("userID")
+	var req struct {
+		Name   *string `json:"name"`
+		Avatar *string `json:"avatar"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	user, err := GetUser(uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	if user.BkUID != nil {
+		req.Name = nil // Bakalari users cannot change name
+	}
+	if req.Avatar != nil {
+		resized, err := resizeAvatar(*req.Avatar)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid avatar"})
+			return
+		}
+		req.Avatar = &resized
+	}
+	if err := UpdateUserProfile(uid, req.Name, req.Avatar); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func changePassword(c *gin.Context) {
+	uid := c.GetInt("userID")
+	var req struct {
+		Old string `json:"old_password" binding:"required"`
+		New string `json:"new_password" binding:"required,min=6"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	user, err := GetUser(uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	if user.BkUID != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "bakalari account"})
+		return
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Old)); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "wrong password"})
+		return
+	}
+	hash, _ := bcrypt.GenerateFromPassword([]byte(req.New), bcrypt.DefaultCost)
+	if err := UpdateUserPassword(uid, string(hash)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}

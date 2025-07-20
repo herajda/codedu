@@ -63,11 +63,22 @@ func main() {
 		})
 		// who am I
 		api.GET("/me", func(c *gin.Context) {
+			u, err := GetUser(c.GetInt("userID"))
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+				return
+			}
 			c.JSON(http.StatusOK, gin.H{
-				"id":   c.GetInt("userID"),
-				"role": c.GetString("role"),
+				"id":     u.ID,
+				"role":   u.Role,
+				"name":   u.Name,
+				"avatar": u.Avatar,
+				"bk_uid": u.BkUID,
+				"email":  u.Email,
 			})
 		})
+		api.PUT("/me", updateProfile)
+		api.PUT("/me/password", changePassword)
 
 		// Assignments
 		api.GET("/assignments", RoleGuard("student", "teacher", "admin"), listAssignments)

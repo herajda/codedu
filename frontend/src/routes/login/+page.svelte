@@ -31,7 +31,7 @@
       const me = await meRes.json()
 
       // 3. Store & smart-redirect
-      auth.login(me.id, me.role)
+      auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null)
       goto('/dashboard')
     }
     async function submitBk() {
@@ -51,7 +51,7 @@
         return
       }
       const me = await meRes.json()
-      auth.login(me.id, me.role)
+      auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null)
       goto('/dashboard')
     }
   </script>

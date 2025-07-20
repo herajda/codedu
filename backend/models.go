@@ -15,6 +15,7 @@ type User struct {
 	Email        string    `db:"email"`
 	PasswordHash string    `db:"password_hash"`
 	Name         *string   `db:"name"`
+	Avatar       *string   `db:"avatar"`
 	Role         string    `db:"role"`
 	BkClass      *string   `db:"bk_class"`
 	BkUID        *string   `db:"bk_uid"`
@@ -98,6 +99,26 @@ func UpdateUserRole(id int, role string) error {
 		return fmt.Errorf("invalid role")
 	}
 	_, err := DB.Exec(`UPDATE users SET role=$1 WHERE id=$2`, role, id)
+	return err
+}
+
+func GetUser(id int) (*User, error) {
+	var u User
+	err := DB.Get(&u, `SELECT id, email, password_hash, name, avatar, role, bk_class, bk_uid, created_at
+                FROM users WHERE id=$1`, id)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+func UpdateUserProfile(id int, name, avatar *string) error {
+	_, err := DB.Exec(`UPDATE users SET name=COALESCE($1,name), avatar=COALESCE($2,avatar) WHERE id=$3`, name, avatar, id)
+	return err
+}
+
+func UpdateUserPassword(id int, hash string) error {
+	_, err := DB.Exec(`UPDATE users SET password_hash=$1 WHERE id=$2`, hash, id)
 	return err
 }
 

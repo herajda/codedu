@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   name TEXT,
+  avatar TEXT,
   role TEXT NOT NULL DEFAULT 'student' CHECK (role IN ('student','teacher','admin')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -11,6 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
 ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS bk_class TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS bk_uid TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT;
 
 
 CREATE TABLE IF NOT EXISTS classes (
