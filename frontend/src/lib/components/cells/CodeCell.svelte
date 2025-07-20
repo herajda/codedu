@@ -7,6 +7,7 @@
     deleteCell
   } from "$lib/stores/notebookStore";
   import { initPyodide, terminatePyodide } from "$lib/pyodide";
+  import { onMount } from 'svelte';
   import { writable } from "svelte/store";
   import { cellSourceToString } from "$lib/notebook";
   import { python } from "@codemirror/lang-python";
@@ -27,6 +28,28 @@
   const stderrStore = writable<string>("");
   const resultStore = writable<any>(null);
   const imagesStore = writable<string[]>([]);
+
+  onMount(() => {
+    if (!Array.isArray(cell.outputs)) return;
+    let stdout = "";
+    let stderr = "";
+    let result: any = null;
+    const imgs: string[] = [];
+    for (const o of cell.outputs) {
+      if (o.output_type === 'stream') {
+        if (o.name === 'stdout') stdout += o.text ?? '';
+        if (o.name === 'stderr') stderr += o.text ?? '';
+      } else if (o.output_type === 'execute_result') {
+        result = o.data?.['text/plain'] ?? result;
+      } else if (o.output_type === 'display_data') {
+        if (o.data?.['image/png']) imgs.push(o.data['image/png']);
+      }
+    }
+    stdoutStore.set(stdout);
+    stderrStore.set(stderr);
+    resultStore.set(result);
+    imagesStore.set(imgs);
+  });
 
   function onChange(value: string) {
     sourceStr = value;
