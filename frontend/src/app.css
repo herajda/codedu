@@ -34,16 +34,7 @@
   border-radius: 4px;
 }
 
-/* Ensure the markdown editor toolbar stays visible below the sticky navbar */
-.editor-toolbar.fullscreen {
-  top: 4rem !important;
-  z-index: 60 !important;
-}
-.editor-toolbar.fullscreen::before,
-.editor-toolbar.fullscreen::after {
-  top: 4rem !important;
-  z-index: 60 !important;
-}
-.CodeMirror-fullscreen {
-  top: calc(4rem + 50px) !important;
+/* Hide the top navbar when a markdown editor is in fullscreen */
+body.hide-navbar .navbar {
+  display: none;
 }

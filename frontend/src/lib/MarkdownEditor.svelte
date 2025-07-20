@@ -55,6 +55,7 @@
       if (side || fs) {
         sidebarOpen.set(false);
       }
+      document.body.classList.toggle('hide-navbar', fs);
     };
 
     const handleSideBySide = () => {
@@ -101,6 +102,7 @@
     } finally {
       editor = null;
     }
+    document.body.classList.remove('hide-navbar');
   }
 
   onDestroy(() => {
