@@ -18,6 +18,11 @@ let loading = false;
 let err = '';
 let uploadInput: HTMLInputElement;
 
+function isImage(name: string) {
+  const ext = name.split('.').pop()?.toLowerCase();
+  return ['png','jpg','jpeg','gif','webp','svg'].includes(ext ?? '');
+}
+
 function iconClass(name: string) {
   const ext = name.split('.').pop()?.toLowerCase();
   switch (ext) {
@@ -49,7 +54,7 @@ function iconClass(name: string) {
 
 function open(item: any) {
   if (item.is_dir) openDir(item);
-  else if (item.name.toLowerCase().endsWith('.ipynb'))
+  else if (item.name.toLowerCase().endsWith('.ipynb') || isImage(item.name))
     goto(`/files/${item.id}`);
   else window.open(`/api/files/${item.id}`, '_blank');
 }
@@ -115,7 +120,6 @@ async function rename(item:any){
 onMount(()=>load(null));
 </script>
 
-<h1 class="text-2xl font-bold mb-4">Files</h1>
 <nav class="mb-4 sticky top-16 z-40 bg-base-200 rounded-box shadow px-4 py-2 flex items-center justify-between flex-wrap gap-2">
   <ul class="flex flex-wrap gap-1 text-sm items-center">
     {#each breadcrumbs as b,i}
@@ -153,6 +157,8 @@ onMount(()=>load(null));
       <div class="text-5xl mb-2">
         {#if it.is_dir}
           <i class="fa-solid fa-folder text-warning"></i>
+        {:else if isImage(it.name)}
+          <img src={`/api/files/${it.id}`} alt={it.name} class="w-16 h-16 object-cover rounded" />
         {:else}
           <i class="fa-solid {iconClass(it.name)}"></i>
         {/if}

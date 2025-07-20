@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -1010,8 +1011,14 @@ func downloadClassFile(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "not a file"})
 		return
 	}
-	c.Writer.Header().Set("Content-Disposition", "attachment; filename="+strconv.Quote(f.Name))
-	c.Data(http.StatusOK, "application/octet-stream", f.Content)
+	ext := strings.ToLower(filepath.Ext(f.Name))
+	switch ext {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg":
+		c.Data(http.StatusOK, mime.TypeByExtension(ext), f.Content)
+	default:
+		c.Writer.Header().Set("Content-Disposition", "attachment; filename="+strconv.Quote(f.Name))
+		c.Data(http.StatusOK, "application/octet-stream", f.Content)
+	}
 }
 
 func renameClassFile(c *gin.Context) {
