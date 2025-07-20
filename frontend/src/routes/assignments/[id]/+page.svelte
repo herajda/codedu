@@ -30,6 +30,7 @@ const role = get(auth)?.role!;
   let tStdin='', tStdout='', tLimit='', tWeight='1'
   let files: File[] = []
   let templateFile:File|null=null
+  let unittestFile:File|null=null
   let submitDialog: HTMLDialogElement;
   let testsDialog: HTMLDialogElement;
 $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100) : 0;
@@ -118,6 +119,17 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     try{
       await apiFetch(`/api/assignments/${id}/template`,{method:'POST', body:fd})
       templateFile=null
+      await load()
+    }catch(e:any){ err=e.message }
+  }
+
+  async function uploadUnitTests(){
+    if(!unittestFile) return
+    const fd = new FormData()
+    fd.append('file', unittestFile)
+    try{
+      await apiFetch(`/api/assignments/${id}/tests/upload`,{method:'POST', body:fd})
+      unittestFile=null
       await load()
     }catch(e:any){ err=e.message }
   }
@@ -434,15 +446,21 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
       <div class="space-y-4 max-h-60 overflow-y-auto">
         {#each tests as t, i}
           <div class="border rounded p-2 space-y-2">
-            <div class="font-semibold">Test {i+1}</div>
-            <label class="form-control w-full space-y-1">
-              <span class="label-text">Input</span>
-              <input class="input input-bordered w-full" placeholder="stdin" bind:value={t.stdin}>
-            </label>
-            <label class="form-control w-full space-y-1">
-              <span class="label-text">Expected output</span>
-              <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={t.expected_stdout}>
-            </label>
+            <div class="font-semibold">Test {i+1}
+              {#if t.unittest_name}
+                <span class="badge badge-outline ml-2">{t.unittest_name}</span>
+              {/if}
+            </div>
+            {#if !t.unittest_name}
+              <label class="form-control w-full space-y-1">
+                <span class="label-text">Input</span>
+                <input class="input input-bordered w-full" placeholder="stdin" bind:value={t.stdin}>
+              </label>
+              <label class="form-control w-full space-y-1">
+                <span class="label-text">Expected output</span>
+                <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={t.expected_stdout}>
+              </label>
+            {/if}
             <label class="form-control w-full space-y-1">
               <span class="label-text">Time limit (s)</span>
               <input class="input input-bordered w-full" placeholder="seconds" bind:value={t.time_limit_sec}>
@@ -477,9 +495,14 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           <span class="label-text">Weight</span>
           <input class="input input-bordered w-full" placeholder="points" bind:value={tWeight}>
         </label>
-        <div class="modal-action">
-          <button class="btn btn-primary" on:click={addTest} disabled={!tStdin || !tStdout}>Add</button>
-        </div>
+      <div class="modal-action">
+        <button class="btn btn-primary" on:click={addTest} disabled={!tStdin || !tStdout}>Add</button>
+      </div>
+      <h4 class="font-semibold mt-4">Upload unittest file</h4>
+      <input type="file" accept=".py" class="file-input file-input-bordered w-full" on:change={e=>unittestFile=(e.target as HTMLInputElement).files?.[0] || null}>
+      <div class="modal-action">
+        <button class="btn" on:click={uploadUnitTests} disabled={!unittestFile}>Upload</button>
+      </div>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
