@@ -36,7 +36,8 @@
     }
   }
 
-  function onInput() {
+  function onInput(e?: CustomEvent) {
+    if (e && 'detail' in e) sourceStr = e.detail;
     cell.source = sourceStr;
     // trigger store update so parent re-renders
     notebookStore.update((n) => n ? ({ ...n }) : n);
