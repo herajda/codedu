@@ -1,7 +1,8 @@
 <script lang="ts">
   import { auth } from '$lib/auth';
   import { goto } from '$app/navigation';
-  import { onMount } from 'svelte';
+import { onMount } from 'svelte';
+import AvatarCropper from '$lib/AvatarCropper.svelte';
   import '../app.css';
   import Sidebar from '$lib/Sidebar.svelte';
   import { sidebarOpen, sidebarCollapsed } from '$lib/sidebar';
@@ -11,6 +12,9 @@
   let settingsDialog: HTMLDialogElement;
   let passwordDialog: HTMLDialogElement;
   let avatarInput: HTMLInputElement;
+  let cropDialog: HTMLDialogElement;
+  let cropperComp: any;
+  let cropSrc = '';
   let name = '';
   let avatarFile: string | null = null;
   let oldPassword = '';
@@ -33,9 +37,12 @@
 
   function onAvatarChange(e: Event) {
     const file = (e.target as HTMLInputElement).files?.[0];
-    if (!file) { avatarFile = null; return; }
+    if (!file) { return; }
     const reader = new FileReader();
-    reader.onload = () => { avatarFile = reader.result as string; };
+    reader.onload = () => {
+      cropSrc = reader.result as string;
+      cropDialog.showModal();
+    };
     reader.readAsDataURL(file);
   }
 
@@ -49,6 +56,13 @@
     newPassword2 = '';
     passwordError = '';
     passwordDialog.showModal();
+  }
+
+  function applyCrop() {
+    if (cropperComp) {
+      avatarFile = cropperComp.getDataURL();
+    }
+    cropDialog.close();
   }
 
   async function savePassword() {
@@ -202,6 +216,18 @@
               {/if}
               <div class="modal-action">
                 <button class="btn" on:click={savePassword}>Save</button>
+              </div>
+            </div>
+            <form method="dialog" class="modal-backdrop"><button>close</button></form>
+          </dialog>
+          <dialog bind:this={cropDialog} class="modal">
+            <div class="modal-box space-y-4">
+              <h3 class="font-bold text-lg">Crop Avatar</h3>
+              {#if cropSrc}
+                <AvatarCropper src={cropSrc} bind:this={cropperComp} />
+              {/if}
+              <div class="modal-action">
+                <button class="btn" on:click={applyCrop}>Use</button>
               </div>
             </div>
             <form method="dialog" class="modal-backdrop"><button>close</button></form>
