@@ -100,7 +100,7 @@
   {#if role === 'student'}
     <div class="grid gap-6 md:grid-cols-2">
       {#each classes as c}
-        <a href={`/classes/${c.id}`} class="card bg-base-100 shadow hover:shadow-lg block">
+        <a href={`/classes/${c.id}/overview`} class="card bg-base-100 shadow hover:shadow-lg block">
           <div class="card-body">
             <h2 class="card-title">{c.name}</h2>
             <div class="stats stats-vertical lg:stats-horizontal mt-3">
