@@ -17,6 +17,11 @@ let loading = false;
 let err = '';
 let uploadInput: HTMLInputElement;
 
+function isImage(name: string) {
+  const ext = name.split('.').pop()?.toLowerCase();
+  return ['png','jpg','jpeg','gif','webp','svg'].includes(ext ?? '');
+}
+
 function iconClass(name: string) {
   const ext = name.split('.').pop()?.toLowerCase();
   switch (ext) {
@@ -48,7 +53,7 @@ function iconClass(name: string) {
 
 function open(item: any) {
   if (item.is_dir) openDir(item);
-  else if (item.name.toLowerCase().endsWith('.ipynb'))
+  else if (item.name.toLowerCase().endsWith('.ipynb') || isImage(item.name))
     window.open(`/files/${item.id}`, '_blank');
   else window.open(`/api/files/${item.id}`, '_blank');
 }
@@ -152,6 +157,8 @@ onMount(()=>load(null));
       <div class="text-5xl mb-2">
         {#if it.is_dir}
           <i class="fa-solid fa-folder text-warning"></i>
+        {:else if isImage(it.name)}
+          <img src={`/api/files/${it.id}`} alt={it.name} class="w-16 h-16 object-cover rounded" />
         {:else}
           <i class="fa-solid {iconClass(it.name)}"></i>
         {/if}
