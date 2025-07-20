@@ -67,10 +67,5 @@
       <slot />
     </main>
 
-    <footer class="footer footer-center p-4 bg-base-200 text-base-content">
-      <aside>
-        <p>© 2025 CodeGrader</p>
-      </aside>
-    </footer>
   </div>
 
