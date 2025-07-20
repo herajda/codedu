@@ -1,6 +1,7 @@
 <script lang="ts">
   import { marked } from "marked";
   import { tick } from 'svelte';
+  import { MarkdownEditor } from '$lib';
   import {
     notebookStore,
     moveCellUp,
@@ -15,9 +16,9 @@
 
   let editing = !cell.source;
 
-  let textarea: HTMLTextAreaElement;
+  let editorRef: any;
 
-  // keep a local string bound to textarea
+  // keep a local string bound to the editor
   let sourceStr = Array.isArray(cell.source) ? cell.source.join("") : (cell.source ?? "");
 
   $: {
@@ -33,14 +34,11 @@
         ? cell.source.join("")
         : (cell.source ?? "");
       await tick();
-      textarea?.focus();
+      editorRef?.focus?.();
     }
   }
 
-  function onInput(e?: Event) {
-    if (e && e.target instanceof HTMLTextAreaElement) {
-      sourceStr = e.target.value;
-    }
+  function onInput() {
     cell.source = sourceStr;
     // trigger store update so parent re-renders
     notebookStore.update((n) => n ? ({ ...n }) : n);
@@ -135,13 +133,12 @@
     </div>
   </div>
   {#if editing}
-    <textarea
-      bind:this={textarea}
-      class="w-full bg-gray-100 p-2 rounded"
-      rows="4"
+    <MarkdownEditor
+      bind:this={editorRef}
       bind:value={sourceStr}
+      className="w-full bg-gray-100 p-2 rounded"
       on:input={onInput}
-    ></textarea>
+    />
     <button
       class="text-blue-600 mt-2 p-1 rounded hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
       on:click={toggle}
