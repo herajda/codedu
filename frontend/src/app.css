@@ -33,3 +33,15 @@
   padding: 0.2rem 0.4rem;
   border-radius: 4px;
 }
+
+/* Ensure the markdown editor toolbar stays visible below the sticky navbar */
+.editor-toolbar.fullscreen {
+  top: 4rem;
+}
+.editor-toolbar.fullscreen::before,
+.editor-toolbar.fullscreen::after {
+  top: 4rem;
+}
+.CodeMirror-fullscreen {
+  top: calc(4rem + 50px);
+}
