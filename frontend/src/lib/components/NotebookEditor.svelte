@@ -9,6 +9,7 @@ import { serializeNotebook } from "$lib/notebook";
 import { apiFetch } from "$lib/api";
 import { auth } from "$lib/auth";
 import { onMount, afterUpdate } from 'svelte';
+import { preloadPyodide } from '$lib/pyodide';
 
   export let fileId: string | number | undefined;
   $: nb = $notebookStore;
@@ -24,6 +25,9 @@ import { onMount, afterUpdate } from 'svelte';
   }
 
   onMount(() => {
+    // Preload the Pyodide runtime and common packages in the background.
+    // Loading happens inside a Web Worker so it does not block the UI.
+    preloadPyodide();
     checkHeight();
     window.addEventListener('resize', checkHeight);
     return () => window.removeEventListener('resize', checkHeight);

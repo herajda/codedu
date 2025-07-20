@@ -28,7 +28,11 @@ plt.show = _silent_show
 }
 
 self.onmessage = async (e: MessageEvent) => {
-  const { id, type, code } = e.data as { id: number; type: string; code?: string };
+  const { id, type, code } = e.data as { id?: number; type: string; code?: string };
+  if (type === 'init') {
+    await ensurePyodide();
+    return;
+  }
   if (type === 'run') {
     await ensurePyodide();
     stdoutBuffer = [];
