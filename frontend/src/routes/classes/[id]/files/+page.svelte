@@ -16,7 +16,6 @@ let currentParent:number|null = null;
 let loading = false;
 let err = '';
 let uploadInput: HTMLInputElement;
-let newDir = '';
 
 function iconClass(name: string) {
   const ext = name.split('.').pop()?.toLowerCase();
@@ -81,10 +80,18 @@ async function upload(){
   await load(currentParent);
 }
 
-async function createDir(){
-  await apiFetch(`/api/classes/${id}/files`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:newDir,parent_id:currentParent,is_dir:true})});
-  newDir='';
+async function createDir(name:string){
+  await apiFetch(`/api/classes/${id}/files`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, parent_id: currentParent, is_dir: true })
+  });
   await load(currentParent);
+}
+
+function promptDir(){
+  const nm = prompt('Folder name');
+  if(nm) createDir(nm);
 }
 
 async function del(item:any){
@@ -104,7 +111,7 @@ onMount(()=>load(null));
 </script>
 
 <h1 class="text-2xl font-bold mb-4">Files</h1>
-<nav class="mb-4 sticky top-16 z-40 bg-base-200 rounded-box shadow px-4 py-2">
+<nav class="mb-4 sticky top-16 z-40 bg-base-200 rounded-box shadow px-4 py-2 flex items-center justify-between flex-wrap gap-2">
   <ul class="flex flex-wrap gap-1 text-sm items-center">
     {#each breadcrumbs as b,i}
       <li class="after:mx-1 after:content-['/'] last:after:hidden">
@@ -117,6 +124,17 @@ onMount(()=>load(null));
       </li>
     {/each}
   </ul>
+  {#if role==='teacher' || role==='admin'}
+    <div class="flex items-center gap-2">
+      <input type="file" bind:this={uploadInput} class="hidden" on:change={upload} />
+      <button class="btn btn-sm btn-circle" on:click={() => uploadInput.click()} title="Upload file">
+        <i class="fa-solid fa-upload"></i>
+      </button>
+      <button class="btn btn-sm btn-circle" on:click={promptDir} title="New folder">
+        <i class="fa-solid fa-folder-plus"></i>
+      </button>
+    </div>
+  {/if}
 </nav>
 
 {#if loading}
@@ -151,14 +169,4 @@ onMount(()=>load(null));
     <p class="col-span-full"><i>Empty</i></p>
   {/if}
 </div>
-{#if role==='teacher' || role==='admin'}
-<div class="space-y-2">
-  <input type="file" bind:this={uploadInput} class="file-input" />
-  <button class="btn" on:click={upload}>Upload</button>
-  <div>
-    <input class="input input-bordered" placeholder="Folder" bind:value={newDir} />
-    <button class="btn ml-2" on:click={createDir} disabled={!newDir}>Create</button>
-  </div>
-</div>
-{/if}
 {/if}
