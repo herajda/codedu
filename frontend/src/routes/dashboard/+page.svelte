@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { apiJSON, apiFetch } from '$lib/api';
   import AdminPanel from '$lib/AdminPanel.svelte';
 
@@ -10,6 +10,8 @@
   let loading = true;
   let err = '';
   let newClassName = '';
+  let showNewClassInput = false;
+  let newClassInput: HTMLInputElement | null = null;
 
   function percent(done:number,total:number){
     return total ? Math.round((done/total)*100) : 0;
@@ -89,7 +91,14 @@
       });
       classes = [...classes, { ...cl, assignments: [], students: [] }];
       newClassName='';
+      showNewClassInput = false;
     }catch(e:any){ err = e.message; }
+  }
+
+  async function showInput() {
+    showNewClassInput = true;
+    await tick();
+    newClassInput?.focus();
   }
 </script>
 
@@ -168,10 +177,14 @@
         </a>
       {/each}
     </div>
-    <form class="mt-6 flex gap-2 max-w-sm" on:submit|preventDefault={createClass}>
-      <input class="input input-bordered flex-1" placeholder="New class" bind:value={newClassName} required />
-      <button class="btn">Create</button>
-    </form>
+    {#if showNewClassInput}
+      <form class="mt-6 flex gap-2 max-w-sm" on:submit|preventDefault={createClass}>
+        <input class="input input-bordered flex-1" placeholder="New class" bind:value={newClassName} bind:this={newClassInput} required />
+        <button class="btn">Create</button>
+      </form>
+    {:else}
+      <button class="btn mt-6" on:click={showInput}>Create New Class</button>
+    {/if}
   {:else if role === 'admin'}
     <AdminPanel />
   {/if}
