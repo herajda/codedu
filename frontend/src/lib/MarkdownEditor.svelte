@@ -49,12 +49,16 @@
   });
 
   export function destroyEditor() {
-    if (editor) {
+    if (!editor) return;
+    try {
       // EasyMDE leaves additional DOM when destroyed from preview mode
       if (typeof editor.isPreviewActive === 'function' && editor.isPreviewActive()) {
         editor.togglePreview();
       }
       editor.toTextArea();
+    } catch (err) {
+      console.warn('Failed to destroy editor', err);
+    } finally {
       editor = null;
     }
   }
