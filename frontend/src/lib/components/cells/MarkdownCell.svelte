@@ -1,7 +1,6 @@
 <script lang="ts">
   import { marked } from "marked";
   import { tick } from 'svelte';
-  import MarkdownEditor from '$lib/MarkdownEditor.svelte';
   import {
     notebookStore,
     moveCellUp,
@@ -16,9 +15,9 @@
 
   let editing = !cell.source;
 
-  let editorRef: MarkdownEditor;
+  let textarea: HTMLTextAreaElement;
 
-  // keep a local string bound to editor
+  // keep a local string bound to textarea
   let sourceStr = Array.isArray(cell.source) ? cell.source.join("") : (cell.source ?? "");
 
   $: {
@@ -30,14 +29,18 @@
   async function toggle() {
     editing = !editing;
     if (editing) {
+      sourceStr = Array.isArray(cell.source)
+        ? cell.source.join("")
+        : (cell.source ?? "");
       await tick();
-      // focus editor if possible
-      try { (editorRef as any)?.focus?.(); } catch {}
+      textarea?.focus();
     }
   }
 
-  function onInput(e?: CustomEvent) {
-    if (e && 'detail' in e) sourceStr = e.detail;
+  function onInput(e?: Event) {
+    if (e && e.target instanceof HTMLTextAreaElement) {
+      sourceStr = e.target.value;
+    }
     cell.source = sourceStr;
     // trigger store update so parent re-renders
     notebookStore.update((n) => n ? ({ ...n }) : n);
@@ -132,12 +135,13 @@
     </div>
   </div>
   {#if editing}
-    <MarkdownEditor
-      bind:this={editorRef}
+    <textarea
+      bind:this={textarea}
+      class="w-full bg-gray-100 p-2 rounded"
+      rows="4"
       bind:value={sourceStr}
-      className="w-full"
       on:input={onInput}
-    />
+    ></textarea>
     <button
       class="text-blue-600 mt-2 p-1 rounded hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
       on:click={toggle}
