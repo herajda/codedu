@@ -2,6 +2,7 @@
     import { auth } from '$lib/auth'
     import { apiFetch } from '$lib/api'
     import { sha256 } from '$lib/hash'
+    import { setPassword } from '$lib/e2ee'
     import { goto } from '$app/navigation'
     let email = ''
     let password = ''
@@ -29,6 +30,7 @@
         return
       }
       const me = await meRes.json()
+      await setPassword(password)
 
       // 3. Store & smart-redirect
       auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null)
@@ -51,6 +53,7 @@
         return
       }
       const me = await meRes.json()
+      await setPassword(bkPass)
       auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null)
       goto('/dashboard')
     }

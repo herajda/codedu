@@ -31,6 +31,11 @@
     </svg>
   </button>
   <h2 class="font-bold mb-2">Classes</h2>
+  <ul class="menu mb-2">
+    <li>
+      <a href="/messages" class={ $page.url.pathname.startsWith('/messages') ? 'active' : ''} on:click={() => sidebarOpen.set(false)}>Messages</a>
+    </li>
+  </ul>
   <ul class="menu">
     {#each classes as c}
       <li>

@@ -1261,3 +1261,48 @@ func changePassword(c *gin.Context) {
 	}
 	c.Status(http.StatusNoContent)
 }
+
+// ──────────────────────────────────────────
+// messaging handlers
+// ──────────────────────────────────────────
+
+func searchUsers(c *gin.Context) {
+	term := c.Query("q")
+	list, err := SearchUsers(term)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, list)
+}
+
+func createMessage(c *gin.Context) {
+	var req struct {
+		To      int    `json:"to" binding:"required"`
+		Content string `json:"content" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	msg := &Message{SenderID: c.GetInt("userID"), RecipientID: req.To, Content: req.Content}
+	if err := CreateMessage(msg); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusCreated, msg)
+}
+
+func listMessages(c *gin.Context) {
+	otherID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	msgs, err := ListMessages(c.GetInt("userID"), otherID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, msgs)
+}

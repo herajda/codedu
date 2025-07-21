@@ -129,6 +129,11 @@ func main() {
 		api.GET("/classes/:id/progress", RoleGuard("teacher", "admin"), getClassProgress)
 		api.GET("/classes/:id", RoleGuard("teacher", "student", "admin"), getClass)
 
+		// Messaging
+		api.GET("/user-search", RoleGuard("student", "teacher", "admin"), searchUsers)
+		api.POST("/messages", RoleGuard("student", "teacher", "admin"), createMessage)
+		api.GET("/messages/:id", RoleGuard("student", "teacher", "admin"), listMessages)
+
 		// Class file system
 		api.GET("/classes/:id/files", RoleGuard("teacher", "student", "admin"), listClassFiles)
 		api.GET("/classes/:id/notebooks", RoleGuard("teacher", "student", "admin"), listClassNotebooks)
