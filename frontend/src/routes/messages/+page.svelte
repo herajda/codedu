@@ -25,15 +25,16 @@
   async function load() {
     if (!target) return;
     const list = await apiJSON(`/api/messages/${target.id}`);
-    convo = [];
     const k = getKey();
     for (const m of list) {
       if (k) {
         try { m.text = await decryptText(k, m.content); }
         catch { m.text = '[decrypt error]'; }
-      } else { m.text = '[locked]'; }
-      convo.push(m);
+      } else {
+        m.text = '[locked]';
+      }
     }
+    convo = list;
   }
 
   async function send() {
