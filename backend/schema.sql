@@ -114,4 +114,5 @@ CREATE TABLE IF NOT EXISTS class_files (
   UNIQUE(class_id, path)
 );
 CREATE INDEX IF NOT EXISTS idx_class_files_path ON class_files(class_id, path);
-
+CREATE INDEX IF NOT EXISTS idx_messages_sender_recipient_created ON messages(sender_id, recipient_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_messages_recipient_sender_created ON messages(recipient_id, sender_id, created_at);
