@@ -887,3 +887,50 @@ func IsStudentOfClass(cid, studentID int) (bool, error) {
 	}
 	return true, nil
 }
+
+// ──────────────────────────────────────────────────────
+// messaging
+// ──────────────────────────────────────────────────────
+
+type Message struct {
+	ID          int       `db:"id" json:"id"`
+	SenderID    int       `db:"sender_id" json:"sender_id"`
+	RecipientID int       `db:"recipient_id" json:"recipient_id"`
+	Content     string    `db:"content" json:"content"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+}
+
+func CreateMessage(m *Message) error {
+	const q = `INSERT INTO messages (sender_id, recipient_id, content)
+                    VALUES ($1,$2,$3)
+                    RETURNING id, created_at`
+	return DB.QueryRow(q, m.SenderID, m.RecipientID, m.Content).
+		Scan(&m.ID, &m.CreatedAt)
+}
+
+func ListMessages(userID, otherID int) ([]Message, error) {
+	msgs := []Message{}
+	err := DB.Select(&msgs, `SELECT id,sender_id,recipient_id,content,created_at
+                                  FROM messages
+                                 WHERE (sender_id=$1 AND recipient_id=$2)
+                                    OR (sender_id=$2 AND recipient_id=$1)
+                                 ORDER BY created_at`,
+		userID, otherID)
+	return msgs, err
+}
+
+type UserSearch struct {
+	ID    int     `db:"id" json:"id"`
+	Email string  `db:"email" json:"email"`
+	Name  *string `db:"name" json:"name"`
+}
+
+func SearchUsers(term string) ([]UserSearch, error) {
+	list := []UserSearch{}
+	like := "%" + term + "%"
+	err := DB.Select(&list,
+		`SELECT id,email,name FROM users
+                  WHERE LOWER(email) LIKE LOWER($1) OR LOWER(COALESCE(name,'')) LIKE LOWER($1)
+                  ORDER BY email LIMIT 20`, like)
+	return list, err
+}

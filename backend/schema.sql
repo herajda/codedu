@@ -115,3 +115,12 @@ CREATE TABLE IF NOT EXISTS class_files (
 );
 CREATE INDEX IF NOT EXISTS idx_class_files_path ON class_files(class_id, path);
 
+-- Messages table for private chats
+CREATE TABLE IF NOT EXISTS messages (
+  id SERIAL PRIMARY KEY,
+  sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  recipient_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
