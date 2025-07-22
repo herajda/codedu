@@ -41,6 +41,7 @@
   async function load(more = false) {
     if (!target) return;
     const list = await apiJSON(`/api/messages/${target.id}?limit=${pageSize}&offset=${offset}`);
+    list.reverse();
     const k = getKey();
     for (const m of list) {
       if (k) {
@@ -50,7 +51,7 @@
         m.text = '[locked]';
       }
     }
-    if (more) convo = [...convo, ...list];
+    if (more) convo = [...list, ...convo];
     else convo = list;
     offset += list.length;
     if (list.length < pageSize) hasMore = false;
