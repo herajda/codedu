@@ -913,15 +913,15 @@ func CreateMessage(m *Message) error {
 }
 
 func ListMessages(userID, otherID, limit, offset int) ([]Message, error) {
-        msgs := []Message{}
-        err := DB.Select(&msgs, `SELECT id,sender_id,recipient_id,content,created_at
+	msgs := []Message{}
+	err := DB.Select(&msgs, `SELECT id,sender_id,recipient_id,content,created_at
                                   FROM messages
                                  WHERE (sender_id=$1 AND recipient_id=$2)
                                     OR (sender_id=$2 AND recipient_id=$1)
                                  ORDER BY created_at
                                  LIMIT $3 OFFSET $4`,
-                userID, otherID, limit, offset)
-        return msgs, err
+		userID, otherID, limit, offset)
+	return msgs, err
 }
 
 type UserSearch struct {
@@ -938,4 +938,34 @@ func SearchUsers(term string) ([]UserSearch, error) {
                   WHERE LOWER(email) LIKE LOWER($1) OR LOWER(COALESCE(name,'')) LIKE LOWER($1)
                   ORDER BY email LIMIT 20`, like)
 	return list, err
+}
+
+type Conversation struct {
+	UserID      int       `db:"user_id" json:"user_id"`
+	Email       string    `db:"email" json:"email"`
+	Name        *string   `db:"name" json:"name"`
+	SenderID    int       `db:"sender_id" json:"sender_id"`
+	RecipientID int       `db:"recipient_id" json:"recipient_id"`
+	Content     string    `db:"content" json:"content"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+}
+
+func ListConversations(userID, limit, offset int) ([]Conversation, error) {
+	convos := []Conversation{}
+	err := DB.Select(&convos, `
+                SELECT sub.user_id, u.email, u.name,
+                       sub.sender_id, sub.recipient_id, sub.content, sub.created_at
+                  FROM (
+                        SELECT DISTINCT ON (LEAST(sender_id, recipient_id), GREATEST(sender_id, recipient_id))
+                               CASE WHEN sender_id=$1 THEN recipient_id ELSE sender_id END AS user_id,
+                               sender_id, recipient_id, content, created_at
+                          FROM messages
+                         WHERE sender_id=$1 OR recipient_id=$1
+                         ORDER BY LEAST(sender_id, recipient_id), GREATEST(sender_id, recipient_id), created_at DESC
+                  ) sub
+                  JOIN users u ON u.id = sub.user_id
+                 ORDER BY sub.created_at DESC
+                 LIMIT $2 OFFSET $3`,
+		userID, limit, offset)
+	return convos, err
 }

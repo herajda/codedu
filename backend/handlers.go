@@ -1294,27 +1294,48 @@ func createMessage(c *gin.Context) {
 }
 
 func listMessages(c *gin.Context) {
-        otherID, err := strconv.Atoi(c.Param("id"))
-        if err != nil {
-                c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-                return
-        }
-        limit := 50
-        if l := c.Query("limit"); l != "" {
-                if v, err := strconv.Atoi(l); err == nil {
-                        limit = v
-                }
-        }
-        offset := 0
-        if o := c.Query("offset"); o != "" {
-                if v, err := strconv.Atoi(o); err == nil {
-                        offset = v
-                }
-        }
-        msgs, err := ListMessages(c.GetInt("userID"), otherID, limit, offset)
-        if err != nil {
-                c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-                return
-        }
-        c.JSON(http.StatusOK, msgs)
+	otherID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	limit := 50
+	if l := c.Query("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil {
+			limit = v
+		}
+	}
+	offset := 0
+	if o := c.Query("offset"); o != "" {
+		if v, err := strconv.Atoi(o); err == nil {
+			offset = v
+		}
+	}
+	msgs, err := ListMessages(c.GetInt("userID"), otherID, limit, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, msgs)
+}
+
+func listConversations(c *gin.Context) {
+	limit := 20
+	if l := c.Query("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil {
+			limit = v
+		}
+	}
+	offset := 0
+	if o := c.Query("offset"); o != "" {
+		if v, err := strconv.Atoi(o); err == nil {
+			offset = v
+		}
+	}
+	list, err := ListConversations(c.GetInt("userID"), limit, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, list)
 }

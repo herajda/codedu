@@ -8,6 +8,7 @@
   let searchTerm = '';
   let results: User[] = [];
   let convo: any[] = [];
+  let convos: any[] = [];
   let target: User | null = null;
   let msg = '';
   let err = '';
@@ -16,6 +17,20 @@
   const pageSize = 20;
   let offset = 0;
   let hasMore = true;
+
+  async function loadConvos() {
+    const r = await apiJSON('/api/conversations');
+    const k = getKey();
+    for (const c of r) {
+      if (k) {
+        try { c.text = await decryptText(k, c.content); }
+        catch { c.text = '[decrypt error]'; }
+      } else {
+        c.text = '[locked]';
+      }
+    }
+    convos = Array.isArray(r) ? r : [];
+  }
 
   async function search() {
     const r = await apiJSON(`/api/user-search?q=${encodeURIComponent(searchTerm)}`);
@@ -58,11 +73,12 @@
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ to: target.id, content: ct })
     });
-    if (res.ok) { msg=''; offset=0; await load(); }
+    if (res.ok) { msg=''; offset=0; await load(); await loadConvos(); }
     else { err = (await res.json()).error; }
   }
 
   onMount(() => {
+    loadConvos();
     es = new EventSource('/api/messages/events');
     es.addEventListener('message', async (ev) => {
       const d = JSON.parse((ev as MessageEvent).data);
@@ -76,6 +92,7 @@
         }
         convo = [...convo, d];
       }
+      await loadConvos();
     });
   });
 
@@ -87,6 +104,15 @@
   <input class="input input-bordered" placeholder="Search" bind:value={searchTerm} />
   <button class="btn" on:click={search}>Search</button>
 </div>
+{#if convos.length}
+  <h2 class="font-bold mb-2">Recent</h2>
+  {#each convos as c}
+    <div class="mb-2">
+      <button class="link" on:click={() => openChat(c)}>{c.name ?? c.email}</button>
+      <span class="text-sm text-gray-500 ml-2">{c.text}</span>
+    </div>
+  {/each}
+{/if}
 {#each results as u}
   <div class="mb-2"><button class="link" on:click={() => openChat(u)}>{u.name ?? u.email}</button></div>
 {/each}

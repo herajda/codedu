@@ -131,6 +131,7 @@ func main() {
 
 		// Messaging
 		api.GET("/user-search", RoleGuard("student", "teacher", "admin"), searchUsers)
+		api.GET("/conversations", RoleGuard("student", "teacher", "admin"), listConversations)
 		api.POST("/messages", RoleGuard("student", "teacher", "admin"), createMessage)
 		api.GET("/messages/:id", RoleGuard("student", "teacher", "admin"), listMessages)
 		api.GET("/messages/events", RoleGuard("student", "teacher", "admin"), messageEventsHandler)
