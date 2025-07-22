@@ -1,4 +1,23 @@
 export let key: CryptoKey | null = null;
+const storageKey = 'cg-msg-key';
+
+export async function initKey() {
+  if (typeof localStorage === 'undefined') return;
+  const stored = localStorage.getItem(storageKey);
+  if (!stored) return;
+  try {
+    const bytes = Uint8Array.from(atob(stored), (c) => c.charCodeAt(0));
+    key = await crypto.subtle.importKey(
+      'raw',
+      bytes,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
+  } catch {
+    // ignore parse/import errors
+  }
+}
 
 export async function setPassword(pw: string) {
   const enc = new TextEncoder();
@@ -16,6 +35,11 @@ export async function setPassword(pw: string) {
     false,
     ['encrypt', 'decrypt']
   );
+  if (typeof localStorage !== 'undefined') {
+    const raw = await crypto.subtle.exportKey('raw', key);
+    const str = btoa(String.fromCharCode(...new Uint8Array(raw)));
+    localStorage.setItem(storageKey, str);
+  }
 }
 
 export function getKey() { return key; }
