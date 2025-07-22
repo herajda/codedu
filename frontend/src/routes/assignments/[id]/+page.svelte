@@ -1,5 +1,5 @@
 <script lang="ts">
-import { onMount, onDestroy } from 'svelte'
+import { onMount, onDestroy, tick } from 'svelte'
   import { get } from 'svelte/store'
   import { auth } from '$lib/auth'
 import { apiFetch, apiJSON } from '$lib/api'
@@ -24,6 +24,7 @@ const role = get(auth)?.role!;
   let students:any[]=[]    // class roster for teacher
   let progress:any[]=[]    // computed progress per student
   let expanded:number|null=null
+  let progressDetails:HTMLDetailsElement;
   let pointsEarned=0
   let done=false
   let percent=0
@@ -80,8 +81,19 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     }catch(e:any){ err=e.message }
   }
 
-  onMount(() => {
-    load()
+  onMount(async () => {
+    await load()
+    if(typeof sessionStorage!=='undefined'){
+      const open = sessionStorage.getItem(`assign-${id}-details-open`)
+      if(open==='1') progressDetails.open = true
+      const saved = sessionStorage.getItem(`assign-${id}-expanded`)
+      if(saved) expanded = parseInt(saved)
+      await tick()
+      const scroll = sessionStorage.getItem(`assign-${id}-scroll`)
+      if(scroll) window.scrollTo(0, parseInt(scroll))
+    }
+    window.addEventListener('beforeunload', saveState)
+    
     es = new EventSource('/api/events')
     es.addEventListener('status', (ev) => {
       const d = JSON.parse((ev as MessageEvent).data)
@@ -98,7 +110,10 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     })
   })
 
-  onDestroy(()=>{es?.close()})
+  onDestroy(()=>{
+    es?.close()
+    window.removeEventListener('beforeunload', saveState)
+  })
 
   async function addTest(){
     try{
@@ -197,8 +212,17 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     }catch(e:any){ err=e.message }
   }
 
+  function saveState(){
+    if(typeof sessionStorage==='undefined') return
+    sessionStorage.setItem(`assign-${id}-expanded`, expanded===null ? '' : String(expanded))
+    sessionStorage.setItem(`assign-${id}-details-open`, progressDetails?.open ? '1' : '0')
+    sessionStorage.setItem(`assign-${id}-scroll`, String(window.scrollY))
+  }
+
   function toggleStudent(id:number){
     expanded = expanded===id ? null : id
+    progressDetails.open = true
+    saveState()
   }
 
   function statusColor(s:string){
@@ -314,7 +338,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
   <!-- tests list moved to modal -->
 
 {#if role==='teacher' || role==='admin'}
-  <details class="mb-4">
+  <details class="mb-4" bind:this={progressDetails} on:toggle={saveState}>
     <summary class="cursor-pointer font-semibold">Student progress</summary>
     <div class="overflow-x-auto mt-2">
       <table class="table table-zebra">
@@ -348,7 +372,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                             {/if}
                           </div>
                           <div class="timeline-end timeline-box flex items-center m-0">
-                            <a class="link" href={`/submissions/${s.id}`}>{new Date(s.created_at).toLocaleString()}</a>
+                            <a class="link" href={`/submissions/${s.id}`} on:click={saveState}>{new Date(s.created_at).toLocaleString()}</a>
                           </div>
                           {#if i !== p.all.length - 1}<hr />{/if}
                         </li>
