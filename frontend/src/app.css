@@ -40,17 +40,23 @@ body.hide-navbar .navbar {
 }
 
 .chat-area {
-  @apply bg-gradient-to-b from-base-100 to-base-200;
+  @apply bg-gradient-to-b from-base-100 to-base-300;
 }
 
 .self-bubble {
-  @apply rounded-lg rounded-tl-none shadow;
+  @apply shadow rounded-xl;
+  border-top-left-radius: 0 !important;
+  border-bottom-right-radius: 1rem !important;
+  border-bottom-left-radius: 1rem !important;
 }
 
 .other-bubble {
-  @apply rounded-lg rounded-tr-none shadow;
+  @apply shadow rounded-xl;
+  border-top-right-radius: 0 !important;
+  border-bottom-left-radius: 1rem !important;
+  border-bottom-right-radius: 1rem !important;
 }
 
 .chat-timestamp {
-  @apply text-xs text-base-content/60;
+  @apply text-xs text-base-content/50 mt-1;
 }
