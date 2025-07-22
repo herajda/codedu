@@ -40,11 +40,17 @@ body.hide-navbar .navbar {
 }
 
 .chat-area {
-  @apply bg-gradient-to-b from-base-100 to-base-300;
+  @apply bg-gradient-to-b from-base-200 via-base-100 to-base-300;
+}
+
+.tight-chat .chat {
+  column-gap: 0.5rem !important;
+  padding-block: 0.125rem !important;
 }
 
 .self-bubble {
   @apply shadow rounded-xl;
+  position: relative;
   border-top-left-radius: 0 !important;
   border-bottom-right-radius: 1rem !important;
   border-bottom-left-radius: 1rem !important;
@@ -52,11 +58,38 @@ body.hide-navbar .navbar {
 
 .other-bubble {
   @apply shadow rounded-xl;
+  position: relative;
   border-top-right-radius: 0 !important;
   border-bottom-left-radius: 1rem !important;
   border-bottom-right-radius: 1rem !important;
 }
 
+.bubble-tail:before {
+  content: '';
+  position: absolute;
+  bottom: -0.2rem;
+  width: 0.7rem;
+  height: 0.7rem;
+  background: inherit;
+  transform: rotate(45deg);
+}
+
+.self-bubble.bubble-tail:before {
+  right: -0.35rem;
+  border-bottom-right-radius: 0.25rem;
+}
+
+.other-bubble.bubble-tail:before {
+  left: -0.35rem;
+  border-bottom-left-radius: 0.25rem;
+}
+
+.self-bubble:before,
+.other-bubble:before {
+  mask-image: none !important;
+}
+
 .chat-timestamp {
-  @apply text-xs text-base-content/50 mt-1;
+  font-size: 0.625rem;
+  @apply text-base-content/40 mt-1;
 }

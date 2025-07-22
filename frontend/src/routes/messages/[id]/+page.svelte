@@ -106,17 +106,16 @@
 {#if hasMore}
   <button class="btn btn-sm mb-2" on:click={() => load(true)}>Load more</button>
 {/if}
-<div class="chat-area max-h-60 overflow-y-auto mb-2 border p-2" bind:this={chatBox}>
+<div class="chat-area tight-chat max-h-60 overflow-y-auto mb-2 border p-2" bind:this={chatBox}>
   {#each convo as m, i}
-    <div class={`chat ${m.sender_id === $auth?.id ? 'chat-end' : 'chat-start'}`}> 
+    <div class={`chat ${m.sender_id === $auth?.id ? 'chat-end' : 'chat-start'}`}
+    >
       {#if showAvatar(i, m)}
         <div class="chat-image avatar">
           <div class="w-8 rounded-full bg-neutral text-neutral-content flex items-center justify-center">{initial}</div>
         </div>
-      {:else}
-        <div class="chat-image w-8 invisible"></div>
       {/if}
-      <div class={`chat-bubble ${m.sender_id === $auth?.id ? 'chat-bubble-primary self-bubble' : 'chat-bubble-secondary other-bubble'}`}>{m.text}</div>
+      <div class={`chat-bubble bubble-tail ${m.sender_id === $auth?.id ? 'chat-bubble-primary self-bubble' : 'chat-bubble-secondary other-bubble'}`}>{m.text}</div>
       <div class="chat-footer chat-timestamp">{new Date(m.created_at).toLocaleString()}</div>
     </div>
   {/each}
