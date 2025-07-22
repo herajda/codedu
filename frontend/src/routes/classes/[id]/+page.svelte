@@ -18,6 +18,7 @@ import { marked } from 'marked';
   let loading = true;
   let students:any[] = [];
   let assignments:any[] = [];
+  let progressCounts:any = {};
   let mySubs:any[] = [];
   let allStudents:any[] = [];
   let selectedIDs:number[] = [];
@@ -62,7 +63,15 @@ import { marked } from 'marked';
           completed: mySubs.some((s:any)=>s.assignment_id===a.id && s.status==='completed')
         }));
       }
-      if (role === 'teacher' || role === 'admin') allStudents = await apiJSON('/api/students');
+      if (role === 'teacher' || role === 'admin') {
+        allStudents = await apiJSON('/api/students');
+        const prog = await apiJSON(`/api/classes/${id}/progress`);
+        progressCounts = {};
+        for (const a of prog.assignments ?? []) {
+          const done = (prog.scores ?? []).filter((sc:any)=>sc.assignment_id===a.id && (sc.points ?? 0) >= a.max_points).length;
+          progressCounts[a.id] = done;
+        }
+      }
     } catch(e:any){ err=e.message }
     loading = false;
   }
@@ -99,13 +108,6 @@ import { marked } from 'marked';
     }catch(e:any){ err=e.message }
   }
 
-  async function deleteAssignment(aid:number){
-    if(!confirm('Delete this assignment?')) return;
-    try{
-      await apiFetch(`/api/assignments/${aid}`,{method:'DELETE'});
-      await load();
-    }catch(e:any){ err=e.message }
-  }
 
   function openAddModal(){
     addDialog.showModal();
@@ -175,14 +177,19 @@ import { marked } from 'marked';
                   <div class="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:justify-end w-full sm:w-auto">
                     <span class={`badge ${new Date(a.deadline)<new Date() && !a.completed ? 'badge-error' : 'badge-info'}`}>{new Date(a.deadline).toLocaleString()}</span>
                     <span class="text-sm">{countdown(a.deadline)}</span>
+                    {#if role==='teacher' || role==='admin'}
+                      {#if a.published}
+                        <div class="flex items-center gap-2 w-full sm:w-auto">
+                          <progress class="progress progress-primary w-full sm:w-32" value={progressCounts[a.id] || 0} max={students.length}></progress>
+                          <span class="text-sm">{progressCounts[a.id] || 0}/{students.length}</span>
+                        </div>
+                      {/if}
+                    {/if}
                     {#if !a.published}
                       <span class="badge badge-warning">unpublished</span>
                     {/if}
                     {#if a.completed}
                       <span class="badge badge-success">done</span>
-                    {/if}
-                    {#if role === 'teacher' || role === 'admin'}
-                      <button class="btn btn-xs btn-error" on:click|preventDefault|stopPropagation={() => deleteAssignment(a.id)}>Delete</button>
                     {/if}
                   </div>
                 </div>
