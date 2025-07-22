@@ -7,6 +7,7 @@ import { auth } from '$lib/auth';
 import { apiJSON, apiFetch } from '$lib/api';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 
+import { formatDateTime } from "$lib/date";
 let id = $page.params.id;
 $: if ($page.params.id !== id) { id = $page.params.id; load(currentParent); }
 const role: string = get(auth)?.role ?? '';
@@ -364,7 +365,7 @@ onMount(()=>load(null));
               {/if}
             </td>
             <td class="text-right">{it.is_dir ? '' : fmtSize(it.size)}</td>
-            <td class="text-right">{new Date(it.updated_at).toLocaleString()}</td>
+            <td class="text-right">{formatDateTime(it.updated_at)}</td>
 
             {#if role === 'teacher' || role === 'admin'}
               <td class="text-right whitespace-nowrap w-16">
