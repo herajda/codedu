@@ -13,6 +13,10 @@
   let err = '';
   let es: EventSource | null = null;
 
+  const pageSize = 20;
+  let offset = 0;
+  let hasMore = true;
+
   async function search() {
     const r = await apiJSON(`/api/user-search?q=${encodeURIComponent(searchTerm)}`);
     results = Array.isArray(r) ? r : [];
@@ -20,12 +24,15 @@
 
   async function openChat(u: any) {
     target = u;
+    convo = [];
+    offset = 0;
+    hasMore = true;
     await load();
   }
 
-  async function load() {
+  async function load(more = false) {
     if (!target) return;
-    const list = await apiJSON(`/api/messages/${target.id}`);
+    const list = await apiJSON(`/api/messages/${target.id}?limit=${pageSize}&offset=${offset}`);
     const k = getKey();
     for (const m of list) {
       if (k) {
@@ -35,7 +42,10 @@
         m.text = '[locked]';
       }
     }
-    convo = list;
+    if (more) convo = [...convo, ...list];
+    else convo = list;
+    offset += list.length;
+    if (list.length < pageSize) hasMore = false;
   }
 
   async function send() {
@@ -48,7 +58,7 @@
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ to: target.id, content: ct })
     });
-    if (res.ok) { msg=''; await load(); }
+    if (res.ok) { msg=''; offset=0; await load(); }
     else { err = (await res.json()).error; }
   }
 
@@ -83,6 +93,9 @@
 
 {#if target}
   <h2 class="font-bold mb-2">Chat with {target.name ?? target.email}</h2>
+  {#if hasMore}
+    <button class="btn btn-sm mb-2" on:click={() => load(true)}>Load more</button>
+  {/if}
   <div class="space-y-2 max-h-60 overflow-y-auto mb-2 border p-2">
     {#each convo as m}
       <div class={m.sender_id === $auth?.id ? 'text-right' : 'text-left'}>
