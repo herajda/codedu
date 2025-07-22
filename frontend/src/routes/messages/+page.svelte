@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, afterUpdate } from 'svelte';
   import { apiFetch, apiJSON } from '$lib/api';
   import { createEventSource } from '$lib/sse';
   import { getKey, encryptText, decryptText } from '$lib/e2ee';
@@ -13,6 +13,13 @@
   let msg = '';
   let err = '';
   let esCtrl: { close: () => void } | null = null;
+
+  let es: EventSource | null = null;
+  let chatBox: HTMLDivElement | null = null;
+
+  afterUpdate(() => {
+    if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
+  });
 
   const pageSize = 20;
   let offset = 0;
@@ -105,10 +112,11 @@
   {#if hasMore}
     <button class="btn btn-sm mb-2" on:click={() => load(true)}>Load more</button>
   {/if}
-  <div class="space-y-2 max-h-60 overflow-y-auto mb-2 border p-2">
+  <div class="space-y-2 max-h-60 overflow-y-auto mb-2 border p-2" bind:this={chatBox}>
     {#each convo as m}
-      <div class={m.sender_id === $auth?.id ? 'text-right' : 'text-left'}>
-        <span class="badge badge-outline">{m.text}</span>
+      <div class={`chat ${m.sender_id === $auth?.id ? 'chat-end' : 'chat-start'}`}>
+        <div class={`chat-bubble ${m.sender_id === $auth?.id ? 'chat-bubble-primary' : 'chat-bubble-secondary'}`}>{m.text}</div>
+        <div class="chat-footer opacity-50 text-xs">{new Date(m.created_at).toLocaleString()}</div>
       </div>
     {/each}
   </div>

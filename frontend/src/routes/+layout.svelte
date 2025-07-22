@@ -7,6 +7,7 @@
   import { sidebarOpen, sidebarCollapsed } from '$lib/sidebar';
   import { apiFetch } from '$lib/api';
   import { sha256 } from '$lib/hash';
+  import { initKey } from '$lib/e2ee';
 
   let settingsDialog: HTMLDialogElement;
   let passwordDialog: HTMLDialogElement;
@@ -96,6 +97,7 @@
 
   onMount(() => {
     auth.init();
+    initKey();
   });
 </script>
 

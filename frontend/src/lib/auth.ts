@@ -35,6 +35,9 @@ function createAuth() {
       } catch {
         // ignore errors
       }
+      try {
+        localStorage.removeItem('cg-msg-key');
+      } catch {}
     }
     set(null);
   }
