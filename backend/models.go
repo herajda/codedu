@@ -904,8 +904,12 @@ func CreateMessage(m *Message) error {
 	const q = `INSERT INTO messages (sender_id, recipient_id, content)
                     VALUES ($1,$2,$3)
                     RETURNING id, created_at`
-	return DB.QueryRow(q, m.SenderID, m.RecipientID, m.Content).
+	err := DB.QueryRow(q, m.SenderID, m.RecipientID, m.Content).
 		Scan(&m.ID, &m.CreatedAt)
+	if err == nil {
+		broadcastMsg(sse.Event{Event: "message", Data: m})
+	}
+	return err
 }
 
 func ListMessages(userID, otherID int) ([]Message, error) {
