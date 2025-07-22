@@ -123,4 +123,6 @@ CREATE TABLE IF NOT EXISTS messages (
   content TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE INDEX IF NOT EXISTS idx_messages_sender_recipient_created
+  ON messages(sender_id, recipient_id, created_at);
 
