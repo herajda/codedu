@@ -913,15 +913,15 @@ func CreateMessage(m *Message) error {
 }
 
 func ListMessages(userID, otherID, limit, offset int) ([]Message, error) {
-        msgs := []Message{}
-        err := DB.Select(&msgs, `SELECT id,sender_id,recipient_id,content,created_at
-                                  FROM messages
-                                 WHERE (sender_id=$1 AND recipient_id=$2)
-                                    OR (sender_id=$2 AND recipient_id=$1)
-                                 ORDER BY created_at
-                                 LIMIT $3 OFFSET $4`,
-                userID, otherID, limit, offset)
-        return msgs, err
+	msgs := []Message{}
+	err := DB.Select(&msgs, `SELECT id,sender_id,recipient_id,content,created_at
+                                 FROM messages
+                                WHERE (sender_id=$1 AND recipient_id=$2)
+                                   OR (sender_id=$2 AND recipient_id=$1)
+                                ORDER BY created_at DESC
+                                LIMIT $3 OFFSET $4`,
+		userID, otherID, limit, offset)
+	return msgs, err
 }
 
 type UserSearch struct {
