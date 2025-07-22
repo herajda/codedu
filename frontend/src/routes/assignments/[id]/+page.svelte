@@ -3,6 +3,7 @@ import { onMount, onDestroy } from 'svelte'
   import { get } from 'svelte/store'
   import { auth } from '$lib/auth'
 import { apiFetch, apiJSON } from '$lib/api'
+import { createEventSource } from '$lib/sse'
 import { MarkdownEditor } from '$lib'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
@@ -19,7 +20,7 @@ const role = get(auth)?.role!;
   let submissions:any[]=[] // student submissions
   let latestSub:any=null
   let results:any[]=[]
-  let es:EventSource|null=null
+  let esCtrl:{close:()=>void}|null=null
   let allSubs:any[]=[]     // teacher view
   let students:any[]=[]    // class roster for teacher
   let progress:any[]=[]    // computed progress per student
@@ -80,23 +81,31 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
 
   onMount(() => {
     load()
-    es = new EventSource('/api/events')
-    es.addEventListener('status', (ev) => {
+    esCtrl = createEventSource(
+      '/api/events',
+      (src) => {
+    src.addEventListener('status', (ev) => {
       const d = JSON.parse((ev as MessageEvent).data)
       if(latestSub && d.submission_id===latestSub.id){
         latestSub.status = d.status
         if(d.status!== 'running') load()
       }
     })
-    es.addEventListener('result', (ev) => {
+    src.addEventListener('result', (ev) => {
       const d = JSON.parse((ev as MessageEvent).data)
       if(latestSub && d.submission_id===latestSub.id){
         results = [...results, d]
       }
     })
+      },
+      {
+        onError: (m) => { err = m },
+        onOpen: () => { err = '' }
+      }
+    )
   })
 
-  onDestroy(()=>{es?.close()})
+  onDestroy(()=>{esCtrl?.close()})
 
   async function addTest(){
     try{

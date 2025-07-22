@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { apiFetch, apiJSON } from '$lib/api';
+  import { createEventSource } from '$lib/sse';
   import { getKey, encryptText, decryptText } from '$lib/e2ee';
   import { auth } from '$lib/auth';
   import type { User } from '$lib/auth';
@@ -11,7 +12,7 @@
   let target: User | null = null;
   let msg = '';
   let err = '';
-  let es: EventSource | null = null;
+  let esCtrl: { close: () => void } | null = null;
 
   const pageSize = 20;
   let offset = 0;
@@ -63,8 +64,10 @@
   }
 
   onMount(() => {
-    es = new EventSource('/api/messages/events');
-    es.addEventListener('message', async (ev) => {
+    esCtrl = createEventSource(
+      '/api/messages/events',
+      (src) => {
+        src.addEventListener('message', async (ev) => {
       const d = JSON.parse((ev as MessageEvent).data);
       if (target && (d.sender_id === target.id || d.recipient_id === target.id)) {
         const k = getKey();
@@ -77,9 +80,15 @@
         convo = [...convo, d];
       }
     });
+      },
+      {
+        onError: (m) => { err = m; },
+        onOpen: () => { err = ''; }
+      }
+    );
   });
 
-  onDestroy(() => { es?.close(); });
+  onDestroy(() => { esCtrl?.close(); });
 </script>
 
 <h1 class="text-2xl font-bold mb-4">Messages</h1>
