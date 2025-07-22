@@ -23,6 +23,7 @@ const role = get(auth)?.role!;
   let allSubs:any[]=[]     // teacher view
   let students:any[]=[]    // class roster for teacher
   let progress:any[]=[]    // computed progress per student
+  let expanded:number|null=null
   let pointsEarned=0
   let done=false
   let percent=0
@@ -196,6 +197,10 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     }catch(e:any){ err=e.message }
   }
 
+  function toggleStudent(id:number){
+    expanded = expanded===id ? null : id
+  }
+
   function statusColor(s:string){
     if(s==='completed') return 'badge-success';
     if(s==='running') return 'badge-info';
@@ -314,44 +319,50 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     <div class="overflow-x-auto mt-2">
       <table class="table table-zebra">
         <thead>
-          <tr><th>Student</th><th>Status</th><th>Last submission</th><th>Attempts</th></tr>
+          <tr><th>Student</th><th>Status</th><th>Last submission</th></tr>
         </thead>
         <tbody>
-          {#each progress as p}
-            <tr>
+          {#each progress as p (p.student.id)}
+            <tr class="cursor-pointer" on:click={() => toggleStudent(p.student.id)}>
               <td>{p.student.name ?? p.student.email}</td>
               <td><span class={`badge ${statusColor(p.latest ? p.latest.status : 'none')}`}>{p.latest ? p.latest.status : 'none'}</span></td>
               <td>{p.latest ? new Date(p.latest.created_at).toLocaleString() : '-'}</td>
-              <td>
-                {#if p.all && p.all.length}
-                  <ul class="timeline timeline-vertical timeline-compact m-0 p-0">
-                    {#each p.all as s, i}
-                      <li>
-                        {#if i !== 0}<hr />{/if}
-                        <div class="timeline-middle">
-                          {#if s.status === 'completed' || s.status === 'passed'}
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-success">
-                              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
-                            </svg>
-                          {:else}
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-error">
-                              <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM8.28 7.22a.75.75 0 0 0-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 1 0 1.06 1.06L10 11.06l1.72 1.72a.75.75 0 1 0 1.06-1.06L11.06 10l1.72-1.72a.75.75 0 0 0-1.06-1.06L10 8.94 8.28 7.22Z" clip-rule="evenodd" />
-                            </svg>
-                          {/if}
-                        </div>
-                        <div class="timeline-end timeline-box flex items-center m-0">
-                          <a class="link" href={`/submissions/${s.id}`}>{new Date(s.created_at).toLocaleString()}</a>
-                        </div>
-                        {#if i !== p.all.length - 1}<hr />{/if}
-                      </li>
-                    {/each}
-                  </ul>
-                {/if}
-              </td>
             </tr>
+            {#if expanded === p.student.id}
+              <tr>
+                <td colspan="3">
+                  {#if p.all && p.all.length}
+                    <ul class="timeline timeline-vertical timeline-compact m-0 p-0">
+                      {#each p.all as s, i}
+                        <li>
+                          {#if i !== 0}<hr />{/if}
+                          <div class="timeline-middle">
+                            {#if s.status === 'completed' || s.status === 'passed'}
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-success">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
+                              </svg>
+                            {:else}
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-error">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM8.28 7.22a.75.75 0 0 0-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 1 0 1.06 1.06L10 11.06l1.72 1.72a.75.75 0 1 0 1.06-1.06L11.06 10l1.72-1.72a.75.75 0 0 0-1.06-1.06L10 8.94 8.28 7.22Z" clip-rule="evenodd" />
+                              </svg>
+                            {/if}
+                          </div>
+                          <div class="timeline-end timeline-box flex items-center m-0">
+                            <a class="link" href={`/submissions/${s.id}`}>{new Date(s.created_at).toLocaleString()}</a>
+                          </div>
+                          {#if i !== p.all.length - 1}<hr />{/if}
+                        </li>
+                      {/each}
+                    </ul>
+                  {:else}
+                    <i>No submissions</i>
+                  {/if}
+                </td>
+              </tr>
+            {/if}
           {/each}
           {#if !progress.length}
-            <tr><td colspan="4"><i>No students</i></td></tr>
+            <tr><td colspan="3"><i>No students</i></td></tr>
           {/if}
         </tbody>
       </table>
