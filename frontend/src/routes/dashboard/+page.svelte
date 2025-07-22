@@ -65,6 +65,11 @@
             const done = new Set(subs.filter((s:any)=>s.status==='completed').map((s:any)=>s.student_id)).size;
             c.progress.push({ id:a.id, title:a.title, done });
           }
+          c.assignments.sort((a:any,b:any)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime());
+          c.notFinished = c.assignments.filter((a:any)=>{
+            const done = c.progress.find((p:any)=>p.id===a.id)?.done ?? 0;
+            return done < c.students.length;
+          }).length;
         }
       }
 
@@ -164,14 +169,19 @@
             <h2 class="card-title">{c.name}</h2>
             <p class="text-sm mb-2">{c.students.length} students</p>
             <ul class="space-y-2">
-              {#each c.assignments as a}
+              {#each c.assignments.slice(0,5) as a}
                 <li class="grid grid-cols-[10rem_1fr_auto] items-center gap-2">
                   <span class="truncate w-40">{a.title}</span>
                   <progress class="progress progress-primary w-full" value={c.progress.find((x:any)=>x.id===a.id)?.done || 0} max={c.students.length}></progress>
                   <span class="text-sm">{c.progress.find((x:any)=>x.id===a.id)?.done || 0}/{c.students.length}</span>
                 </li>
               {/each}
-              {#if !c.assignments.length}<li><i>No assignments</i></li>{/if}
+              {#if !c.assignments.length}
+                <li><i>No assignments</i></li>
+              {/if}
+              {#if c.assignments.length > 5}
+                <li class="text-sm italic">{c.notFinished} assignments not finished by all students</li>
+              {/if}
             </ul>
           </div>
         </a>
