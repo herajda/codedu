@@ -302,9 +302,12 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         <div class="flex justify-between items-start">
           <h1 class="card-title text-2xl">{assignment.title}</h1>
           {#if role==='student'}
-            <div class="flex items-center gap-2">
-              <div class="radial-progress text-primary" style="--value:{percent};" aria-valuenow={percent} role="progressbar">{percent}%</div>
-              <span class="font-semibold">{pointsEarned} / {assignment.max_points} pts</span>
+            <div class="flex flex-col items-end gap-1">
+              <div class="flex items-center gap-2">
+                <div class="radial-progress text-primary" style="--value:{percent};" aria-valuenow={percent} role="progressbar">{percent}%</div>
+                <span class="font-semibold">{pointsEarned} / {assignment.max_points} pts</span>
+              </div>
+              <progress class="progress progress-primary w-32" value={pointsEarned} max={assignment.max_points}></progress>
             </div>
           {/if}
         </div>
