@@ -59,10 +59,18 @@ import { marked } from 'marked';
       assignments = [...(data.assignments ?? [])].sort((a,b)=>new Date(a.deadline).getTime()-new Date(b.deadline).getTime());
       if (role === 'student') {
         mySubs = await apiJSON('/api/my-submissions');
-        assignments = assignments.map(a => ({
-          ...a,
-          completed: mySubs.some((s:any)=>s.assignment_id===a.id && s.status==='completed')
-        }));
+        assignments = assignments.map(a => {
+          const subs = mySubs.filter((s:any)=>s.assignment_id===a.id);
+          const best = subs.reduce((m:number,s:any)=>{
+            const p = s.override_points ?? s.points ?? 0;
+            return p>m ? p : m;
+          },0);
+          return {
+            ...a,
+            best,
+            completed: subs.some((s:any)=>s.status==='completed')
+          };
+        });
       }
       if (role === 'teacher' || role === 'admin') {
         allStudents = await apiJSON('/api/students');
@@ -178,6 +186,12 @@ import { marked } from 'marked';
                   <div class="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:justify-end w-full sm:w-auto">
                     <span class={`badge ${new Date(a.deadline)<new Date() && !a.completed ? 'badge-error' : 'badge-info'}`}>{formatDateTime(a.deadline)}</span>
                     <span class="text-sm">{countdown(a.deadline)}</span>
+                    {#if role==='student'}
+                      <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <progress class="progress progress-primary w-full sm:w-32" value={a.best || 0} max={a.max_points}></progress>
+                        <span class="text-sm">{a.best ?? 0}/{a.max_points}</span>
+                      </div>
+                    {/if}
                     {#if role==='teacher' || role==='admin'}
                       {#if a.published}
                         <div class="flex items-center gap-2 w-full sm:w-auto">
