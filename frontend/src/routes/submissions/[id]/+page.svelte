@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte'
   import { apiJSON } from '$lib/api'
+  import { createEventSource } from '$lib/sse'
   import { page } from '$app/stores'
   import JSZip from 'jszip'
   import { FileTree } from '$lib'
@@ -14,7 +15,7 @@ $: id = $page.params.id
   let tree: FileNode[] = []
   let selected: { name: string; content: string } | null = null
   let highlighted = ''
-  let es: EventSource | null = null
+  let esCtrl: { close: () => void } | null = null
 
   import hljs from 'highlight.js'
   import 'highlight.js/styles/github.css'
@@ -123,22 +124,30 @@ $: id = $page.params.id
 
   onMount(() => {
     load()
-    es = new EventSource('/api/events')
-    es.addEventListener('status', (ev) => {
+    esCtrl = createEventSource(
+      '/api/events',
+      (src) => {
+    src.addEventListener('status', (ev) => {
       const d = JSON.parse((ev as MessageEvent).data)
       if (submission && d.submission_id === submission.id) {
         submission.status = d.status
         if (d.status !== 'running') load()
       }
     })
-    es.addEventListener('result', (ev) => {
+    src.addEventListener('result', (ev) => {
       const d = JSON.parse((ev as MessageEvent).data)
       if (submission && d.submission_id === submission.id) {
         results = [...results, d]
       }
     })
+      },
+      {
+        onError: (m) => { err = m },
+        onOpen: () => { err = '' }
+      }
+    )
   })
-  onDestroy(() => { es?.close() })
+  onDestroy(() => { esCtrl?.close() })
 </script>
 
 {#if !submission}
