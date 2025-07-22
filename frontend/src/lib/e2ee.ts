@@ -32,7 +32,7 @@ export async function setPassword(pw: string) {
     { name: 'PBKDF2', salt: enc.encode('cg-msg'), iterations: 100000, hash: 'SHA-256' },
     material,
     { name: 'AES-GCM', length: 256 },
-    false,
+    true,
     ['encrypt', 'decrypt']
   );
   if (typeof localStorage !== 'undefined') {
