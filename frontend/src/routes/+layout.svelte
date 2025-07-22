@@ -3,6 +3,10 @@
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import '../app.css';
+  import 'framework7/framework7-bundle.css';
+  import Framework7 from 'framework7/lite-bundle';
+  import Framework7Svelte from 'framework7-svelte';
+  Framework7.use(Framework7Svelte);
   import Sidebar from '$lib/Sidebar.svelte';
   import { sidebarOpen, sidebarCollapsed } from '$lib/sidebar';
   import { apiFetch } from '$lib/api';

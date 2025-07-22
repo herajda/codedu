@@ -36,6 +36,8 @@
 		"dompurify": "^3.2.6",
 		"easymde": "^2.20.0",
 		"file-saver": "^2.0.5",
+		"framework7": "^8.3.4",
+		"framework7-svelte": "^8.3.4",
 		"highlight.js": "^11.11.1",
 		"jszip": "^3.10.1",
 		"jwt-decode": "^4.0.0",

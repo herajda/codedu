@@ -6,6 +6,7 @@
   import { createEventSource } from '$lib/sse';
   import { getKey, encryptText, decryptText } from '$lib/e2ee';
   import { auth } from '$lib/auth';
+  import { Messages, Message, Messagebar } from 'framework7-svelte';
 
   let id = $page.params.id;
   $: if ($page.params.id !== id) {
@@ -60,6 +61,12 @@
     else { err = (await res.json()).error; }
   }
 
+  function messagebarSubmit(e: CustomEvent) {
+    send();
+    const clear = e.detail?.[1];
+    if (typeof clear === 'function') clear();
+  }
+
   onMount(() => {
     load();
     esCtrl = createEventSource(
@@ -95,16 +102,19 @@
 {#if hasMore}
   <button class="btn btn-sm mb-2" on:click={() => load(true)}>Load more</button>
 {/if}
-<div class="space-y-2 max-h-60 overflow-y-auto mb-2 border p-2" bind:this={chatBox}>
+<Messages autoLayout class="max-h-60 overflow-y-auto mb-2 border p-2" bind:this={chatBox}>
   {#each convo as m}
-    <div class={`chat ${m.sender_id === $auth?.id ? 'chat-end' : 'chat-start'}`}>
-      <div class={`chat-bubble ${m.sender_id === $auth?.id ? 'chat-bubble-primary' : 'chat-bubble-secondary'}`}>{m.text}</div>
-      <div class="chat-footer opacity-50 text-xs">{new Date(m.created_at).toLocaleString()}</div>
-    </div>
+    <Message
+      type={m.sender_id === $auth?.id ? 'sent' : 'received'}
+      text={m.text}
+      footer={new Date(m.created_at).toLocaleString()}
+    />
   {/each}
-</div>
-<div class="flex space-x-2">
-  <input class="input input-bordered flex-1" bind:value={msg} />
-  <button class="btn" on:click={send}>Send</button>
-</div>
+</Messages>
+<Messagebar
+  placeholder="Message"
+  bind:value={msg}
+  sendLink="Send"
+  on:submit={messagebarSubmit}
+/>
 {#if err}<p class="text-error">{err}</p>{/if}
