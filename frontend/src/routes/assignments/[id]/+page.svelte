@@ -30,6 +30,8 @@ const role = get(auth)?.role!;
   let tStdin='', tStdout='', tLimit='', tWeight='1'
   let files: File[] = []
   let templateFile:File|null=null
+  let templateEditing=false
+  let templateDialog: HTMLDialogElement;
   let unittestFile:File|null=null
   let submitDialog: HTMLDialogElement;
   let testsDialog: HTMLDialogElement;
@@ -119,6 +121,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     try{
       await apiFetch(`/api/assignments/${id}/template`,{method:'POST', body:fd})
       templateFile=null
+      templateEditing=false
       await load()
     }catch(e:any){ err=e.message }
   }
@@ -284,13 +287,37 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         <p><strong>Max points:</strong> {assignment.max_points}</p>
         <p><strong>Policy:</strong> {assignment.grading_policy}</p>
         {#if assignment.template_path}
-          <a class="link" href={`/api/assignments/${id}/template`} on:click|preventDefault={downloadTemplate}>Download template</a>
-        {/if}
-        {#if role==='teacher' || role==='admin'}
-          <div class="mt-2 space-x-2">
-            <input type="file" class="file-input file-input-bordered" on:change={e=>templateFile=(e.target as HTMLInputElement).files?.[0] || null}>
-            <button class="btn" on:click={uploadTemplate} disabled={!templateFile}>Upload template</button>
-          </div>
+          {#if role==='teacher' || role==='admin'}
+            {#if templateEditing}
+              <div class="mt-2 space-x-2">
+                <input type="file" class="file-input file-input-bordered" on:change={e=>templateFile=(e.target as HTMLInputElement).files?.[0] || null}>
+                <button class="btn" on:click={uploadTemplate} disabled={!templateFile}>Confirm</button>
+              </div>
+            {:else}
+              <button class="btn mt-2" on:click={() => templateDialog.showModal()}>Template</button>
+            {/if}
+            <dialog bind:this={templateDialog} class="modal">
+              <div class="modal-box space-y-4">
+                <h3 class="font-bold text-lg">Template</h3>
+                <button class="btn w-full" on:click={downloadTemplate}>Download</button>
+                <button class="btn w-full" on:click={() => {templateDialog.close(); templateEditing=true}}>Replace</button>
+              </div>
+              <form method="dialog" class="modal-backdrop"><button>close</button></form>
+            </dialog>
+          {:else}
+            <a class="link" href={`/api/assignments/${id}/template`} on:click|preventDefault={downloadTemplate}>Download template</a>
+          {/if}
+        {:else}
+          {#if role==='teacher' || role==='admin'}
+            {#if templateEditing}
+              <div class="mt-2 space-x-2">
+                <input type="file" class="file-input file-input-bordered" on:change={e=>templateFile=(e.target as HTMLInputElement).files?.[0] || null}>
+                <button class="btn" on:click={uploadTemplate} disabled={!templateFile}>Confirm</button>
+              </div>
+            {:else}
+              <button class="btn mt-2" on:click={() => templateEditing=true}>Upload Template</button>
+            {/if}
+          {/if}
         {/if}
         {#if done}
           <span class="badge badge-success">Done</span>

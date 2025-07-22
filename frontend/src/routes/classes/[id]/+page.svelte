@@ -25,7 +25,7 @@ import { marked } from 'marked';
   let addDialog: HTMLDialogElement;
   $: filtered = allStudents.filter(s => (s.name ?? s.email).toLowerCase().includes(search.toLowerCase()));
   let aTitle='';
-  let aShowTraceback=false;
+  let creating=false;
   let err='';
   let now = Date.now();
   let newName = '';
@@ -88,14 +88,12 @@ import { marked } from 'marked';
 
   async function createAssignment(){
     try{
-      await apiFetch(`/api/classes/${id}/assignments`,{
+      const a = await apiJSON(`/api/classes/${id}/assignments`,{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({title:aTitle, show_traceback:aShowTraceback})
+        body:JSON.stringify({title:aTitle, show_traceback:false})
       });
-      aTitle='';
-      aShowTraceback=false;
-      await load();
+      goto(`/assignments/${a.id}`);
     }catch(e:any){ err=e.message }
   }
 
@@ -193,14 +191,14 @@ import { marked } from 'marked';
         </ul>
 
         {#if role === 'teacher' || role === 'admin'}
-          <form class="mt-4 space-y-2" on:submit|preventDefault={createAssignment}>
-            <input class="input input-bordered w-full" placeholder="Title" bind:value={aTitle} required>
-            <label class="flex items-center gap-2">
-              <input type="checkbox" class="checkbox" bind:checked={aShowTraceback}>
-              <span class="label-text">Show traceback to students</span>
-            </label>
-            <button class="btn">Create</button>
-          </form>
+          {#if !creating}
+            <button class="btn mt-4" on:click={()=>creating=true}>Create New Assignment</button>
+          {:else}
+            <div class="mt-4 space-y-2">
+              <input class="input input-bordered w-full" placeholder="Title" bind:value={aTitle} required>
+              <button class="btn" on:click={createAssignment} disabled={!aTitle}>Confirm</button>
+            </div>
+          {/if}
         {/if}
       </div>
     </div>
