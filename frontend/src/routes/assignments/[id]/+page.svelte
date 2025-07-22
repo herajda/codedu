@@ -294,15 +294,13 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                 <button class="btn" on:click={uploadTemplate} disabled={!templateFile}>Confirm</button>
               </div>
             {:else}
-              <button class="btn mt-2" on:click={() => templateDialog.showModal()}>Template</button>
+              <button class="btn btn-sm mt-2" on:click={() => templateDialog.showModal()}>Template</button>
             {/if}
-            <dialog bind:this={templateDialog} class="modal">
-              <div class="modal-box space-y-4">
-                <h3 class="font-bold text-lg">Template</h3>
-                <button class="btn w-full" on:click={downloadTemplate}>Download</button>
-                <button class="btn w-full" on:click={() => {templateDialog.close(); templateEditing=true}}>Replace</button>
-              </div>
-              <form method="dialog" class="modal-backdrop"><button>close</button></form>
+            <dialog bind:this={templateDialog} class="p-4 rounded bg-base-200 space-y-2">
+              <h3 class="font-bold text-lg">Template</h3>
+              <button class="btn btn-sm" on:click={downloadTemplate}>Download</button>
+              <button class="btn btn-sm" on:click={() => {templateDialog.close(); templateEditing=true}}>Replace</button>
+              <button class="btn btn-sm" on:click={() => templateDialog.close()}>Close</button>
             </dialog>
           {:else}
             <a class="link" href={`/api/assignments/${id}/template`} on:click|preventDefault={downloadTemplate}>Download template</a>
@@ -315,7 +313,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                 <button class="btn" on:click={uploadTemplate} disabled={!templateFile}>Confirm</button>
               </div>
             {:else}
-              <button class="btn mt-2" on:click={() => templateEditing=true}>Upload Template</button>
+              <button class="btn btn-sm mt-2" on:click={() => templateEditing=true}>Upload Template</button>
             {/if}
           {/if}
         {/if}
