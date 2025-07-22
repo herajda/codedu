@@ -2,6 +2,7 @@
   import { onMount, tick } from 'svelte';
   import { apiJSON, apiFetch } from '$lib/api';
   import AdminPanel from '$lib/AdminPanel.svelte';
+  import { formatDateTime } from "$lib/date";
 
   let role = '';
   let classes:any[] = [];
@@ -153,7 +154,7 @@
             class="flex justify-between items-center p-3 bg-base-100 rounded shadow hover:bg-base-200"
           >
             <span>{a.title} <span class="text-sm text-base-content/60">({a.class})</span></span>
-            <span class="badge badge-info">{new Date(a.deadline).toLocaleString()}</span>
+            <span class="badge badge-info">{formatDateTime(a.deadline)}</span>
           </a>
         </li>
       {/each}

@@ -3,6 +3,7 @@
   import { get } from 'svelte/store';
   import { auth } from '$lib/auth';
 import { apiFetch, apiJSON } from '$lib/api';
+import { formatDateTime } from "$lib/date";
 import { page } from '$app/stores';
 import { goto } from '$app/navigation';
 import { marked } from 'marked';
@@ -175,7 +176,7 @@ import { marked } from 'marked';
                 <div class="card-body flex-col sm:flex-row justify-between items-start sm:items-center gap-2 py-3">
                   <span class="text-lg font-semibold text-primary">{a.title}</span>
                   <div class="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:justify-end w-full sm:w-auto">
-                    <span class={`badge ${new Date(a.deadline)<new Date() && !a.completed ? 'badge-error' : 'badge-info'}`}>{new Date(a.deadline).toLocaleString()}</span>
+                    <span class={`badge ${new Date(a.deadline)<new Date() && !a.completed ? 'badge-error' : 'badge-info'}`}>{formatDateTime(a.deadline)}</span>
                     <span class="text-sm">{countdown(a.deadline)}</span>
                     {#if role==='teacher' || role==='admin'}
                       {#if a.published}

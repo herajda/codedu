@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { apiJSON } from '$lib/api';
 
+  import { formatDateTime } from "$lib/date";
   interface Submission {
     id: number;
     assignment_id: number;
@@ -82,7 +83,7 @@
       <tbody>
         {#each subs as s}
           <tr>
-            <td>{new Date(s.created_at).toLocaleString()}</td>
+            <td>{formatDateTime(s.created_at)}</td>
             <td>{titles[s.assignment_id] ?? s.assignment_id}</td>
             <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span></td>
             <td>

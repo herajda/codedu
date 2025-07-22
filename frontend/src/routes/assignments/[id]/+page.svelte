@@ -5,6 +5,7 @@ import { onMount, onDestroy, tick } from 'svelte'
 import { apiFetch, apiJSON } from '$lib/api'
 import { MarkdownEditor } from '$lib'
 import { marked } from 'marked'
+import { formatDateTime } from "$lib/date";
 import DOMPurify from 'dompurify'
 import { goto } from '$app/navigation'
 import { page } from '$app/stores'
@@ -309,7 +310,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           {/if}
         </div>
         <div class="markdown">{@html safeDesc}</div>
-        <p><strong>Deadline:</strong> {new Date(assignment.deadline).toLocaleString()}</p>
+        <p><strong>Deadline:</strong> {formatDateTime(assignment.deadline)}</p>
         <p><strong>Max points:</strong> {assignment.max_points}</p>
         <p><strong>Policy:</strong> {assignment.grading_policy}</p>
         {#if assignment.template_path}
@@ -350,7 +351,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             <tr class="cursor-pointer" on:click={() => toggleStudent(p.student.id)}>
               <td>{p.student.name ?? p.student.email}</td>
               <td><span class={`badge ${statusColor(p.latest ? p.latest.status : 'none')}`}>{p.latest ? p.latest.status : 'none'}</span></td>
-              <td>{p.latest ? new Date(p.latest.created_at).toLocaleString() : '-'}</td>
+              <td>{p.latest ? formatDateTime(p.latest.created_at) : '-'}</td>
             </tr>
             {#if expanded === p.student.id}
               <tr>
@@ -372,7 +373,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                             {/if}
                           </div>
                           <div class="timeline-end timeline-box flex items-center m-0">
-                            <a class="link" href={`/submissions/${s.id}`} on:click={saveState}>{new Date(s.created_at).toLocaleString()}</a>
+                            <a class="link" href={`/submissions/${s.id}`} on:click={saveState}>{formatDateTime(s.created_at)}</a>
                           </div>
                           {#if i !== p.all.length - 1}<hr />{/if}
                         </li>
@@ -408,7 +409,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             <tbody>
               {#each submissions as s}
                 <tr>
-                  <td>{new Date(s.created_at).toLocaleString()}</td>
+                  <td>{formatDateTime(s.created_at)}</td>
                   <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span></td>
                   <td><a href={`/submissions/${s.id}`} class="btn btn-sm btn-outline">view</a></td>
                 </tr>
