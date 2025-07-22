@@ -4,6 +4,7 @@
   import { getKey, encryptText, decryptText } from '$lib/e2ee';
   import { auth } from '$lib/auth';
   import type { User } from '$lib/auth';
+  import { resetUnread } from '$lib/messages';
 
   let searchTerm = '';
   let results: User[] = [];
@@ -63,6 +64,7 @@
   }
 
   onMount(() => {
+    resetUnread();
     es = new EventSource('/api/messages/events');
     es.addEventListener('message', async (ev) => {
       const d = JSON.parse((ev as MessageEvent).data);

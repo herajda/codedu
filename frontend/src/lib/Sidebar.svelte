@@ -5,6 +5,7 @@
   import '@fortawesome/fontawesome-free/css/all.min.css';
   import { sidebarOpen, sidebarCollapsed } from '$lib/sidebar';
   import { auth } from '$lib/auth';
+  import { unreadMessages } from '$lib/messages';
   let classes:any[] = [];
   let err = '';
   onMount(async () => {
@@ -32,8 +33,13 @@
   </button>
   <h2 class="font-bold mb-2">Classes</h2>
   <ul class="menu mb-2">
-    <li>
-      <a href="/messages" class={ $page.url.pathname.startsWith('/messages') ? 'active' : ''} on:click={() => sidebarOpen.set(false)}>Messages</a>
+    <li class="relative">
+      <a href="/messages" class={$page.url.pathname.startsWith('/messages') ? 'active' : ''} on:click={() => { sidebarOpen.set(false); unreadMessages.set(0); }}>
+        Messages
+        {#if $unreadMessages > 0}
+          <span class="badge badge-sm absolute -top-1 -right-2">{$unreadMessages}</span>
+        {/if}
+      </a>
     </li>
   </ul>
   <ul class="menu">

@@ -1,12 +1,15 @@
 <script lang="ts">
   import { auth } from '$lib/auth';
   import { goto } from '$app/navigation';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import '../app.css';
   import Sidebar from '$lib/Sidebar.svelte';
   import { sidebarOpen, sidebarCollapsed } from '$lib/sidebar';
   import { apiFetch } from '$lib/api';
   import { sha256 } from '$lib/hash';
+  import { page } from '$app/stores';
+  import { get } from 'svelte/store';
+  import { unreadMessages, incrementUnread, resetUnread } from '$lib/messages';
 
   let settingsDialog: HTMLDialogElement;
   let passwordDialog: HTMLDialogElement;
@@ -17,6 +20,7 @@
   let newPassword = '';
   let newPassword2 = '';
   let passwordError = '';
+  let esMsg: EventSource | null = null;
 
   function logout() {
     auth.logout();
@@ -97,6 +101,23 @@
   onMount(() => {
     auth.init();
   });
+
+  $: if (user && !esMsg) {
+    esMsg = new EventSource('/api/messages/events');
+    esMsg.addEventListener('message', (ev) => {
+      if (!get(page).url.pathname.startsWith('/messages')) {
+        incrementUnread();
+      }
+    });
+  }
+
+  $: if (!user && esMsg) {
+    esMsg.close();
+    esMsg = null;
+    resetUnread();
+  }
+
+  onDestroy(() => { esMsg?.close(); });
 </script>
 
   {#if user}
