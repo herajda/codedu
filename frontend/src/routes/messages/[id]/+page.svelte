@@ -119,9 +119,9 @@
 <div class="card bg-base-100 shadow fixed inset-x-0 bottom-0 top-16 sm:left-60 z-40 flex flex-col">
   <div class="p-4 border-b flex items-center gap-3">
     <div class="avatar">
-      <div class="w-10 rounded-full">
+      <div class="w-10 h-10 rounded-full overflow-hidden">
         {#if contactAvatar}
-          <img src={contactAvatar} alt="Contact" />
+          <img src={contactAvatar} alt="Contact" class="w-full h-full object-cover" />
         {:else}
           <img src="/placeholder.svg?height=40&width=40" alt="Contact" />
         {/if}
@@ -149,9 +149,9 @@
           <div class="flex gap-2 max-w-[80%]">
             {#if m.sender_id !== $auth?.id}
               <div class="avatar">
-                <div class="w-8 rounded-full">
+                <div class="w-8 h-8 rounded-full overflow-hidden">
                   {#if contactAvatar}
-                    <img src={contactAvatar} alt="Contact" />
+                    <img src={contactAvatar} alt="Contact" class="w-full h-full object-cover" />
                   {:else}
                     <img src="/placeholder.svg?height=32&width=32" alt="Contact" />
                   {/if}
