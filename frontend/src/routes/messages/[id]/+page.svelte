@@ -110,8 +110,8 @@
 
 <button class="btn btn-sm mb-4" on:click={back}>Back</button>
 
-<div class="card bg-base-100 shadow w-full h-full flex flex-col">
-  <div class="p-4 border-b flex items-center gap-3">
+<div class="card bg-base-100 shadow w-full flex-1 flex flex-col">
+  <div class="p-4 border-b flex items-center gap-3 sticky top-0 bg-base-100 z-10">
     <div class="avatar">
       <div class="w-10 rounded-full">
         <img src="/placeholder.svg?height=40&width=40" alt="Contact" />
@@ -123,7 +123,7 @@
     </div>
   </div>
   <div class="flex-1 overflow-hidden">
-    <div class="h-full overflow-y-auto p-4 pb-24 space-y-4" bind:this={chatBox}>
+    <div class="h-full overflow-y-auto p-4 space-y-4" bind:this={chatBox}>
       {#if hasMore}
         <div class="text-center">
           <button class="btn btn-sm" on:click={() => load(true)}>Load more</button>
@@ -153,7 +153,7 @@
       {/each}
     </div>
   </div>
-  <div class="p-3 border-t bg-base-100 sticky bottom-0">
+  <div class="p-3 border-t bg-base-100 sticky bottom-0 z-10">
     <div class="flex items-center gap-2">
       <input class="input input-bordered flex-1" placeholder="Type a message..." bind:value={msg} />
       <button class="btn btn-primary" on:click={send} disabled={!msg.trim()}>Send</button>
