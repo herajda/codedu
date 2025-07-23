@@ -110,7 +110,7 @@
 
 <button class="btn btn-sm mb-4" on:click={back}>Back</button>
 
-<div class="card bg-base-100 shadow fixed inset-0 z-40 w-full h-full flex flex-col">
+<div class="card bg-base-100 shadow fixed inset-0 sm:left-60 z-40 flex flex-col">
   <div class="p-4 border-b flex items-center gap-3">
     <div class="avatar">
       <div class="w-10 rounded-full">
