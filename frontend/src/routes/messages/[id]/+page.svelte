@@ -15,7 +15,8 @@
     hasMore = true;
     load();
   }
-  const name = $page.url.searchParams.get('name') ?? $page.url.searchParams.get('email') ?? id;
+  let name = $page.url.searchParams.get('name') ?? $page.url.searchParams.get('email') ?? '';
+  let contactAvatar: string | null = null;
 
   let convo: any[] = [];
   let msg = '';
@@ -78,8 +79,13 @@
     else { err = (await res.json()).error; }
   }
 
-  onMount(() => {
+  onMount(async () => {
     load();
+    try {
+      const info = await apiJSON(`/api/users/${id}`);
+      contactAvatar = info.avatar ?? null;
+      if (!name) name = info.name ?? info.email ?? id;
+    } catch {}
     esCtrl = createEventSource(
       '/api/messages/events',
       (src) => {
@@ -114,7 +120,11 @@
   <div class="p-4 border-b flex items-center gap-3">
     <div class="avatar">
       <div class="w-10 rounded-full">
-        <img src="/placeholder.svg?height=40&width=40" alt="Contact" />
+        {#if contactAvatar}
+          <img src={contactAvatar} alt="Contact" />
+        {:else}
+          <img src="/placeholder.svg?height=40&width=40" alt="Contact" />
+        {/if}
       </div>
     </div>
     <div>
@@ -140,7 +150,11 @@
             {#if m.sender_id !== $auth?.id}
               <div class="avatar">
                 <div class="w-8 rounded-full">
-                  <img src="/placeholder.svg?height=32&width=32" alt="Contact" />
+                  {#if contactAvatar}
+                    <img src={contactAvatar} alt="Contact" />
+                  {:else}
+                    <img src="/placeholder.svg?height=32&width=32" alt="Contact" />
+                  {/if}
                 </div>
               </div>
             {/if}
