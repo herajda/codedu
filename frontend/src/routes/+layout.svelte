@@ -215,7 +215,7 @@
       </div>
     </div>
 
-    <main class="w-full flex-1 p-4 flex flex-col overflow-hidden">
+    <main class="w-full flex-1 p-4 pb-0 flex flex-col overflow-hidden">
       <slot />
     </main>
 

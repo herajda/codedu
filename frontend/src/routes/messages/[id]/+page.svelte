@@ -123,7 +123,7 @@
     </div>
   </div>
   <div class="flex-1 overflow-hidden">
-    <div class="h-full overflow-y-auto p-4 space-y-4" bind:this={chatBox}>
+    <div class="h-full overflow-y-auto p-4 pb-24 space-y-4" bind:this={chatBox}>
       {#if hasMore}
         <div class="text-center">
           <button class="btn btn-sm" on:click={() => load(true)}>Load more</button>
@@ -153,7 +153,7 @@
       {/each}
     </div>
   </div>
-  <div class="p-3 border-t">
+  <div class="p-3 border-t bg-base-100 sticky bottom-0">
     <div class="flex items-center gap-2">
       <input class="input input-bordered flex-1" placeholder="Type a message..." bind:value={msg} />
       <button class="btn btn-primary" on:click={send} disabled={!msg.trim()}>Send</button>
