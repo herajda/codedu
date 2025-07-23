@@ -2,11 +2,11 @@
 
 import { useState } from "react"
 import { Send } from "lucide-react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { ScrollArea } from "@/components/ui/scroll-area"
+// The original component used UI primitives from a React
+// library that is not part of this project.  In order to make
+// the component usable inside the Svelte application without
+// additional dependencies we replace those imports with plain
+// HTML elements styled with Tailwind classes.
 
 interface Message {
   id: string
@@ -90,19 +90,18 @@ export function MessagingComponent() {
   }
 
   return (
-    <Card className="w-full max-w-md mx-auto h-[600px] flex flex-col">
-      <CardHeader className="border-b p-4 flex flex-row items-center gap-3">
-        <Avatar>
-          <AvatarImage src="/placeholder.svg?height=40&width=40" alt="Contact" />
-          <AvatarFallback>CN</AvatarFallback>
-        </Avatar>
+    <div className="w-full max-w-md mx-auto h-[600px] flex flex-col border rounded-lg bg-background">
+      <div className="border-b p-4 flex flex-row items-center gap-3">
+        <div className="h-10 w-10 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
+          <img src="/placeholder.svg?height=40&width=40" alt="Contact" />
+        </div>
         <div className="flex flex-col">
           <h3 className="font-semibold">Alex Johnson</h3>
           <p className="text-xs text-muted-foreground">Online</p>
         </div>
-      </CardHeader>
-      <CardContent className="p-0 flex-1 overflow-hidden">
-        <ScrollArea className="h-full p-4">
+      </div>
+      <div className="p-0 flex-1 overflow-hidden">
+        <div className="h-full p-4 overflow-y-auto space-y-4">
           {messages.map((message, index) => {
             const showDate = index === 0 || formatDate(message.timestamp) !== formatDate(messages[index - 1].timestamp)
 
@@ -115,11 +114,10 @@ export function MessagingComponent() {
                 )}
                 <div className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}>
                   <div className="flex gap-2 max-w-[80%]">
-                    {message.sender === "other" && (
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src="/placeholder.svg?height=32&width=32" alt="Contact" />
-                        <AvatarFallback>CN</AvatarFallback>
-                      </Avatar>
+                  {message.sender === "other" && (
+                      <div className="h-8 w-8 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
+                        <img src="/placeholder.svg?height=32&width=32" alt="Contact" />
+                      </div>
                     )}
                     <div>
                       <div
@@ -145,9 +143,9 @@ export function MessagingComponent() {
               </div>
             )
           })}
-        </ScrollArea>
-      </CardContent>
-      <CardFooter className="p-3 border-t">
+        </div>
+      </div>
+      <div className="p-3 border-t">
         <form
           className="flex w-full items-center space-x-2"
           onSubmit={(e) => {
@@ -155,18 +153,18 @@ export function MessagingComponent() {
             handleSendMessage()
           }}
         >
-          <Input
+          <input
             placeholder="Type a message..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            className="flex-1"
+            className="flex-1 input input-bordered"
           />
-          <Button type="submit" size="icon" disabled={!input.trim()}>
+          <button type="submit" className="btn btn-square" disabled={!input.trim()}>
             <Send className="h-4 w-4" />
             <span className="sr-only">Send</span>
-          </Button>
+          </button>
         </form>
-      </CardFooter>
-    </Card>
+      </div>
+    </div>
   )
 }
