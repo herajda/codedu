@@ -224,10 +224,10 @@
             <span class="text-xs bg-base-200 px-2 py-1 rounded-md">{formatDate(m.created_at)}</span>
           </div>
         {/if}
-        <div class={`flex ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'}`}>
-          <div class="flex gap-2 max-w-[80%]">
+        <div class={`flex ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'} ${m.showTime ? 'mb-6' : ''}`}> 
+          <div class="flex gap-2 max-w-[80%] items-end">
             {#if m.sender_id !== $auth?.id}
-              <div class="avatar self-end">
+              <div class="avatar">
                 <div class="w-8 h-8 rounded-full overflow-hidden">
                   {#if contactAvatar}
                     <img src={contactAvatar} alt="Contact" class="w-full h-full object-cover" />
@@ -237,7 +237,7 @@
                 </div>
               </div>
             {/if}
-            <div>
+            <div class="relative flex flex-col">
               {#if m.image}
                 <img src={m.image} alt="Image" class="max-w-xs rounded-lg mb-1 cursor-pointer" on:click={() => openImage(m.image)} />
               {/if}
@@ -248,7 +248,9 @@
                 </div>
               {/if}
               {#if m.showTime}
-                <div class={`flex items-center mt-1 text-xs opacity-60 ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'}`}>{formatTime(m.created_at)}</div>
+                <div class={`absolute mt-1 text-xs opacity-60 ${m.sender_id === $auth?.id ? 'right-0' : 'left-0'}`} style="top: calc(100%);">
+                  {formatTime(m.created_at)}
+                </div>
               {/if}
             </div>
           </div>
