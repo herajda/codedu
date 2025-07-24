@@ -127,3 +127,6 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS idx_messages_sender_recipient_created
   ON messages(sender_id, recipient_id, created_at);
 
+-- add image column if upgrading from an older schema
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS image TEXT;
+
