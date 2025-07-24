@@ -92,7 +92,9 @@
     list.reverse();
     const k = getKey();
     for (const m of list) {
-      if (k) {
+      if (m.content === '') {
+        m.text = '';
+      } else if (k) {
         try { m.text = await decryptText(k, m.content); }
         catch { m.text = '[decrypt error]'; }
       } else {
@@ -136,7 +138,9 @@
           const d = JSON.parse((ev as MessageEvent).data);
           if (d.sender_id === parseInt(id) || d.recipient_id === parseInt(id)) {
             const k = getKey();
-            if (k) {
+            if (d.content === '') {
+              d.text = '';
+            } else if (k) {
               try { d.text = await decryptText(k, d.content); }
               catch { d.text = '[decrypt error]'; }
             } else {
