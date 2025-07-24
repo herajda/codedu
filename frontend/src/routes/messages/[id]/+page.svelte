@@ -7,7 +7,7 @@
   import { getKey, encryptText, decryptText } from '$lib/e2ee';
   import { auth } from '$lib/auth';
   import { compressImage } from '$lib/utils/compressImage';
-  import { ImagePlus, Send } from 'lucide-svelte';
+  import { ImagePlus, Send, ChevronLeft } from 'lucide-svelte';
 
   let id = $page.params.id;
   $: if ($page.params.id !== id) {
@@ -195,10 +195,11 @@
   }
 </script>
 
-<button class="btn btn-sm mb-4" on:click={back}>Back</button>
-
 <div class="card bg-base-100 shadow fixed inset-x-0 bottom-0 top-16 sm:left-60 z-40 flex flex-col">
   <div class="p-4 border-b flex items-center gap-3">
+    <button class="btn btn-square" on:click={back} aria-label="Back">
+      <ChevronLeft class="w-4 h-4" />
+    </button>
     <div class="avatar">
       <div class="w-10 h-10 rounded-full overflow-hidden">
         {#if contactAvatar}
