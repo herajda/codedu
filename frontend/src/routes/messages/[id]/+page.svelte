@@ -38,6 +38,14 @@
     return date.toLocaleDateString()
   }
 
+  function hyphenateLongWords(text: string, max = 20) {
+    return text.replace(new RegExp(`\\S{${max},}`, 'g'), (word) => {
+      const parts = []
+      for (let i = 0; i < word.length; i += max) parts.push(word.slice(i, i + max))
+      return parts.join('\u00AD')
+    })
+  }
+
   function sameDate(a: string | number | Date, b: string | number | Date) {
     return new Date(a).toDateString() === new Date(b).toDateString()
   }
@@ -159,7 +167,7 @@
               </div>
             {/if}
             <div>
-              <div class={`rounded-lg p-3 whitespace-pre-wrap break-words ${m.sender_id === $auth?.id ? 'bg-primary text-primary-content' : 'bg-base-200'}`}>{m.text}</div>
+              <div class={`rounded-lg p-3 whitespace-pre-wrap break-words ${m.sender_id === $auth?.id ? 'bg-primary text-primary-content' : 'bg-base-200'}`}>{hyphenateLongWords(m.text)}</div>
               <div class={`flex items-center mt-1 text-xs opacity-60 ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'}`}>{formatTime(m.created_at)}</div>
             </div>
           </div>
