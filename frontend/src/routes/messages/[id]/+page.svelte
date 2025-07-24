@@ -67,6 +67,7 @@
       } else {
         m.text = '[locked]';
       }
+      m.showTime = false;
     }
     if (more) convo = [...list, ...convo];
     else convo = list;
@@ -107,6 +108,7 @@
             } else {
               d.text = '[locked]';
             }
+            d.showTime = false;
             convo = [...convo, d];
           }
         });
@@ -167,8 +169,13 @@
               </div>
             {/if}
             <div>
-              <div class={`rounded-lg p-3 whitespace-pre-wrap break-words ${m.sender_id === $auth?.id ? 'bg-primary text-primary-content' : 'bg-base-200'}`}>{hyphenateLongWords(m.text)}</div>
-              <div class={`flex items-center mt-1 text-xs opacity-60 ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'}`}>{formatTime(m.created_at)}</div>
+              <div class={`rounded-lg p-3 whitespace-pre-wrap break-words ${m.sender_id === $auth?.id ? 'bg-primary text-primary-content' : 'bg-base-200'}`}
+                on:click={() => { m.showTime = !m.showTime; convo = [...convo]; }}>
+                {hyphenateLongWords(m.text)}
+              </div>
+              {#if m.showTime}
+                <div class={`flex items-center mt-1 text-xs opacity-60 ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'}`}>{formatTime(m.created_at)}</div>
+              {/if}
             </div>
           </div>
         </div>
