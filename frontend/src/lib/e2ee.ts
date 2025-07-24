@@ -44,13 +44,19 @@ export async function setPassword(pw: string) {
 
 export function getKey() { return key; }
 
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary);
+}
+
 export async function encryptText(k: CryptoKey, text: string): Promise<string> {
   const enc = new TextEncoder();
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, k, enc.encode(text));
   const out = new Uint8Array(iv.length + ct.byteLength);
   out.set(iv, 0); out.set(new Uint8Array(ct), iv.length);
-  return btoa(String.fromCharCode(...out));
+  return bytesToBase64(out);
 }
 
 export async function decryptText(k: CryptoKey, data: string): Promise<string> {
