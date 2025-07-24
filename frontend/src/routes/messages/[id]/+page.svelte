@@ -6,6 +6,7 @@
   import { createEventSource } from '$lib/sse';
   import { getKey, encryptText, decryptText } from '$lib/e2ee';
   import { auth } from '$lib/auth';
+  import { ImagePlus, Send } from 'lucide-svelte';
 
   let id = $page.params.id;
   $: if ($page.params.id !== id) {
@@ -248,7 +249,9 @@
     {/if}
     <div class="flex items-center gap-2">
       <input type="file" accept="image/*" class="hidden" bind:this={fileInput} on:change={fileChanged} />
-      <button class="btn btn-square" on:click={chooseFile}>📷</button>
+      <button class="btn btn-square" on:click={chooseFile} aria-label="Choose image">
+        <ImagePlus class="w-4 h-4" />
+      </button>
       <textarea
         class="textarea textarea-bordered flex-1 resize-none overflow-hidden"
         rows="1"
@@ -258,7 +261,9 @@
         bind:this={msgInput}
         on:input={adjustHeight}
       ></textarea>
-      <button class="btn btn-primary" on:click={send} disabled={!msg.trim() && !imageData}>Send</button>
+      <button class="btn btn-primary" on:click={send} disabled={!msg.trim() && !imageData} aria-label="Send message">
+        <Send class="w-4 h-4" />
+      </button>
     </div>
     {#if err}<p class="text-error mt-2">{err}</p>{/if}
   </div>
