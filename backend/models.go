@@ -927,10 +927,16 @@ func ListMessages(userID, otherID, limit, offset int) ([]Message, error) {
 }
 
 func MarkMessagesRead(userID, otherID int) error {
-	_, err := DB.Exec(`UPDATE messages SET is_read=TRUE
+	res, err := DB.Exec(`UPDATE messages SET is_read=TRUE
                            WHERE sender_id=$1 AND recipient_id=$2 AND is_read=FALSE`,
 		otherID, userID)
-	return err
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		broadcastRead(otherID, userID)
+	}
+	return nil
 }
 
 type UserSearch struct {

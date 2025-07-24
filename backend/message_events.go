@@ -51,6 +51,19 @@ func broadcastMsg(evt sse.Event) {
 	msgSubsMu.Unlock()
 }
 
+func broadcastRead(senderID, readerID int) {
+	msgSubsMu.Lock()
+	for sub := range msgSubs {
+		if sub.userID == senderID {
+			select {
+			case sub.ch <- sse.Event{Event: "read", Data: map[string]int{"reader_id": readerID}}:
+			default:
+			}
+		}
+	}
+	msgSubsMu.Unlock()
+}
+
 func messageEventsHandler(c *gin.Context) {
 	uid := c.GetInt("userID")
 	sub := addMsgSubscriber(uid)
