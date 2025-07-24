@@ -23,6 +23,16 @@
   let err = '';
   let esCtrl: { close: () => void } | null = null;
   let chatBox: HTMLDivElement | null = null;
+  let msgInput: HTMLTextAreaElement | null = null;
+
+  function adjustHeight() {
+    if (msgInput) {
+      msgInput.style.height = 'auto';
+      msgInput.style.height = msgInput.scrollHeight + 'px';
+    }
+  }
+
+  $: msg, adjustHeight();
 
   function formatTime(d: string | number | Date) {
     return new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -132,6 +142,7 @@
         onOpen: () => { err = ''; }
       }
     );
+    adjustHeight();
   });
 
   onDestroy(() => { esCtrl?.close(); });
@@ -198,7 +209,15 @@
   </div>
   <div class="p-3 border-t">
     <div class="flex items-center gap-2">
-      <textarea class="textarea textarea-bordered flex-1 resize-y" rows="2" placeholder="Type a message..." bind:value={msg}></textarea>
+      <textarea
+        class="textarea textarea-bordered flex-1 resize-none overflow-hidden"
+        rows="1"
+        style="min-height:0;height:auto"
+        placeholder="Type a message..."
+        bind:value={msg}
+        bind:this={msgInput}
+        on:input={adjustHeight}
+      ></textarea>
       <button class="btn btn-primary" on:click={send} disabled={!msg.trim()}>Send</button>
     </div>
     {#if err}<p class="text-error mt-2">{err}</p>{/if}
