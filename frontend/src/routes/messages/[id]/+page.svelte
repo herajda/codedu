@@ -210,7 +210,7 @@
             <span class="text-xs bg-base-200 px-2 py-1 rounded-md">{formatDate(m.created_at)}</span>
           </div>
         {/if}
-        <div class={`flex ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'}`}>
+        <div class={`flex ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'} ${m.showTime ? 'mb-6' : ''}`}> 
           <div class="flex gap-2 max-w-[80%] items-end">
             {#if m.sender_id !== $auth?.id}
               <div class="avatar">
@@ -223,10 +223,7 @@
                 </div>
               </div>
             {/if}
-            <div class="flex flex-col">
-              {#if m.showTime}
-                <div class={`flex items-center mb-1 text-xs opacity-60 ${m.sender_id === $auth?.id ? 'self-end' : 'self-start'}`}>{formatTime(m.created_at)}</div>
-              {/if}
+            <div class="relative flex flex-col">
               {#if m.image}
                 <img src={m.image} alt="Image" class="max-w-xs rounded-lg mb-1 cursor-pointer" on:click={() => openImage(m.image)} />
               {/if}
@@ -234,6 +231,11 @@
                 <div class={`rounded-lg p-3 whitespace-pre-wrap break-words ${m.sender_id === $auth?.id ? 'bg-primary text-primary-content' : 'bg-base-200'}`}
                   on:click={() => { m.showTime = !m.showTime; convo = [...convo]; }}>
                   {hyphenateLongWords(m.text)}
+                </div>
+              {/if}
+              {#if m.showTime}
+                <div class={`absolute mt-1 text-xs opacity-60 ${m.sender_id === $auth?.id ? 'right-0' : 'left-0'}`} style="top: calc(100%);">
+                  {formatTime(m.created_at)}
                 </div>
               {/if}
             </div>
