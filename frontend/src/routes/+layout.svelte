@@ -8,6 +8,7 @@
   import { apiFetch } from '$lib/api';
   import { sha256 } from '$lib/hash';
   import { initKey } from '$lib/e2ee';
+  import { compressImage } from '$lib/image';
 
   let settingsDialog: HTMLDialogElement;
   let passwordDialog: HTMLDialogElement;
@@ -32,12 +33,13 @@
     settingsDialog.showModal();
   }
 
-  function onAvatarChange(e: Event) {
+  async function onAvatarChange(e: Event) {
     const file = (e.target as HTMLInputElement).files?.[0];
     if (!file) { avatarFile = null; return; }
+    const compressed = await compressImage(file, 256, 0.8);
     const reader = new FileReader();
     reader.onload = () => { avatarFile = reader.result as string; };
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(compressed);
   }
 
   function chooseAvatar() {

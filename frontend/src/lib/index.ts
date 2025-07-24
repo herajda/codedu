@@ -4,3 +4,4 @@ export { default as FileTree } from './FileTree.svelte';
 export { default as AdminPanel } from './AdminPanel.svelte';
 export { default as NotebookEditor } from './components/NotebookEditor.svelte';
 export * from './sse';
+export * from './image';

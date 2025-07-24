@@ -5,6 +5,7 @@ import { goto } from '$app/navigation';
 import { get } from 'svelte/store';
 import { auth } from '$lib/auth';
 import { apiJSON, apiFetch } from '$lib/api';
+import { compressImage } from '$lib/image';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 
 let id = $page.params.id;
@@ -120,6 +121,9 @@ function openUploadDialog() {
 
 async function doUpload() {
   if (!uploadFile) return;
+  if (isImage(uploadFile.name)) {
+    uploadFile = await compressImage(uploadFile);
+  }
   if (uploadFile.size > maxFileSize) {
     uploadErr = 'File exceeds 20 MB limit';
     return;
