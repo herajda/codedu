@@ -211,9 +211,9 @@
           </div>
         {/if}
         <div class={`flex ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'}`}>
-          <div class="flex gap-2 max-w-[80%]">
+          <div class="flex gap-2 max-w-[80%] items-end">
             {#if m.sender_id !== $auth?.id}
-              <div class="avatar self-start">
+              <div class="avatar">
                 <div class="w-8 h-8 rounded-full overflow-hidden">
                   {#if contactAvatar}
                     <img src={contactAvatar} alt="Contact" class="w-full h-full object-cover" />
@@ -223,7 +223,10 @@
                 </div>
               </div>
             {/if}
-            <div>
+            <div class="flex flex-col">
+              {#if m.showTime}
+                <div class={`flex items-center mb-1 text-xs opacity-60 ${m.sender_id === $auth?.id ? 'self-end' : 'self-start'}`}>{formatTime(m.created_at)}</div>
+              {/if}
               {#if m.image}
                 <img src={m.image} alt="Image" class="max-w-xs rounded-lg mb-1 cursor-pointer" on:click={() => openImage(m.image)} />
               {/if}
@@ -232,9 +235,6 @@
                   on:click={() => { m.showTime = !m.showTime; convo = [...convo]; }}>
                   {hyphenateLongWords(m.text)}
                 </div>
-              {/if}
-              {#if m.showTime}
-                <div class={`flex items-center mt-1 text-xs opacity-60 ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'}`}>{formatTime(m.created_at)}</div>
               {/if}
             </div>
           </div>
