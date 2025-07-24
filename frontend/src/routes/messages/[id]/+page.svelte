@@ -102,6 +102,10 @@
       } else {
         m.text = '[locked]';
       }
+      if (m.image && k) {
+        try { m.image = await decryptText(k, m.image); }
+        catch { m.image = ''; }
+      }
       m.showTime = false;
     }
     if (more) convo = [...list, ...convo];
@@ -113,14 +117,19 @@
   async function send() {
     err = '';
     let ct = '';
+    let img = null;
     const k = getKey();
     if (msg.trim()) {
       if (!k) { err = 'missing key'; return; }
       ct = await encryptText(k, msg);
     }
+    if (imageData) {
+      if (!k) { err = 'missing key'; return; }
+      img = await encryptText(k, imageData);
+    }
     const res = await apiFetch('/api/messages', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ to: parseInt(id), content: ct, image: imageData })
+      body: JSON.stringify({ to: parseInt(id), content: ct, image: img })
     });
     if (res.ok) { msg=''; imageData=null; offset=0; await load(); }
     else { err = (await res.json()).error; }
@@ -147,6 +156,10 @@
               catch { d.text = '[decrypt error]'; }
             } else {
               d.text = '[locked]';
+            }
+            if (d.image && k) {
+              try { d.image = await decryptText(k, d.image); }
+              catch { d.image = ''; }
             }
             d.showTime = false;
             convo = [...convo, d];
