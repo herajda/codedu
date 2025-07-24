@@ -1,12 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { apiJSON } from '$lib/api';
-  import type { User } from '$lib/auth';
   import { goto } from '$app/navigation';
   import { getKey, decryptText } from '$lib/e2ee';
 
-  let searchTerm = '';
-  let results: User[] = [];
   let convos: any[] = [];
 
   onMount(() => { loadConvos(); });
@@ -27,11 +24,6 @@
     convos = list;
   }
 
-  async function search() {
-    const r = await apiJSON(`/api/user-search?q=${encodeURIComponent(searchTerm)}`);
-    results = Array.isArray(r) ? r : [];
-  }
-
   function openChat(u: any) {
     const p = new URLSearchParams();
     if (u.name) p.set('name', u.name);
@@ -42,21 +34,13 @@
 </script>
 
 <h1 class="text-2xl font-bold mb-4">Messages</h1>
-<div class="mb-4 space-x-2">
+<div class="mb-4">
   <input
     class="input input-bordered"
-    placeholder="Search"
-    bind:value={searchTerm}
-    on:keydown={(e) => e.key === 'Enter' && search()}
+    placeholder="Search users"
+    on:input={(e) => goto(`/messages/search?q=${encodeURIComponent((e.target as HTMLInputElement).value)}`)}
   />
-  <button class="btn" on:click={search}>Search</button>
 </div>
-{#if results.length}
-  <h2 class="font-semibold mb-2">Search results</h2>
-  {#each results as u}
-    <div class="mb-2"><button class="link" on:click={() => openChat(u)}>{u.name ?? u.email}</button></div>
-  {/each}
-{/if}
 
 <div class="space-y-2 mt-4">
   {#each convos as c}
