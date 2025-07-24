@@ -50,7 +50,13 @@
     return new Date(a).toDateString() === new Date(b).toDateString()
   }
 
-  afterUpdate(() => { if (chatBox) chatBox.scrollTop = chatBox.scrollHeight; });
+  let prevLen = 0;
+  afterUpdate(() => {
+    if (chatBox && convo.length !== prevLen) {
+      chatBox.scrollTop = chatBox.scrollHeight;
+      prevLen = convo.length;
+    }
+  });
 
   const pageSize = 20;
   let offset = 0;
