@@ -21,6 +21,8 @@
   let convo: any[] = [];
   let msg = '';
   let err = '';
+  let imageData: string | null = null;
+  let fileInput: HTMLInputElement | null = null;
   let esCtrl: { close: () => void } | null = null;
   let chatBox: HTMLDivElement | null = null;
   let msgInput: HTMLTextAreaElement | null = null;
@@ -106,14 +108,17 @@
 
   async function send() {
     err = '';
+    let ct = '';
     const k = getKey();
-    if (!k) { err = 'missing key'; return; }
-    const ct = await encryptText(k, msg);
+    if (msg.trim()) {
+      if (!k) { err = 'missing key'; return; }
+      ct = await encryptText(k, msg);
+    }
     const res = await apiFetch('/api/messages', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ to: parseInt(id), content: ct })
+      body: JSON.stringify({ to: parseInt(id), content: ct, image: imageData })
     });
-    if (res.ok) { msg=''; offset=0; await load(); }
+    if (res.ok) { msg=''; imageData=null; offset=0; await load(); }
     else { err = (await res.json()).error; }
   }
 
@@ -152,6 +157,15 @@
 
   onDestroy(() => { esCtrl?.close(); });
   function back() { goto('/messages'); }
+
+  function chooseFile() { fileInput?.click(); }
+  function fileChanged(e: Event) {
+    const f = (e.target as HTMLInputElement).files?.[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => { imageData = r.result as string; };
+    r.readAsDataURL(f);
+  }
 </script>
 
 <button class="btn btn-sm mb-4" on:click={back}>Back</button>
@@ -199,10 +213,15 @@
               </div>
             {/if}
             <div>
-              <div class={`rounded-lg p-3 whitespace-pre-wrap break-words ${m.sender_id === $auth?.id ? 'bg-primary text-primary-content' : 'bg-base-200'}`}
-                on:click={() => { m.showTime = !m.showTime; convo = [...convo]; }}>
-                {hyphenateLongWords(m.text)}
-              </div>
+              {#if m.image}
+                <img src={m.image} alt="Image" class="max-w-xs rounded-lg mb-1" />
+              {/if}
+              {#if m.text}
+                <div class={`rounded-lg p-3 whitespace-pre-wrap break-words ${m.sender_id === $auth?.id ? 'bg-primary text-primary-content' : 'bg-base-200'}`}
+                  on:click={() => { m.showTime = !m.showTime; convo = [...convo]; }}>
+                  {hyphenateLongWords(m.text)}
+                </div>
+              {/if}
               {#if m.showTime}
                 <div class={`flex items-center mt-1 text-xs opacity-60 ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'}`}>{formatTime(m.created_at)}</div>
               {/if}
@@ -213,7 +232,12 @@
     </div>
   </div>
   <div class="p-3 border-t">
+    {#if imageData}
+      <img src={imageData} alt="preview" class="max-h-32 mb-2" />
+    {/if}
     <div class="flex items-center gap-2">
+      <input type="file" accept="image/*" class="hidden" bind:this={fileInput} on:change={fileChanged} />
+      <button class="btn btn-square" on:click={chooseFile}>📷</button>
       <textarea
         class="textarea textarea-bordered flex-1 resize-none overflow-hidden"
         rows="1"
@@ -223,7 +247,7 @@
         bind:this={msgInput}
         on:input={adjustHeight}
       ></textarea>
-      <button class="btn btn-primary" on:click={send} disabled={!msg.trim()}>Send</button>
+      <button class="btn btn-primary" on:click={send} disabled={!msg.trim() && !imageData}>Send</button>
     </div>
     {#if err}<p class="text-error mt-2">{err}</p>{/if}
   </div>

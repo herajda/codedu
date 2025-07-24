@@ -121,6 +121,7 @@ CREATE TABLE IF NOT EXISTS messages (
   sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   recipient_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   content TEXT NOT NULL,
+  image TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_messages_sender_recipient_created
