@@ -5,6 +5,7 @@ import { goto } from '$app/navigation';
 import { get } from 'svelte/store';
 import { auth } from '$lib/auth';
 import { apiJSON, apiFetch } from '$lib/api';
+import { compressImage } from '$lib/compressImage';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 
 let id = $page.params.id;
@@ -120,13 +121,21 @@ function openUploadDialog() {
 
 async function doUpload() {
   if (!uploadFile) return;
-  if (uploadFile.size > maxFileSize) {
+  let file = uploadFile;
+  if (isImage(file.name)) {
+    try {
+      file = await compressImage(file);
+    } catch (e) {
+      console.error('Image compression failed', e);
+    }
+  }
+  if (file.size > maxFileSize) {
     uploadErr = 'File exceeds 20 MB limit';
     return;
   }
   const fd = new FormData();
   if (currentParent !== null) fd.append('parent_id', String(currentParent));
-  fd.append('file', uploadFile);
+  fd.append('file', file);
   uploading = true;
   const res = await apiFetch(`/api/classes/${id}/files`, { method: 'POST', body: fd });
   if (!res.ok) {
