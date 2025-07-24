@@ -934,9 +934,44 @@ type UserSearch struct {
 func SearchUsers(term string) ([]UserSearch, error) {
 	list := []UserSearch{}
 	like := "%" + term + "%"
-	err := DB.Select(&list,
-		`SELECT id,email,name FROM users
+        err := DB.Select(&list,
+                `SELECT id,email,name FROM users
                   WHERE LOWER(email) LIKE LOWER($1) OR LOWER(COALESCE(name,'')) LIKE LOWER($1)
                   ORDER BY email LIMIT 20`, like)
-	return list, err
+        return list, err
 }
+
+type Conversation struct {
+        OtherID int     `db:"other_id" json:"other_id"`
+        Name    *string `db:"name" json:"name"`
+        Avatar  *string `db:"avatar" json:"avatar"`
+        Email   string  `db:"email" json:"email"`
+        Message
+}
+
+func ListRecentConversations(userID, limit int) ([]Conversation, error) {
+        list := []Conversation{}
+        if limit <= 0 {
+                limit = 20
+        }
+        const q = `
+        SELECT other_id, u.name, u.avatar, u.email,
+               m.id, m.sender_id, m.recipient_id, m.content, m.image, m.created_at
+          FROM (
+                SELECT *,
+                       CASE WHEN sender_id=$1 THEN recipient_id ELSE sender_id END AS other_id,
+                       ROW_NUMBER() OVER (
+                               PARTITION BY CASE WHEN sender_id=$1 THEN recipient_id ELSE sender_id END
+                               ORDER BY created_at DESC
+                       ) AS rn
+                  FROM messages
+                 WHERE sender_id=$1 OR recipient_id=$1
+          ) m
+          JOIN users u ON u.id = m.other_id
+         WHERE rn = 1
+         ORDER BY m.created_at DESC
+         LIMIT $2`
+        err := DB.Select(&list, q, userID, limit)
+        return list, err
+}
+
