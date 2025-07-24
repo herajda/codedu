@@ -36,7 +36,7 @@
     const p = new URLSearchParams();
     if (u.name) p.set('name', u.name);
     else if (u.email) p.set('email', u.email);
-    const id = u.id ?? u.other_id;
+    const id = u.other_id ?? u.id;
     goto(`/messages/${id}?${p.toString()}`);
   }
 </script>
