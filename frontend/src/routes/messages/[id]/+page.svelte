@@ -50,13 +50,30 @@
     return new Date(a).toDateString() === new Date(b).toDateString()
   }
 
-  afterUpdate(() => { if (chatBox) chatBox.scrollTop = chatBox.scrollHeight; });
+  let preserveScroll = false;
+  let prevHeight = 0;
+  let prevTop = 0;
+
+  afterUpdate(() => {
+    if (!chatBox) return;
+    if (preserveScroll) {
+      chatBox.scrollTop = prevTop + (chatBox.scrollHeight - prevHeight);
+      preserveScroll = false;
+    } else {
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+  });
 
   const pageSize = 20;
   let offset = 0;
   let hasMore = true;
 
   async function load(more = false) {
+    if (more && chatBox) {
+      preserveScroll = true;
+      prevHeight = chatBox.scrollHeight;
+      prevTop = chatBox.scrollTop;
+    }
     const list = await apiJSON(`/api/messages/${id}?limit=${pageSize}&offset=${offset}`);
     list.reverse();
     const k = getKey();
