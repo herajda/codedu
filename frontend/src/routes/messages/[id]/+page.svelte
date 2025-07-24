@@ -159,7 +159,7 @@
               </div>
             {/if}
             <div>
-              <div class={`rounded-lg p-3 ${m.sender_id === $auth?.id ? 'bg-primary text-primary-content' : 'bg-base-200'}`}>{m.text}</div>
+              <div class={`rounded-lg p-3 whitespace-pre-wrap break-words ${m.sender_id === $auth?.id ? 'bg-primary text-primary-content' : 'bg-base-200'}`}>{m.text}</div>
               <div class={`flex items-center mt-1 text-xs opacity-60 ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'}`}>{formatTime(m.created_at)}</div>
             </div>
           </div>
@@ -169,7 +169,7 @@
   </div>
   <div class="p-3 border-t">
     <div class="flex items-center gap-2">
-      <input class="input input-bordered flex-1" placeholder="Type a message..." bind:value={msg} />
+      <textarea class="textarea textarea-bordered flex-1 resize-y" rows="2" placeholder="Type a message..." bind:value={msg}></textarea>
       <button class="btn btn-primary" on:click={send} disabled={!msg.trim()}>Send</button>
     </div>
     {#if err}<p class="text-error mt-2">{err}</p>{/if}
