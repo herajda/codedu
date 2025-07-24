@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { get } from 'svelte/store';
   import { auth } from '$lib/auth';
 import { apiFetch, apiJSON } from '$lib/api';
 import { formatDateTime } from "$lib/date";
@@ -13,7 +12,8 @@ import { marked } from 'marked';
     id = $page.params.id;
     load();
   }
-  const role: string = get(auth)?.role ?? '';
+  let role = '';
+  $: role = $auth?.role ?? '';
 
   let cls:any = null;
   let loading = true;
