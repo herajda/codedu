@@ -56,9 +56,12 @@
       </div>
       <div class="flex-1">
         <div class="font-semibold">{c.name ?? c.email}</div>
-        <div class="text-sm opacity-70 truncate">{c.text || (c.image ? '[image]' : '')}</div>
+        <div class={`text-sm opacity-70 truncate ${c.unread_count>0 ? 'font-bold' : ''}`}>{c.text || (c.image ? '[image]' : '')}</div>
       </div>
-      <div class="text-xs opacity-60 whitespace-nowrap">{new Date(c.created_at).toLocaleString()}</div>
+      {#if c.unread_count > 0}
+        <span class="badge badge-primary badge-sm ml-2">{c.unread_count}</span>
+      {/if}
+      <div class="text-xs opacity-60 whitespace-nowrap ml-auto">{new Date(c.created_at).toLocaleString()}</div>
     </div>
   {/each}
 </div>

@@ -165,6 +165,10 @@
             }
             d.showTime = false;
             convo = [...convo, d];
+            if (d.sender_id === parseInt(id)) {
+              await apiFetch(`/api/messages/${id}/read`, { method: 'PUT' });
+              d.is_read = true;
+            }
           }
         });
       },
@@ -250,7 +254,7 @@
                 />
               {/if}
               {#if m.text}
-                <div class={`rounded-lg p-3 whitespace-pre-wrap break-words ${m.sender_id === $auth?.id ? 'bg-primary text-primary-content' : 'bg-base-200'}`}
+                <div class={`rounded-lg p-3 whitespace-pre-wrap break-words ${m.sender_id === $auth?.id ? 'bg-primary text-primary-content' : 'bg-base-200'} ${m.recipient_id === $auth?.id && !m.is_read ? 'font-bold ring-2 ring-primary' : ''}`}
                   on:click={() => { m.showTime = !m.showTime; convo = [...convo]; }}>
                   {hyphenateLongWords(m.text)}
                 </div>

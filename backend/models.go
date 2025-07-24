@@ -898,15 +898,16 @@ type Message struct {
 	RecipientID int       `db:"recipient_id" json:"recipient_id"`
 	Content     string    `db:"content" json:"content"`
 	Image       *string   `db:"image" json:"image,omitempty"`
+	IsRead      bool      `db:"is_read" json:"is_read"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 }
 
 func CreateMessage(m *Message) error {
 	const q = `INSERT INTO messages (sender_id, recipient_id, content, image)
                     VALUES ($1,$2,$3,$4)
-                    RETURNING id, created_at`
+                    RETURNING id, created_at, is_read`
 	err := DB.QueryRow(q, m.SenderID, m.RecipientID, m.Content, m.Image).
-		Scan(&m.ID, &m.CreatedAt)
+		Scan(&m.ID, &m.CreatedAt, &m.IsRead)
 	if err == nil {
 		broadcastMsg(sse.Event{Event: "message", Data: m})
 	}
@@ -915,7 +916,7 @@ func CreateMessage(m *Message) error {
 
 func ListMessages(userID, otherID, limit, offset int) ([]Message, error) {
 	msgs := []Message{}
-	err := DB.Select(&msgs, `SELECT id,sender_id,recipient_id,content,image,created_at
+	err := DB.Select(&msgs, `SELECT id,sender_id,recipient_id,content,image,created_at,is_read
                                  FROM messages
                                 WHERE (sender_id=$1 AND recipient_id=$2)
                                    OR (sender_id=$2 AND recipient_id=$1)
@@ -923,6 +924,13 @@ func ListMessages(userID, otherID, limit, offset int) ([]Message, error) {
                                 LIMIT $3 OFFSET $4`,
 		userID, otherID, limit, offset)
 	return msgs, err
+}
+
+func MarkMessagesRead(userID, otherID int) error {
+	_, err := DB.Exec(`UPDATE messages SET is_read=TRUE
+                           WHERE sender_id=$1 AND recipient_id=$2 AND is_read=FALSE`,
+		otherID, userID)
+	return err
 }
 
 type UserSearch struct {
@@ -943,10 +951,11 @@ func SearchUsers(term string) ([]UserSearch, error) {
 }
 
 type Conversation struct {
-	OtherID int     `db:"other_id" json:"other_id"`
-	Name    *string `db:"name" json:"name"`
-	Avatar  *string `db:"avatar" json:"avatar"`
-	Email   string  `db:"email" json:"email"`
+	OtherID     int     `db:"other_id" json:"other_id"`
+	Name        *string `db:"name" json:"name"`
+	Avatar      *string `db:"avatar" json:"avatar"`
+	Email       string  `db:"email" json:"email"`
+	UnreadCount int     `db:"unread_count" json:"unread_count"`
 	Message
 }
 
@@ -956,22 +965,30 @@ func ListRecentConversations(userID, limit int) ([]Conversation, error) {
 		limit = 20
 	}
 	const q = `
-        SELECT other_id, u.name, u.avatar, u.email,
-               m.id, m.sender_id, m.recipient_id, m.content, m.image, m.created_at
-          FROM (
-                SELECT *,
-                       CASE WHEN sender_id=$1 THEN recipient_id ELSE sender_id END AS other_id,
-                       ROW_NUMBER() OVER (
-                               PARTITION BY CASE WHEN sender_id=$1 THEN recipient_id ELSE sender_id END
-                               ORDER BY created_at DESC
-                       ) AS rn
-                  FROM messages
-                 WHERE sender_id=$1 OR recipient_id=$1
-          ) m
-          JOIN users u ON u.id = m.other_id
-         WHERE rn = 1
-         ORDER BY m.created_at DESC
-         LIMIT $2`
+       WITH latest AS (
+               SELECT *,
+                      CASE WHEN sender_id=$1 THEN recipient_id ELSE sender_id END AS other_id,
+                      ROW_NUMBER() OVER (
+                              PARTITION BY CASE WHEN sender_id=$1 THEN recipient_id ELSE sender_id END
+                              ORDER BY created_at DESC
+                      ) AS rn
+                 FROM messages
+                WHERE sender_id=$1 OR recipient_id=$1
+       ), unread AS (
+               SELECT sender_id AS other_id, COUNT(*) AS unread_count
+                 FROM messages
+                WHERE recipient_id=$1 AND is_read=FALSE
+                GROUP BY sender_id
+       )
+       SELECT l.other_id, u.name, u.avatar, u.email,
+              l.id, l.sender_id, l.recipient_id, l.content, l.image, l.created_at,
+              COALESCE(un.unread_count,0) AS unread_count
+         FROM latest l
+         JOIN users u ON u.id = l.other_id
+         LEFT JOIN unread un ON un.other_id=l.other_id
+        WHERE l.rn = 1
+        ORDER BY (COALESCE(un.unread_count,0) > 0) DESC, l.created_at DESC
+        LIMIT $2`
 	err := DB.Select(&list, q, userID, limit)
 	return list, err
 }

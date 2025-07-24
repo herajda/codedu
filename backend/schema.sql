@@ -122,6 +122,7 @@ CREATE TABLE IF NOT EXISTS messages (
   recipient_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   content TEXT NOT NULL,
   image TEXT,
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_messages_sender_recipient_created
@@ -129,4 +130,5 @@ CREATE INDEX IF NOT EXISTS idx_messages_sender_recipient_created
 
 -- add image column if upgrading from an older schema
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS image TEXT;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN NOT NULL DEFAULT FALSE;
 
