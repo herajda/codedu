@@ -1276,6 +1276,25 @@ func searchUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, list)
 }
 
+func getUserPublic(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	u, err := GetUser(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"id":     u.ID,
+		"name":   u.Name,
+		"avatar": u.Avatar,
+		"email":  u.Email,
+	})
+}
+
 func createMessage(c *gin.Context) {
 	var req struct {
 		To      int    `json:"to" binding:"required"`
@@ -1294,27 +1313,27 @@ func createMessage(c *gin.Context) {
 }
 
 func listMessages(c *gin.Context) {
-        otherID, err := strconv.Atoi(c.Param("id"))
-        if err != nil {
-                c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-                return
-        }
-        limit := 50
-        if l := c.Query("limit"); l != "" {
-                if v, err := strconv.Atoi(l); err == nil {
-                        limit = v
-                }
-        }
-        offset := 0
-        if o := c.Query("offset"); o != "" {
-                if v, err := strconv.Atoi(o); err == nil {
-                        offset = v
-                }
-        }
-        msgs, err := ListMessages(c.GetInt("userID"), otherID, limit, offset)
-        if err != nil {
-                c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-                return
-        }
-        c.JSON(http.StatusOK, msgs)
+	otherID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	limit := 50
+	if l := c.Query("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil {
+			limit = v
+		}
+	}
+	offset := 0
+	if o := c.Query("offset"); o != "" {
+		if v, err := strconv.Atoi(o); err == nil {
+			offset = v
+		}
+	}
+	msgs, err := ListMessages(c.GetInt("userID"), otherID, limit, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, msgs)
 }
