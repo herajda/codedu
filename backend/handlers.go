@@ -1273,22 +1273,22 @@ func searchUsers(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
-        c.JSON(http.StatusOK, list)
+	c.JSON(http.StatusOK, list)
 }
 
 func listConversations(c *gin.Context) {
-        limit := 20
-        if l := c.Query("limit"); l != "" {
-                if v, err := strconv.Atoi(l); err == nil {
-                        limit = v
-                }
-        }
-        list, err := ListRecentConversations(c.GetInt("userID"), limit)
-        if err != nil {
-                c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-                return
-        }
-        c.JSON(http.StatusOK, list)
+	limit := 20
+	if l := c.Query("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil {
+			limit = v
+		}
+	}
+	list, err := ListRecentConversations(c.GetInt("userID"), limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, list)
 }
 
 func getUserPublic(c *gin.Context) {
@@ -1354,10 +1354,25 @@ func listMessages(c *gin.Context) {
 			offset = v
 		}
 	}
-	msgs, err := ListMessages(c.GetInt("userID"), otherID, limit, offset)
+	uid := c.GetInt("userID")
+	msgs, err := ListMessages(uid, otherID, limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
+	_ = MarkMessagesRead(uid, otherID)
 	c.JSON(http.StatusOK, msgs)
+}
+
+func markMessagesReadHandler(c *gin.Context) {
+	otherID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if err := MarkMessagesRead(c.GetInt("userID"), otherID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
