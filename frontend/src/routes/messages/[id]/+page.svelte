@@ -23,6 +23,8 @@
   let err = '';
   let imageData: string | null = null;
   let fileInput: HTMLInputElement | null = null;
+  let imageDialog: HTMLDialogElement | null = null;
+  let modalImage: string | null = null;
   let esCtrl: { close: () => void } | null = null;
   let chatBox: HTMLDivElement | null = null;
   let msgInput: HTMLTextAreaElement | null = null;
@@ -170,6 +172,11 @@
     r.onload = () => { imageData = r.result as string; };
     r.readAsDataURL(f);
   }
+
+  function openImage(src: string) {
+    modalImage = src;
+    imageDialog?.showModal();
+  }
 </script>
 
 <button class="btn btn-sm mb-4" on:click={back}>Back</button>
@@ -218,7 +225,7 @@
             {/if}
             <div>
               {#if m.image}
-                <img src={m.image} alt="Image" class="max-w-xs rounded-lg mb-1" />
+                <img src={m.image} alt="Image" class="max-w-xs rounded-lg mb-1 cursor-pointer" on:click={() => openImage(m.image)} />
               {/if}
               {#if m.text}
                 <div class={`rounded-lg p-3 whitespace-pre-wrap break-words ${m.sender_id === $auth?.id ? 'bg-primary text-primary-content' : 'bg-base-200'}`}
@@ -256,3 +263,18 @@
     {#if err}<p class="text-error mt-2">{err}</p>{/if}
   </div>
 </div>
+
+<dialog bind:this={imageDialog} class="modal">
+  <div class="modal-box">
+    {#if modalImage}
+      <img src={modalImage} alt="Image" class="w-full h-auto mb-4" />
+    {/if}
+    <div class="modal-action flex justify-between">
+      {#if modalImage}
+        <a class="btn" href={modalImage} download>Download</a>
+      {/if}
+      <form method="dialog"><button class="btn">Close</button></form>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
