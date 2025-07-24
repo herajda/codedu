@@ -197,7 +197,7 @@
 
 <div class="card bg-base-100 shadow fixed inset-x-0 bottom-0 top-16 sm:left-60 z-40 flex flex-col">
   <div class="p-4 border-b flex items-center gap-3">
-    <button class="btn btn-square" on:click={back} aria-label="Back">
+    <button class="btn btn-square btn-ghost" on:click={back} aria-label="Back">
       <ChevronLeft class="w-4 h-4" />
     </button>
     <div class="avatar">
