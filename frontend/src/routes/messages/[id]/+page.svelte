@@ -191,6 +191,7 @@
       <textarea
         class="textarea textarea-bordered flex-1 resize-none overflow-hidden"
         rows="1"
+        style="min-height:0;height:auto"
         placeholder="Type a message..."
         bind:value={msg}
         bind:this={msgInput}
