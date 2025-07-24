@@ -63,6 +63,11 @@
   let hasMore = true;
 
   async function load(more = false) {
+    if (more && chatBox) {
+      preserveScroll = true;
+      prevHeight = chatBox.scrollHeight;
+      prevTop = chatBox.scrollTop;
+    }
     const list = await apiJSON(`/api/messages/${id}?limit=${pageSize}&offset=${offset}`);
     list.reverse();
     const k = getKey();
