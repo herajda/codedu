@@ -65,7 +65,12 @@
   let prevHeight = 0;
   let prevTop = 0;
   afterUpdate(() => {
-    if (chatBox && convo.length !== prevLen) {
+    if (!chatBox) return;
+    if (preserveScroll) {
+      chatBox.scrollTop = chatBox.scrollHeight - prevHeight + prevTop;
+      preserveScroll = false;
+      prevLen = convo.length;
+    } else if (convo.length !== prevLen) {
       chatBox.scrollTop = chatBox.scrollHeight;
       prevLen = convo.length;
     }
