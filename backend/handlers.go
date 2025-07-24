@@ -1273,7 +1273,22 @@ func searchUsers(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
-	c.JSON(http.StatusOK, list)
+        c.JSON(http.StatusOK, list)
+}
+
+func listConversations(c *gin.Context) {
+        limit := 20
+        if l := c.Query("limit"); l != "" {
+                if v, err := strconv.Atoi(l); err == nil {
+                        limit = v
+                }
+        }
+        list, err := ListRecentConversations(c.GetInt("userID"), limit)
+        if err != nil {
+                c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+                return
+        }
+        c.JSON(http.StatusOK, list)
 }
 
 func getUserPublic(c *gin.Context) {
