@@ -265,7 +265,7 @@
 </div>
 
 <dialog bind:this={imageDialog} class="modal">
-  <div class="modal-box">
+  <div class="modal-box w-full max-w-4xl">
     {#if modalImage}
       <img src={modalImage} alt="Image" class="w-full h-auto mb-4" />
     {/if}
