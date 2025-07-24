@@ -129,6 +129,8 @@ func main() {
 		api.GET("/classes/:id/progress", RoleGuard("teacher", "admin"), getClassProgress)
 		api.GET("/classes/:id", RoleGuard("teacher", "student", "admin"), getClass)
 
+		api.GET("/users/:id", RoleGuard("student", "teacher", "admin"), getUserPublic)
+
 		// Messaging
 		api.GET("/user-search", RoleGuard("student", "teacher", "admin"), searchUsers)
 		api.POST("/messages", RoleGuard("student", "teacher", "admin"), createMessage)

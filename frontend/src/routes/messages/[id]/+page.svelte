@@ -15,7 +15,8 @@
     hasMore = true;
     load();
   }
-  const name = $page.url.searchParams.get('name') ?? $page.url.searchParams.get('email') ?? id;
+  let name = $page.url.searchParams.get('name') ?? $page.url.searchParams.get('email') ?? '';
+  let contactAvatar: string | null = null;
 
   let convo: any[] = [];
   let msg = '';
@@ -78,8 +79,13 @@
     else { err = (await res.json()).error; }
   }
 
-  onMount(() => {
+  onMount(async () => {
     load();
+    try {
+      const info = await apiJSON(`/api/users/${id}`);
+      contactAvatar = info.avatar ?? null;
+      if (!name) name = info.name ?? info.email ?? id;
+    } catch {}
     esCtrl = createEventSource(
       '/api/messages/events',
       (src) => {
@@ -113,8 +119,12 @@
 <div class="card bg-base-100 shadow fixed inset-x-0 bottom-0 top-16 sm:left-60 z-40 flex flex-col">
   <div class="p-4 border-b flex items-center gap-3">
     <div class="avatar">
-      <div class="w-10 rounded-full">
-        <img src="/placeholder.svg?height=40&width=40" alt="Contact" />
+      <div class="w-10 h-10 rounded-full overflow-hidden">
+        {#if contactAvatar}
+          <img src={contactAvatar} alt="Contact" class="w-full h-full object-cover" />
+        {:else}
+          <img src="/placeholder.svg?height=40&width=40" alt="Contact" />
+        {/if}
       </div>
     </div>
     <div>
@@ -138,9 +148,13 @@
         <div class={`flex ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'}`}>
           <div class="flex gap-2 max-w-[80%]">
             {#if m.sender_id !== $auth?.id}
-              <div class="avatar">
-                <div class="w-8 rounded-full">
-                  <img src="/placeholder.svg?height=32&width=32" alt="Contact" />
+              <div class="avatar self-end">
+                <div class="w-8 h-8 rounded-full overflow-hidden">
+                  {#if contactAvatar}
+                    <img src={contactAvatar} alt="Contact" class="w-full h-full object-cover" />
+                  {:else}
+                    <img src="/placeholder.svg?height=32&width=32" alt="Contact" />
+                  {/if}
                 </div>
               </div>
             {/if}
