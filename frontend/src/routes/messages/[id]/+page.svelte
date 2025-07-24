@@ -213,7 +213,7 @@
         <div class={`flex ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'}`}>
           <div class="flex gap-2 max-w-[80%]">
             {#if m.sender_id !== $auth?.id}
-              <div class="avatar self-end">
+              <div class="avatar self-start">
                 <div class="w-8 h-8 rounded-full overflow-hidden">
                   {#if contactAvatar}
                     <img src={contactAvatar} alt="Contact" class="w-full h-full object-cover" />
