@@ -265,13 +265,14 @@
 </div>
 
 <dialog bind:this={imageDialog} class="modal">
-  <div class="modal-box w-full max-w-4xl">
+  <div class="modal-box w-full max-w-4xl p-4">
     {#if modalImage}
-      <div class="flex justify-center items-center" style="max-height: 90vh; overflow:auto;">
+      <div class="flex justify-center items-center">
         <img 
           src={modalImage} 
           alt="Image" 
-          class="w-auto max-w-full h-auto max-h-[80vh] mb-4 object-contain" 
+          class="w-auto max-w-full h-auto max-h-[70vh] mb-4 object-contain" 
+          style="display: block; margin: 0 auto;"
         />
       </div>
     {/if}
