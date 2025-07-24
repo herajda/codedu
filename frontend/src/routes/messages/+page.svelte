@@ -36,7 +36,7 @@
 <h1 class="text-2xl font-bold mb-4">Messages</h1>
 <div class="mb-4">
   <input
-    class="input input-bordered"
+    class="input input-bordered w-full sm:max-w-xs"
     placeholder="Search users"
     on:input={(e) => goto(`/messages/search?q=${encodeURIComponent((e.target as HTMLInputElement).value)}`)}
   />

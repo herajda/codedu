@@ -38,7 +38,7 @@
 <h1 class="text-2xl font-bold mb-4">New message</h1>
 <div class="mb-4">
   <input
-    class="input input-bordered w-full"
+    class="input input-bordered w-full sm:max-w-xs"
     placeholder="Search"
     bind:value={searchTerm}
     bind:this={inputEl}
