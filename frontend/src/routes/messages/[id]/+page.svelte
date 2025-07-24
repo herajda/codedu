@@ -6,6 +6,7 @@
   import { createEventSource } from '$lib/sse';
   import { getKey, encryptText, decryptText } from '$lib/e2ee';
   import { auth } from '$lib/auth';
+  import { compressImage } from '$lib/utils/compressImage';
   import { ImagePlus, Send } from 'lucide-svelte';
 
   let id = $page.params.id;
@@ -179,12 +180,13 @@
   function back() { goto('/messages'); }
 
   function chooseFile() { fileInput?.click(); }
-  function fileChanged(e: Event) {
+  async function fileChanged(e: Event) {
     const f = (e.target as HTMLInputElement).files?.[0];
     if (!f) return;
+    const compressed = await compressImage(f, 1280, 0.8);
     const r = new FileReader();
     r.onload = () => { imageData = r.result as string; };
-    r.readAsDataURL(f);
+    r.readAsDataURL(compressed);
   }
 
   function openImage(src: string) {
