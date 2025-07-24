@@ -241,7 +241,12 @@
             {/if}
             <div class="relative flex flex-col">
               {#if m.image}
-                <img src={m.image} alt="Image" class="max-w-xs rounded-lg mb-1 cursor-pointer" on:click={() => openImage(m.image)} />
+                <img
+                  src={m.image}
+                  alt="Image"
+                  class="max-w-xs w-full rounded-lg mb-1 cursor-pointer"
+                  on:click={() => openImage(m.image)}
+                />
               {/if}
               {#if m.text}
                 <div class={`rounded-lg p-3 whitespace-pre-wrap break-words ${m.sender_id === $auth?.id ? 'bg-primary text-primary-content' : 'bg-base-200'}`}
