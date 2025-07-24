@@ -7,7 +7,7 @@
   import { getKey, encryptText, decryptText } from '$lib/e2ee';
   import { auth } from '$lib/auth';
   import { compressImage } from '$lib/utils/compressImage';
-  import { ImagePlus, Send, ChevronLeft } from 'lucide-svelte';
+  import { ImagePlus, Send, ChevronLeft, Check, CheckCheck } from 'lucide-svelte';
 
   let id = $page.params.id;
   $: if ($page.params.id !== id) {
@@ -171,6 +171,17 @@
             }
           }
         });
+        src.addEventListener('read', (ev) => {
+          const d = JSON.parse((ev as MessageEvent).data);
+          if (d.reader_id === parseInt(id)) {
+            for (const m of convo) {
+              if (m.sender_id === $auth?.id && m.recipient_id === parseInt(id)) {
+                m.is_read = true;
+              }
+            }
+            convo = [...convo];
+          }
+        });
       },
       {
         onError: (m) => { err = m; },
@@ -231,7 +242,7 @@
             <span class="text-xs bg-base-200 px-2 py-1 rounded-md">{formatDate(m.created_at)}</span>
           </div>
         {/if}
-        <div class={`flex ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'} ${m.showTime ? 'mb-6' : ''}`}> 
+        <div class={`flex ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'} ${(m.showTime || m.sender_id === $auth?.id) ? 'mb-6' : ''}`}>
           <div class="flex gap-2 max-w-[80%] items-end">
             {#if m.sender_id !== $auth?.id}
               <div class="avatar">
@@ -259,11 +270,16 @@
                   {hyphenateLongWords(m.text)}
                 </div>
               {/if}
-              {#if m.showTime}
-                <div class={`absolute mt-1 text-xs opacity-60 ${m.sender_id === $auth?.id ? 'right-0' : 'left-0'}`} style="top: calc(100%);">
-                  {formatTime(m.created_at)}
-                </div>
-              {/if}
+              <div class={`absolute mt-1 flex items-center gap-1 text-xs opacity-60 ${m.sender_id === $auth?.id ? 'right-0' : 'left-0'}`} style="top: calc(100%);">
+                {#if m.showTime}<span>{formatTime(m.created_at)}</span>{/if}
+                {#if m.sender_id === $auth?.id}
+                  {#if m.is_read}
+                    <CheckCheck class="w-3 h-3" />
+                  {:else}
+                    <Check class="w-3 h-3" />
+                  {/if}
+                {/if}
+              </div>
             </div>
           </div>
         </div>
