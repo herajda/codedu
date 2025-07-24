@@ -926,35 +926,36 @@ func ListMessages(userID, otherID, limit, offset int) ([]Message, error) {
 }
 
 type UserSearch struct {
-	ID    int     `db:"id" json:"id"`
-	Email string  `db:"email" json:"email"`
-	Name  *string `db:"name" json:"name"`
+	ID     int     `db:"id" json:"id"`
+	Email  string  `db:"email" json:"email"`
+	Name   *string `db:"name" json:"name"`
+	Avatar *string `db:"avatar" json:"avatar"`
 }
 
 func SearchUsers(term string) ([]UserSearch, error) {
 	list := []UserSearch{}
 	like := "%" + term + "%"
-        err := DB.Select(&list,
-                `SELECT id,email,name FROM users
+	err := DB.Select(&list,
+		`SELECT id,email,name,avatar FROM users
                   WHERE LOWER(email) LIKE LOWER($1) OR LOWER(COALESCE(name,'')) LIKE LOWER($1)
                   ORDER BY email LIMIT 20`, like)
-        return list, err
+	return list, err
 }
 
 type Conversation struct {
-        OtherID int     `db:"other_id" json:"other_id"`
-        Name    *string `db:"name" json:"name"`
-        Avatar  *string `db:"avatar" json:"avatar"`
-        Email   string  `db:"email" json:"email"`
-        Message
+	OtherID int     `db:"other_id" json:"other_id"`
+	Name    *string `db:"name" json:"name"`
+	Avatar  *string `db:"avatar" json:"avatar"`
+	Email   string  `db:"email" json:"email"`
+	Message
 }
 
 func ListRecentConversations(userID, limit int) ([]Conversation, error) {
-        list := []Conversation{}
-        if limit <= 0 {
-                limit = 20
-        }
-        const q = `
+	list := []Conversation{}
+	if limit <= 0 {
+		limit = 20
+	}
+	const q = `
         SELECT other_id, u.name, u.avatar, u.email,
                m.id, m.sender_id, m.recipient_id, m.content, m.image, m.created_at
           FROM (
@@ -971,7 +972,6 @@ func ListRecentConversations(userID, limit int) ([]Conversation, error) {
          WHERE rn = 1
          ORDER BY m.created_at DESC
          LIMIT $2`
-        err := DB.Select(&list, q, userID, limit)
-        return list, err
+	err := DB.Select(&list, q, userID, limit)
+	return list, err
 }
-
