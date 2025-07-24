@@ -267,7 +267,13 @@
 <dialog bind:this={imageDialog} class="modal">
   <div class="modal-box w-full max-w-4xl">
     {#if modalImage}
-      <img src={modalImage} alt="Image" class="w-full h-auto mb-4" />
+      <div class="flex justify-center items-center" style="max-height: 90vh; overflow:auto;">
+        <img 
+          src={modalImage} 
+          alt="Image" 
+          class="w-auto max-w-full h-auto max-h-[80vh] mb-4 object-contain" 
+        />
+      </div>
     {/if}
     <div class="modal-action flex justify-between">
       {#if modalImage}
