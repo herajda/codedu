@@ -14,7 +14,7 @@
     } catch(e:any){ err = e.message }
   });
 </script>
-<div class={`fixed top-0 left-0 z-40 h-screen pointer-events-none group
+<div class={`fixed left-0 z-40 pointer-events-none group sm:top-0 sm:h-screen top-16 h-[calc(100dvh-4rem)]
     ${$sidebarOpen ? 'block' : 'hidden sm:block'}`}
 >
   <aside
