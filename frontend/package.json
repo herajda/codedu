@@ -39,6 +39,7 @@
 		"highlight.js": "^11.11.1",
 		"jszip": "^3.10.1",
 		"jwt-decode": "^4.0.0",
+		"lucide-svelte": "^0.525.0",
 		"marked": "^16.1.1",
 		"pyodide": "^0.28.0",
 		"shiki": "^3.8.1",
