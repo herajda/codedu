@@ -2,7 +2,6 @@
 import { onMount } from 'svelte';
 import { page } from '$app/stores';
 import { goto } from '$app/navigation';
-import { get } from 'svelte/store';
 import { auth } from '$lib/auth';
 import { apiJSON, apiFetch } from '$lib/api';
 import '@fortawesome/fontawesome-free/css/all.min.css';
@@ -10,7 +9,8 @@ import '@fortawesome/fontawesome-free/css/all.min.css';
 import { formatDateTime } from "$lib/date";
 let id = $page.params.id;
 $: if ($page.params.id !== id) { id = $page.params.id; load(currentParent); }
-const role: string = get(auth)?.role ?? '';
+let role = '';
+$: role = $auth?.role ?? '';
 
 let items:any[] = [];
 let search = '';
@@ -103,12 +103,20 @@ async function fetchSearch(q:string){
 
 async function openDir(item:any){
   breadcrumbs = [...breadcrumbs, {id:item.id,name:item.name}];
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.setItem(`files_breadcrumbs_${id}`, JSON.stringify(breadcrumbs));
+    sessionStorage.setItem(`files_parent_${id}`, String(item.id));
+  }
   await load(item.id);
 }
 
 function crumbTo(i:number){
   const b = breadcrumbs[i];
   breadcrumbs = breadcrumbs.slice(0,i+1);
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.setItem(`files_breadcrumbs_${id}`, JSON.stringify(breadcrumbs));
+    sessionStorage.setItem(`files_parent_${id}`, b.id === null ? '' : String(b.id));
+  }
   load(b.id);
 }
 
@@ -213,7 +221,23 @@ function fmtSize(bytes: number | null | undefined, decimals = 1) {
   return `${bytes.toFixed(decimals)} ${units[i]}`;
 }
 
-onMount(()=>load(null));
+onMount(() => {
+  let storedParent: number | null = null;
+  if (typeof sessionStorage !== 'undefined') {
+    const sp = sessionStorage.getItem(`files_parent_${id}`);
+    if (sp) {
+      const n = parseInt(sp);
+      if (!isNaN(n)) storedParent = n;
+    }
+    const bc = sessionStorage.getItem(`files_breadcrumbs_${id}`);
+    if (bc) {
+      try {
+        breadcrumbs = JSON.parse(bc);
+      } catch {}
+    }
+  }
+  load(storedParent);
+});
 </script>
 
 <nav class="mb-4 sticky top-16 z-30 bg-base-200 rounded-box shadow px-4 py-2 flex items-center flex-wrap gap-2">

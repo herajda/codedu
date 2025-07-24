@@ -1,6 +1,5 @@
 <script lang="ts">
 import { onMount, onDestroy, tick } from 'svelte'
-  import { get } from 'svelte/store'
   import { auth } from '$lib/auth'
 import { apiFetch, apiJSON } from '$lib/api'
 import { MarkdownEditor } from '$lib'
@@ -13,7 +12,8 @@ import { page } from '$app/stores'
 
 
 $: id = $page.params.id
-const role = get(auth)?.role!;
+let role = '';
+$: role = $auth?.role ?? '';
 
   let assignment:any=null
   let tests:any[]=[] // teacher/admin only
