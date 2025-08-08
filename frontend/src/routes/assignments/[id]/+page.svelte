@@ -68,6 +68,8 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     return `${diffMs>=0 ? 'in' : ''} ${days} day${days===1?'':'s'}${diffMs<0 ? ' ago' : ''}`
   }
   $: isOverdue = assignment ? new Date(assignment.deadline) < new Date() : false
+  $: timeUntilDeadline = assignment ? new Date(assignment.deadline).getTime() - Date.now() : 0
+  $: deadlineSoon = timeUntilDeadline > 0 && timeUntilDeadline <= 24 * 60 * 60 * 1000
 
   async function publish(){
     try{
@@ -363,10 +365,12 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             <span class={`badge ${isOverdue ? 'badge-error' : 'badge-ghost'}`}>{isOverdue ? 'Due' : 'Due'} {relativeToDeadline(assignment.deadline)}</span>
             <span class="badge badge-ghost">Max {assignment.max_points} pts</span>
             <span class="badge badge-ghost">{policyLabel(assignment.grading_policy)}</span>
-            {#if assignment.published}
-              <span class="badge badge-success">Published</span>
-            {:else}
-              <span class="badge badge-warning">Draft</span>
+            {#if role!=='student'}
+              {#if assignment.published}
+                <span class="badge badge-success">Published</span>
+              {:else}
+                <span class="badge badge-warning">Draft</span>
+              {/if}
             {/if}
             {#if done}
               <span class="badge badge-success">Completed</span>
@@ -401,6 +405,11 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         {/if}
       </div>
     </section>
+    {#if deadlineSoon}
+      <div class="alert alert-warning mb-4">
+        <span>The deadline is near!</span>
+      </div>
+    {/if}
 
     <!-- Content with tabs and optional sidebar for students -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -430,11 +439,13 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                 <div class="stat-value text-lg">{assignment.max_points}</div>
                 <div class="stat-desc">{policyLabel(assignment.grading_policy)}</div>
               </div>
-              <div class="stat bg-base-100 rounded-xl border border-base-300/60">
-                <div class="stat-title">Status</div>
-                <div class="stat-value text-lg">{assignment.published ? 'Published' : 'Draft'}</div>
-                <div class="stat-desc">Assignment visibility</div>
-              </div>
+              {#if role!=='student'}
+                <div class="stat bg-base-100 rounded-xl border border-base-300/60">
+                  <div class="stat-title">Status</div>
+                  <div class="stat-value text-lg">{assignment.published ? 'Published' : 'Draft'}</div>
+                  <div class="stat-desc">Assignment visibility</div>
+                </div>
+              {/if}
             </div>
           </article>
         {/if}
@@ -573,12 +584,10 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           <div class="card-elevated p-5 space-y-3">
             <h3 class="font-semibold">Quick actions</h3>
             <button class="btn btn-primary w-full" on:click={openSubmitModal}>Submit solution</button>
-            <div class="divider my-1"></div>
-            <div class="text-sm opacity-70">Need a starting point?</div>
             {#if assignment.template_path}
+              <div class="divider my-1"></div>
+              <div class="text-sm opacity-70">Need a starting point?</div>
               <button class="btn btn-ghost btn-sm" on:click|preventDefault={downloadTemplate}>Download template</button>
-            {:else}
-              <div class="text-sm opacity-60">No template provided</div>
             {/if}
           </div>
           {#if latestSub}
