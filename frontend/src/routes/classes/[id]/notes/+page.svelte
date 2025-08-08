@@ -20,6 +20,7 @@
   let search = '';
   let sortKey: 'name' | 'date' | 'size' = 'date';
   let sortDir: 'asc' | 'desc' = 'desc';
+  let displayedNotes: any[] = [];
   let viewMode: 'grid' | 'list' =
     typeof localStorage !== 'undefined' && localStorage.getItem('notesViewMode') === 'list' ? 'list' : 'grid';
   
@@ -41,25 +42,35 @@
     return `${bytes.toFixed(decimals)} ${units[i]}`;
   }
 
-  function displayed() {
+  // Compute the list of notes to display based on search and sorting
+  $: {
     let arr = [...notes];
     if (search.trim() !== '') {
       const q = search.trim().toLowerCase();
       arr = arr.filter(n => n.name?.toLowerCase?.().includes(q));
     }
     arr.sort((a, b) => {
-      let va:any; let vb:any;
+      let va: any;
+      let vb: any;
       switch (sortKey) {
-        case 'size': va = a.size ?? 0; vb = b.size ?? 0; break;
-        case 'date': va = new Date(a.updated_at ?? a.created_at ?? 0).getTime();
-                     vb = new Date(b.updated_at ?? b.created_at ?? 0).getTime(); break;
-        case 'name': default: va = (a.name ?? '').toLowerCase(); vb = (b.name ?? '').toLowerCase();
+        case 'size':
+          va = a.size ?? 0;
+          vb = b.size ?? 0;
+          break;
+        case 'date':
+          va = new Date(a.updated_at ?? a.created_at ?? 0).getTime();
+          vb = new Date(b.updated_at ?? b.created_at ?? 0).getTime();
+          break;
+        case 'name':
+        default:
+          va = (a.name ?? '').toLowerCase();
+          vb = (b.name ?? '').toLowerCase();
       }
       if (va < vb) return sortDir === 'asc' ? -1 : 1;
       if (va > vb) return sortDir === 'asc' ? 1 : -1;
       return 0;
     });
-    return arr;
+    displayedNotes = arr;
   }
 
   async function load(){
@@ -111,17 +122,17 @@
       <i class="fa-solid fa-search absolute left-3 text-sm opacity-60"></i>
       <input class="input input-sm input-bordered pl-8 w-48" placeholder="Search notes" bind:value={search} aria-label="Search notes" />
     </div>
-    <div class="dropdown dropdown-end">
-      <button type="button" class="btn btn-sm" aria-haspopup="listbox" aria-label="Sort options">
-        <i class="fa-solid fa-arrow-up-wide-short mr-2"></i>Sort
-      </button>
-      <ul class="dropdown-content menu bg-base-200 rounded-box z-[1] w-44 p-2 shadow" role="listbox">
-        <li><button type="button" class={sortKey==='name' ? 'active' : ''} on:click={() => sortKey='name'}>Name</button></li>
-        <li><button type="button" class={sortKey==='date' ? 'active' : ''} on:click={() => sortKey='date'}>Modified</button></li>
-        <li><button type="button" class={sortKey==='size' ? 'active' : ''} on:click={() => sortKey='size'}>Size</button></li>
-        <li class="mt-1"><button type="button" on:click={() => sortDir = sortDir==='asc' ? 'desc' : 'asc'}>Direction: {sortDir === 'asc' ? 'Asc' : 'Desc'}</button></li>
-      </ul>
-    </div>
+      <div class="dropdown dropdown-end">
+        <button type="button" class="btn btn-sm" tabindex="0" aria-haspopup="listbox" aria-label="Sort options">
+          <i class="fa-solid fa-arrow-up-wide-short mr-2"></i>Sort
+        </button>
+        <ul class="dropdown-content menu bg-base-200 rounded-box z-[1] w-44 p-2 shadow" tabindex="0" role="listbox">
+          <li><button type="button" class={sortKey==='name' ? 'active' : ''} on:click={() => sortKey='name'}>Name</button></li>
+          <li><button type="button" class={sortKey==='date' ? 'active' : ''} on:click={() => sortKey='date'}>Modified</button></li>
+          <li><button type="button" class={sortKey==='size' ? 'active' : ''} on:click={() => sortKey='size'}>Size</button></li>
+          <li class="mt-1"><button type="button" on:click={() => sortDir = sortDir==='asc' ? 'desc' : 'asc'}>Direction: {sortDir === 'asc' ? 'Asc' : 'Desc'}</button></li>
+        </ul>
+      </div>
     <button class="btn btn-sm btn-circle" on:click={toggleView} title="Toggle view" aria-label="Toggle view">
       {#if viewMode === 'grid'}
         <i class="fa-solid fa-list"></i>
@@ -142,7 +153,7 @@
 {:else}
   {#if viewMode === 'grid'}
     <div class="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-      {#each displayed() as n (n.id)}
+      {#each displayedNotes as n (n.id)}
         <div role="button" tabindex="0" class="relative border rounded-box p-3 hover:shadow-lg transition cursor-pointer group text-left" on:click={() => open(n)} on:keydown={(e)=> (e.key==='Enter'||e.key===' ') && open(n)} aria-label={`Open ${n.name}`}> 
           <div class="text-4xl mb-2 text-secondary"><i class="fa-solid fa-book"></i></div>
           <div class="text-sm font-medium break-all text-center">{n.name}</div>
@@ -163,7 +174,7 @@
           {/if}
         </div>
       {/each}
-      {#if !displayed().length}
+      {#if !displayedNotes.length}
         <p class="col-span-full"><i>No notes</i></p>
       {/if}
     </div>
@@ -179,7 +190,7 @@
           </tr>
         </thead>
         <tbody>
-          {#each displayed() as n (n.id)}
+          {#each displayedNotes as n (n.id)}
             <tr class="hover:bg-base-200 cursor-pointer group" on:click={() => open(n)}>
               <td class="whitespace-nowrap">
                 <i class="fa-solid fa-book text-secondary mr-2"></i>{n.name}
@@ -198,7 +209,7 @@
               {/if}
             </tr>
           {/each}
-          {#if !displayed().length}
+      {#if !displayedNotes.length}
             <tr><td colspan={role==='teacher' || role==='admin' ? 4 : 3}><i>No notes</i></td></tr>
           {/if}
         </tbody>
