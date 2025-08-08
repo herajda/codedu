@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { apiJSON } from '$lib/api';
+  import { createEventSource } from '$lib/sse';
 
   import { formatDateTime } from "$lib/date";
   interface Submission {
@@ -15,7 +16,7 @@
   let titles: Record<number,string> = {};
   let loading = true;
   let err = '';
-  let es: EventSource | null = null;
+  let esCtrl: { close: () => void } | null = null;
 
   function resultColor(s: string){
     if(s === 'passed') return 'badge-success';
@@ -51,8 +52,10 @@
 
   onMount(() => {
     load();
-    es = new EventSource('/api/events');
-    es.addEventListener('status', (ev) => {
+    esCtrl = createEventSource(
+      '/api/events',
+      (src) => {
+    src.addEventListener('status', (ev) => {
       const d = JSON.parse((ev as MessageEvent).data);
       const s = subs.find((x) => x.id === d.submission_id);
       if (s) {
@@ -60,15 +63,21 @@
         if (d.status !== 'running') load();
       }
     });
-    es.addEventListener('result', (ev) => {
+    src.addEventListener('result', (ev) => {
       const d = JSON.parse((ev as MessageEvent).data);
       const s = subs.find((x) => x.id === d.submission_id);
       if (s) {
         s.results = [...(s.results ?? []), d];
       }
     });
+      },
+      {
+        onError: (m) => { err = m; },
+        onOpen: () => { err = ''; }
+      }
+    );
   });
-  onDestroy(() => { es?.close(); });
+  onDestroy(() => { esCtrl?.close(); });
 </script>
 
 {#if loading}

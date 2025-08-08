@@ -5,6 +5,7 @@ import { goto } from '$app/navigation';
 import { auth } from '$lib/auth';
 import { apiJSON, apiFetch } from '$lib/api';
 import '@fortawesome/fontawesome-free/css/all.min.css';
+import { compressImage } from '$lib/utils/compressImage';
 
 import { formatDateTime } from "$lib/date";
 let id = $page.params.id;
@@ -129,13 +130,19 @@ function openUploadDialog() {
 
 async function doUpload() {
   if (!uploadFile) return;
-  if (uploadFile.size > maxFileSize) {
+  let fileToUpload = uploadFile;
+  if (uploadFile.type.startsWith('image/')) {
+    try {
+      fileToUpload = await compressImage(uploadFile);
+    } catch {}
+  }
+  if (fileToUpload.size > maxFileSize) {
     uploadErr = 'File exceeds 20 MB limit';
     return;
   }
   const fd = new FormData();
   if (currentParent !== null) fd.append('parent_id', String(currentParent));
-  fd.append('file', uploadFile);
+  fd.append('file', fileToUpload);
   uploading = true;
   const res = await apiFetch(`/api/classes/${id}/files`, { method: 'POST', body: fd });
   if (!res.ok) {

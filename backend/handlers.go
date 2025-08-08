@@ -1330,3 +1330,118 @@ func changePassword(c *gin.Context) {
 	}
 	c.Status(http.StatusNoContent)
 }
+
+// ──────────────────────────────────────────
+// messaging handlers
+// ──────────────────────────────────────────
+
+func searchUsers(c *gin.Context) {
+	term := c.Query("q")
+	list, err := SearchUsers(term)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, list)
+}
+
+func listConversations(c *gin.Context) {
+	limit := 20
+	if l := c.Query("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil {
+			limit = v
+		}
+	}
+	list, err := ListRecentConversations(c.GetInt("userID"), limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, list)
+}
+
+func getUserPublic(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	u, err := GetUser(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"id":     u.ID,
+		"name":   u.Name,
+		"avatar": u.Avatar,
+		"email":  u.Email,
+	})
+}
+
+func createMessage(c *gin.Context) {
+	var req struct {
+		To      int     `json:"to" binding:"required"`
+		Content string  `json:"content"`
+		Image   *string `json:"image"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if strings.TrimSpace(req.Content) == "" && (req.Image == nil || *req.Image == "") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "empty message"})
+		return
+	}
+	if req.Image != nil && len(*req.Image) > maxFileSize {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "image too large"})
+		return
+	}
+	msg := &Message{SenderID: c.GetInt("userID"), RecipientID: req.To, Content: req.Content, Image: req.Image}
+	if err := CreateMessage(msg); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusCreated, msg)
+}
+
+func listMessages(c *gin.Context) {
+	otherID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	limit := 50
+	if l := c.Query("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil {
+			limit = v
+		}
+	}
+	offset := 0
+	if o := c.Query("offset"); o != "" {
+		if v, err := strconv.Atoi(o); err == nil {
+			offset = v
+		}
+	}
+	uid := c.GetInt("userID")
+	msgs, err := ListMessages(uid, otherID, limit, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	_ = MarkMessagesRead(uid, otherID)
+	c.JSON(http.StatusOK, msgs)
+}
+
+func markMessagesReadHandler(c *gin.Context) {
+	otherID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if err := MarkMessagesRead(c.GetInt("userID"), otherID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}

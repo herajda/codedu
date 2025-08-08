@@ -2,6 +2,7 @@
 import { onMount, onDestroy, tick } from 'svelte'
   import { auth } from '$lib/auth'
 import { apiFetch, apiJSON } from '$lib/api'
+import { createEventSource } from '$lib/sse'
 import { MarkdownEditor } from '$lib'
 import { marked } from 'marked'
 import { formatDateTime } from "$lib/date";
@@ -20,7 +21,7 @@ $: role = $auth?.role ?? '';
   let submissions:any[]=[] // student submissions
   let latestSub:any=null
   let results:any[]=[]
-  let es:EventSource|null=null
+  let esCtrl:{close:()=>void}|null=null
   let allSubs:any[]=[]     // teacher view
   let students:any[]=[]    // class roster for teacher
   let progress:any[]=[]    // computed progress per student
@@ -82,6 +83,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     }catch(e:any){ err=e.message }
   }
 
+
   onMount(async () => {
     await load()
     if(typeof sessionStorage!=='undefined'){
@@ -103,13 +105,20 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         if(d.status!== 'running') load()
       }
     })
-    es.addEventListener('result', (ev) => {
+    src.addEventListener('result', (ev) => {
       const d = JSON.parse((ev as MessageEvent).data)
       if(latestSub && d.submission_id===latestSub.id){
         results = [...results, d]
       }
     })
+      },
+      {
+        onError: (m) => { err = m },
+        onOpen: () => { err = '' }
+      }
+    )
   })
+
 
   onDestroy(()=>{
     es?.close()

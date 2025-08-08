@@ -130,6 +130,16 @@ func main() {
 		api.GET("/classes/:id/progress", RoleGuard("teacher", "admin"), getClassProgress)
 		api.GET("/classes/:id", RoleGuard("teacher", "student", "admin"), getClass)
 
+		api.GET("/users/:id", RoleGuard("student", "teacher", "admin"), getUserPublic)
+
+		// Messaging
+		api.GET("/user-search", RoleGuard("student", "teacher", "admin"), searchUsers)
+		api.GET("/messages", RoleGuard("student", "teacher", "admin"), listConversations)
+		api.POST("/messages", RoleGuard("student", "teacher", "admin"), createMessage)
+		api.GET("/messages/:id", RoleGuard("student", "teacher", "admin"), listMessages)
+		api.PUT("/messages/:id/read", RoleGuard("student", "teacher", "admin"), markMessagesReadHandler)
+		api.GET("/messages/events", RoleGuard("student", "teacher", "admin"), messageEventsHandler)
+
 		// Class file system
 		api.GET("/classes/:id/files", RoleGuard("teacher", "student", "admin"), listClassFiles)
 		api.GET("/classes/:id/notebooks", RoleGuard("teacher", "student", "admin"), listClassNotebooks)

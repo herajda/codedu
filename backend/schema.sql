@@ -120,3 +120,20 @@ CREATE TABLE IF NOT EXISTS class_files (
 );
 CREATE INDEX IF NOT EXISTS idx_class_files_path ON class_files(class_id, path);
 
+-- Messages table for private chats
+CREATE TABLE IF NOT EXISTS messages (
+  id SERIAL PRIMARY KEY,
+  sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  recipient_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  image TEXT,
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_messages_sender_recipient_created
+  ON messages(sender_id, recipient_id, created_at);
+
+-- add image column if upgrading from an older schema
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS image TEXT;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN NOT NULL DEFAULT FALSE;
+
