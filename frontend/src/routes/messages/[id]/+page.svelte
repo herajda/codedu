@@ -58,6 +58,10 @@
   let searchInput: HTMLInputElement | null = null;
   let msgEls: HTMLDivElement[] = [];
 
+  function registerMsgEl(node: HTMLDivElement, idx: number) {
+    msgEls[idx] = node;
+  }
+
   // Common emojis for the picker
   const commonEmojis = [
     '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇',
@@ -477,7 +481,7 @@
         
         <div
           class={`flex ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'} group ${searchResults.includes(index) ? 'bg-warning/20' : ''}`}
-          bind:this={(el) => (msgEls[index] = el)}
+          use:registerMsgEl={index}
         >
           <div class="flex gap-3 max-w-[75%] items-end">
             {#if m.sender_id !== $auth?.id}
