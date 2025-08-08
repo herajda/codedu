@@ -1286,12 +1286,29 @@ func updateProfile(c *gin.Context) {
 		req.Name = nil // Bakalari users cannot change name
 	}
 	if req.Avatar != nil {
-		resized, err := resizeAvatar(*req.Avatar)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid avatar"})
-			return
+		av := strings.TrimSpace(*req.Avatar)
+		if strings.HasPrefix(av, "data:") {
+			resized, err := resizeAvatar(av)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid avatar"})
+				return
+			}
+			req.Avatar = &resized
+		} else {
+			// allow selecting one of the built-in avatars
+			isAllowed := false
+			for _, a := range defaultAvatars {
+				if av == a {
+					isAllowed = true
+					break
+				}
+			}
+			if !isAllowed {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid avatar selection"})
+				return
+			}
+			req.Avatar = &av
 		}
-		req.Avatar = &resized
 	}
 	if err := UpdateUserProfile(uid, req.Name, req.Avatar); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})

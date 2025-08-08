@@ -119,6 +119,27 @@ func UpdateUserProfile(id int, name, avatar *string) error {
 	return err
 }
 
+// AssignRandomAvatarsToUsersWithout assigns a random avatar from the provided list
+// to all users whose avatar is NULL. It is safe to call on startup.
+func AssignRandomAvatarsToUsersWithout(catalog []string) error {
+	if len(catalog) == 0 {
+		return nil
+	}
+	type row struct{ ID int }
+	var rows []row
+	if err := DB.Select(&rows, `SELECT id FROM users WHERE avatar IS NULL`); err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	for _, r := range rows {
+		pick := catalog[int(time.Now().UnixNano()+int64(r.ID))%len(catalog)]
+		_, _ = DB.Exec(`UPDATE users SET avatar=$1 WHERE id=$2`, pick, r.ID)
+	}
+	return nil
+}
+
 func UpdateUserPassword(id int, hash string) error {
 	_, err := DB.Exec(`UPDATE users SET password_hash=$1 WHERE id=$2`, hash, id)
 	return err
