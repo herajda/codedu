@@ -165,9 +165,9 @@ body.hide-navbar .navbar {
   pointer-events: none;
   /* Enhanced glossy highlight */
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.25), rgba(255,255,255,0.08) 25%, rgba(255,255,255,0.02) 50%, transparent 70%),
-    radial-gradient(140% 80% at 50% -20%, rgba(255,255,255,0.35), rgba(255,255,255,0.1) 40%, transparent 60%),
-    radial-gradient(80% 40% at 80% 20%, rgba(255,255,255,0.15), transparent 50%);
+    linear-gradient(180deg, rgba(var(--glow),0.15), rgba(var(--glow),0.06) 25%, rgba(var(--glow),0.02) 50%, transparent 70%),
+    radial-gradient(140% 80% at 50% -20%, rgba(var(--glow),0.25), rgba(var(--glow),0.06) 40%, transparent 60%),
+    radial-gradient(80% 40% at 80% 20%, rgba(var(--glow),0.1), transparent 50%);
 }
 
 .appbar::after {
