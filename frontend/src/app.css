@@ -143,7 +143,6 @@ body.hide-navbar .navbar {
 .card {
   @apply bg-base-100/80 backdrop-blur supports-[backdrop-filter]:bg-base-100/85 border border-base-300/60;
 }
-.
 
 /* Futuristic top bar */
 /* Sleek holo app bar */
@@ -151,10 +150,24 @@ body.hide-navbar .navbar {
   position: relative;
   border-radius: 0.9rem;
   border: 1px solid color-mix(in oklab, hsl(var(--b3)) 55%, transparent);
-  background: linear-gradient(180deg, hsl(var(--b1) / 0.7), hsl(var(--b1) / 0.55));
+  /* Fully opaque frosted base so underlying text is not readable */
+  background: linear-gradient(180deg, hsl(var(--b1)), hsl(var(--b1) / 0.98));
   backdrop-filter: blur(10px) saturate(120%);
   -webkit-backdrop-filter: blur(10px) saturate(120%);
   box-shadow: 0 8px 24px -18px rgba(var(--glow), 0.22);
+}
+
+.appbar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  /* Enhanced glossy highlight */
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.25), rgba(255,255,255,0.08) 25%, rgba(255,255,255,0.02) 50%, transparent 70%),
+    radial-gradient(140% 80% at 50% -20%, rgba(255,255,255,0.35), rgba(255,255,255,0.1) 40%, transparent 60%),
+    radial-gradient(80% 40% at 80% 20%, rgba(255,255,255,0.15), transparent 50%);
 }
 
 .appbar::after {
@@ -163,7 +176,7 @@ body.hide-navbar .navbar {
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  background: linear-gradient(90deg, transparent, rgba(var(--glow), 0.06), transparent);
+  background: linear-gradient(90deg, transparent, rgba(var(--glow), 0.04), transparent);
 }
 
 .brand-dot {
@@ -172,4 +185,11 @@ body.hide-navbar .navbar {
   border-radius: 9999px;
   background: radial-gradient(circle at 30% 30%, #00e1ff, #00b3ff 60%, transparent 61%);
   box-shadow: 0 0 12px 2px rgba(0, 200, 255, 0.4);
+}
+
+/* Ensure title is non-transparent enough over content */
+.appbar-title {
+  padding: 0.25rem 0.4rem;
+  border-radius: 0.5rem;
+  background: hsl(var(--b1) / 0.95);
 }

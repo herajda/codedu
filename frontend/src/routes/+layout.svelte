@@ -151,7 +151,7 @@ import { compressImage } from '$lib/utils/compressImage';
             </svg>
           </button>
         {/if}
-        <a href="/dashboard" class="flex items-center gap-2 min-w-0">
+        <a href="/dashboard" class="appbar-title flex items-center gap-2 min-w-0">
           <span class="brand-dot"></span>
           <span class="truncate font-semibold tracking-tight">CodeGrader</span>
         </a>
