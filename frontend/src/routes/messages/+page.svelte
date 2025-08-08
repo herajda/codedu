@@ -15,8 +15,17 @@ import NewChatModal from '$lib/components/NewChatModal.svelte';
   let showNewChatModal = false;
   let totalUnreadCount = 0;
   let blockedUsers: any[] = [];
+  let starredChats: number[] = [];
+  let archivedChats: number[] = [];
+
+  const STAR_KEY = 'starredChats';
+  const ARCHIVE_KEY = 'archivedChats';
 
   onMount(() => {
+    if (typeof localStorage !== 'undefined') {
+      try { starredChats = JSON.parse(localStorage.getItem(STAR_KEY) || '[]'); } catch {}
+      try { archivedChats = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]'); } catch {}
+    }
     loadConvos();
     loadBlocked();
   });
@@ -42,6 +51,8 @@ import NewChatModal from '$lib/components/NewChatModal.svelte';
         c.isThisWeek = isThisWeek(c.lastMessageTime);
         c.displayName = c.name ?? c.email?.split('@')[0] ?? 'Unknown';
                 c.status = getStatus(c.lastMessageTime);
+        c.starred = starredChats.includes(c.other_id);
+        c.archived = archivedChats.includes(c.other_id);
       }
       convos = list.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       totalUnreadCount = convos.reduce((sum, c) => sum + (c.unread_count || 0), 0);
@@ -179,14 +190,28 @@ import NewChatModal from '$lib/components/NewChatModal.svelte';
 
   function toggleArchive(convo: any, event: Event) {
     event.stopPropagation();
-    // TODO: Implement archive functionality
-    console.log('Toggle archive for:', convo.id);
+    const id = convo.other_id ?? convo.id;
+    convo.archived = !convo.archived;
+    if (convo.archived) {
+      if (!archivedChats.includes(id)) archivedChats.push(id);
+    } else {
+      archivedChats = archivedChats.filter(cid => cid !== id);
+    }
+    localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archivedChats));
+    applyFilters();
   }
 
   function toggleStar(convo: any, event: Event) {
     event.stopPropagation();
-    // TODO: Implement star functionality
-    console.log('Toggle star for:', convo.id);
+    const id = convo.other_id ?? convo.id;
+    convo.starred = !convo.starred;
+    if (convo.starred) {
+      if (!starredChats.includes(id)) starredChats.push(id);
+    } else {
+      starredChats = starredChats.filter(cid => cid !== id);
+    }
+    localStorage.setItem(STAR_KEY, JSON.stringify(starredChats));
+    applyFilters();
   }
 
   function deleteChat(convo: any, event: Event) {
