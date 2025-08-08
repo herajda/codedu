@@ -28,6 +28,8 @@ $: role = $auth?.role ?? '';
   let pointsEarned=0
   let done=false
   let percent=0
+  let testsPassed=0
+  let testsPercent=0
   let err=''
   let tStdin='', tStdout='', tLimit='', tWeight='1'
   let files: File[] = []
@@ -36,6 +38,8 @@ $: role = $auth?.role ?? '';
   let submitDialog: HTMLDialogElement;
   let testsDialog: HTMLDialogElement;
 $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100) : 0;
+$: testsPassed = results.filter((r:any) => r.status === 'passed').length;
+$: testsPercent = results.length ? Math.round(testsPassed / results.length * 100) : 0;
   let editing=false
   let eTitle='', eDesc='', eDeadline='', ePoints=0, ePolicy='all_or_nothing', eShowTraceback=false
   let safeDesc=''
@@ -350,8 +354,8 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             <h1 class="text-2xl sm:text-3xl font-semibold tracking-tight">{assignment.title}</h1>
             {#if role==='student'}
               <div class="hidden sm:flex items-center gap-3">
-                <div class="radial-progress text-primary" style="--value:{percent};" aria-valuenow={percent} role="progressbar">{percent}%</div>
-                <span class="font-semibold">{pointsEarned} / {assignment.max_points} pts</span>
+                <div class="radial-progress text-primary" style="--value:{testsPercent};" aria-valuenow={testsPercent} role="progressbar">{testsPercent}%</div>
+                <span class="font-semibold">{testsPassed} / {results.length} tests</span>
               </div>
             {/if}
           </div>
