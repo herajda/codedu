@@ -21,6 +21,8 @@ import { compressImage } from '$lib/utils/compressImage';
   let newPassword = '';
   let newPassword2 = '';
   let passwordError = '';
+  let avatarChoices: string[] = [];
+  let selectedAvatarFromCatalog: string | null = null;
 
   function logout() {
     auth.logout();
@@ -32,6 +34,9 @@ import { compressImage } from '$lib/utils/compressImage';
       name = user.name ?? '';
     }
     avatarFile = null;
+    selectedAvatarFromCatalog = null;
+    // load catalog
+    fetch('/api/avatars').then(r => r.ok ? r.json() : []).then((list) => { avatarChoices = list; });
     settingsDialog.showModal();
   }
 
@@ -84,7 +89,11 @@ import { compressImage } from '$lib/utils/compressImage';
 
   async function saveSettings() {
     const body: any = {};
-    if (avatarFile !== null) body.avatar = avatarFile;
+    if (selectedAvatarFromCatalog) {
+      body.avatar = selectedAvatarFromCatalog;
+    } else if (avatarFile !== null) {
+      body.avatar = avatarFile;
+    }
     if (user && user.bk_uid == null) body.name = name;
     const res = await apiFetch('/api/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (res.ok) {
@@ -230,6 +239,21 @@ import { compressImage } from '$lib/utils/compressImage';
                   {/if}
                 </div>
               </div>
+              {#if avatarChoices.length > 0}
+              <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                  <h4 class="font-semibold">Choose a default avatar</h4>
+                  <span class="text-sm text-base-content/60">or upload your own</span>
+                </div>
+                <div class="grid grid-cols-6 gap-2">
+                  {#each avatarChoices as a}
+                    <button type="button" class={`avatar w-12 h-12 rounded-full ring-2 ${selectedAvatarFromCatalog === a ? 'ring-primary' : 'ring-base-200'}`} on:click={() => { selectedAvatarFromCatalog = a; avatarFile = null; }}>
+                      <img src={a} alt="avatar" class="w-full h-full object-cover rounded-full" />
+                    </button>
+                  {/each}
+                </div>
+              </div>
+              {/if}
               {#if user.bk_uid == null}
                 <button class="btn" on:click={openPasswordDialog}>Change password</button>
               {/if}

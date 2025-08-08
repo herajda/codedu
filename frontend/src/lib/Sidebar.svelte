@@ -7,12 +7,16 @@
   import { auth } from '$lib/auth';
   let classes:any[] = [];
   let err = '';
-  onMount(async () => {
-    try {
-      const result = await apiJSON('/api/classes');
-      classes = Array.isArray(result) ? result : [];
-    } catch(e:any){ err = e.message }
-  });
+  let loaded = false;
+  $: if ($auth && !loaded) {
+    loaded = true;
+    (async () => {
+      try {
+        const result = await apiJSON('/api/classes');
+        classes = Array.isArray(result) ? result : [];
+      } catch(e:any){ err = e.message }
+    })();
+  }
 </script>
 <div class={`fixed left-0 z-40 pointer-events-none group sm:top-0 sm:h-screen top-16 h-[calc(100dvh-4rem)] ${$sidebarOpen ? 'block' : 'hidden sm:block'}`}>
   <aside class={`relative w-60 h-full overflow-y-auto transition-transform pointer-events-auto ${$sidebarCollapsed ? '-translate-x-full' : 'translate-x-0'} p-3`}>

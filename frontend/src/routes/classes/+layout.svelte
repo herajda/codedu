@@ -3,16 +3,21 @@
   import { apiJSON } from '$lib/api';
   import { page } from '$app/stores';
   import type { Page } from '@sveltejs/kit';
+  import { auth } from '$lib/auth';
 
   let classes:any[] = [];
   let err = '';
 
-  onMount(async () => {
-    try {
-      const result = await apiJSON('/api/classes');
-      classes = Array.isArray(result) ? result : [];
-    } catch (e:any) { err = e.message }
-  });
+  let boot = false;
+  $: if ($auth && !boot) {
+    boot = true;
+    (async () => {
+      try {
+        const result = await apiJSON('/api/classes');
+        classes = Array.isArray(result) ? result : [];
+      } catch (e:any) { err = e.message }
+    })();
+  }
 </script>
 
 <div class="flex min-h-full">

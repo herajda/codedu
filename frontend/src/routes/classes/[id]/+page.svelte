@@ -326,7 +326,6 @@ import { marked } from 'marked';
           <h3 class="font-semibold mb-3">Manage</h3>
           <div class="flex flex-wrap gap-2">
             <button class="btn btn-outline" on:click={openAddModal} type="button"><Plus class="w-4 h-4" aria-hidden="true" /> Add students</button>
-            <button class="btn btn-outline" on:click={deleteClass} type="button">Delete class</button>
           </div>
         </div>
       {/if}
