@@ -1,5 +1,71 @@
 @import "tailwindcss";
 @plugin "daisyui";
+
+:root {
+  --rounded-box: 0.75rem;
+  --rounded-btn: 0.6rem;
+  --tab-radius: 0.6rem;
+
+  /* Background tokens (light) */
+  /* Cyan/teal futuristic palette */
+  --brand-hue: 200;
+  --brand-sat: 95%;
+  --brand-light: 60%;
+  --bg-1: hsl(210 100% 98%);
+  --bg-2: hsl(190 95% 88% / 0.45);
+  --bg-3: hsl(210 92% 90% / 0.45);
+  --bg-4: hsl(165 85% 90% / 0.4);
+  --grid-color: 0 0% 6%;
+  --grid-opacity: 0.06;
+  --glow: 255 255 255;
+}
+
+[data-theme='dark'] {
+  /* Background tokens (dark) */
+  --bg-1: hsl(220 26% 7%);
+  --bg-2: hsl(210 70% 16% / 0.85);
+  --bg-3: hsl(200 70% 12% / 0.8);
+  --bg-4: hsl(170 70% 11% / 0.75);
+  --grid-color: 200 10% 98%;
+  --grid-opacity: 0.06;
+  --glow: 120 230 255;
+}
+
+html, body {
+  font-family: "Inter", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+/* Futuristic, inspiring base – blend with dynamic background */
+html, body {
+  background-color: transparent;
+}
+
+/* Fallback background layer to ensure visibility even if component fails */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(1000px 500px at 80% -10%, var(--bg-2), transparent 70%),
+    radial-gradient(900px 450px at 10% 10%, var(--bg-3), transparent 60%),
+    radial-gradient(800px 500px at 50% 120%, var(--bg-4), transparent 60%),
+    linear-gradient(180deg, var(--bg-1), transparent 60%);
+}
+
+/* Smooth surfaces and better defaults */
+.surface {
+  @apply bg-base-100/60 backdrop-blur supports-[backdrop-filter]:bg-base-100/70 rounded-xl border border-base-300/60 shadow-sm;
+}
+
+.card-elevated {
+  @apply rounded-xl border border-base-300/60 bg-base-100/80 backdrop-blur supports-[backdrop-filter]:bg-base-100/85 shadow-md shadow-base-300/30;
+}
+
+.navbar-glass {
+  @apply bg-base-100/70 backdrop-blur border-b border-base-300/60;
+}
 .markdown, .editor-preview, .editor-preview-side {
   line-height: 1.5;
 }
@@ -37,4 +103,73 @@
 /* Hide the top navbar when a markdown editor is in fullscreen */
 body.hide-navbar .navbar {
   display: none;
+}
+
+/* Theme tweaks for dark mode */
+@media (prefers-color-scheme: dark) {
+  .markdown pre,
+  .markdown code,
+  .editor-preview pre,
+  .editor-preview code,
+  .editor-preview-side pre,
+  .editor-preview-side code {
+    background: rgba(255,255,255,0.06);
+  }
+}
+
+/* Accent rings and focus states */
+:is(button, .btn, input, textarea, select, .input, .textarea, .select):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in oklab, hsl(var(--p)) 60%, transparent);
+}
+
+/* Subtle animated divider utility */
+.divider-glow {
+  position: relative;
+  height: 1px;
+  background: color-mix(in oklab, hsl(var(--b3)) 40%, transparent);
+}
+.divider-glow::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: radial-gradient(60% 200% at 50% 50%, rgba(var(--glow),0.14), transparent 60%);
+  pointer-events: none;
+}
+
+/* Navbar slight blur applied already by class; ensure layering */
+.navbar-glass { backdrop-filter: saturate(120%) blur(8px); }
+
+/* Make default cards slightly translucent for depth */
+.card {
+  @apply bg-base-100/80 backdrop-blur supports-[backdrop-filter]:bg-base-100/85 border border-base-300/60;
+}
+.
+
+/* Futuristic top bar */
+/* Sleek holo app bar */
+.appbar {
+  position: relative;
+  border-radius: 0.9rem;
+  border: 1px solid color-mix(in oklab, hsl(var(--b3)) 55%, transparent);
+  background: linear-gradient(180deg, hsl(var(--b1) / 0.7), hsl(var(--b1) / 0.55));
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  box-shadow: 0 8px 24px -18px rgba(var(--glow), 0.22);
+}
+
+.appbar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(var(--glow), 0.06), transparent);
+}
+
+.brand-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 30% 30%, #00e1ff, #00b3ff 60%, transparent 61%);
+  box-shadow: 0 0 12px 2px rgba(0, 200, 255, 0.4);
 }

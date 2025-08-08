@@ -9,8 +9,15 @@ export default defineConfig({
 		sveltekit(),
 		devtoolsJson()
 	],
+	worker: {
+		format: 'es'
+	},
+	ssr: {
+		worker: { format: 'es' }
+	},
 	server: {
     proxy: {
       '/api':      'http://localhost:22946',
     }
-}});
+}
+});

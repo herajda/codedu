@@ -22,7 +22,13 @@ $: if (searchOpen && search.trim() !== '') {
 } else {
   searchResults = [];
 }
-$: displayed = searchOpen && search.trim() !== '' ? searchResults : items;
+  $: displayed = searchOpen && search.trim() !== '' ? searchResults : items;
+  // Enhanced UI state
+  type FileFilter = 'all' | 'folders' | 'images' | 'notebooks' | 'documents' | 'code';
+  let filter: FileFilter = 'all';
+  let sortKey: 'name' | 'date' | 'size' = 'name';
+  let sortDir: 'asc' | 'desc' = 'asc';
+  $: visible = sortItems((displayed ?? []).filter(matchesFilter));
 let breadcrumbs:{id:number|null,name:string}[] = [{id:null,name:'🏠'}];
 let currentParent:number|null = null;
 let loading = false;
@@ -214,6 +220,98 @@ function toggleView() {
     localStorage.setItem('fileViewMode', viewMode);
   }
 }
+  
+  function matchesFilter(it: any): boolean {
+    if (filter === 'all') return true;
+    if (filter === 'folders') return !!it.is_dir;
+    if (filter === 'images') return !it.is_dir && isImage(it.name);
+    if (filter === 'notebooks') return !it.is_dir && (it.name?.toLowerCase?.().endsWith('.ipynb'));
+    if (filter === 'documents') return !it.is_dir && (it.name?.toLowerCase?.().endsWith('.pdf'));
+    if (filter === 'code') return !it.is_dir && ['js','ts','svelte','py','go','java','cpp'].includes(it.name?.split('.').pop()?.toLowerCase?.() ?? '');
+    return true;
+  }
+
+  function sortItems(arr: any[]) {
+    const sorted = [...arr].sort((a, b) => {
+      let va: any;
+      let vb: any;
+      switch (sortKey) {
+        case 'size':
+          va = a.size ?? 0; vb = b.size ?? 0; break;
+        case 'date':
+          va = new Date(a.updated_at ?? a.created_at ?? 0).getTime();
+          vb = new Date(b.updated_at ?? b.created_at ?? 0).getTime();
+          break;
+        case 'name':
+        default:
+          va = (a.name ?? '').toLowerCase(); vb = (b.name ?? '').toLowerCase();
+      }
+      if (va < vb) return sortDir === 'asc' ? -1 : 1;
+      if (va > vb) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+    if (sortKey === 'name') {
+      sorted.sort((a, b) => (b.is_dir ? 1 : 0) - (a.is_dir ? 1 : 0));
+    }
+    return sorted;
+  }
+
+  // Drag & drop upload support
+  let isDragging = false;
+  let dragDepth = 0;
+  let dropping = false;
+  let dropErr = '';
+
+  function onDragEnter() {
+    dragDepth += 1;
+    isDragging = true;
+  }
+  function onDragLeave() {
+    dragDepth -= 1;
+    if (dragDepth <= 0) {
+      isDragging = false;
+      dragDepth = 0;
+    }
+  }
+  function onDragOver() {
+    // allow drop
+  }
+  async function onDrop(e: DragEvent) {
+    dragDepth = 0;
+    isDragging = false;
+    dropErr = '';
+    const files = Array.from(e.dataTransfer?.files ?? []);
+    if (!files.length) return;
+    try {
+      dropping = true;
+      await uploadFiles(files);
+      await load(currentParent);
+    } catch (er:any) {
+      dropErr = er?.message ?? 'Failed to upload';
+    } finally {
+      dropping = false;
+    }
+  }
+
+  async function uploadFiles(files: File[]) {
+    for (const f of files) {
+      let fileToUpload: File = f;
+      if (f.type.startsWith('image/')) {
+        try { fileToUpload = await compressImage(f); } catch {}
+      }
+      if (fileToUpload.size > maxFileSize) {
+        throw new Error(`${f.name} exceeds 20 MB limit`);
+      }
+      const fd = new FormData();
+      if (currentParent !== null) fd.append('parent_id', String(currentParent));
+      fd.append('file', fileToUpload);
+      const res = await apiFetch(`/api/classes/${id}/files`, { method: 'POST', body: fd });
+      if (!res.ok) {
+        const js = await res.json().catch(() => ({}));
+        throw new Error(js.error || res.statusText);
+      }
+    }
+  }
 function fmtSize(bytes: number | null | undefined, decimals = 1) {
   if (bytes == null) return '';
   if (bytes < 1024) return `${bytes} B`;
@@ -251,12 +349,9 @@ onMount(() => {
   <ul class="flex flex-wrap gap-1 text-sm items-center flex-grow">
     {#each breadcrumbs as b,i}
       <li class="after:mx-1 after:content-['/'] last:after:hidden">
-        <a
-          href="#"
-          class="link px-2 py-1 rounded hover:bg-base-300"
-          on:click|preventDefault={() => crumbTo(i)}
-          >{b.name}</a
-        >
+        <button type="button" class="link px-2 py-1 rounded hover:bg-base-300" on:click={() => crumbTo(i)} aria-label={`Open ${b.name}`}>
+          {b.name}
+        </button>
       </li>
     {/each}
   </ul>
@@ -284,20 +379,34 @@ onMount(() => {
         bind:value={search}
       />
     </div>
+    <!-- Sort controls -->
+    <div class="dropdown dropdown-end">
+      <button type="button" class="btn btn-sm" aria-haspopup="listbox" aria-label="Sort options">
+        <i class="fa-solid fa-arrow-up-wide-short mr-2"></i>Sort
+      </button>
+      <ul class="dropdown-content menu bg-base-200 rounded-box z-[1] w-44 p-2 shadow" role="listbox">
+        <li><button type="button" class={sortKey==='name' ? 'active' : ''} on:click={() => sortKey='name'} aria-label="Sort by name">Name</button></li>
+        <li><button type="button" class={sortKey==='date' ? 'active' : ''} on:click={() => sortKey='date'} aria-label="Sort by modified">Modified</button></li>
+        <li><button type="button" class={sortKey==='size' ? 'active' : ''} on:click={() => sortKey='size'} aria-label="Sort by size">Size</button></li>
+        <li class="mt-1"><button type="button" on:click={() => sortDir = sortDir==='asc' ? 'desc' : 'asc'} aria-label="Toggle sort direction">
+          Direction: {sortDir === 'asc' ? 'Asc' : 'Desc'}</button></li>
+      </ul>
     </div>
-    {#if role==='teacher' || role==='admin'}
-    <div class="flex items-center gap-2">
+  </div>
+  {#if role==='teacher' || role==='admin'}
+    <div class="flex items-center gap-2 ml-2">
+      <div class="dropdown">
+        <button type="button" class="btn btn-sm btn-primary" aria-haspopup="listbox" aria-label="Create menu">
+          <i class="fa-solid fa-plus mr-2"></i>Create
+        </button>
+        <ul class="dropdown-content menu bg-base-200 rounded-box z-[1] w-48 p-2 shadow" role="listbox">
+          <li><button type="button" on:click={openUploadDialog}><i class="fa-solid fa-upload mr-2"></i>Upload file</button></li>
+          <li><button type="button" on:click={promptDir}><i class="fa-solid fa-folder-plus mr-2"></i>New folder</button></li>
+          <li><button type="button" on:click={promptNotebook}><i class="fa-solid fa-book-medical mr-2"></i>New notebook</button></li>
+        </ul>
+      </div>
     </div>
-      <button class="btn btn-sm btn-circle" on:click={openUploadDialog} title="Upload file">
-        <i class="fa-solid fa-upload"></i>
-      </button>
-      <button class="btn btn-sm btn-circle" on:click={promptDir} title="New folder">
-        <i class="fa-solid fa-folder-plus"></i>
-      </button>
-      <button class="btn btn-sm btn-circle" on:click={promptNotebook} title="New notebook">
-        <i class="fa-solid fa-book-medical"></i>
-      </button>
-    {/if}
+  {/if}
 </nav>
 
 <dialog bind:this={uploadDialog} class="modal">
@@ -314,20 +423,27 @@ onMount(() => {
   <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
+<div class="relative" role="region" aria-label="File list dropzone"
+     on:dragenter|preventDefault={onDragEnter}
+     on:dragleave|preventDefault={onDragLeave}
+     on:dragover|preventDefault={onDragOver}
+     on:drop|preventDefault={onDrop}>
+
 {#if loading}
-<p>Loading…</p>
+  <p>Loading…</p>
 {:else if err}
-<p class="text-error">{err}</p>
+  <p class="text-error">{err}</p>
 {:else}
+  <!-- content below controls actual view rendering -->
 {/if}
 
 {#if viewMode === 'grid'}
   <!-- ── GRID VIEW ── -->
   <div class="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 mb-4">
-    {#each displayed as it (it.id)}
+    {#each visible as it (it.id)}
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="relative border rounded p-3 flex flex-col items-center group hover:shadow cursor-pointer"
+      <div class="relative border rounded-box p-3 flex flex-col items-center group hover:shadow-lg hover:-translate-y-0.5 transition cursor-pointer"
            on:click={() => open(it)}>
         <div class="text-5xl mb-2">
           {#if it.is_dir}
@@ -342,6 +458,15 @@ onMount(() => {
         <!-- filename -->
         <span class="text-sm text-center break-all">{it.name}</span>
 
+        <!-- meta -->
+        <div class="mt-1 text-xs text-gray-500">
+          {#if !it.is_dir}
+            <span>{fmtSize(it.size)}</span>
+            <span class="mx-1">·</span>
+          {/if}
+          <span>{formatDateTime(it.updated_at)}</span>
+        </div>
+
         <!-- optional path shown only when searching -->
         {#if searchOpen && search.trim() !== ''}
           <span class="text-xs text-center text-gray-500 break-all">{it.path}</span>
@@ -349,11 +474,11 @@ onMount(() => {
 
         {#if role === 'teacher' || role === 'admin'}
           <div class="absolute top-1 right-1 hidden group-hover:flex gap-1">
-            <button class="btn btn-xs btn-circle" title="Rename"
+            <button class="btn btn-xs btn-circle" title="Rename" aria-label="Rename"
                     on:click|stopPropagation={() => rename(it)}>
               <i class="fa-solid fa-pen"></i>
             </button>
-            <button class="btn btn-xs btn-circle btn-error" title="Delete"
+            <button class="btn btn-xs btn-circle btn-error" title="Delete" aria-label="Delete"
                     on:click|stopPropagation={() => del(it)}>
               <i class="fa-solid fa-trash"></i>
             </button>
@@ -362,7 +487,7 @@ onMount(() => {
       </div>
     {/each}
 
-    {#if !displayed.length}
+    {#if !visible.length}
       <p class="col-span-full"><i>No files</i></p>
     {/if}
   </div>
@@ -380,7 +505,7 @@ onMount(() => {
         </tr>
       </thead>
       <tbody>
-        {#each displayed as it (it.id)}
+        {#each visible as it (it.id)}
           <tr class="hover:bg-base-200 cursor-pointer group" on:click={() => open(it)}>
             <td class="whitespace-nowrap">
               {#if it.is_dir}
@@ -400,11 +525,11 @@ onMount(() => {
 
             {#if role === 'teacher' || role === 'admin'}
               <td class="text-right whitespace-nowrap w-16">
-                <button class="btn btn-xs btn-circle invisible group-hover:visible" title="Rename"
+                <button class="btn btn-xs btn-circle invisible group-hover:visible" title="Rename" aria-label="Rename"
                         on:click|stopPropagation={() => rename(it)}>
                   <i class="fa-solid fa-pen"></i>
                 </button>
-                <button class="btn btn-xs btn-circle btn-error invisible group-hover:visible" title="Delete"
+                <button class="btn btn-xs btn-circle btn-error invisible group-hover:visible" title="Delete" aria-label="Delete"
                         on:click|stopPropagation={() => del(it)}>
                   <i class="fa-solid fa-trash"></i>
                 </button>
@@ -413,7 +538,7 @@ onMount(() => {
           </tr>
         {/each}
 
-        {#if !displayed.length}
+        {#if !visible.length}
           <tr>
             <td colspan={role === 'teacher' || role === 'admin' ? 4 : 3}><i>No files</i></td>
           </tr>
@@ -422,3 +547,29 @@ onMount(() => {
     </table>
   </div>
 {/if}
+
+{#if isDragging}
+  <div class="absolute inset-0 z-20 border-4 border-dashed border-primary/60 bg-base-100/70 backdrop-blur-sm rounded-box flex items-center justify-center">
+    <div class="text-center">
+      <i class="fa-solid fa-cloud-arrow-up text-4xl mb-2"></i>
+      <p class="font-medium">Drop files to upload</p>
+    </div>
+  </div>
+{/if}
+
+{#if dropErr}
+  <div class="alert alert-error mt-2">
+    <i class="fa-solid fa-triangle-exclamation"></i>
+    <span>{dropErr}</span>
+  </div>
+{/if}
+
+{#if dropping}
+  <div class="fixed bottom-4 right-4 z-30">
+    <div class="btn btn-primary btn-sm no-animation">
+      <span class="loading loading-dots loading-xs mr-2"></span>Uploading…
+    </div>
+  </div>
+{/if}
+
+</div>

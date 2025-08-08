@@ -4,11 +4,13 @@
   import { onMount } from 'svelte';
   import '../app.css';
   import Sidebar from '$lib/Sidebar.svelte';
+  import Background from '$lib/components/Background.svelte';
   import { sidebarOpen, sidebarCollapsed } from '$lib/sidebar';
   import { apiFetch } from '$lib/api';
   import { sha256 } from '$lib/hash';
 import { initKey } from '$lib/e2ee';
 import { compressImage } from '$lib/utils/compressImage';
+  import { onDestroy } from 'svelte';
 
   let settingsDialog: HTMLDialogElement;
   let passwordDialog: HTMLDialogElement;
@@ -101,19 +103,37 @@ import { compressImage } from '$lib/utils/compressImage';
     auth.init();
     initKey();
   });
+  
+  let prefersDark = false;
+  let media: MediaQueryList;
+  function applyThemeFromPreference() {
+    document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+  }
+  onMount(() => {
+    media = window.matchMedia('(prefers-color-scheme: dark)');
+    prefersDark = media.matches;
+    applyThemeFromPreference();
+    const handler = (e: MediaQueryListEvent) => { prefersDark = e.matches; applyThemeFromPreference(); };
+    media.addEventListener('change', handler);
+    onDestroy(() => media.removeEventListener('change', handler));
+  });
 </script>
 
+  <Background />
   {#if user}
     <Sidebar />
   {/if}
 
-  <div class={`min-h-screen flex flex-col ${user && !$sidebarCollapsed ? 'sm:ml-60' : ''}`}>
-    <div class="navbar bg-base-200 shadow sticky top-0 z-50">
-      <div class="flex-1">
+  <div class={`relative z-10 min-h-screen flex flex-col ${user && !$sidebarCollapsed ? 'sm:ml-60' : ''}`}>
+    <div class="sticky top-0 z-50 px-3 py-2">
+      <div class="appbar container mx-auto h-12 px-3 flex items-center justify-between">
+        <div class="flex items-center gap-2 min-w-0">
         {#if user}
           <button
-            class="btn btn-square btn-ghost mr-2 sm:hidden"
+            class="btn btn-square btn-ghost sm:hidden"
             on:click={() => sidebarOpen.update((v) => !v)}
+            aria-label="Open sidebar"
+            type="button"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -131,21 +151,31 @@ import { compressImage } from '$lib/utils/compressImage';
             </svg>
           </button>
         {/if}
-        <a href="/dashboard" class="btn btn-ghost text-xl">CodeGrader</a>
+        <a href="/dashboard" class="flex items-center gap-2 min-w-0">
+          <span class="brand-dot"></span>
+          <span class="truncate font-semibold tracking-tight">CodeGrader</span>
+        </a>
       </div>
-      <div class="flex-none gap-2">
+      <div class="flex items-center gap-2">
         {#if user}
+          <button class="btn btn-ghost" aria-label="Toggle theme" type="button" on:click={() => { prefersDark = !prefersDark; applyThemeFromPreference(); }}>
+            {#if prefersDark}
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M21.64 13A9 9 0 1111 2.36 7 7 0 0021.64 13z"/></svg>
+            {:else}
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M12 18a1 1 0 011 1v2a1 1 0 11-2 0v-2a1 1 0 011-1zm6.36-2.05l1.41 1.41a1 1 0 01-1.41 1.41l-1.41-1.41a1 1 0 111.41-1.41zM4.64 15.95a1 1 0 011.41 0l1.41 1.41a1 1 0 11-1.41 1.41L4.64 17.36a1 1 0 010-1.41zM12 4a1 1 0 011-1V1a1 1 0 10-2 0v2a1 1 0 011 1zm7 8a1 1 0 100-2h-2a1 1 0 100 2h2zM7 12a1 1 0 100-2H5a1 1 0 000 2h2zm10.95-7.36a1 1 0 010 1.41L16.54 7.46a1 1 0 11-1.41-1.41l1.41-1.41a1 1 0 011.41 0zM7.46 6.05a1 1 0 010-1.41L8.88 3.23a1 1 0 111.41 1.41L8.88 7.46A1 1 0 117.46 6.05z"/></svg>
+            {/if}
+          </button>
           <div class="dropdown dropdown-end">
-            <label tabindex="0" class="btn btn-ghost btn-circle avatar">
+            <button class="btn btn-ghost btn-circle avatar" aria-haspopup="menu" type="button">
               {#if user.avatar}
-                <div class="w-10 rounded-full"><img src={user.avatar} /></div>
+                <div class="w-10 rounded-full ring-1 ring-base-300/60"><img src={user.avatar} alt="User avatar" /></div>
               {:else}
-                <div class="w-10 rounded-full bg-neutral text-neutral-content flex items-center justify-center">
+                <div class="w-10 rounded-full bg-neutral text-neutral-content ring-1 ring-base-300/60 flex items-center justify-center">
                   {user.role.slice(0,1).toUpperCase()}
                 </div>
               {/if}
-            </label>
-            <ul tabindex="0" class="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-36">
+            </button>
+            <ul class="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-36" role="menu">
               <li><button on:click={openSettings}>Settings</button></li>
               <li><button on:click={logout}>Logout</button></li>
             </ul>
@@ -154,18 +184,18 @@ import { compressImage } from '$lib/utils/compressImage';
             <div class="modal-box space-y-4">
               <h3 class="font-bold text-lg">Settings</h3>
               <div class="flex items-center space-x-4">
-                <div class="avatar cursor-pointer" on:click={chooseAvatar}>
+                <button type="button" class="avatar cursor-pointer" on:click={chooseAvatar} aria-label="Choose avatar">
                   {#if avatarFile}
-                    <div class="w-16 rounded-full"><img src={avatarFile} /></div>
+                    <div class="w-16 rounded-full"><img src={avatarFile} alt="New avatar preview" /></div>
                   {:else if user.avatar}
-                    <div class="w-16 rounded-full"><img src={user.avatar} /></div>
+                    <div class="w-16 rounded-full"><img src={user.avatar} alt="Current avatar" /></div>
                   {:else}
                     <div class="w-16 rounded-full bg-neutral text-neutral-content flex items-center justify-center">
                       {user.role.slice(0,1).toUpperCase()}
                     </div>
                   {/if}
                   <input type="file" accept="image/*" on:change={onAvatarChange} bind:this={avatarInput} class="hidden" />
-                </div>
+                </button>
                 <div class="flex-1 space-y-1">
                   {#if user.bk_uid == null}
                     <input class="input input-bordered w-full" bind:value={name} />
@@ -211,13 +241,14 @@ import { compressImage } from '$lib/utils/compressImage';
             <form method="dialog" class="modal-backdrop"><button>close</button></form>
           </dialog>
         {:else}
-          <a href="/login" class="btn">Login</a>
+          <a href="/login" class="btn btn-ghost">Login</a>
           <a href="/register" class="btn btn-outline">Register</a>
         {/if}
       </div>
+      </div>
     </div>
 
-    <main class="container mx-auto flex-1 p-4">
+    <main class="container mx-auto flex-1 p-6 gap-6">
       <slot />
     </main>
 

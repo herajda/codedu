@@ -6,6 +6,7 @@ import { formatDateTime } from "$lib/date";
 import { page } from '$app/stores';
 import { goto } from '$app/navigation';
 import { marked } from 'marked';
+  import { Filter, Search, Plus, CheckCircle2, AlertTriangle, Clock } from 'lucide-svelte';
 
   let id = $page.params.id;
   $: if ($page.params.id !== id) {
@@ -28,6 +29,14 @@ import { marked } from 'marked';
   $: filtered = allStudents.filter(s => (s.name ?? s.email).toLowerCase().includes(search.toLowerCase()));
   let aTitle='';
   let aShowTraceback=false;
+  let aDescription = '';
+  let aDeadlineLocal = '';
+  let aMaxPoints: number = 100;
+  let aGradingPolicy: 'all_or_nothing' | 'weighted' = 'all_or_nothing';
+  let aPublished = false;
+  let aTemplateFile: File | null = null;
+  let aTestsFile: File | null = null;
+  let creating = false;
   let err='';
   let now = Date.now();
   let newName = '';
@@ -106,15 +115,69 @@ import { marked } from 'marked';
 
   async function createAssignment(){
     try{
-      await apiFetch(`/api/classes/${id}/assignments`,{
+      creating = true;
+      err = '';
+      // 1) create base assignment and capture id
+      const created = await apiJSON(`/api/classes/${id}/assignments`,{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({title:aTitle, show_traceback:aShowTraceback})
+        body:JSON.stringify({ title: aTitle, description: aDescription, show_traceback: aShowTraceback })
       });
+      const newId = created.id;
+      // 2) update advanced fields
+      const dlISO = aDeadlineLocal ? new Date(aDeadlineLocal).toISOString() : new Date(Date.now()+24*3600*1000).toISOString();
+      await apiFetch(`/api/assignments/${newId}`,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          title: aTitle,
+          description: aDescription,
+          deadline: dlISO,
+          max_points: aMaxPoints,
+          grading_policy: aGradingPolicy,
+          show_traceback: aShowTraceback
+        })
+      });
+      // 3) optional template upload
+      if (aTemplateFile) {
+        const fd = new FormData();
+        fd.append('file', aTemplateFile);
+        await apiFetch(`/api/assignments/${newId}/template`, { method: 'POST', body: fd });
+      }
+      // 4) optional unit tests upload
+      if (aTestsFile) {
+        const fd2 = new FormData();
+        fd2.append('file', aTestsFile);
+        await apiFetch(`/api/assignments/${newId}/tests/upload`, { method: 'POST', body: fd2 });
+      }
+      // 5) optional publish
+      if (aPublished) {
+        await apiFetch(`/api/assignments/${newId}/publish`, { method: 'PUT' });
+      }
+      // reset form
       aTitle='';
+      aDescription='';
       aShowTraceback=false;
+      aDeadlineLocal='';
+      aMaxPoints=100;
+      aGradingPolicy='all_or_nothing';
+      aPublished=false;
+      aTemplateFile=null;
+      aTestsFile=null;
       await load();
-    }catch(e:any){ err=e.message }
+    }catch(e:any){ err=e.message } finally { creating = false; }
+  }
+
+  // Quick create: one-click create and jump to assignment editor
+  async function quickCreateAssignment() {
+    try {
+      const created = await apiJSON(`/api/classes/${id}/assignments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Untitled assignment', description: '', show_traceback: false })
+      });
+      goto(`/assignments/${created.id}?new=1`);
+    } catch (e: any) { err = e.message; }
   }
 
 
@@ -166,66 +229,138 @@ import { marked } from 'marked';
 {:else if err}
   <p class="text-error">{err}</p>
 {:else}
-  <h1 class="text-2xl font-bold mb-4">{cls.name}</h1>
-  {#if role === 'student'}
-    <p class="mb-4"><strong>Teacher:</strong> {cls.teacher.name ?? cls.teacher.email}</p>
-  {/if}
+  <div class="flex items-start justify-between gap-3 mb-4">
+    <div>
+      <h1 class="text-2xl font-semibold">{cls.name}</h1>
+      {#if role === 'student'}
+        <p class="opacity-70 text-sm">Teacher: {cls.teacher.name ?? cls.teacher.email}</p>
+      {/if}
+    </div>
+    {#if role === 'teacher' || role === 'admin'}
+      <div class="flex gap-2">
+        <button class="btn" on:click={openAddModal} type="button"><Plus class="w-4 h-4" aria-hidden="true" /> Add students</button>
+        <button class="btn btn-outline" on:click={renameClass} type="button">Rename</button>
+      </div>
+    {/if}
+  </div>
 
-  <div class="space-y-6">
-
-
-    <div class="card bg-base-100 shadow">
-      <div class="card-body">
-        <h2 class="card-title">Assignments</h2>
-        <ul class="space-y-4">
-          {#each assignments as a}
+  <div class="grid gap-6 lg:grid-cols-3">
+    <section class="lg:col-span-2">
+      <div class="card-elevated p-5">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="font-semibold">Assignments</h2>
+          <div class="flex items-center gap-2">
+            <div class="join hidden sm:flex">
+              <button class="btn btn-sm join-item btn-ghost" type="button"><Filter class="w-4 h-4" aria-hidden="true" /> All</button>
+              <button class="btn btn-sm join-item btn-ghost" type="button"><Clock class="w-4 h-4" aria-hidden="true" /> Upcoming</button>
+              <button class="btn btn-sm join-item btn-ghost" type="button"><AlertTriangle class="w-4 h-4" aria-hidden="true" /> Late</button>
+            </div>
+            <label class="input input-bordered input-sm flex items-center gap-2">
+              <Search class="w-4 h-4" aria-hidden="true" />
+              <input type="text" class="grow" placeholder="Search" bind:value={search} />
+            </label>
+            {#if role === 'teacher' || role === 'admin'}
+              <button class="btn btn-sm" type="button" on:click={quickCreateAssignment}>New assignment</button>
+            {/if}
+          </div>
+        </div>
+        <ul class="space-y-3">
+          {#each assignments.filter(a => (a.title ?? '').toLowerCase().includes(search.toLowerCase())) as a}
             <li>
-              <a href={`/assignments/${a.id}`} class={`block no-underline text-current card shadow transition hover:-translate-y-1 hover:shadow-lg ${a.completed ? 'bg-success/10' : 'bg-base-100'}`}>
-                <div class="card-body flex-col sm:flex-row justify-between items-start sm:items-center gap-2 py-3">
-                  <span class="text-lg font-semibold text-primary">{a.title}</span>
-                  <div class="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:justify-end w-full sm:w-auto">
-                    <span class={`badge ${new Date(a.deadline)<new Date() && !a.completed ? 'badge-error' : 'badge-info'}`}>{formatDateTime(a.deadline)}</span>
-                    <span class="text-sm">{countdown(a.deadline)}</span>
-                    {#if role==='student'}
-                      <div class="flex items-center gap-2 w-full sm:w-auto">
-                        <progress class="progress progress-primary w-full sm:w-32" value={a.best || 0} max={a.max_points}></progress>
-                        <span class="text-sm">{a.best ?? 0}/{a.max_points}</span>
+              <a href={`/assignments/${a.id}`} class="block no-underline text-current">
+                <div class="card-elevated p-4 hover:shadow-md transition">
+                  <div class="flex items-center justify-between gap-4">
+                    <div class="min-w-0">
+                      <div class="font-medium truncate">{a.title}</div>
+                      <div class="text-sm opacity-70 flex items-center gap-2">
+                        <span class={new Date(a.deadline)<new Date() && !a.completed ? 'text-error' : ''}>{formatDateTime(a.deadline)}</span>
+                        <span>·</span>
+                        <span>{countdown(a.deadline)}</span>
                       </div>
-                    {/if}
-                    {#if role==='teacher' || role==='admin'}
-                      {#if a.published}
-                        <div class="flex items-center gap-2 w-full sm:w-auto">
-                          <progress class="progress progress-primary w-full sm:w-32" value={progressCounts[a.id] || 0} max={students.length}></progress>
-                          <span class="text-sm">{progressCounts[a.id] || 0}/{students.length}</span>
+                    </div>
+                    <div class="flex items-center gap-3 shrink-0">
+                      {#if role==='student'}
+                        <div class="flex items-center gap-2">
+                          <progress class="progress progress-primary w-24" value={a.best || 0} max={a.max_points}></progress>
+                          <span class="text-sm whitespace-nowrap">{a.best ?? 0}/{a.max_points}</span>
                         </div>
                       {/if}
-                    {/if}
-                    {#if !a.published}
-                      <span class="badge badge-warning">unpublished</span>
-                    {/if}
-                    {#if a.completed}
-                      <span class="badge badge-success">done</span>
-                    {/if}
+                      {#if role==='teacher' || role==='admin'}
+                        {#if a.published}
+                          <div class="flex items-center gap-2">
+                            <progress class="progress progress-primary w-24" value={progressCounts[a.id] || 0} max={students.length}></progress>
+                            <span class="text-sm whitespace-nowrap">{progressCounts[a.id] || 0}/{students.length}</span>
+                          </div>
+                        {/if}
+                      {/if}
+                      {#if a.completed}
+                        <span class="badge badge-success"><CheckCircle2 class="w-3 h-3" aria-hidden="true" /> Done</span>
+                      {/if}
+                      {#if !a.published}
+                        <span class="badge badge-warning">Unpublished</span>
+                      {/if}
+                    </div>
                   </div>
                 </div>
               </a>
             </li>
           {/each}
-          {#if !assignments.length}<li><i>No assignments yet</i></li>{/if}
+          {#if !assignments.length}
+            <li class="text-sm opacity-70">No assignments yet</li>
+          {/if}
         </ul>
 
-        {#if role === 'teacher' || role === 'admin'}
-          <form class="mt-4 space-y-2" on:submit|preventDefault={createAssignment}>
-            <input class="input input-bordered w-full" placeholder="Title" bind:value={aTitle} required>
-            <label class="flex items-center gap-2">
-              <input type="checkbox" class="checkbox" bind:checked={aShowTraceback}>
-              <span class="label-text">Show traceback to students</span>
-            </label>
-            <button class="btn">Create</button>
-          </form>
+      </div>
+    </section>
+
+    <aside class="space-y-6">
+      <div class="card-elevated p-5">
+        <h3 class="font-semibold mb-3">Class info</h3>
+        <ul class="text-sm space-y-2">
+          <li><span class="opacity-70">Students:</span> {students.length}</li>
+          <li><span class="opacity-70">Assignments:</span> {assignments.length}</li>
+        </ul>
+      </div>
+      {#if role === 'teacher' || role === 'admin'}
+        <div class="card-elevated p-5">
+          <h3 class="font-semibold mb-3">Manage</h3>
+          <div class="flex flex-wrap gap-2">
+            <button class="btn btn-outline" on:click={openAddModal} type="button"><Plus class="w-4 h-4" aria-hidden="true" /> Add students</button>
+            <button class="btn btn-outline" on:click={deleteClass} type="button">Delete class</button>
+          </div>
+        </div>
+      {/if}
+    </aside>
+  </div>
+  
+  <dialog bind:this={addDialog} class="modal">
+    <div class="modal-box max-w-2xl space-y-3">
+      <h3 class="font-bold text-lg">Add students</h3>
+      <label class="input input-bordered flex items-center gap-2">
+        <Search class="w-4 h-4" aria-hidden="true" />
+        <input type="text" class="grow" placeholder="Search students..." bind:value={search} />
+      </label>
+      <div class="max-h-80 overflow-auto divide-y divide-base-300/60">
+        {#each filtered as s}
+          <label class="flex items-center gap-2 py-2">
+            <input type="checkbox" class="checkbox"
+              checked={selectedIDs.includes(s.id)}
+              on:change={(e) => {
+                const checked = (e.target as HTMLInputElement).checked;
+                selectedIDs = checked ? Array.from(new Set([...selectedIDs, s.id])) : selectedIDs.filter((id) => id !== s.id);
+              }}
+            />
+            <span class="font-medium">{s.name ?? s.email}</span>
+          </label>
+        {/each}
+        {#if !filtered.length}
+          <p class="py-2 opacity-70 text-sm">No matches</p>
         {/if}
       </div>
+      <div class="modal-action">
+        <button class="btn" on:click={addStudents} type="button">Add selected</button>
+      </div>
     </div>
-
-  </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>
 {/if}

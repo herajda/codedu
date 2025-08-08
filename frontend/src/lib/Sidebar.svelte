@@ -14,13 +14,9 @@
     } catch(e:any){ err = e.message }
   });
 </script>
-<div class={`fixed left-0 z-40 pointer-events-none group sm:top-0 sm:h-screen top-16 h-[calc(100dvh-4rem)]
-    ${$sidebarOpen ? 'block' : 'hidden sm:block'}`}
->
-  <aside
-    class={`relative w-60 bg-base-200 p-4 h-full overflow-y-auto transition-transform pointer-events-auto
-        ${$sidebarCollapsed ? '-translate-x-full' : 'translate-x-0'}`}
-  >
+<div class={`fixed left-0 z-40 pointer-events-none group sm:top-0 sm:h-screen top-16 h-[calc(100dvh-4rem)] ${$sidebarOpen ? 'block' : 'hidden sm:block'}`}>
+  <aside class={`relative w-60 h-full overflow-y-auto transition-transform pointer-events-auto ${$sidebarCollapsed ? '-translate-x-full' : 'translate-x-0'} p-3`}>
+  <div class="surface h-full p-4">
   <button
     class="btn btn-square btn-ghost absolute right-2 top-2 sm:hidden"
     on:click={() => sidebarOpen.set(false)}
@@ -30,12 +26,16 @@
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
     </svg>
   </button>
-  <h2 class="font-bold mb-2">Classes</h2>
-  <ul class="menu mb-2">
+  <h2 class="font-semibold text-sm uppercase tracking-wider text-base-content/70 mb-3">Navigate</h2>
+  <ul class="menu mb-3">
     <li>
-      <a href="/messages" class={ $page.url.pathname.startsWith('/messages') ? 'active' : ''} on:click={() => sidebarOpen.set(false)}>Messages</a>
+      <a href="/messages" class={ $page.url.pathname.startsWith('/messages') ? 'active' : ''} on:click={() => sidebarOpen.set(false)}>
+        <i class="fa-solid fa-message"></i>
+        Messages
+      </a>
     </li>
   </ul>
+  <h2 class="font-semibold text-sm uppercase tracking-wider text-base-content/70 mb-2">Classes</h2>
   <ul class="menu">
     {#each classes as c}
       <li>
@@ -64,6 +64,7 @@
     {/if}
   </ul>
   {#if err}<p class="text-error mt-2">{err}</p>{/if}
+  </div>
   </aside>
   <button
     class="btn btn-square btn-xs hidden sm:flex absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto"
