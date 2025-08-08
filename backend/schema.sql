@@ -137,3 +137,10 @@ CREATE INDEX IF NOT EXISTS idx_messages_sender_recipient_created
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS image TEXT;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN NOT NULL DEFAULT FALSE;
 
+-- Blocked users table
+CREATE TABLE IF NOT EXISTS blocked_users (
+  blocker_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  blocked_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (blocker_id, blocked_id)
+);
+

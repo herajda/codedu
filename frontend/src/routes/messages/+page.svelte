@@ -1,10 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { apiJSON } from '$lib/api';
+  import { apiJSON, apiFetch } from '$lib/api';
   import { goto } from '$app/navigation';
-  import { getKey, decryptText } from '$lib/e2ee';
-  import { Search, MessageCircle, Users, Plus, MoreVertical, Archive, Trash2, Star, StarOff, Filter, RefreshCw } from 'lucide-svelte';
-  import NewChatModal from '$lib/components/NewChatModal.svelte';
+import { getKey, decryptText } from '$lib/e2ee';
+import { Search, MessageCircle, Users, Plus, MoreVertical, Archive, Trash2, Star, StarOff, Filter, RefreshCw } from 'lucide-svelte';
+import NewChatModal from '$lib/components/NewChatModal.svelte';
 
   let convos: any[] = [];
   let filteredConvos: any[] = [];
@@ -14,9 +14,11 @@
   let showArchived = false;
   let showNewChatModal = false;
   let totalUnreadCount = 0;
+  let blockedUsers: any[] = [];
 
-  onMount(() => { 
-    loadConvos(); 
+  onMount(() => {
+    loadConvos();
+    loadBlocked();
   });
 
   async function loadConvos() {
@@ -48,6 +50,24 @@
       console.error('Failed to load conversations:', error);
     } finally {
       isLoading = false;
+    }
+  }
+
+  async function loadBlocked() {
+    try {
+      blockedUsers = await apiJSON('/api/blocked-users');
+    } catch (e) {
+      console.error('Failed to load blocked users', e);
+    }
+  }
+
+  async function unblock(id: number) {
+    try {
+      await apiFetch(`/api/users/${id}/block`, { method: 'DELETE' });
+      blockedUsers = blockedUsers.filter(u => u.id !== id);
+      loadConvos();
+    } catch (e) {
+      console.error('Failed to unblock user', e);
     }
   }
 
@@ -388,6 +408,38 @@
                 </div>
               </div>
             </div>
+          </div>
+        {/each}
+      </div>
+    {/if}
+  </div>
+
+  <!-- Blocked Users -->
+  <div class="card-elevated mt-6">
+    <div class="p-4 border-b">
+      <h2 class="text-lg font-semibold">Blocked Users</h2>
+    </div>
+    {#if blockedUsers.length === 0}
+      <div class="p-4 text-base-content/60">No blocked users</div>
+    {:else}
+      <div class="divide-y divide-base-300/60">
+        {#each blockedUsers as u (u.id)}
+          <div class="p-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="avatar">
+                <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-base-300/60">
+                  {#if u.avatar}
+                    <img src={u.avatar} alt="Avatar" class="w-full h-full object-cover" />
+                  {:else}
+                    <div class="w-full h-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-sm font-semibold text-primary">
+                      {(u.name ?? u.email ?? '?').charAt(0).toUpperCase()}
+                    </div>
+                  {/if}
+                </div>
+              </div>
+              <span class="font-medium truncate max-w-[10rem]">{u.name ?? u.email}</span>
+            </div>
+            <button class="btn btn-sm" on:click={() => unblock(u.id)}>Unblock</button>
           </div>
         {/each}
       </div>
