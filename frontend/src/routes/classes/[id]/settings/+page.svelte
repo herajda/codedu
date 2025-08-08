@@ -43,8 +43,8 @@
     loading = true; err = ''; cls = null;
     try {
       const data = await apiJSON(`/api/classes/${id}`);
-      cls = data;
-      newName = data.name;
+      cls = data.class ?? data;
+      newName = cls.name;
       students = data.students ?? [];
       if (role === 'teacher' || role === 'admin') allStudents = await apiJSON('/api/students');
     } catch (e: any) { err = e.message }
