@@ -28,7 +28,7 @@ $: if (searchOpen && search.trim() !== '') {
   let filter: FileFilter = 'all';
   let sortKey: 'name' | 'date' | 'size' = 'name';
   let sortDir: 'asc' | 'desc' = 'asc';
-  $: visible = sortItems((displayed ?? []).filter(matchesFilter));
+  $: visible = sortItems((displayed ?? []).filter(matchesFilter), sortKey, sortDir);
 let breadcrumbs:{id:number|null,name:string}[] = [{id:null,name:'🏠'}];
 let currentParent:number|null = null;
 let loading = false;
@@ -231,26 +231,29 @@ function toggleView() {
     return true;
   }
 
-  function sortItems(arr: any[]) {
+  function sortItems(arr: any[], key: 'name' | 'date' | 'size', dir: 'asc' | 'desc') {
     const sorted = [...arr].sort((a, b) => {
       let va: any;
       let vb: any;
-      switch (sortKey) {
+      switch (key) {
         case 'size':
-          va = a.size ?? 0; vb = b.size ?? 0; break;
+          va = a.size ?? 0;
+          vb = b.size ?? 0;
+          break;
         case 'date':
           va = new Date(a.updated_at ?? a.created_at ?? 0).getTime();
           vb = new Date(b.updated_at ?? b.created_at ?? 0).getTime();
           break;
         case 'name':
         default:
-          va = (a.name ?? '').toLowerCase(); vb = (b.name ?? '').toLowerCase();
+          va = (a.name ?? '').toLowerCase();
+          vb = (b.name ?? '').toLowerCase();
       }
-      if (va < vb) return sortDir === 'asc' ? -1 : 1;
-      if (va > vb) return sortDir === 'asc' ? 1 : -1;
+      if (va < vb) return dir === 'asc' ? -1 : 1;
+      if (va > vb) return dir === 'asc' ? 1 : -1;
       return 0;
     });
-    if (sortKey === 'name') {
+    if (key === 'name') {
       sorted.sort((a, b) => (b.is_dir ? 1 : 0) - (a.is_dir ? 1 : 0));
     }
     return sorted;
@@ -379,19 +382,19 @@ onMount(() => {
         bind:value={search}
       />
     </div>
-    <!-- Sort controls -->
-    <div class="dropdown dropdown-end">
-      <button type="button" class="btn btn-sm" aria-haspopup="listbox" aria-label="Sort options">
-        <i class="fa-solid fa-arrow-up-wide-short mr-2"></i>Sort
-      </button>
-      <ul class="dropdown-content menu bg-base-200 rounded-box z-[1] w-44 p-2 shadow" role="listbox">
-        <li><button type="button" class={sortKey==='name' ? 'active' : ''} on:click={() => sortKey='name'} aria-label="Sort by name">Name</button></li>
-        <li><button type="button" class={sortKey==='date' ? 'active' : ''} on:click={() => sortKey='date'} aria-label="Sort by modified">Modified</button></li>
-        <li><button type="button" class={sortKey==='size' ? 'active' : ''} on:click={() => sortKey='size'} aria-label="Sort by size">Size</button></li>
-        <li class="mt-1"><button type="button" on:click={() => sortDir = sortDir==='asc' ? 'desc' : 'asc'} aria-label="Toggle sort direction">
-          Direction: {sortDir === 'asc' ? 'Asc' : 'Desc'}</button></li>
-      </ul>
-    </div>
+      <!-- Sort controls -->
+      <div class="dropdown dropdown-end">
+        <button type="button" class="btn btn-sm" tabindex="0" aria-haspopup="listbox" aria-label="Sort options">
+          <i class="fa-solid fa-arrow-up-wide-short mr-2"></i>Sort
+        </button>
+        <ul class="dropdown-content menu bg-base-200 rounded-box z-[1] w-44 p-2 shadow" tabindex="0" role="listbox">
+          <li><button type="button" class={sortKey==='name' ? 'active' : ''} on:click={() => sortKey='name'} aria-label="Sort by name">Name</button></li>
+          <li><button type="button" class={sortKey==='date' ? 'active' : ''} on:click={() => sortKey='date'} aria-label="Sort by modified">Modified</button></li>
+          <li><button type="button" class={sortKey==='size' ? 'active' : ''} on:click={() => sortKey='size'} aria-label="Sort by size">Size</button></li>
+          <li class="mt-1"><button type="button" on:click={() => sortDir = sortDir==='asc' ? 'desc' : 'asc'} aria-label="Toggle sort direction">
+            Direction: {sortDir === 'asc' ? 'Asc' : 'Desc'}</button></li>
+        </ul>
+      </div>
   </div>
   {#if role==='teacher' || role==='admin'}
     <div class="flex items-center gap-2 ml-2">
