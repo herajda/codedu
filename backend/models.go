@@ -1024,12 +1024,14 @@ func IsBlocked(a, b int) (bool, error) {
 }
 
 type Conversation struct {
-	OtherID     int     `db:"other_id" json:"other_id"`
-	Name        *string `db:"name" json:"name"`
-	Avatar      *string `db:"avatar" json:"avatar"`
-	Email       string  `db:"email" json:"email"`
-	UnreadCount int     `db:"unread_count" json:"unread_count"`
-	Message
+        OtherID     int     `db:"other_id" json:"other_id"`
+        Name        *string `db:"name" json:"name"`
+        Avatar      *string `db:"avatar" json:"avatar"`
+        Email       string  `db:"email" json:"email"`
+       UnreadCount int     `db:"unread_count" json:"unread_count"`
+       Starred     bool    `db:"starred" json:"starred"`
+       Archived    bool    `db:"archived" json:"archived"`
+        Message
 }
 
 func ListRecentConversations(userID, limit int) ([]Conversation, error) {
@@ -1037,7 +1039,7 @@ func ListRecentConversations(userID, limit int) ([]Conversation, error) {
 	if limit <= 0 {
 		limit = 20
 	}
-	const q = `
+       const q = `
        WITH latest AS (
                SELECT *,
                       CASE WHEN sender_id=$1 THEN recipient_id ELSE sender_id END AS other_id,
@@ -1055,14 +1057,38 @@ func ListRecentConversations(userID, limit int) ([]Conversation, error) {
        )
        SELECT l.other_id, u.name, u.avatar, u.email,
               l.id, l.sender_id, l.recipient_id, l.content, l.image, l.created_at,
-              COALESCE(un.unread_count,0) AS unread_count
+              COALESCE(un.unread_count,0) AS unread_count,
+              (sc.other_id IS NOT NULL) AS starred,
+              (ac.other_id IS NOT NULL) AS archived
         FROM latest l
         JOIN users u ON u.id = l.other_id
         LEFT JOIN unread un ON un.other_id=l.other_id
+       LEFT JOIN starred_conversations sc ON sc.user_id=$1 AND sc.other_id=l.other_id
+       LEFT JOIN archived_conversations ac ON ac.user_id=$1 AND ac.other_id=l.other_id
         LEFT JOIN blocked_users b ON b.blocker_id=$1 AND b.blocked_id=l.other_id
        WHERE l.rn = 1 AND b.blocked_id IS NULL
        ORDER BY (COALESCE(un.unread_count,0) > 0) DESC, l.created_at DESC
        LIMIT $2`
-	err := DB.Select(&list, q, userID, limit)
-	return list, err
+       err := DB.Select(&list, q, userID, limit)
+       return list, err
+}
+
+func StarConversation(userID, otherID int) error {
+       _, err := DB.Exec(`INSERT INTO starred_conversations (user_id, other_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, userID, otherID)
+       return err
+}
+
+func UnstarConversation(userID, otherID int) error {
+       _, err := DB.Exec(`DELETE FROM starred_conversations WHERE user_id=$1 AND other_id=$2`, userID, otherID)
+       return err
+}
+
+func ArchiveConversation(userID, otherID int) error {
+       _, err := DB.Exec(`INSERT INTO archived_conversations (user_id, other_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, userID, otherID)
+       return err
+}
+
+func UnarchiveConversation(userID, otherID int) error {
+       _, err := DB.Exec(`DELETE FROM archived_conversations WHERE user_id=$1 AND other_id=$2`, userID, otherID)
+       return err
 }

@@ -1456,16 +1456,68 @@ func listMessages(c *gin.Context) {
 }
 
 func markMessagesReadHandler(c *gin.Context) {
-	otherID, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-		return
-	}
-	if err := MarkMessagesRead(c.GetInt("userID"), otherID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-		return
-	}
-	c.Status(http.StatusNoContent)
+        otherID, err := strconv.Atoi(c.Param("id"))
+        if err != nil {
+                c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+                return
+        }
+        if err := MarkMessagesRead(c.GetInt("userID"), otherID); err != nil {
+                c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+                return
+        }
+        c.Status(http.StatusNoContent)
+}
+
+func starConversation(c *gin.Context) {
+       id, err := strconv.Atoi(c.Param("id"))
+       if err != nil {
+               c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+               return
+       }
+       if err := StarConversation(c.GetInt("userID"), id); err != nil {
+               c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+               return
+       }
+       c.Status(http.StatusNoContent)
+}
+
+func unstarConversation(c *gin.Context) {
+       id, err := strconv.Atoi(c.Param("id"))
+       if err != nil {
+               c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+               return
+       }
+       if err := UnstarConversation(c.GetInt("userID"), id); err != nil {
+               c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+               return
+       }
+       c.Status(http.StatusNoContent)
+}
+
+func archiveConversation(c *gin.Context) {
+       id, err := strconv.Atoi(c.Param("id"))
+       if err != nil {
+               c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+               return
+       }
+       if err := ArchiveConversation(c.GetInt("userID"), id); err != nil {
+               c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+               return
+       }
+       c.Status(http.StatusNoContent)
+}
+
+func unarchiveConversation(c *gin.Context) {
+       id, err := strconv.Atoi(c.Param("id"))
+       if err != nil {
+               c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+               return
+       }
+       if err := UnarchiveConversation(c.GetInt("userID"), id); err != nil {
+               c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+               return
+       }
+       c.Status(http.StatusNoContent)
 }
 
 func blockUser(c *gin.Context) {

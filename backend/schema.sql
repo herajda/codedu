@@ -144,3 +144,17 @@ CREATE TABLE IF NOT EXISTS blocked_users (
   PRIMARY KEY (blocker_id, blocked_id)
 );
 
+-- Starred conversations table
+CREATE TABLE IF NOT EXISTS starred_conversations (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  other_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (user_id, other_id)
+);
+
+-- Archived conversations table
+CREATE TABLE IF NOT EXISTS archived_conversations (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  other_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (user_id, other_id)
+);
+
