@@ -131,6 +131,9 @@ func main() {
 		api.GET("/classes/:id", RoleGuard("teacher", "student", "admin"), getClass)
 
 		api.GET("/users/:id", RoleGuard("student", "teacher", "admin"), getUserPublic)
+		api.POST("/users/:id/block", RoleGuard("student", "teacher", "admin"), blockUser)
+		api.DELETE("/users/:id/block", RoleGuard("student", "teacher", "admin"), unblockUser)
+		api.GET("/blocked-users", RoleGuard("student", "teacher", "admin"), listBlockedUsers)
 
 		// Messaging
 		api.GET("/user-search", RoleGuard("student", "teacher", "admin"), searchUsers)

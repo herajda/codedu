@@ -8,13 +8,15 @@
   import { auth } from '$lib/auth';
   import { compressImage } from '$lib/utils/compressImage';
   import { 
-    ImagePlus, 
-    Send, 
-    ChevronLeft, 
+    ImagePlus,
+    Send,
+    ChevronLeft,
     ChevronRight,
-    Check, 
-    CheckCheck, 
-    MoreVertical, 
+    ChevronUp,
+    ChevronDown,
+    Check,
+    CheckCheck,
+    MoreVertical,
     Search,
     Paperclip,
     X,
@@ -22,6 +24,7 @@
   } from 'lucide-svelte';
   import { fade, scale } from 'svelte/transition';
   import { sidebarCollapsed } from '$lib/sidebar';
+  import UserProfileModal from '$lib/components/UserProfileModal.svelte';
 
   let id = $page.params.id;
   $: if ($page.params.id !== id) {
@@ -47,6 +50,13 @@
   let msgInput: HTMLTextAreaElement | null = null;
   let showAttachmentMenu = false;
   let showEmojiPicker = false;
+  let showProfile = false;
+  let showSearch = false;
+  let searchQuery = '';
+  let searchResults: number[] = [];
+  let searchPos = 0;
+  let searchInput: HTMLInputElement | null = null;
+  let msgEls: HTMLDivElement[] = [];
 
   // Common emojis for the picker
   const commonEmojis = [
@@ -96,6 +106,46 @@
   }
 
   $: msg, adjustHeight();
+
+  function toggleSearch() {
+    showSearch = !showSearch;
+    if (showSearch) {
+      setTimeout(() => searchInput?.focus(), 0);
+    } else {
+      searchQuery = '';
+      searchResults = [];
+    }
+  }
+
+  function updateSearch() {
+    searchResults = [];
+    if (!searchQuery.trim()) return;
+    const q = searchQuery.toLowerCase();
+    searchResults = convo.map((m, i) => m.text?.toLowerCase().includes(q) ? i : -1).filter(i => i >= 0);
+    searchPos = 0;
+    if (searchResults.length > 0) scrollToResult();
+  }
+
+  function scrollToResult() {
+    const idx = searchResults[searchPos];
+    const el = msgEls[idx];
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function nextResult() {
+    if (searchResults.length === 0) return;
+    searchPos = (searchPos + 1) % searchResults.length;
+    scrollToResult();
+  }
+
+  function prevResult() {
+    if (searchResults.length === 0) return;
+    searchPos = (searchPos - 1 + searchResults.length) % searchResults.length;
+    scrollToResult();
+  }
+
+  $: searchQuery, updateSearch();
+  $: convo, updateSearch();
 
   function formatTime(d: string | number | Date) {
     return new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -171,6 +221,8 @@
     else convo = list;
     offset += list.length;
     if (list.length < pageSize) hasMore = false;
+    msgEls = [];
+    updateSearch();
   }
 
   async function send() {
@@ -267,6 +319,20 @@
     r.readAsDataURL(compressed);
   }
 
+  function openProfile() {
+    showProfile = true;
+  }
+
+  async function blockThisUser() {
+    if (!confirm('Block this user?')) return;
+    try {
+      await apiFetch(`/api/users/${id}/block`, { method: 'POST' });
+      goto('/messages');
+    } catch (e) {
+      console.error('Failed to block user', e);
+    }
+  }
+
   // Derived list of image URLs in the conversation (in message order)
   $: imageUrls = convo.filter((m) => !!m.image).map((m) => m.image as string);
 
@@ -359,7 +425,7 @@
     
     <!-- Header Actions -->
     <div class="flex items-center gap-2">
-      <button class="btn btn-ghost btn-circle hover:bg-base-200/80 transition-all duration-200">
+      <button class="btn btn-ghost btn-circle hover:bg-base-200/80 transition-all duration-200" on:click={toggleSearch}>
         <Search class="w-4 h-4" />
       </button>
       <div class="dropdown dropdown-bottom dropdown-end">
@@ -367,13 +433,27 @@
           <MoreVertical class="w-4 h-4" />
         </button>
         <ul class="dropdown-content menu p-2 shadow-lg bg-base-100 rounded-box w-52 border border-base-300/30 z-50">
-          <li><button class="gap-2">View Profile</button></li>
-          <li><button class="gap-2">Mute Notifications</button></li>
-          <li><button class="gap-2 text-error">Block User</button></li>
+          <li><button class="gap-2" on:click={openProfile}>View Profile</button></li>
+          <li><button class="gap-2 text-error" on:click={blockThisUser}>Block User</button></li>
         </ul>
       </div>
     </div>
   </div>
+
+  {#if showSearch}
+    <div class="p-2 border-b border-base-300 bg-base-100 flex items-center gap-2" in:fade out:fade>
+      <input class="input input-sm input-bordered flex-1" placeholder="Search messages" bind:value={searchQuery} bind:this={searchInput} />
+      <button class="btn btn-sm" on:click={prevResult}>
+        <ChevronUp class="w-4 h-4" />
+      </button>
+      <button class="btn btn-sm" on:click={nextResult}>
+        <ChevronDown class="w-4 h-4" />
+      </button>
+      <button class="btn btn-sm" on:click={toggleSearch}>
+        <X class="w-4 h-4" />
+      </button>
+    </div>
+  {/if}
 
   <!-- Enhanced Chat Messages -->
   <div class="flex-1 overflow-hidden relative z-0">
@@ -395,7 +475,10 @@
           </div>
         {/if}
         
-        <div class={`flex ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'} group`}>
+        <div
+          class={`flex ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'} group ${searchResults.includes(index) ? 'bg-warning/20' : ''}`}
+          bind:this={(el) => (msgEls[index] = el)}
+        >
           <div class="flex gap-3 max-w-[75%] items-end">
             {#if m.sender_id !== $auth?.id}
               <div class="avatar flex-shrink-0">
@@ -587,6 +670,10 @@
       </button>
     {/if}
   </div>
+{/if}
+
+{#if showProfile}
+  <UserProfileModal userId={parseInt(id)} on:close={() => (showProfile = false)} />
 {/if}
 
 <style>

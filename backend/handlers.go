@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/jpeg"
@@ -1399,7 +1400,11 @@ func createMessage(c *gin.Context) {
 	}
 	msg := &Message{SenderID: c.GetInt("userID"), RecipientID: req.To, Content: req.Content, Image: req.Image}
 	if err := CreateMessage(msg); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		if errors.Is(err, ErrBlocked) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "blocked"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		}
 		return
 	}
 	c.JSON(http.StatusCreated, msg)
@@ -1444,4 +1449,39 @@ func markMessagesReadHandler(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+func blockUser(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if err := BlockUser(c.GetInt("userID"), id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func unblockUser(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if err := UnblockUser(c.GetInt("userID"), id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func listBlockedUsers(c *gin.Context) {
+	list, err := ListBlockedUsers(c.GetInt("userID"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, list)
 }
