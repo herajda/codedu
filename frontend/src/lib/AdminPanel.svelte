@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { apiFetch, apiJSON } from '$lib/api';
   import { sha256 } from '$lib/hash';
+  import { formatDate } from "$lib/date";
 
   // tabs state
   let tab: 'teachers' | 'users' | 'classes' = 'teachers';
@@ -87,7 +88,7 @@
                 {#each roles as r}<option>{r}</option>{/each}
               </select>
             </td>
-            <td>{new Date(u.created_at).toLocaleDateString()}</td>
+            <td>{formatDate(u.created_at)}</td>
           </tr>
         {/each}
         {#if !users.length}
@@ -110,7 +111,7 @@
             <td>{c.id}</td>
             <td><a href={`/classes/${c.id}`} class="link link-primary">{c.name}</a></td>
             <td>{c.teacher_id}</td>
-            <td>{new Date(c.created_at).toLocaleDateString()}</td>
+            <td>{formatDate(c.created_at)}</td>
           </tr>
         {/each}
         {#if !classes.length}

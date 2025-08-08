@@ -1,11 +1,11 @@
 <script lang="ts">
-import { onMount, onDestroy } from 'svelte'
-  import { get } from 'svelte/store'
+import { onMount, onDestroy, tick } from 'svelte'
   import { auth } from '$lib/auth'
 import { apiFetch, apiJSON } from '$lib/api'
 import { createEventSource } from '$lib/sse'
 import { MarkdownEditor } from '$lib'
 import { marked } from 'marked'
+import { formatDateTime } from "$lib/date";
 import DOMPurify from 'dompurify'
 import { goto } from '$app/navigation'
 import { page } from '$app/stores'
@@ -13,7 +13,8 @@ import { page } from '$app/stores'
 
 
 $: id = $page.params.id
-const role = get(auth)?.role!;
+let role = '';
+$: role = $auth?.role ?? '';
 
   let assignment:any=null
   let tests:any[]=[] // teacher/admin only
@@ -24,6 +25,8 @@ const role = get(auth)?.role!;
   let allSubs:any[]=[]     // teacher view
   let students:any[]=[]    // class roster for teacher
   let progress:any[]=[]    // computed progress per student
+  let expanded:number|null=null
+  let progressDetails:HTMLDetailsElement;
   let pointsEarned=0
   let done=false
   let percent=0
@@ -31,6 +34,7 @@ const role = get(auth)?.role!;
   let tStdin='', tStdout='', tLimit='', tWeight='1'
   let files: File[] = []
   let templateFile:File|null=null
+  let unittestFile:File|null=null
   let submitDialog: HTMLDialogElement;
   let testsDialog: HTMLDialogElement;
 $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100) : 0;
@@ -79,12 +83,22 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     }catch(e:any){ err=e.message }
   }
 
-  onMount(() => {
-    load()
-    esCtrl = createEventSource(
-      '/api/events',
-      (src) => {
-    src.addEventListener('status', (ev) => {
+
+  onMount(async () => {
+    await load()
+    if(typeof sessionStorage!=='undefined'){
+      const open = sessionStorage.getItem(`assign-${id}-details-open`)
+      if(open==='1') progressDetails.open = true
+      const saved = sessionStorage.getItem(`assign-${id}-expanded`)
+      if(saved) expanded = parseInt(saved)
+      await tick()
+      const scroll = sessionStorage.getItem(`assign-${id}-scroll`)
+      if(scroll) window.scrollTo(0, parseInt(scroll))
+    }
+    window.addEventListener('beforeunload', saveState)
+    
+    es = new EventSource('/api/events')
+    es.addEventListener('status', (ev) => {
       const d = JSON.parse((ev as MessageEvent).data)
       if(latestSub && d.submission_id===latestSub.id){
         latestSub.status = d.status
@@ -105,7 +119,11 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     )
   })
 
-  onDestroy(()=>{esCtrl?.close()})
+
+  onDestroy(()=>{
+    es?.close()
+    window.removeEventListener('beforeunload', saveState)
+  })
 
   async function addTest(){
     try{
@@ -127,6 +145,17 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     try{
       await apiFetch(`/api/assignments/${id}/template`,{method:'POST', body:fd})
       templateFile=null
+      await load()
+    }catch(e:any){ err=e.message }
+  }
+
+  async function uploadUnitTests(){
+    if(!unittestFile) return
+    const fd = new FormData()
+    fd.append('file', unittestFile)
+    try{
+      await apiFetch(`/api/assignments/${id}/tests/upload`,{method:'POST', body:fd})
+      unittestFile=null
       await load()
     }catch(e:any){ err=e.message }
   }
@@ -191,6 +220,19 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
       await apiFetch(`/api/tests/${tid}`,{method:'DELETE'})
       await load()
     }catch(e:any){ err=e.message }
+  }
+
+  function saveState(){
+    if(typeof sessionStorage==='undefined') return
+    sessionStorage.setItem(`assign-${id}-expanded`, expanded===null ? '' : String(expanded))
+    sessionStorage.setItem(`assign-${id}-details-open`, progressDetails?.open ? '1' : '0')
+    sessionStorage.setItem(`assign-${id}-scroll`, String(window.scrollY))
+  }
+
+  function toggleStudent(id:number){
+    expanded = expanded===id ? null : id
+    progressDetails.open = true
+    saveState()
   }
 
   function statusColor(s:string){
@@ -277,7 +319,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           {/if}
         </div>
         <div class="markdown">{@html safeDesc}</div>
-        <p><strong>Deadline:</strong> {new Date(assignment.deadline).toLocaleString()}</p>
+        <p><strong>Deadline:</strong> {formatDateTime(assignment.deadline)}</p>
         <p><strong>Max points:</strong> {assignment.max_points}</p>
         <p><strong>Policy:</strong> {assignment.grading_policy}</p>
         {#if assignment.template_path}
@@ -306,49 +348,55 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
   <!-- tests list moved to modal -->
 
 {#if role==='teacher' || role==='admin'}
-  <details class="mb-4">
+  <details class="mb-4" bind:this={progressDetails} on:toggle={saveState}>
     <summary class="cursor-pointer font-semibold">Student progress</summary>
     <div class="overflow-x-auto mt-2">
       <table class="table table-zebra">
         <thead>
-          <tr><th>Student</th><th>Status</th><th>Last submission</th><th>Attempts</th></tr>
+          <tr><th>Student</th><th>Status</th><th>Last submission</th></tr>
         </thead>
         <tbody>
-          {#each progress as p}
-            <tr>
+          {#each progress as p (p.student.id)}
+            <tr class="cursor-pointer" on:click={() => toggleStudent(p.student.id)}>
               <td>{p.student.name ?? p.student.email}</td>
               <td><span class={`badge ${statusColor(p.latest ? p.latest.status : 'none')}`}>{p.latest ? p.latest.status : 'none'}</span></td>
-              <td>{p.latest ? new Date(p.latest.created_at).toLocaleString() : '-'}</td>
-              <td>
-                {#if p.all && p.all.length}
-                  <ul class="timeline timeline-vertical timeline-compact m-0 p-0">
-                    {#each p.all as s, i}
-                      <li>
-                        {#if i !== 0}<hr />{/if}
-                        <div class="timeline-middle">
-                          {#if s.status === 'completed' || s.status === 'passed'}
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-success">
-                              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
-                            </svg>
-                          {:else}
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-error">
-                              <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM8.28 7.22a.75.75 0 0 0-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 1 0 1.06 1.06L10 11.06l1.72 1.72a.75.75 0 1 0 1.06-1.06L11.06 10l1.72-1.72a.75.75 0 0 0-1.06-1.06L10 8.94 8.28 7.22Z" clip-rule="evenodd" />
-                            </svg>
-                          {/if}
-                        </div>
-                        <div class="timeline-end timeline-box flex items-center m-0">
-                          <a class="link" href={`/submissions/${s.id}`}>{new Date(s.created_at).toLocaleString()}</a>
-                        </div>
-                        {#if i !== p.all.length - 1}<hr />{/if}
-                      </li>
-                    {/each}
-                  </ul>
-                {/if}
-              </td>
+              <td>{p.latest ? formatDateTime(p.latest.created_at) : '-'}</td>
             </tr>
+            {#if expanded === p.student.id}
+              <tr>
+                <td colspan="3">
+                  {#if p.all && p.all.length}
+                    <ul class="timeline timeline-vertical timeline-compact m-0 p-0">
+                      {#each p.all as s, i}
+                        <li>
+                          {#if i !== 0}<hr />{/if}
+                          <div class="timeline-middle">
+                            {#if s.status === 'completed' || s.status === 'passed'}
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-success">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
+                              </svg>
+                            {:else}
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-error">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM8.28 7.22a.75.75 0 0 0-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 1 0 1.06 1.06L10 11.06l1.72 1.72a.75.75 0 1 0 1.06-1.06L11.06 10l1.72-1.72a.75.75 0 0 0-1.06-1.06L10 8.94 8.28 7.22Z" clip-rule="evenodd" />
+                              </svg>
+                            {/if}
+                          </div>
+                          <div class="timeline-end timeline-box flex items-center m-0">
+                            <a class="link" href={`/submissions/${s.id}`} on:click={saveState}>{formatDateTime(s.created_at)}</a>
+                          </div>
+                          {#if i !== p.all.length - 1}<hr />{/if}
+                        </li>
+                      {/each}
+                    </ul>
+                  {:else}
+                    <i>No submissions</i>
+                  {/if}
+                </td>
+              </tr>
+            {/if}
           {/each}
           {#if !progress.length}
-            <tr><td colspan="4"><i>No students</i></td></tr>
+            <tr><td colspan="3"><i>No students</i></td></tr>
           {/if}
         </tbody>
       </table>
@@ -370,7 +418,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             <tbody>
               {#each submissions as s}
                 <tr>
-                  <td>{new Date(s.created_at).toLocaleString()}</td>
+                  <td>{formatDateTime(s.created_at)}</td>
                   <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span></td>
                   <td><a href={`/submissions/${s.id}`} class="btn btn-sm btn-outline">view</a></td>
                 </tr>
@@ -443,15 +491,21 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
       <div class="space-y-4 max-h-60 overflow-y-auto">
         {#each tests as t, i}
           <div class="border rounded p-2 space-y-2">
-            <div class="font-semibold">Test {i+1}</div>
-            <label class="form-control w-full space-y-1">
-              <span class="label-text">Input</span>
-              <input class="input input-bordered w-full" placeholder="stdin" bind:value={t.stdin}>
-            </label>
-            <label class="form-control w-full space-y-1">
-              <span class="label-text">Expected output</span>
-              <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={t.expected_stdout}>
-            </label>
+            <div class="font-semibold">Test {i+1}
+              {#if t.unittest_name}
+                <span class="badge badge-outline ml-2">{t.unittest_name}</span>
+              {/if}
+            </div>
+            {#if !t.unittest_name}
+              <label class="form-control w-full space-y-1">
+                <span class="label-text">Input</span>
+                <input class="input input-bordered w-full" placeholder="stdin" bind:value={t.stdin}>
+              </label>
+              <label class="form-control w-full space-y-1">
+                <span class="label-text">Expected output</span>
+                <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={t.expected_stdout}>
+              </label>
+            {/if}
             <label class="form-control w-full space-y-1">
               <span class="label-text">Time limit (s)</span>
               <input class="input input-bordered w-full" placeholder="seconds" bind:value={t.time_limit_sec}>
@@ -486,9 +540,14 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           <span class="label-text">Weight</span>
           <input class="input input-bordered w-full" placeholder="points" bind:value={tWeight}>
         </label>
-        <div class="modal-action">
-          <button class="btn btn-primary" on:click={addTest} disabled={!tStdin || !tStdout}>Add</button>
-        </div>
+      <div class="modal-action">
+        <button class="btn btn-primary" on:click={addTest} disabled={!tStdin || !tStdout}>Add</button>
+      </div>
+      <h4 class="font-semibold mt-4">Upload unittest file</h4>
+      <input type="file" accept=".py" class="file-input file-input-bordered w-full" on:change={e=>unittestFile=(e.target as HTMLInputElement).files?.[0] || null}>
+      <div class="modal-action">
+        <button class="btn" on:click={uploadUnitTests} disabled={!unittestFile}>Upload</button>
+      </div>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>

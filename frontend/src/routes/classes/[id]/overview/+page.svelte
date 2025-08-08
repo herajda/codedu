@@ -2,6 +2,7 @@
 import { onMount } from 'svelte';
 import { apiJSON } from '$lib/api';
 import { page } from '$app/stores';
+import { formatDateTime } from "$lib/date";
 
 let id = $page.params.id;
 $: if ($page.params.id !== id) { id = $page.params.id; load(); }
@@ -78,7 +79,7 @@ onMount(load);
     {#each cls.upcoming as a}
       <li class="flex justify-between items-center">
         <a href={`/assignments/${a.id}`} class="link">{a.title}</a>
-        <span class="badge badge-info">{new Date(a.deadline).toLocaleString()}</span>
+        <span class="badge badge-info">{formatDateTime(a.deadline)}</span>
       </li>
     {/each}
     {#if !cls.upcoming.length}

@@ -2,6 +2,7 @@
 import { onMount } from 'svelte';
 import { apiJSON } from '$lib/api';
 import { page } from '$app/stores';
+import { formatDateTime } from "$lib/date";
 import { goto } from '$app/navigation';
 
 let id = $page.params.id;
@@ -62,7 +63,7 @@ onMount(load);
               <i class="fa-solid fa-book text-secondary mr-2"></i>{n.name}
             </td>
             <td class="text-right">{fmtSize(n.size)}</td>
-            <td class="text-right">{new Date(n.updated_at).toLocaleString()}</td>
+            <td class="text-right">{formatDateTime(n.updated_at)}</td>
           </tr>
         {/each}
         {#if !notes.length}

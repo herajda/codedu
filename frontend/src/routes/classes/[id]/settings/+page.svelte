@@ -1,6 +1,5 @@
 <script lang="ts">
 import { onMount, tick } from 'svelte';
-import { get } from 'svelte/store';
 import { auth } from '$lib/auth';
 import { apiFetch, apiJSON } from '$lib/api';
 import { page } from '$app/stores';
@@ -8,7 +7,8 @@ import { goto } from '$app/navigation';
 
 let id = $page.params.id;
 $: if ($page.params.id !== id) { id = $page.params.id; load(); }
-const role: string = get(auth)?.role ?? '';
+let role = '';
+$: role = $auth?.role ?? '';
 
 let cls:any = null;
 let loading = true;
