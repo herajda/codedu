@@ -171,11 +171,15 @@ func main() {
 
 		// Messaging
 		api.GET("/user-search", RoleGuard("student", "teacher", "admin"), searchUsers)
-		api.GET("/messages", RoleGuard("student", "teacher", "admin"), listConversations)
-		api.POST("/messages", RoleGuard("student", "teacher", "admin"), createMessage)
-		api.GET("/messages/:id", RoleGuard("student", "teacher", "admin"), listMessages)
-		api.PUT("/messages/:id/read", RoleGuard("student", "teacher", "admin"), markMessagesReadHandler)
-		api.GET("/messages/events", RoleGuard("student", "teacher", "admin"), messageEventsHandler)
+        api.GET("/messages", RoleGuard("student", "teacher", "admin"), listConversations)
+        api.POST("/messages", RoleGuard("student", "teacher", "admin"), createMessage)
+        api.GET("/messages/:id", RoleGuard("student", "teacher", "admin"), listMessages)
+        api.PUT("/messages/:id/read", RoleGuard("student", "teacher", "admin"), markMessagesReadHandler)
+        api.POST("/messages/:id/star", RoleGuard("student", "teacher", "admin"), starConversation)
+        api.DELETE("/messages/:id/star", RoleGuard("student", "teacher", "admin"), unstarConversation)
+        api.POST("/messages/:id/archive", RoleGuard("student", "teacher", "admin"), archiveConversation)
+        api.DELETE("/messages/:id/archive", RoleGuard("student", "teacher", "admin"), unarchiveConversation)
+        api.GET("/messages/events", RoleGuard("student", "teacher", "admin"), messageEventsHandler)
 
 		// Class file system
 		api.GET("/classes/:id/files", RoleGuard("teacher", "student", "admin"), listClassFiles)

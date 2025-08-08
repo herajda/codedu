@@ -3,7 +3,7 @@
   import { apiJSON, apiFetch } from '$lib/api';
   import { goto } from '$app/navigation';
 import { getKey, decryptText } from '$lib/e2ee';
-import { Search, MessageCircle, Users, Plus, MoreVertical, Archive, Trash2, Star, StarOff, Filter, RefreshCw } from 'lucide-svelte';
+import { Search, MessageCircle, Plus, MoreVertical, Archive, Trash2, Star, StarOff, RefreshCw } from 'lucide-svelte';
 import NewChatModal from '$lib/components/NewChatModal.svelte';
 
   let convos: any[] = [];
@@ -15,17 +15,7 @@ import NewChatModal from '$lib/components/NewChatModal.svelte';
   let showNewChatModal = false;
   let totalUnreadCount = 0;
   let blockedUsers: any[] = [];
-  let starredChats: number[] = [];
-  let archivedChats: number[] = [];
-
-  const STAR_KEY = 'starredChats';
-  const ARCHIVE_KEY = 'archivedChats';
-
   onMount(() => {
-    if (typeof localStorage !== 'undefined') {
-      try { starredChats = JSON.parse(localStorage.getItem(STAR_KEY) || '[]'); } catch {}
-      try { archivedChats = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]'); } catch {}
-    }
     loadConvos();
     loadBlocked();
   });
@@ -50,9 +40,7 @@ import NewChatModal from '$lib/components/NewChatModal.svelte';
         c.isYesterday = isYesterday(c.lastMessageTime);
         c.isThisWeek = isThisWeek(c.lastMessageTime);
         c.displayName = c.name ?? c.email?.split('@')[0] ?? 'Unknown';
-                c.status = getStatus(c.lastMessageTime);
-        c.starred = starredChats.includes(c.other_id);
-        c.archived = archivedChats.includes(c.other_id);
+        c.status = getStatus(c.lastMessageTime);
       }
       convos = list.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       totalUnreadCount = convos.reduce((sum, c) => sum + (c.unread_count || 0), 0);
@@ -188,30 +176,38 @@ import NewChatModal from '$lib/components/NewChatModal.svelte';
     showNewChatModal = false;
   }
 
-  function toggleArchive(convo: any, event: Event) {
+  async function toggleArchive(convo: any, event: Event) {
     event.stopPropagation();
     const id = convo.other_id ?? convo.id;
-    convo.archived = !convo.archived;
-    if (convo.archived) {
-      if (!archivedChats.includes(id)) archivedChats.push(id);
-    } else {
-      archivedChats = archivedChats.filter(cid => cid !== id);
+    try {
+      if (convo.archived) {
+        await apiFetch(`/api/messages/${id}/archive`, { method: 'DELETE' });
+        convo.archived = false;
+      } else {
+        await apiFetch(`/api/messages/${id}/archive`, { method: 'POST' });
+        convo.archived = true;
+      }
+      applyFilters();
+    } catch (e) {
+      console.error('Failed to toggle archive', e);
     }
-    localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archivedChats));
-    applyFilters();
   }
 
-  function toggleStar(convo: any, event: Event) {
+  async function toggleStar(convo: any, event: Event) {
     event.stopPropagation();
     const id = convo.other_id ?? convo.id;
-    convo.starred = !convo.starred;
-    if (convo.starred) {
-      if (!starredChats.includes(id)) starredChats.push(id);
-    } else {
-      starredChats = starredChats.filter(cid => cid !== id);
+    try {
+      if (convo.starred) {
+        await apiFetch(`/api/messages/${id}/star`, { method: 'DELETE' });
+        convo.starred = false;
+      } else {
+        await apiFetch(`/api/messages/${id}/star`, { method: 'POST' });
+        convo.starred = true;
+      }
+      applyFilters();
+    } catch (e) {
+      console.error('Failed to toggle star', e);
     }
-    localStorage.setItem(STAR_KEY, JSON.stringify(starredChats));
-    applyFilters();
   }
 
   function deleteChat(convo: any, event: Event) {
