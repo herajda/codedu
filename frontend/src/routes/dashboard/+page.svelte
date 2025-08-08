@@ -221,16 +221,6 @@
           {/if}
         </ul>
       </div>
-      <div class="card-elevated p-5">
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="font-semibold">Quick actions</h3>
-        </div>
-        <div class="flex flex-wrap gap-3">
-          <a href="/my-classes" class="btn btn-primary btn-outline"><LayoutGrid class="w-4 h-4" aria-hidden="true" /> My classes</a>
-          <a href="/messages" class="btn btn-ghost"><MessageSquare class="w-4 h-4" aria-hidden="true" /> Messages</a>
-          <a href="/files/0" class="btn btn-ghost"><FolderOpen class="w-4 h-4" aria-hidden="true" /> Files</a>
-        </div>
-      </div>
     </section>
   {:else if role === 'teacher'}
     <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
