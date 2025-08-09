@@ -149,40 +149,88 @@ body.hide-navbar .navbar {
   @apply bg-base-100/80 backdrop-blur supports-[backdrop-filter]:bg-base-100/85 border border-base-300/60;
 }
 
-/* Futuristic top bar */
-/* Sleek holo app bar */
+/* Futuristic top bar — match Sidebar glass + shadows */
 .appbar {
   position: relative;
-  border-radius: 0.9rem;
-  border: 1px solid color-mix(in oklab, hsl(var(--b3)) 55%, transparent);
-  /* Fully opaque frosted base so underlying text is not readable */
-  background: linear-gradient(180deg, hsl(var(--b1)), hsl(var(--b1) / 0.98));
-  backdrop-filter: blur(10px) saturate(120%);
-  -webkit-backdrop-filter: blur(10px) saturate(120%);
-  box-shadow: 0 8px 24px -18px rgba(var(--glow), 0.22);
+  border-radius: 1rem;
+  /* Clear glass plate base */
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  /* Stronger, layered drop shadows to increase protrusion */
+  box-shadow:
+    0 10px 10px rgba(0, 0, 0, 0.10),
+    0 10px 10px rgba(0, 0, 0, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.521);
+  /* Contain painting and isolate stacking to avoid ghosting artifacts */
+  /* Prevent child blending artifacts with page content */
+  isolation: isolate;
+  overflow: hidden;
+  contain: paint;
+}
+
+/* Dark theme glass plate adjustments */
+[data-theme='dark'] .appbar {
+  background: rgba(16, 22, 28, 0.62);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.35),
+    0 34px 70px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  filter: drop-shadow(0 8px 16px rgba(0,0,0,0.15)) drop-shadow(0 36px 56px rgba(0,0,0,0.35));
+}
+
+/* Light theme: make glass extra glossy/shiny */
+[data-theme='light'] .appbar {
+  background: rgba(255, 255, 255, 0.32);
+  border-color: rgba(255, 255, 255, 0.34);
+  box-shadow:
+    0 12px 24px rgba(0, 0, 0, 0.02),
+    0 40px 80px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.02),
+    inset 0 18px 40px rgba(255, 255, 255, 0.01);
+  filter: drop-shadow(0 10px 16px rgba(0,0,0,0.02)) drop-shadow(0 48px 64px rgba(0,0,0,0.04));
 }
 
 .appbar::before {
   content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  /* Enhanced glossy highlight */
+  position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
   background:
-    linear-gradient(180deg, rgba(var(--glow),0.15), rgba(var(--glow),0.06) 25%, rgba(var(--glow),0.02) 50%, transparent 70%),
-    radial-gradient(140% 80% at 50% -20%, rgba(var(--glow),0.25), rgba(var(--glow),0.06) 40%, transparent 60%),
-    radial-gradient(80% 40% at 80% 20%, rgba(var(--glow),0.1), transparent 50%);
+    linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.06) 24%, rgba(255,255,255,0.02) 52%, transparent 72%),
+    radial-gradient(120% 60% at 50% -10%, rgba(255,255,255,0.16), transparent 60%);
+  /* Avoid blend mode to prevent ghosting/phantom artifacts on hover */
+  mix-blend-mode: normal;
+}
+
+/* Light theme: stronger specular highlights and diagonal sheen */
+[data-theme='light'] .appbar::before {
+  background:
+    /* top-to-bottom glossy curve */
+    linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0.10) 26%, rgba(255,255,255,0.04) 54%, transparent 76%),
+    /* diagonal sheen */
+    linear-gradient(115deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.10) 22%, rgba(255,255,255,0.04) 38%, transparent 50%),
+    /* soft crown highlight */
+    radial-gradient(120% 60% at 50% -10%, rgba(255,255,255,0.20), transparent 60%),
+    /* small sparkle near top-left */
+    radial-gradient(40% 24% at 16% 2%, rgba(255,255,255,0.24), transparent 70%);
 }
 
 .appbar::after {
   content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background: linear-gradient(90deg, transparent, rgba(var(--glow), 0.04), transparent);
+  position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
+
+/* Light theme: subtle polished edge */
+[data-theme='light'] .appbar::after {
+  border-color: rgba(0, 0, 0, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+/* Normalize blend mode for all children to prevent text deformation through compositing */
+.appbar * { mix-blend-mode: normal; }
 
 .brand-dot {
   width: 10px;

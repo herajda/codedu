@@ -238,7 +238,9 @@
     position: relative;
     transition: background 150ms ease, color 150ms ease, transform 120ms ease, box-shadow 150ms ease;
   }
-  .nav-link:hover { background: hsl(var(--b3) / 0.08); transform: translateX(2px); box-shadow: 0 1px 0 hsl(var(--b3) / 0.08) inset; }
+  /* Gate hover effects so they only trigger when the sidebar itself is hovered.
+     This prevents underlying hover artifacts when elements overlay the sidebar (e.g., topbar). */
+  .sidebar-content:hover .nav-link:hover { background: hsl(var(--b3) / 0.08); transform: translateX(2px); box-shadow: 0 1px 0 hsl(var(--b3) / 0.08) inset; }
   .nav-link:focus-visible { outline: none; background: hsl(var(--b3) / 0.10); transform: translateX(2px); }
   .nav-link::after {
     content: "›";
@@ -252,7 +254,7 @@
     color: color-mix(in oklab, hsl(var(--b3)) 60%, transparent);
     pointer-events: none;
   }
-  .nav-link:hover::after, .nav-link:focus-visible::after { opacity: 0.9; transform: translateY(-50%) translateX(0); color: color-mix(in oklab, hsl(var(--p)) 70%, hsl(var(--pc)) 30%); }
+  .sidebar-content:hover .nav-link:hover::after, .nav-link:focus-visible::after { opacity: 0.9; transform: translateY(-50%) translateX(0); color: color-mix(in oklab, hsl(var(--p)) 70%, hsl(var(--pc)) 30%); }
   .nav-link.is-active {
     background: linear-gradient(90deg, hsl(var(--p) / 0.18), transparent 70%);
     color: color-mix(in oklab, hsl(var(--p)) 85%, hsl(var(--pc)) 15%);
@@ -269,7 +271,7 @@
   }
 
   .nav-icon { width: 1rem; text-align: center; opacity: 0.9; transition: transform 120ms ease, opacity 120ms ease, filter 200ms ease, color 150ms ease; }
-  .nav-link:hover .nav-icon, .nav-link:focus-visible .nav-icon { transform: translateX(2px) scale(1.05); opacity: 1; color: color-mix(in oklab, hsl(var(--p)) 65%, currentColor 35%); filter: drop-shadow(0 0 6px rgba(var(--glow), 0.15)); }
+  .sidebar-content:hover .nav-link:hover .nav-icon, .nav-link:focus-visible .nav-icon { transform: translateX(2px) scale(1.05); opacity: 1; color: color-mix(in oklab, hsl(var(--p)) 65%, currentColor 35%); filter: drop-shadow(0 0 6px rgba(var(--glow), 0.15)); }
 
   .nav-collapsible details { border-radius: 0.8rem; }
   .nav-summary {
@@ -283,9 +285,9 @@
     transition: background 150ms ease, transform 120ms ease, color 150ms ease;
     list-style: none;
   }
-  .nav-summary:hover { background: hsl(var(--b3) / 0.06); transform: translateX(2px); }
+  .sidebar-content:hover .nav-summary:hover { background: hsl(var(--b3) / 0.06); transform: translateX(2px); }
   .nav-summary:focus-visible { outline: none; background: hsl(var(--b3) / 0.10); transform: translateX(2px); }
-  .nav-summary:hover .nav-icon, .nav-summary:focus-visible .nav-icon { transform: translateX(2px) scale(1.04); opacity: 1; color: color-mix(in oklab, hsl(var(--p)) 60%, currentColor 40%); }
+  .sidebar-content:hover .nav-summary:hover .nav-icon, .nav-summary:focus-visible .nav-icon { transform: translateX(2px) scale(1.04); opacity: 1; color: color-mix(in oklab, hsl(var(--p)) 60%, currentColor 40%); }
   .nav-collapsible[data-open="true"] .nav-summary { background: hsl(var(--b3) / 0.08); }
 
   .nav-group { display: grid; gap: 0.15rem; padding: 0.25rem 0.25rem 0.25rem 1.7rem; }
@@ -301,7 +303,7 @@
     position: relative;
     transition: background 150ms ease, color 150ms ease, transform 120ms ease, box-shadow 150ms ease;
   }
-  .nav-sublink:hover { background: hsl(var(--b3) / 0.06); transform: translateX(2px); box-shadow: 0 1px 0 hsl(var(--b3) / 0.06) inset; }
+  .sidebar-content:hover .nav-sublink:hover { background: hsl(var(--b3) / 0.06); transform: translateX(2px); box-shadow: 0 1px 0 hsl(var(--b3) / 0.06) inset; }
   .nav-sublink:focus-visible { outline: none; background: hsl(var(--b3) / 0.10); transform: translateX(2px); }
   .nav-sublink::after {
     content: "›";
@@ -315,7 +317,7 @@
     color: color-mix(in oklab, hsl(var(--b3)) 50%, transparent);
     pointer-events: none;
   }
-  .nav-sublink:hover::after, .nav-sublink:focus-visible::after { opacity: 0.85; transform: translateY(-50%) translateX(0); color: color-mix(in oklab, hsl(var(--p)) 70%, hsl(var(--pc)) 30%); }
+  .sidebar-content:hover .nav-sublink:hover::after, .nav-sublink:focus-visible::after { opacity: 0.85; transform: translateY(-50%) translateX(0); color: color-mix(in oklab, hsl(var(--p)) 70%, hsl(var(--pc)) 30%); }
   .nav-sublink.is-active {
     background: linear-gradient(90deg, hsl(var(--p) / 0.16), transparent 65%);
     color: color-mix(in oklab, hsl(var(--p)) 85%, hsl(var(--pc)) 15%);
