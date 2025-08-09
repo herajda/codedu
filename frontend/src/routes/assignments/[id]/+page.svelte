@@ -70,6 +70,15 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
   $: isOverdue = assignment ? new Date(assignment.deadline) < new Date() : false
   $: timeUntilDeadline = assignment ? new Date(assignment.deadline).getTime() - Date.now() : 0
   $: deadlineSoon = timeUntilDeadline > 0 && timeUntilDeadline <= 24 * 60 * 60 * 1000
+  $: deadlineBadgeClass = isOverdue && !(role==='student' && done) ? 'badge-error' : 'badge-ghost'
+  $: deadlineLabel = assignment ? (
+      isOverdue
+        ? (role==='student' && done
+            ? `Deadline passed ${relativeToDeadline(assignment.deadline)}`
+            : `Due ${relativeToDeadline(assignment.deadline)}`
+          )
+        : `Due ${relativeToDeadline(assignment.deadline)}`
+    ) : ''
 
   async function publish(){
     try{
@@ -362,7 +371,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             {/if}
           </div>
           <div class="mt-3 flex flex-wrap items-center gap-2">
-            <span class={`badge ${isOverdue ? 'badge-error' : 'badge-ghost'}`}>{isOverdue ? 'Due' : 'Due'} {relativeToDeadline(assignment.deadline)}</span>
+            <span class={`badge ${deadlineBadgeClass}`}>{deadlineLabel}</span>
             <span class="badge badge-ghost">Max {assignment.max_points} pts</span>
             <span class="badge badge-ghost">{policyLabel(assignment.grading_policy)}</span>
             {#if role!=='student'}
