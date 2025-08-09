@@ -2,8 +2,8 @@
   import { onMount } from 'svelte';
   import { apiJSON, apiFetch } from '$lib/api';
   import { goto } from '$app/navigation';
-import { getKey, decryptText } from '$lib/e2ee';
-import { Search, MessageCircle, Plus, MoreVertical, Archive, Trash2, Star, StarOff, RefreshCw } from 'lucide-svelte';
+  import { getKey, decryptText } from '$lib/e2ee';
+  import { Search, MessageCircle, Plus, MoreVertical, Archive, Trash2, Star, StarOff, RefreshCw, X } from 'lucide-svelte';
 import NewChatModal from '$lib/components/NewChatModal.svelte';
 
   let convos: any[] = [];
@@ -15,6 +15,7 @@ import NewChatModal from '$lib/components/NewChatModal.svelte';
   let showNewChatModal = false;
   let totalUnreadCount = 0;
   let blockedUsers: any[] = [];
+  let showBlockedModal = false;
   onMount(() => {
     loadConvos();
     loadBlocked();
@@ -176,6 +177,13 @@ import NewChatModal from '$lib/components/NewChatModal.svelte';
     showNewChatModal = false;
   }
 
+  function openBlockedModal() {
+    showBlockedModal = true;
+    // Ensure latest list is loaded when opening
+    loadBlocked();
+  }
+  function closeBlockedModal() { showBlockedModal = false; }
+
   async function toggleArchive(convo: any, event: Event) {
     event.stopPropagation();
     const id = convo.other_id ?? convo.id;
@@ -246,6 +254,18 @@ import NewChatModal from '$lib/components/NewChatModal.svelte';
             <Plus class="w-4 h-4" />
             New Chat
           </button>
+          <!-- Settings Dropdown (opens Blocked Users modal) -->
+          <div class="dropdown dropdown-end">
+            <button class="btn btn-outline btn-sm gap-2">
+              <MoreVertical class="w-4 h-4" />
+              Settings
+            </button>
+            <ul class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-56 z-50 border border-base-300/30">
+              <li>
+                <button class="gap-2" on:click={openBlockedModal}>View blocked users</button>
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
 
@@ -435,38 +455,8 @@ import NewChatModal from '$lib/components/NewChatModal.svelte';
     {/if}
   </div>
 
-  <!-- Blocked Users -->
-  <div class="card-elevated mt-6">
-    <div class="p-4 border-b">
-      <h2 class="text-lg font-semibold">Blocked Users</h2>
-    </div>
-    {#if blockedUsers.length === 0}
-      <div class="p-4 text-base-content/60">No blocked users</div>
-    {:else}
-      <div class="divide-y divide-base-300/60">
-        {#each blockedUsers as u (u.id)}
-          <div class="p-4 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-              <div class="avatar">
-                <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-base-300/60">
-                  {#if u.avatar}
-                    <img src={u.avatar} alt="Avatar" class="w-full h-full object-cover" />
-                  {:else}
-                    <div class="w-full h-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-sm font-semibold text-primary">
-                      {(u.name ?? u.email ?? '?').charAt(0).toUpperCase()}
-                    </div>
-                  {/if}
-                </div>
-              </div>
-              <span class="font-medium truncate max-w-[10rem]">{u.name ?? u.email}</span>
-            </div>
-            <button class="btn btn-sm" on:click={() => unblock(u.id)}>Unblock</button>
-          </div>
-        {/each}
-      </div>
-    {/if}
-  </div>
-
+  
+  
   <!-- Stats Footer -->
   {#if !isLoading && filteredConvos.length > 0}
     <div class="mt-4 text-center text-sm text-base-content/60">
@@ -487,3 +477,45 @@ import NewChatModal from '$lib/components/NewChatModal.svelte';
     on:close={closeNewChatModal}
   />
 {/if}
+
+  <!-- Blocked Users Modal -->
+  {#if showBlockedModal}
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div class="bg-base-100 w-full max-w-lg rounded-xl shadow-xl border border-base-300/30">
+        <div class="flex items-center justify-between p-4 border-b">
+          <h3 class="text-lg font-semibold">Blocked Users</h3>
+          <button class="btn btn-ghost btn-sm btn-circle" on:click={closeBlockedModal} aria-label="Close">
+            <X class="w-4 h-4" />
+          </button>
+        </div>
+        {#if blockedUsers.length === 0}
+          <div class="p-4 text-base-content/60">No blocked users</div>
+        {:else}
+          <div class="max-h-80 overflow-y-auto divide-y divide-base-300/60">
+            {#each blockedUsers as u (u.id)}
+              <div class="p-4 flex items-center justify-between">
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="avatar">
+                    <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-base-300/60">
+                      {#if u.avatar}
+                        <img src={u.avatar} alt="Avatar" class="w-full h-full object-cover" />
+                      {:else}
+                        <div class="w-full h-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-sm font-semibold text-primary">
+                          {(u.name ?? u.email ?? '?').charAt(0).toUpperCase()}
+                        </div>
+                      {/if}
+                    </div>
+                  </div>
+                  <span class="font-medium truncate max-w-[12rem]">{u.name ?? u.email}</span>
+                </div>
+                <button class="btn btn-sm" on:click={() => unblock(u.id)}>Unblock</button>
+              </div>
+            {/each}
+          </div>
+        {/if}
+        <div class="p-4 border-t flex justify-end">
+          <button class="btn" on:click={closeBlockedModal}>Close</button>
+        </div>
+      </div>
+    </div>
+  {/if}
