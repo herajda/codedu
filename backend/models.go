@@ -21,6 +21,7 @@ type User struct {
 	Name         *string   `db:"name"`
 	Avatar       *string   `db:"avatar"`
 	Role         string    `db:"role"`
+	Theme        string    `db:"theme"`
 	BkClass      *string   `db:"bk_class"`
 	BkUID        *string   `db:"bk_uid"`
 	CreatedAt    time.Time `db:"created_at"`
@@ -110,7 +111,7 @@ func UpdateUserRole(id int, role string) error {
 
 func GetUser(id int) (*User, error) {
 	var u User
-	err := DB.Get(&u, `SELECT id, email, password_hash, name, avatar, role, bk_class, bk_uid, created_at
+	err := DB.Get(&u, `SELECT id, email, password_hash, name, avatar, role, theme, bk_class, bk_uid, created_at
                 FROM users WHERE id=$1`, id)
 	if err != nil {
 		return nil, err
@@ -118,8 +119,8 @@ func GetUser(id int) (*User, error) {
 	return &u, nil
 }
 
-func UpdateUserProfile(id int, name, avatar *string) error {
-	_, err := DB.Exec(`UPDATE users SET name=COALESCE($1,name), avatar=COALESCE($2,avatar) WHERE id=$3`, name, avatar, id)
+func UpdateUserProfile(id int, name, avatar, theme *string) error {
+	_, err := DB.Exec(`UPDATE users SET name=COALESCE($1,name), avatar=COALESCE($2,avatar), theme=COALESCE($3,theme) WHERE id=$4`, name, avatar, theme, id)
 	return err
 }
 
@@ -1024,14 +1025,14 @@ func IsBlocked(a, b int) (bool, error) {
 }
 
 type Conversation struct {
-        OtherID     int     `db:"other_id" json:"other_id"`
-        Name        *string `db:"name" json:"name"`
-        Avatar      *string `db:"avatar" json:"avatar"`
-        Email       string  `db:"email" json:"email"`
-       UnreadCount int     `db:"unread_count" json:"unread_count"`
-       Starred     bool    `db:"starred" json:"starred"`
-       Archived    bool    `db:"archived" json:"archived"`
-        Message
+	OtherID     int     `db:"other_id" json:"other_id"`
+	Name        *string `db:"name" json:"name"`
+	Avatar      *string `db:"avatar" json:"avatar"`
+	Email       string  `db:"email" json:"email"`
+	UnreadCount int     `db:"unread_count" json:"unread_count"`
+	Starred     bool    `db:"starred" json:"starred"`
+	Archived    bool    `db:"archived" json:"archived"`
+	Message
 }
 
 func ListRecentConversations(userID, limit int) ([]Conversation, error) {
@@ -1039,7 +1040,7 @@ func ListRecentConversations(userID, limit int) ([]Conversation, error) {
 	if limit <= 0 {
 		limit = 20
 	}
-       const q = `
+	const q = `
        WITH latest AS (
                SELECT *,
                       CASE WHEN sender_id=$1 THEN recipient_id ELSE sender_id END AS other_id,
@@ -1069,26 +1070,26 @@ func ListRecentConversations(userID, limit int) ([]Conversation, error) {
        WHERE l.rn = 1 AND b.blocked_id IS NULL
        ORDER BY (COALESCE(un.unread_count,0) > 0) DESC, l.created_at DESC
        LIMIT $2`
-       err := DB.Select(&list, q, userID, limit)
-       return list, err
+	err := DB.Select(&list, q, userID, limit)
+	return list, err
 }
 
 func StarConversation(userID, otherID int) error {
-       _, err := DB.Exec(`INSERT INTO starred_conversations (user_id, other_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, userID, otherID)
-       return err
+	_, err := DB.Exec(`INSERT INTO starred_conversations (user_id, other_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, userID, otherID)
+	return err
 }
 
 func UnstarConversation(userID, otherID int) error {
-       _, err := DB.Exec(`DELETE FROM starred_conversations WHERE user_id=$1 AND other_id=$2`, userID, otherID)
-       return err
+	_, err := DB.Exec(`DELETE FROM starred_conversations WHERE user_id=$1 AND other_id=$2`, userID, otherID)
+	return err
 }
 
 func ArchiveConversation(userID, otherID int) error {
-       _, err := DB.Exec(`INSERT INTO archived_conversations (user_id, other_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, userID, otherID)
-       return err
+	_, err := DB.Exec(`INSERT INTO archived_conversations (user_id, other_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, userID, otherID)
+	return err
 }
 
 func UnarchiveConversation(userID, otherID int) error {
-       _, err := DB.Exec(`DELETE FROM archived_conversations WHERE user_id=$1 AND other_id=$2`, userID, otherID)
-       return err
+	_, err := DB.Exec(`DELETE FROM archived_conversations WHERE user_id=$1 AND other_id=$2`, userID, otherID)
+	return err
 }

@@ -9,6 +9,7 @@ export type User = {
   avatar?: string | null;
   email?: string | null;
   bk_uid?: string | null;
+  theme?: "light" | "dark" | null;
 } | null;
 
 function createAuth() {
@@ -23,8 +24,9 @@ function createAuth() {
     avatar?: string | null,
     bk_uid?: string | null,
     email?: string | null,
+    theme?: "light" | "dark" | null,
   ) {
-    set({ id, role, name, avatar, bk_uid, email });
+    set({ id, role, name, avatar, bk_uid, email, theme });
   }
 
   /** Log out everywhere */
@@ -36,7 +38,7 @@ function createAuth() {
         // ignore errors
       }
       try {
-        localStorage.removeItem('cg-msg-key');
+        localStorage.removeItem("cg-msg-key");
       } catch {}
     }
     set(null);
@@ -56,6 +58,7 @@ function createAuth() {
         me.avatar ?? null,
         me.bk_uid ?? null,
         me.email ?? null,
+        me.theme ?? null,
       );
     } else {
       logout();

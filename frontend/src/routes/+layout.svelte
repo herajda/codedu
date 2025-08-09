@@ -100,7 +100,7 @@ import { compressImage } from '$lib/utils/compressImage';
       const meRes = await apiFetch('/api/me');
       if (meRes.ok) {
         const me = await meRes.json();
-        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null);
+        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null);
       }
     }
     settingsDialog.close();
@@ -122,10 +122,24 @@ import { compressImage } from '$lib/utils/compressImage';
     media = window.matchMedia('(prefers-color-scheme: dark)');
     prefersDark = media.matches;
     applyThemeFromPreference();
-    const handler = (e: MediaQueryListEvent) => { prefersDark = e.matches; applyThemeFromPreference(); };
+    const handler = (e: MediaQueryListEvent) => { if (!user) { prefersDark = e.matches; applyThemeFromPreference(); } };
     media.addEventListener('change', handler);
     onDestroy(() => media.removeEventListener('change', handler));
   });
+  $: if (user) { prefersDark = user.theme === 'dark'; applyThemeFromPreference(); }
+
+  async function toggleTheme() {
+    prefersDark = !prefersDark;
+    applyThemeFromPreference();
+    if (user) {
+      auth.login(user.id, user.role, user.name ?? null, user.avatar ?? null, user.bk_uid ?? null, user.email ?? null, prefersDark ? 'dark' : 'light');
+      try {
+        await apiFetch('/api/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ theme: prefersDark ? 'dark' : 'light' }) });
+      } catch (e) {
+        // ignore
+      }
+    }
+  }
 </script>
 
   <Background />
@@ -190,7 +204,7 @@ import { compressImage } from '$lib/utils/compressImage';
       </div>
       <div class="flex items-center gap-2">
         {#if user}
-          <button class="btn btn-ghost" aria-label="Toggle theme" type="button" on:click={() => { prefersDark = !prefersDark; applyThemeFromPreference(); }}>
+          <button class="btn btn-ghost" aria-label="Toggle theme" type="button" on:click={toggleTheme}>
             {#if prefersDark}
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M21.64 13A9 9 0 1111 2.36 7 7 0 0021.64 13z"/></svg>
             {:else}

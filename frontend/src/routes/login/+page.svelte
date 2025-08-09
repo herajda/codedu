@@ -33,7 +33,7 @@
       await setPassword(password)
 
       // 3. Store & smart-redirect
-      auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null)
+      auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null)
       goto('/dashboard')
     }
     async function submitBk() {
@@ -54,7 +54,7 @@
       }
       const me = await meRes.json()
       await setPassword(bkPass)
-      auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null)
+      auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null)
       goto('/dashboard')
     }
   </script>
