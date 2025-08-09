@@ -34,9 +34,9 @@
     return () => clearInterval(t);
   });
 
-  function countdown(deadline: string) {
+  function countdown(deadline: string, completed?: boolean) {
     const diff = new Date(deadline).getTime() - now;
-    if (diff <= 0) return 'late';
+    if (diff <= 0) return completed ? 'deadline passed' : 'late';
     const d = Math.floor(diff / 86400000);
     if (d >= 1) return `${d}d`;
     const h = Math.floor(diff / 3600000);
@@ -162,7 +162,7 @@
                     <div class="text-sm opacity-70 flex items-center gap-2">
                       <span class={new Date(a.deadline) < new Date() && !a.completed ? 'text-error' : ''}>{formatDateTime(a.deadline)}</span>
                       <span>·</span>
-                      <span>{countdown(a.deadline)}</span>
+                      <span>{countdown(a.deadline, a.completed)}</span>
                     </div>
                   </div>
                   <div class="flex items-center gap-3 shrink-0">
