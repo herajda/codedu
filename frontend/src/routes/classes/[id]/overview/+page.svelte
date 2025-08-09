@@ -81,7 +81,7 @@ function badgeFor(a: any) {
       <p class="opacity-70 text-sm">Teacher: {cls.teacher.name ?? cls.teacher.email}</p>
     </div>
     <div class="hidden sm:flex gap-2">
-      <a href={`/classes/${cls.id}/files`} class="btn btn-outline"><FolderOpen class="w-4 h-4" aria-hidden="true" /> Files</a>
+      <a href={`/classes/${id}/files`} class="btn btn-outline"><FolderOpen class="w-4 h-4" aria-hidden="true" /> Files</a>
       <a href="/messages" class="btn btn-outline"><MessageSquare class="w-4 h-4" aria-hidden="true" /> Messages</a>
     </div>
   </div>
