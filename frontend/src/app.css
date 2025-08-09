@@ -173,8 +173,7 @@ body.hide-navbar .navbar {
   background: rgba(255, 255, 255, 0.58);
   border: 1px solid rgba(255, 255, 255, 0.28);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-  backdrop-filter: saturate(160%);
-  -webkit-backdrop-filter: saturate(160%);
+  z-index: -1;
 }
 
 /* Dark theme glass plate adjustments */
@@ -183,7 +182,6 @@ body.hide-navbar .navbar {
     0 10px 22px rgba(0, 0, 0, 0.35),
     0 34px 70px rgba(0, 0, 0, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  filter: drop-shadow(0 8px 16px rgba(0,0,0,0.15)) drop-shadow(0 36px 56px rgba(0,0,0,0.35));
 }
 [data-theme='dark'] .appbar::before {
   background: rgba(16, 22, 28, 0.62);
@@ -197,7 +195,6 @@ body.hide-navbar .navbar {
     0 40px 80px rgba(0, 0, 0, 0.06),
     inset 0 1px 0 rgba(255, 255, 255, 0.02),
     inset 0 18px 40px rgba(255, 255, 255, 0.01);
-  filter: drop-shadow(0 10px 16px rgba(0,0,0,0.02)) drop-shadow(0 48px 64px rgba(0,0,0,0.04));
 }
 [data-theme='light'] .appbar::before {
   background: rgba(255, 255, 255, 0.32);
@@ -216,6 +213,7 @@ body.hide-navbar .navbar {
     radial-gradient(120% 60% at 50% -10%, rgba(255,255,255,0.16), transparent 60%);
   /* Avoid blend mode to prevent ghosting/phantom artifacts on hover */
   mix-blend-mode: normal;
+  z-index: 0;
 }
 
 /* Light theme: stronger specular highlights and diagonal sheen */
@@ -232,7 +230,11 @@ body.hide-navbar .navbar {
 }
 
 /* Normalize blend mode for all children to prevent text deformation through compositing */
-.appbar * { mix-blend-mode: normal; }
+.appbar * {
+  mix-blend-mode: normal;
+  position: relative;
+  z-index: 1;
+}
 
 .brand-dot {
   width: 10px;
