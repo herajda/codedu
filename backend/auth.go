@@ -257,9 +257,9 @@ func LoginBakalari(c *gin.Context) {
 	}
 	var bkUID *string
 	if uid := userInfo.UserUID; uid != "" {
-		if len(uid) >= 5 {
-			id5 := uid[len(uid)-5:]
-			bkUID = &id5
+		if len(uid) >= 3 {
+			id3 := uid[len(uid)-3:]
+			bkUID = &id3
 		} else {
 			bkUID = &uid
 		}

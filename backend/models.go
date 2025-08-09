@@ -292,6 +292,9 @@ func createStudentWithID(email, hash string, name, bkClass, bkUID *string) (int,
 // EnsureStudentForBk ensures a student exists for the given Bakaláři UID
 // and returns the local user ID.
 func EnsureStudentForBk(uid, cls, name string) (int, error) {
+	if len(uid) > 3 {
+		uid = uid[len(uid)-3:]
+	}
 	u, err := FindUserByBkUID(uid)
 	if err == nil {
 		if cls != "" && (u.BkClass == nil || *u.BkClass != cls) {
