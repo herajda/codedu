@@ -3,6 +3,7 @@
   import { apiJSON, apiFetch } from '$lib/api';
   import AdminPanel from '$lib/AdminPanel.svelte';
   import { formatDateTime } from "$lib/date";
+  import { BookOpen, CalendarClock, Trophy, Inbox, Users, LayoutGrid, MessageSquare, FolderOpen } from 'lucide-svelte';
 
   let role = '';
   let classes:any[] = [];
@@ -106,6 +107,28 @@
     await tick();
     newClassInput?.focus();
   }
+
+  // Derived small stats for nicer UI
+  $: totalClasses = classes.length;
+  $: studentStats = role === 'student' ? (() => {
+    const totalAssignments = classes.reduce((sum: number, c: any) => sum + c.assignments.length, 0);
+    const completedAssignments = classes.reduce((sum: number, c: any) => sum + (c.completed ?? 0), 0);
+    const pointsEarned = classes.reduce((sum: number, c: any) => sum + (c.pointsEarned ?? 0), 0);
+    const pointsTotal = classes.reduce((sum: number, c: any) => sum + (c.pointsTotal ?? 0), 0);
+    return { totalAssignments, completedAssignments, pointsEarned, pointsTotal };
+  })() : null;
+
+  $: teacherStats = role === 'teacher' ? (() => {
+    const studentsTotal = classes.reduce((sum: number, c: any) => sum + (c.students?.length ?? 0), 0);
+    const activeAssignments = classes.reduce((sum: number, c: any) => sum + c.assignments.length, 0);
+    const outstanding = classes.reduce((sum: number, c: any) => {
+      return sum + c.assignments.reduce((s: number, a: any) => {
+        const done = (c.progress?.find((p: any) => p.id === a.id)?.done) ?? 0;
+        return s + Math.max(0, (c.students?.length ?? 0) - done);
+      }, 0);
+    }, 0);
+    return { studentsTotal, activeAssignments, outstanding };
+  })() : null;
 </script>
 
 {#if loading}
@@ -113,89 +136,162 @@
 {:else}
 
   {#if role === 'student'}
-    <div class="grid gap-6 md:grid-cols-2">
+    <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+      <div class="card-elevated p-4 flex items-center gap-3">
+        <BookOpen class="w-5 h-5 opacity-70" aria-hidden="true" />
+        <div>
+          <div class="text-xs uppercase opacity-70">Classes</div>
+          <div class="text-xl font-semibold">{totalClasses}</div>
+        </div>
+      </div>
+      <div class="card-elevated p-4 flex items-center gap-3">
+        <Trophy class="w-5 h-5 opacity-70" aria-hidden="true" />
+        <div>
+          <div class="text-xs uppercase opacity-70">Progress</div>
+          <div class="text-xl font-semibold">{percent(studentStats?.completedAssignments ?? 0, studentStats?.totalAssignments ?? 0)}%</div>
+        </div>
+      </div>
+      <div class="card-elevated p-4 flex items-center gap-3">
+        <CalendarClock class="w-5 h-5 opacity-70" aria-hidden="true" />
+        <div>
+          <div class="text-xs uppercase opacity-70">Upcoming</div>
+          <div class="text-xl font-semibold">{upcoming.length}</div>
+        </div>
+      </div>
+      <div class="card-elevated p-4 flex items-center gap-3">
+        <Inbox class="w-5 h-5 opacity-70" aria-hidden="true" />
+        <div>
+          <div class="text-xs uppercase opacity-70">Points</div>
+          <div class="text-xl font-semibold">{studentStats?.pointsEarned ?? 0}/{studentStats?.pointsTotal ?? 0}</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
       {#each classes as c}
-        <a href={`/classes/${c.id}/overview`} class="card bg-base-100 shadow hover:shadow-lg block">
-          <div class="card-body">
-            <h2 class="card-title">{c.name}</h2>
-            <div class="stats stats-vertical lg:stats-horizontal mt-3">
-              <div class="stat">
-                <div class="stat-title">Progress</div>
-                <div class="stat-value">{percent(c.completed, c.assignments.length)}%</div>
-                <div class="stat-desc">{c.completed}/{c.assignments.length} assignments</div>
-              </div>
-              <div class="stat">
-                <div class="stat-title">Points</div>
-                <div class="stat-value">{c.pointsEarned}/{c.pointsTotal}</div>
-              </div>
+        <a href={`/classes/${c.id}/overview`} class="block no-underline text-current">
+          <div class="card-elevated p-5 h-full">
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="font-semibold text-lg truncate">{c.name}</h2>
+              <span class="badge badge-outline">
+                {c.assignments.length} assignments
+              </span>
             </div>
-            <ul class="mt-4 space-y-2">
-              {#each c.assignmentProgress as a}
-                <li class="grid grid-cols-[10rem_1fr] items-center gap-2">
-                  <span class="truncate w-40">{a.title}</span>
-                  <progress class="progress progress-primary w-full" value={a.done ? 100 : 0} max="100"></progress>
+            <div class="flex items-center gap-3 mb-3">
+              <div class="flex-1 h-2 rounded-full bg-base-300/60 overflow-hidden">
+                <div class="h-full bg-gradient-to-r from-cyan-400 via-sky-400 to-teal-400" style={`width: ${percent(c.completed, c.assignments.length)}%`}></div>
+              </div>
+              <span class="text-sm whitespace-nowrap">{c.completed}/{c.assignments.length}</span>
+            </div>
+            <ul class="space-y-2">
+              {#each c.assignmentProgress.slice(0, 3) as a}
+                <li class="flex items-center gap-2 text-sm">
+                  <span class={`w-2 h-2 rounded-full ${a.done ? 'bg-teal-400' : 'bg-base-300'}`}></span>
+                  <span class="truncate">{a.title}</span>
                 </li>
               {/each}
-              {#if !c.assignmentProgress.length}
-                <li><i>No assignments</i></li>
+              {#if c.assignmentProgress.length === 0}
+                <li class="text-sm opacity-70">No assignments</li>
               {/if}
             </ul>
           </div>
         </a>
       {/each}
-    </div>
+    </section>
 
-    <h2 class="text-xl font-bold mt-8 mb-4">Upcoming deadlines</h2>
-    <ul class="space-y-2">
-      {#each upcoming as a}
-        <li>
-          <a
-            href={`/assignments/${a.id}`}
-            class="flex justify-between items-center p-3 bg-base-100 rounded shadow hover:bg-base-200"
-          >
-            <span>{a.title} <span class="text-sm text-base-content/60">({a.class})</span></span>
-            <span class="badge badge-info">{formatDateTime(a.deadline)}</span>
-          </a>
-        </li>
-      {/each}
-      {#if !upcoming.length}
-        <li><i>No upcoming deadlines</i></li>
-      {/if}
-    </ul>
+    <section class="mt-8 grid gap-6 lg:grid-cols-2">
+      <div class="card-elevated p-5">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-semibold">Upcoming deadlines</h3>
+        </div>
+        <ul class="divide-y divide-base-300/60">
+          {#each upcoming as a}
+            <li>
+              <a href={`/assignments/${a.id}`} class="flex items-center justify-between py-3 hover:opacity-90">
+                <div class="min-w-0">
+                  <div class="font-medium truncate">{a.title}</div>
+                  <div class="text-sm opacity-70 truncate">{a.class}</div>
+                </div>
+                <span class="badge badge-outline">{formatDateTime(a.deadline)}</span>
+              </a>
+            </li>
+          {/each}
+          {#if !upcoming.length}
+            <li class="py-3 text-sm opacity-70">No upcoming deadlines</li>
+          {/if}
+        </ul>
+      </div>
+    </section>
   {:else if role === 'teacher'}
-    <div class="grid gap-6 md:grid-cols-2">
+    <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+      <div class="card-elevated p-4 flex items-center gap-3">
+        <BookOpen class="w-5 h-5 opacity-70" aria-hidden="true" />
+        <div>
+          <div class="text-xs uppercase opacity-70">Classes</div>
+          <div class="text-xl font-semibold">{totalClasses}</div>
+        </div>
+      </div>
+      <div class="card-elevated p-4 flex items-center gap-3">
+        <Users class="w-5 h-5 opacity-70" aria-hidden="true" />
+        <div>
+          <div class="text-xs uppercase opacity-70">Students</div>
+          <div class="text-xl font-semibold">{teacherStats?.studentsTotal ?? 0}</div>
+        </div>
+      </div>
+      <div class="card-elevated p-4 flex items-center gap-3">
+        <CalendarClock class="w-5 h-5 opacity-70" aria-hidden="true" />
+        <div>
+          <div class="text-xs uppercase opacity-70">Active assignments</div>
+          <div class="text-xl font-semibold">{teacherStats?.activeAssignments ?? 0}</div>
+        </div>
+      </div>
+      <div class="card-elevated p-4 flex items-center gap-3">
+        <Inbox class="w-5 h-5 opacity-70" aria-hidden="true" />
+        <div>
+          <div class="text-xs uppercase opacity-70">Outstanding</div>
+          <div class="text-xl font-semibold">{teacherStats?.outstanding ?? 0}</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
       {#each classes as c}
-        <a href={`/classes/${c.id}`} class="card bg-base-100 shadow hover:shadow-lg block">
-          <div class="card-body">
-            <h2 class="card-title">{c.name}</h2>
-            <p class="text-sm mb-2">{c.students.length} students</p>
+        <a href={`/classes/${c.id}`} class="block no-underline text-current">
+          <div class="card-elevated p-5 h-full">
+            <div class="flex items-center justify-between mb-2">
+              <h2 class="font-semibold text-lg truncate">{c.name}</h2>
+              <span class="badge badge-ghost">{c.students.length} students</span>
+            </div>
             <ul class="space-y-2">
               {#each c.assignments.slice(0,5) as a}
-                <li class="grid grid-cols-[10rem_1fr_auto] items-center gap-2">
-                  <span class="truncate w-40">{a.title}</span>
-                  <progress class="progress progress-primary w-full" value={c.progress.find((x:any)=>x.id===a.id)?.done || 0} max={c.students.length}></progress>
-                  <span class="text-sm">{c.progress.find((x:any)=>x.id===a.id)?.done || 0}/{c.students.length}</span>
+                <li class="flex items-center gap-3">
+                  <span class="truncate flex-1">{a.title}</span>
+                  <progress class="progress progress-primary flex-1" value={c.progress.find((x:any)=>x.id===a.id)?.done || 0} max={c.students.length}></progress>
+                  <span class="text-sm whitespace-nowrap">{c.progress.find((x:any)=>x.id===a.id)?.done || 0}/{c.students.length}</span>
                 </li>
               {/each}
               {#if !c.assignments.length}
-                <li><i>No assignments</i></li>
+                <li class="text-sm opacity-70">No assignments</li>
               {/if}
               {#if c.assignments.length > 5}
-                <li class="text-sm italic">{c.notFinished} assignments not finished by all students</li>
+                <li class="text-xs opacity-70">{c.notFinished} assignments not finished by all students</li>
               {/if}
             </ul>
           </div>
         </a>
       {/each}
-    </div>
-    {#if showNewClassInput}
-      <form class="mt-6 flex gap-2 max-w-sm" on:submit|preventDefault={createClass}>
-        <input class="input input-bordered flex-1" placeholder="New class" bind:value={newClassName} bind:this={newClassInput} required />
-        <button class="btn">Create</button>
-      </form>
-    {:else}
-      <button class="btn mt-6" on:click={showInput}>Create New Class</button>
-    {/if}
+    </section>
+
+    <section class="mt-6">
+      {#if showNewClassInput}
+        <form class="flex gap-2 max-w-sm" on:submit|preventDefault={createClass}>
+          <input class="input input-bordered flex-1" placeholder="New class" bind:value={newClassName} bind:this={newClassInput} required />
+          <button class="btn" type="submit">Create</button>
+        </form>
+      {:else}
+        <button class="btn" on:click={showInput} type="button">Create New Class</button>
+      {/if}
+    </section>
   {:else if role === 'admin'}
     <AdminPanel />
   {/if}

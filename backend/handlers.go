@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/jpeg"
@@ -1272,6 +1273,7 @@ func updateProfile(c *gin.Context) {
 	var req struct {
 		Name   *string `json:"name"`
 		Avatar *string `json:"avatar"`
+		Theme  *string `json:"theme"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -1286,14 +1288,39 @@ func updateProfile(c *gin.Context) {
 		req.Name = nil // Bakalari users cannot change name
 	}
 	if req.Avatar != nil {
-		resized, err := resizeAvatar(*req.Avatar)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid avatar"})
+		av := strings.TrimSpace(*req.Avatar)
+		if strings.HasPrefix(av, "data:") {
+			resized, err := resizeAvatar(av)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid avatar"})
+				return
+			}
+			req.Avatar = &resized
+		} else {
+			// allow selecting one of the built-in avatars
+			isAllowed := false
+			for _, a := range defaultAvatars {
+				if av == a {
+					isAllowed = true
+					break
+				}
+			}
+			if !isAllowed {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid avatar selection"})
+				return
+			}
+			req.Avatar = &av
+		}
+	}
+	if req.Theme != nil {
+		t := strings.ToLower(strings.TrimSpace(*req.Theme))
+		if t != "light" && t != "dark" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid theme"})
 			return
 		}
-		req.Avatar = &resized
+		req.Theme = &t
 	}
-	if err := UpdateUserProfile(uid, req.Name, req.Avatar); err != nil {
+	if err := UpdateUserProfile(uid, req.Name, req.Avatar, req.Theme); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
@@ -1399,7 +1426,11 @@ func createMessage(c *gin.Context) {
 	}
 	msg := &Message{SenderID: c.GetInt("userID"), RecipientID: req.To, Content: req.Content, Image: req.Image}
 	if err := CreateMessage(msg); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		if errors.Is(err, ErrBlocked) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "blocked"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		}
 		return
 	}
 	c.JSON(http.StatusCreated, msg)
@@ -1444,4 +1475,91 @@ func markMessagesReadHandler(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+func starConversation(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if err := StarConversation(c.GetInt("userID"), id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func unstarConversation(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if err := UnstarConversation(c.GetInt("userID"), id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func archiveConversation(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if err := ArchiveConversation(c.GetInt("userID"), id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func unarchiveConversation(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if err := UnarchiveConversation(c.GetInt("userID"), id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func blockUser(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if err := BlockUser(c.GetInt("userID"), id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func unblockUser(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if err := UnblockUser(c.GetInt("userID"), id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func listBlockedUsers(c *gin.Context) {
+	list, err := ListBlockedUsers(c.GetInt("userID"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, list)
 }

@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT,
   avatar TEXT,
   role TEXT NOT NULL DEFAULT 'student' CHECK (role IN ('student','teacher','admin')),
+  theme TEXT NOT NULL DEFAULT 'light' CHECK (theme IN ('light','dark')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -13,6 +14,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS bk_class TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS bk_uid TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS theme TEXT NOT NULL DEFAULT 'light' CHECK (theme IN ('light','dark'));
 
 
 CREATE TABLE IF NOT EXISTS classes (
@@ -136,4 +138,25 @@ CREATE INDEX IF NOT EXISTS idx_messages_sender_recipient_created
 -- add image column if upgrading from an older schema
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS image TEXT;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Blocked users table
+CREATE TABLE IF NOT EXISTS blocked_users (
+  blocker_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  blocked_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (blocker_id, blocked_id)
+);
+
+-- Starred conversations table
+CREATE TABLE IF NOT EXISTS starred_conversations (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  other_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (user_id, other_id)
+);
+
+-- Archived conversations table
+CREATE TABLE IF NOT EXISTS archived_conversations (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  other_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (user_id, other_id)
+);
 

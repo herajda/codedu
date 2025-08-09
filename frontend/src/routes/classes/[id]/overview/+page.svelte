@@ -3,6 +3,7 @@ import { onMount } from 'svelte';
 import { apiJSON } from '$lib/api';
 import { page } from '$app/stores';
 import { formatDateTime } from "$lib/date";
+import { Trophy, CalendarClock, ListChecks, Target, PlayCircle, FolderOpen, MessageSquare } from 'lucide-svelte';
 
 let id = $page.params.id;
 $: if ($page.params.id !== id) { id = $page.params.id; load(); }
@@ -42,48 +43,166 @@ async function load(){
 }
 
 onMount(load);
+
+// Derived helpers for UI
+$: totalAssignments = cls?.assignments?.length ?? 0;
+$: progressPercent = percent(cls?.completed ?? 0, totalAssignments);
+$: upcomingCount = cls?.upcoming?.length ?? 0;
+$: nextAssignment = (() => {
+  if (!cls) return null;
+  const incomplete = cls.assignments.filter((a: any) => (cls.assignmentProgress.find((p: any) => p.id === a.id)?.best ?? 0) < a.max_points);
+  incomplete.sort((a: any, b: any) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime());
+  return incomplete[0] ?? null;
+})();
+$: classAssignmentIds = new Set((cls?.assignments ?? []).map((a: any) => a.id));
+$: recentSubmissions = (submissions ?? [])
+  .filter((s: any) => classAssignmentIds.has(s.assignment_id))
+  .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  .slice(0, 5);
+
+function badgeFor(a: any) {
+  const best = cls.assignmentProgress.find((p: any) => p.id === a.id)?.best ?? 0;
+  const complete = best >= a.max_points;
+  const late = new Date(a.deadline) < new Date() && !complete;
+  if (complete) return { text: 'Completed', cls: 'badge-success' };
+  if (late) return { text: 'Late', cls: 'badge-error' };
+  return { text: 'Upcoming', cls: 'badge-info' };
+}
 </script>
 
-<h1 class="text-2xl font-bold mb-4">Overview</h1>
 {#if loading}
   <p>Loading…</p>
 {:else if err}
   <p class="text-error">{err}</p>
 {:else}
-  <p class="mb-4"><strong>Teacher:</strong> {cls.teacher.name ?? cls.teacher.email}</p>
-  <div class="stats stats-vertical sm:stats-horizontal mb-6">
-    <div class="stat">
-      <div class="stat-title">Progress</div>
-      <div class="stat-value">{percent(cls.completed, cls.assignments.length)}%</div>
-      <div class="stat-desc">{cls.completed}/{cls.assignments.length} assignments</div>
+  <div class="flex items-start justify-between gap-3 mb-4 flex-wrap">
+    <div>
+      <h1 class="text-2xl font-semibold">{cls.name} · Overview</h1>
+      <p class="opacity-70 text-sm">Teacher: {cls.teacher.name ?? cls.teacher.email}</p>
     </div>
-    <div class="stat">
-      <div class="stat-title">Points</div>
-      <div class="stat-value">{cls.pointsEarned}/{cls.pointsTotal}</div>
+    <div class="hidden sm:flex gap-2">
+      <a href={`/classes/${cls.id}/files`} class="btn btn-outline"><FolderOpen class="w-4 h-4" aria-hidden="true" /> Files</a>
+      <a href="/messages" class="btn btn-outline"><MessageSquare class="w-4 h-4" aria-hidden="true" /> Messages</a>
     </div>
   </div>
-  <ul class="space-y-3">
-    {#each cls.assignmentProgress as a}
-      <li class="flex items-center gap-2">
-        <a href={`/assignments/${a.id}`} class="flex-1 link">{a.title}</a>
-        <progress class="progress progress-primary flex-1" value={a.best} max={a.max_points}></progress>
-        <span class="w-20 text-right">{a.best}/{a.max_points}</span>
-      </li>
-    {/each}
-    {#if !cls.assignmentProgress.length}
-      <li><i>No assignments</i></li>
-    {/if}
-  </ul>
-  <h2 class="text-xl font-bold mt-8 mb-4">Upcoming deadlines</h2>
-  <ul class="space-y-2">
-    {#each cls.upcoming as a}
-      <li class="flex justify-between items-center">
-        <a href={`/assignments/${a.id}`} class="link">{a.title}</a>
-        <span class="badge badge-info">{formatDateTime(a.deadline)}</span>
-      </li>
-    {/each}
-    {#if !cls.upcoming.length}
-      <li><i>No upcoming deadlines</i></li>
-    {/if}
-  </ul>
+
+  <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+    <div class="card-elevated p-4 flex items-center gap-3">
+      <Trophy class="w-5 h-5 opacity-70" aria-hidden="true" />
+      <div>
+        <div class="text-xs uppercase opacity-70">Progress</div>
+        <div class="text-xl font-semibold">{progressPercent}%</div>
+        <div class="text-xs opacity-70">{cls.completed}/{totalAssignments} assignments</div>
+      </div>
+    </div>
+    <div class="card-elevated p-4 flex items-center gap-3">
+      <Target class="w-5 h-5 opacity-70" aria-hidden="true" />
+      <div>
+        <div class="text-xs uppercase opacity-70">Points</div>
+        <div class="text-xl font-semibold">{cls.pointsEarned}/{cls.pointsTotal}</div>
+      </div>
+    </div>
+    <div class="card-elevated p-4 flex items-center gap-3">
+      <ListChecks class="w-5 h-5 opacity-70" aria-hidden="true" />
+      <div>
+        <div class="text-xs uppercase opacity-70">Assignments</div>
+        <div class="text-xl font-semibold">{totalAssignments}</div>
+      </div>
+    </div>
+    <div class="card-elevated p-4 flex items-center gap-3">
+      <CalendarClock class="w-5 h-5 opacity-70" aria-hidden="true" />
+      <div>
+        <div class="text-xs uppercase opacity-70">Upcoming</div>
+        <div class="text-xl font-semibold">{upcomingCount}</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="grid gap-6 lg:grid-cols-3">
+    <section class="lg:col-span-2 space-y-6">
+      {#if nextAssignment}
+        <div class="card-elevated p-5 flex items-center justify-between gap-4">
+          <div class="min-w-0">
+            <div class="text-sm opacity-70">Continue where you left off</div>
+            <div class="text-lg font-semibold truncate">{nextAssignment.title}</div>
+            <div class="text-sm opacity-70">Due {formatDateTime(nextAssignment.deadline)}</div>
+          </div>
+          <a href={`/assignments/${nextAssignment.id}`} class="btn"><PlayCircle class="w-4 h-4" aria-hidden="true" /> Continue</a>
+        </div>
+      {/if}
+
+      <div class="card-elevated p-5">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="font-semibold">Your assignments</h2>
+        </div>
+        <ul class="space-y-3">
+          {#each cls.assignmentProgress as a}
+            <li>
+              <a href={`/assignments/${a.id}`} class="block no-underline text-current">
+                <div class="card-elevated p-4 hover:shadow-md transition">
+                  <div class="flex items-center justify-between gap-4">
+                    <div class="min-w-0">
+                      <div class="font-medium truncate">{a.title}</div>
+                      <div class="text-sm opacity-70 truncate">Due {formatDateTime(a.deadline)}</div>
+                    </div>
+                  <div class="flex items-center gap-3 shrink-0">
+                      <div class="flex items-center gap-2">
+                      <progress class="progress progress-primary w-20 sm:w-24" value={a.best} max={a.max_points}></progress>
+                        <span class="text-sm whitespace-nowrap">{a.best}/{a.max_points}</span>
+                      </div>
+                      {#key a.id}
+                        {#if badgeFor(a)}<span class={`badge ${badgeFor(a).cls}`}>{badgeFor(a).text}</span>{/if}
+                      {/key}
+                    </div>
+                  </div>
+                </div>
+              </a>
+            </li>
+          {/each}
+          {#if !cls.assignmentProgress.length}
+            <li class="text-sm opacity-70">No assignments</li>
+          {/if}
+        </ul>
+      </div>
+    </section>
+
+    <aside class="space-y-6">
+      <div class="card-elevated p-5">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-semibold">Upcoming deadlines</h3>
+        </div>
+        <ul class="divide-y divide-base-300/60">
+          {#each cls.upcoming as a}
+            <li>
+              <a href={`/assignments/${a.id}`} class="flex items-center justify-between py-3 hover:opacity-90">
+                <div class="min-w-0">
+                  <div class="font-medium truncate">{a.title}</div>
+                  <div class="text-sm opacity-70 truncate">{formatDateTime(a.deadline)}</div>
+                </div>
+                <span class={`badge ${badgeFor(a).cls}`}>{badgeFor(a).text}</span>
+              </a>
+            </li>
+          {/each}
+          {#if !cls.upcoming.length}
+            <li class="py-3 text-sm opacity-70">No upcoming deadlines</li>
+          {/if}
+        </ul>
+      </div>
+
+      <div class="card-elevated p-5">
+        <h3 class="font-semibold mb-3">Recent submissions</h3>
+        <ul class="space-y-2">
+          {#each recentSubmissions as s}
+            <li class="flex items-center justify-between text-sm">
+              <span class="truncate">{cls.assignments.find((a:any)=>a.id===s.assignment_id)?.title}</span>
+              <span class="opacity-70 whitespace-nowrap">{formatDateTime(s.created_at)}</span>
+            </li>
+          {/each}
+          {#if !recentSubmissions.length}
+            <li class="text-sm opacity-70">No submissions yet</li>
+          {/if}
+        </ul>
+      </div>
+    </aside>
+  </div>
 {/if}

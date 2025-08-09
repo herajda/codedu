@@ -3,9 +3,11 @@ package main
 
 import (
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -36,12 +38,34 @@ func ensureAdmin() {
 	log.Printf("👑  Admin ensured → %s", email)
 }
 
+// Default avatar catalog served by frontend under /avatars
+var defaultAvatars = []string{
+	"/avatars/a1.svg",
+	"/avatars/a2.svg",
+	"/avatars/a3.svg",
+	"/avatars/a4.svg",
+	"/avatars/a5.svg",
+	"/avatars/a6.svg",
+	"/avatars/a7.svg",
+	"/avatars/a8.svg",
+	"/avatars/a9.svg",
+	"/avatars/a10.svg",
+	"/avatars/a11.svg",
+	"/avatars/a12.svg",
+}
+
 func main() {
 	// 1) Init DB and auth
 	InitDB()
 	InitAuth()
 	ensureAdmin()
 	StartWorker(2)
+	// seed RNG for avatar assignment
+	rand.Seed(time.Now().UnixNano())
+	// one-time ensure avatars for existing users
+	if err := AssignRandomAvatarsToUsersWithout(defaultAvatars); err != nil {
+		log.Printf("could not assign default avatars: %v", err)
+	}
 
 	// 2) Router
 	r := gin.Default()
@@ -68,6 +92,12 @@ func main() {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 				return
 			}
+			if u.Avatar == nil {
+				pick := defaultAvatars[rand.Intn(len(defaultAvatars))]
+				// best-effort update; ignore error but reflect in response
+				_ = UpdateUserProfile(u.ID, nil, &pick, nil)
+				u.Avatar = &pick
+			}
 			c.JSON(http.StatusOK, gin.H{
 				"id":     u.ID,
 				"role":   u.Role,
@@ -75,7 +105,12 @@ func main() {
 				"avatar": u.Avatar,
 				"bk_uid": u.BkUID,
 				"email":  u.Email,
+				"theme":  u.Theme,
 			})
+		})
+		// expose default avatars catalog to the frontend
+		api.GET("/avatars", func(c *gin.Context) {
+			c.JSON(http.StatusOK, defaultAvatars)
 		})
 		api.PUT("/me", updateProfile)
 		api.PUT("/me/password", changePassword)
@@ -131,6 +166,9 @@ func main() {
 		api.GET("/classes/:id", RoleGuard("teacher", "student", "admin"), getClass)
 
 		api.GET("/users/:id", RoleGuard("student", "teacher", "admin"), getUserPublic)
+		api.POST("/users/:id/block", RoleGuard("student", "teacher", "admin"), blockUser)
+		api.DELETE("/users/:id/block", RoleGuard("student", "teacher", "admin"), unblockUser)
+		api.GET("/blocked-users", RoleGuard("student", "teacher", "admin"), listBlockedUsers)
 
 		// Messaging
 		api.GET("/user-search", RoleGuard("student", "teacher", "admin"), searchUsers)
@@ -138,6 +176,10 @@ func main() {
 		api.POST("/messages", RoleGuard("student", "teacher", "admin"), createMessage)
 		api.GET("/messages/:id", RoleGuard("student", "teacher", "admin"), listMessages)
 		api.PUT("/messages/:id/read", RoleGuard("student", "teacher", "admin"), markMessagesReadHandler)
+		api.POST("/messages/:id/star", RoleGuard("student", "teacher", "admin"), starConversation)
+		api.DELETE("/messages/:id/star", RoleGuard("student", "teacher", "admin"), unstarConversation)
+		api.POST("/messages/:id/archive", RoleGuard("student", "teacher", "admin"), archiveConversation)
+		api.DELETE("/messages/:id/archive", RoleGuard("student", "teacher", "admin"), unarchiveConversation)
 		api.GET("/messages/events", RoleGuard("student", "teacher", "admin"), messageEventsHandler)
 
 		// Class file system
@@ -157,6 +199,8 @@ func main() {
 	// serve built assets without conflicting with /api routes
 	r.Static("/_app", filepath.Join(buildPath, "_app"))
 	r.StaticFile("/favicon.png", filepath.Join(buildPath, "favicon.png"))
+	// serve avatars catalog
+	r.Static("/avatars", filepath.Join(buildPath, "avatars"))
 
 	// send index.html for all other routes so SvelteKit can handle routing
 	r.NoRoute(func(c *gin.Context) {

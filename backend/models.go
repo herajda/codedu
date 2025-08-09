@@ -1,6 +1,8 @@
 package main
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,6 +12,8 @@ import (
 
 const maxFileSize = 20 * 1024 * 1024 // 20 MB
 
+var ErrBlocked = errors.New("blocked")
+
 type User struct {
 	ID           int       `db:"id"`
 	Email        string    `db:"email"`
@@ -17,6 +21,7 @@ type User struct {
 	Name         *string   `db:"name"`
 	Avatar       *string   `db:"avatar"`
 	Role         string    `db:"role"`
+	Theme        string    `db:"theme"`
 	BkClass      *string   `db:"bk_class"`
 	BkUID        *string   `db:"bk_uid"`
 	CreatedAt    time.Time `db:"created_at"`
@@ -106,7 +111,7 @@ func UpdateUserRole(id int, role string) error {
 
 func GetUser(id int) (*User, error) {
 	var u User
-	err := DB.Get(&u, `SELECT id, email, password_hash, name, avatar, role, bk_class, bk_uid, created_at
+	err := DB.Get(&u, `SELECT id, email, password_hash, name, avatar, role, theme, bk_class, bk_uid, created_at
                 FROM users WHERE id=$1`, id)
 	if err != nil {
 		return nil, err
@@ -114,9 +119,30 @@ func GetUser(id int) (*User, error) {
 	return &u, nil
 }
 
-func UpdateUserProfile(id int, name, avatar *string) error {
-	_, err := DB.Exec(`UPDATE users SET name=COALESCE($1,name), avatar=COALESCE($2,avatar) WHERE id=$3`, name, avatar, id)
+func UpdateUserProfile(id int, name, avatar, theme *string) error {
+	_, err := DB.Exec(`UPDATE users SET name=COALESCE($1,name), avatar=COALESCE($2,avatar), theme=COALESCE($3,theme) WHERE id=$4`, name, avatar, theme, id)
 	return err
+}
+
+// AssignRandomAvatarsToUsersWithout assigns a random avatar from the provided list
+// to all users whose avatar is NULL. It is safe to call on startup.
+func AssignRandomAvatarsToUsersWithout(catalog []string) error {
+	if len(catalog) == 0 {
+		return nil
+	}
+	type row struct{ ID int }
+	var rows []row
+	if err := DB.Select(&rows, `SELECT id FROM users WHERE avatar IS NULL`); err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	for _, r := range rows {
+		pick := catalog[int(time.Now().UnixNano()+int64(r.ID))%len(catalog)]
+		_, _ = DB.Exec(`UPDATE users SET avatar=$1 WHERE id=$2`, pick, r.ID)
+	}
+	return nil
 }
 
 func UpdateUserPassword(id int, hash string) error {
@@ -909,10 +935,17 @@ type Message struct {
 }
 
 func CreateMessage(m *Message) error {
+	blocked, err := IsBlocked(m.SenderID, m.RecipientID)
+	if err != nil {
+		return err
+	}
+	if blocked {
+		return ErrBlocked
+	}
 	const q = `INSERT INTO messages (sender_id, recipient_id, content, image)
                     VALUES ($1,$2,$3,$4)
                     RETURNING id, created_at, is_read`
-	err := DB.QueryRow(q, m.SenderID, m.RecipientID, m.Content, m.Image).
+	err = DB.QueryRow(q, m.SenderID, m.RecipientID, m.Content, m.Image).
 		Scan(&m.ID, &m.CreatedAt, &m.IsRead)
 	if err == nil {
 		broadcastMsg(sse.Event{Event: "message", Data: m})
@@ -962,12 +995,46 @@ func SearchUsers(term string) ([]UserSearch, error) {
 	return list, err
 }
 
+func BlockUser(blockerID, blockedID int) error {
+	_, err := DB.Exec(`INSERT INTO blocked_users (blocker_id, blocked_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, blockerID, blockedID)
+	return err
+}
+
+func UnblockUser(blockerID, blockedID int) error {
+	_, err := DB.Exec(`DELETE FROM blocked_users WHERE blocker_id=$1 AND blocked_id=$2`, blockerID, blockedID)
+	return err
+}
+
+func ListBlockedUsers(blockerID int) ([]UserSearch, error) {
+	list := []UserSearch{}
+	err := DB.Select(&list, `SELECT u.id, u.email, u.name, u.avatar
+                                   FROM blocked_users b
+                                   JOIN users u ON u.id = b.blocked_id
+                                  WHERE b.blocker_id=$1
+                                  ORDER BY u.email`, blockerID)
+	return list, err
+}
+
+func IsBlocked(a, b int) (bool, error) {
+	var x int
+	err := DB.Get(&x, `SELECT 1 FROM blocked_users WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)`, a, b)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 type Conversation struct {
 	OtherID     int     `db:"other_id" json:"other_id"`
 	Name        *string `db:"name" json:"name"`
 	Avatar      *string `db:"avatar" json:"avatar"`
 	Email       string  `db:"email" json:"email"`
 	UnreadCount int     `db:"unread_count" json:"unread_count"`
+	Starred     bool    `db:"starred" json:"starred"`
+	Archived    bool    `db:"archived" json:"archived"`
 	Message
 }
 
@@ -984,8 +1051,8 @@ func ListRecentConversations(userID, limit int) ([]Conversation, error) {
                               PARTITION BY CASE WHEN sender_id=$1 THEN recipient_id ELSE sender_id END
                               ORDER BY created_at DESC
                       ) AS rn
-                 FROM messages
-                WHERE sender_id=$1 OR recipient_id=$1
+                FROM messages
+               WHERE sender_id=$1 OR recipient_id=$1
        ), unread AS (
                SELECT sender_id AS other_id, COUNT(*) AS unread_count
                  FROM messages
@@ -994,13 +1061,38 @@ func ListRecentConversations(userID, limit int) ([]Conversation, error) {
        )
        SELECT l.other_id, u.name, u.avatar, u.email,
               l.id, l.sender_id, l.recipient_id, l.content, l.image, l.created_at,
-              COALESCE(un.unread_count,0) AS unread_count
-         FROM latest l
-         JOIN users u ON u.id = l.other_id
-         LEFT JOIN unread un ON un.other_id=l.other_id
-        WHERE l.rn = 1
-        ORDER BY (COALESCE(un.unread_count,0) > 0) DESC, l.created_at DESC
-        LIMIT $2`
+              COALESCE(un.unread_count,0) AS unread_count,
+              (sc.other_id IS NOT NULL) AS starred,
+              (ac.other_id IS NOT NULL) AS archived
+        FROM latest l
+        JOIN users u ON u.id = l.other_id
+        LEFT JOIN unread un ON un.other_id=l.other_id
+       LEFT JOIN starred_conversations sc ON sc.user_id=$1 AND sc.other_id=l.other_id
+       LEFT JOIN archived_conversations ac ON ac.user_id=$1 AND ac.other_id=l.other_id
+        LEFT JOIN blocked_users b ON b.blocker_id=$1 AND b.blocked_id=l.other_id
+       WHERE l.rn = 1 AND b.blocked_id IS NULL
+       ORDER BY (COALESCE(un.unread_count,0) > 0) DESC, l.created_at DESC
+       LIMIT $2`
 	err := DB.Select(&list, q, userID, limit)
 	return list, err
+}
+
+func StarConversation(userID, otherID int) error {
+	_, err := DB.Exec(`INSERT INTO starred_conversations (user_id, other_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, userID, otherID)
+	return err
+}
+
+func UnstarConversation(userID, otherID int) error {
+	_, err := DB.Exec(`DELETE FROM starred_conversations WHERE user_id=$1 AND other_id=$2`, userID, otherID)
+	return err
+}
+
+func ArchiveConversation(userID, otherID int) error {
+	_, err := DB.Exec(`INSERT INTO archived_conversations (user_id, other_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, userID, otherID)
+	return err
+}
+
+func UnarchiveConversation(userID, otherID int) error {
+	_, err := DB.Exec(`DELETE FROM archived_conversations WHERE user_id=$1 AND other_id=$2`, userID, otherID)
+	return err
 }

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter } from '@codemirror/view';
-import { EditorState, type Extension } from '@codemirror/state';
+  import { EditorState, type Extension, Compartment } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
 import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
@@ -12,9 +12,14 @@ import { oneDark } from '@codemirror/theme-one-dark';
   export let lang: Extension | null = null;
   export let readOnly: boolean = false;
 
+  function isDark(): boolean {
+    return document.documentElement.getAttribute('data-theme') === 'dark';
+  }
+
   const dispatch = createEventDispatcher();
   let host: HTMLDivElement;
   let view: EditorView;
+  const themeCompartment = new Compartment();
 
   onMount(() => {
     const extensions: Extension[] = [
@@ -31,7 +36,7 @@ import { oneDark } from '@codemirror/theme-one-dark';
         ...completionKeymap,
         ...closeBracketsKeymap
       ]),
-      oneDark,
+      themeCompartment.of(isDark() ? oneDark : []),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       highlightActiveLine(),
       EditorView.updateListener.of((v) => {
@@ -47,9 +52,19 @@ import { oneDark } from '@codemirror/theme-one-dark';
       state: EditorState.create({ doc: value, extensions }),
       parent: host
     });
+
+    const obs = new MutationObserver(() => {
+      const wantsDark = isDark();
+      view.dispatch({ effects: themeCompartment.reconfigure(wantsDark ? oneDark : []) });
+    });
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    // store observer for cleanup
+    (view as any)._themeObserver = obs;
   });
 
   onDestroy(() => {
+    const obs: MutationObserver | undefined = (view as any)?._themeObserver;
+    obs?.disconnect();
     view?.destroy();
   });
 
@@ -59,4 +74,4 @@ import { oneDark } from '@codemirror/theme-one-dark';
   }
 </script>
 
-<div bind:this={host} class="border bg-gray-50 dark:bg-zinc-700"></div>
+<div bind:this={host} class="card-elevated" style="overflow: visible"></div>
