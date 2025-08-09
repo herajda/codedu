@@ -265,8 +265,14 @@ func LoginBakalari(c *gin.Context) {
 		}
 	}
 
-	user, err := FindUserByEmail(req.Username)
-	if err != nil {
+	var user *User
+	if bkUID != nil {
+		user, err = FindUserByBkUID(*bkUID)
+	}
+	if err != nil || user == nil {
+		user, err = FindUserByEmail(req.Username)
+	}
+	if err != nil || user == nil {
 		// create new user with specified role
 		hash, _ := bcrypt.GenerateFromPassword([]byte(clientHash(req.Password)), bcrypt.DefaultCost)
 		if role == "teacher" {
@@ -288,6 +294,10 @@ func LoginBakalari(c *gin.Context) {
 		if bkUID != nil && (user.BkUID == nil || *user.BkUID != *bkUID) {
 			_, _ = DB.Exec(`UPDATE users SET bk_uid=$1 WHERE id=$2`, *bkUID, user.ID)
 			user.BkUID = bkUID
+		}
+		if user.Email != req.Username {
+			_, _ = DB.Exec(`UPDATE users SET email=$1 WHERE id=$2`, req.Username, user.ID)
+			user.Email = req.Username
 		}
 	}
 
