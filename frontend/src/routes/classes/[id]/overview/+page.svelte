@@ -193,9 +193,18 @@ function badgeFor(a: any) {
         <h3 class="font-semibold mb-3">Recent submissions</h3>
         <ul class="space-y-2">
           {#each recentSubmissions as s}
-            <li class="flex items-center justify-between text-sm">
-              <span class="truncate">{cls.assignments.find((a:any)=>a.id===s.assignment_id)?.title}</span>
-              <span class="opacity-70 whitespace-nowrap">{formatDateTime(s.created_at)}</span>
+            <li>
+              <a
+                href={`/submissions/${s.id}`}
+                class="flex items-center justify-between text-sm hover:opacity-90"
+              >
+                <span class="truncate"
+                  >{cls.assignments.find((a:any) => a.id === s.assignment_id)?.title}</span
+                >
+                <span class="opacity-70 whitespace-nowrap"
+                  >{formatDateTime(s.created_at)}</span
+                >
+              </a>
             </li>
           {/each}
           {#if !recentSubmissions.length}
