@@ -38,6 +38,7 @@ async function load(){
     cls.upcoming = cls.assignments
       .filter((a:any)=>new Date(a.deadline) > now)
       .sort((a:any,b:any)=>new Date(a.deadline).getTime()-new Date(b.deadline).getTime());
+    cls = { ...cls };
   } catch(e:any){ err = e.message; }
   loading = false;
 }
