@@ -225,11 +225,11 @@ import NewChatModal from '$lib/components/NewChatModal.svelte';
   }
 </script>
 
-<div class="max-w-4xl mx-auto">
+<div class="max-w-4xl mx-auto px-3 sm:px-0">
   <!-- Header Section -->
   <div class="card-elevated mb-6">
     <div class="p-6">
-      <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div class="flex items-center gap-3">
           <div class="p-2 bg-primary/10 rounded-lg">
             <MessageCircle class="w-6 h-6 text-primary" />
@@ -238,27 +238,26 @@ import NewChatModal from '$lib/components/NewChatModal.svelte';
             <h1 class="text-2xl font-bold">Messages</h1>
           </div>
         </div>
-        <div class="flex gap-2">
+        <div class="flex gap-2 w-full sm:w-auto justify-end sm:justify-normal">
           <button 
-            class="btn btn-outline btn-sm gap-2" 
+            class="btn btn-ghost btn-sm btn-circle" 
             on:click={loadConvos}
+            aria-label="Refresh"
             disabled={isLoading}
           >
-            <RefreshCw class="w-4 h-4 {isLoading ? 'animate-spin' : ''}" />
-            Refresh
+            <RefreshCw class={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
           <button 
-            class="btn btn-primary btn-sm gap-2" 
+            class="btn btn-primary btn-sm btn-circle" 
             on:click={startNewChat}
+            aria-label="New chat"
           >
             <Plus class="w-4 h-4" />
-            New Chat
           </button>
           <!-- Settings Dropdown (opens Blocked Users modal) -->
           <div class="dropdown dropdown-end">
-            <button class="btn btn-outline btn-sm gap-2">
+            <button class="btn btn-ghost btn-sm btn-circle" aria-label="Settings">
               <MoreVertical class="w-4 h-4" />
-              Settings
             </button>
             <ul class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-56 z-50 border border-base-300/30">
               <li>
@@ -270,16 +269,16 @@ import NewChatModal from '$lib/components/NewChatModal.svelte';
       </div>
 
       <!-- Search and Filters -->
-      <div class="flex flex-col sm:flex-row gap-4">
+        <div class="flex flex-col sm:flex-row gap-4">
         <div class="flex-1 relative">
           <Search class="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-base-content/40" />
-          <input
-            class="input input-bordered w-full pl-10"
+            <input
+              class="input input-bordered w-full pl-10"
             placeholder="Search conversations, messages, or people..."
             bind:value={searchQuery}
           />
         </div>
-        <div class="flex gap-2">
+          <div class="flex gap-2">
           <select 
             class="select select-bordered select-sm" 
             bind:value={selectedFilter}
@@ -290,8 +289,7 @@ import NewChatModal from '$lib/components/NewChatModal.svelte';
             <option value="archived">Archived</option>
           </select>
           <button 
-            class="btn btn-outline btn-sm" 
-            class:btn-active={showArchived}
+            class={`btn btn-outline btn-sm ${showArchived ? 'btn-active' : ''}`} 
             on:click={() => showArchived = !showArchived}
           >
             <Archive class="w-4 h-4" />
@@ -309,7 +307,7 @@ import NewChatModal from '$lib/components/NewChatModal.svelte';
         <p class="mt-4 text-base-content/60">Loading conversations...</p>
       </div>
     {:else if filteredConvos.length === 0}
-      <div class="p-8 text-center">
+       <div class="p-8 text-center">
         <div class="p-4 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-full w-20 h-20 mx-auto mb-6 flex items-center justify-center">
           <MessageCircle class="w-10 h-10 text-primary" />
         </div>
@@ -322,7 +320,7 @@ import NewChatModal from '$lib/components/NewChatModal.svelte';
             : 'Connect with your classmates, teachers, and colleagues. Start your first conversation to begin messaging.'}
         </p>
         {#if !searchQuery}
-          <div class="flex flex-col sm:flex-row gap-3 justify-center">
+           <div class="flex flex-col sm:flex-row gap-3 justify-center">
             <button class="btn btn-primary gap-2" on:click={startNewChat}>
               <Plus class="w-4 h-4" />
               Start Your First Chat
@@ -347,9 +345,14 @@ import NewChatModal from '$lib/components/NewChatModal.svelte';
     {:else}
       <div class="divide-y divide-base-300/60">
         {#each filteredConvos as convo (convo.id)}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div 
             class="group relative p-4 hover:bg-base-200/50 transition-colors cursor-pointer"
+            role="button"
+            tabindex="0"
             on:click={() => openChat(convo)}
+            on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openChat(convo); } }}
           >
             <div class="flex items-start gap-4">
               <!-- Avatar -->

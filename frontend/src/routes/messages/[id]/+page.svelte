@@ -391,8 +391,8 @@
 <!-- Enhanced Chat Window -->
 <div class={`chat-window fixed top-16 bottom-0 right-0 left-0 ${$sidebarCollapsed ? 'sm:left-0' : 'sm:left-60'} z-40 flex flex-col bg-gradient-to-br from-base-100/95 to-base-200/95 backdrop-blur-xl border-l border-base-300/30`}>
   <!-- Enhanced Header -->
-  <div class="chat-header relative z-30 flex items-center justify-between p-4 border-b border-base-300/30 bg-base-100/80 backdrop-blur-sm">
-    <div class="flex items-center gap-3">
+  <div class="chat-header relative z-30 flex items-center justify-between p-2 sm:p-4 border-b border-base-300/30 bg-base-100/80 backdrop-blur-sm">
+    <div class="flex items-center gap-3 min-w-0">
       <button 
         class="btn btn-ghost btn-circle hover:bg-base-200/80 transition-all duration-200" 
         on:click={back} 
@@ -418,8 +418,8 @@
         <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-success rounded-full border-2 border-base-100 shadow-sm"></div>
       </div>
       
-      <div class="flex flex-col">
-        <h2 class="font-semibold text-lg">{name}</h2>
+      <div class="flex flex-col min-w-0">
+        <h2 class="font-semibold text-lg truncate">{name}</h2>
         <div class="text-sm text-base-content/60 flex items-center gap-1">
           <div class="w-2 h-2 bg-success rounded-full animate-pulse"></div>
           Online
@@ -483,7 +483,7 @@
           class={`flex ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'} group ${searchResults.includes(index) ? 'bg-warning/20' : ''}`}
           use:registerMsgEl={index}
         >
-          <div class="flex gap-3 max-w-[75%] items-end">
+            <div class="flex gap-3 max-w-[85%] sm:max-w-[75%] items-end">
             {#if m.sender_id !== $auth?.id}
               <div class="avatar flex-shrink-0">
                 <div class="w-8 h-8 rounded-full overflow-hidden ring-1 ring-base-300/50">
@@ -505,7 +505,7 @@
                     <img
                       src={m.image}
                       alt="Attachment"
-                      class="max-w-xs w-full rounded-2xl shadow-lg"
+                      class="max-w-[70vw] sm:max-w-xs w-full rounded-2xl shadow-lg"
                     />
                   </button>
                 </div>

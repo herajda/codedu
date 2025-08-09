@@ -115,12 +115,12 @@
   onMount(load);
 </script>
 
-<nav class="mb-4 sticky top-16 z-30 bg-base-200 rounded-box shadow px-4 py-2 flex items-center gap-2">
+<nav class="mb-4 sticky top-16 z-30 bg-base-200 rounded-box shadow px-4 py-2 flex items-center gap-2 flex-wrap">
   <h1 class="text-xl font-semibold">Notes</h1>
-  <div class="ml-auto flex items-center gap-2">
+  <div class="ml-auto flex items-center gap-2 w-full sm:w-auto justify-end">
     <div class="relative flex items-center">
       <i class="fa-solid fa-search absolute left-3 text-sm opacity-60"></i>
-      <input class="input input-sm input-bordered pl-8 w-48" placeholder="Search notes" bind:value={search} aria-label="Search notes" />
+       <input class="input input-sm input-bordered pl-8 w-full sm:w-48" placeholder="Search notes" bind:value={search} aria-label="Search notes" />
     </div>
       <div class="dropdown dropdown-end">
         <button type="button" class="btn btn-sm" tabindex="0" aria-haspopup="listbox" aria-label="Sort options">

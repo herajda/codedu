@@ -295,7 +295,7 @@ import { compressImage } from '$lib/utils/compressImage';
       </div>
     </div>
 
-    <main class="container mx-auto flex-1 p-6 gap-6">
+    <main class="container mx-auto flex-1 p-4 sm:p-6 gap-6">
       <slot />
     </main>
 

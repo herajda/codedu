@@ -137,7 +137,7 @@
     <div class="absolute -inset-24 opacity-40 blur-3xl pointer-events-none" aria-hidden="true">
       <div class="size-full bg-[conic-gradient(var(--fallback-p,oklch(var(--p))),transparent_50%)]"></div>
     </div>
-    <div class="relative p-6 md:p-8 flex items-start justify-between gap-4">
+    <div class="relative p-6 md:p-8 flex items-start justify-between gap-4 flex-wrap">
       <div class="flex items-center gap-4">
         <div class="size-14 md:size-16 rounded-xl bg-primary/20 ring-1 ring-primary/30 grid place-items-center">
           <BookOpen class="size-7 md:size-8 text-primary" />
@@ -145,7 +145,7 @@
         <div>
           <div class="flex items-center gap-3">
             {#if renaming}
-              <input class="input input-bordered input-md md:input-lg w-[min(28rem,70vw)]" bind:value={newName} bind:this={renameInput} />
+              <input class="input input-bordered input-md md:input-lg w-[min(28rem,90vw)]" bind:value={newName} bind:this={renameInput} />
               <button class="btn btn-primary btn-sm" on:click|preventDefault={renameClass}><Check class="size-4" /></button>
               <button class="btn btn-ghost btn-sm" on:click={() => { renaming = false; newName = cls.name; }}><X class="size-4" /></button>
             {:else}
@@ -156,7 +156,7 @@
         </div>
       </div>
       {#if role === 'teacher' || role === 'admin'}
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 ml-auto">
           {#if !renaming}
             <button class="btn btn-ghost btn-sm" on:click={startRename}><Pencil class="size-4" /> Rename</button>
           {/if}
@@ -170,7 +170,7 @@
       <!-- Students management -->
       <div class="card bg-base-100/80 backdrop-blur border border-base-300/60 shadow-md">
         <div class="card-body">
-          <div class="flex items-center justify-between gap-4">
+          <div class="flex items-center justify-between gap-4 flex-wrap">
             <h2 class="card-title flex items-center gap-2"><Users class="size-5" /> Students</h2>
             {#if role === 'teacher' || role === 'admin'}
               <button class="btn btn-primary btn-sm" on:click={openAddModal}><UserPlus class="size-4" /> Add students</button>
@@ -190,7 +190,7 @@
                       <p class="text-xs text-base-content/60 truncate">ID: {s.id}</p>
                     </div>
                     {#if role === 'teacher' || role === 'admin'}
-                      <button class="btn btn-ghost btn-xs text-error" title="Remove" on:click={() => removeStudent(s.id)}>
+                      <button class="btn btn-ghost btn-xs text-error ml-auto" title="Remove" on:click={() => removeStudent(s.id)}>
                         <UserMinus class="size-4" />
                       </button>
                     {/if}

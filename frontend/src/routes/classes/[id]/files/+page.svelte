@@ -358,7 +358,7 @@ onMount(() => {
       </li>
     {/each}
   </ul>
-  <div class="flex items-center gap-2">
+  <div class="flex items-center gap-2 ml-auto">
     <button class="btn btn-sm btn-circle" on:click={toggleView} title="Toggle view">
       {#if viewMode === 'grid'}
         <i class="fa-solid fa-list"></i>
@@ -367,13 +367,13 @@ onMount(() => {
       {/if}
     </button>
   </div>
-  <div class="flex items-center gap-2 ml-auto">
+  <div class="flex items-center gap-2 ml-auto w-full sm:w-auto justify-end">
     <div class="relative overflow-hidden flex items-center">
       <button class="btn btn-sm btn-circle" on:click={toggleSearch} aria-label="Search">
         <i class="fa-solid fa-search"></i>
       </button>
       <input
-        class="input input-sm input-bordered ml-2 transition-all duration-300"
+        class="input input-sm input-bordered ml-2 transition-all duration-300 w-44 sm:w-48"
         style:width={searchOpen ? '12rem' : '0'}
         style:padding-left={searchOpen ? '0.5rem' : '0'}
         style:padding-right={searchOpen ? '0.5rem' : '0'}
@@ -397,7 +397,7 @@ onMount(() => {
       </div>
   </div>
   {#if role==='teacher' || role==='admin'}
-    <div class="flex items-center gap-2 ml-2">
+    <div class="flex items-center gap-2 ml-2 w-full sm:w-auto justify-end">
       <div class="dropdown">
         <button type="button" class="btn btn-sm btn-primary" aria-haspopup="listbox" aria-label="Create menu">
           <i class="fa-solid fa-plus mr-2"></i>Create

@@ -75,7 +75,7 @@ function badgeFor(a: any) {
 {:else if err}
   <p class="text-error">{err}</p>
 {:else}
-  <div class="flex items-start justify-between gap-3 mb-4">
+  <div class="flex items-start justify-between gap-3 mb-4 flex-wrap">
     <div>
       <h1 class="text-2xl font-semibold">{cls.name} · Overview</h1>
       <p class="opacity-70 text-sm">Teacher: {cls.teacher.name ?? cls.teacher.email}</p>
@@ -145,9 +145,9 @@ function badgeFor(a: any) {
                       <div class="font-medium truncate">{a.title}</div>
                       <div class="text-sm opacity-70 truncate">Due {formatDateTime(a.deadline)}</div>
                     </div>
-                    <div class="flex items-center gap-3 shrink-0">
+                  <div class="flex items-center gap-3 shrink-0">
                       <div class="flex items-center gap-2">
-                        <progress class="progress progress-primary w-24" value={a.best} max={a.max_points}></progress>
+                      <progress class="progress progress-primary w-20 sm:w-24" value={a.best} max={a.max_points}></progress>
                         <span class="text-sm whitespace-nowrap">{a.best}/{a.max_points}</span>
                       </div>
                       {#key a.id}

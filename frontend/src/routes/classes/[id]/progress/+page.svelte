@@ -69,12 +69,12 @@
   }
 </script>
 
-<div class="flex items-start justify-between gap-3 mb-4">
+<div class="flex items-start justify-between gap-3 mb-4 flex-wrap">
   <div>
     <h1 class="text-2xl font-semibold">Class progress</h1>
     <p class="opacity-70 text-sm">{students.length} students · {assignments.length} assignments</p>
   </div>
-  <div class="flex items-center gap-2">
+  <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
     <label class="input input-bordered input-sm flex items-center gap-2">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 opacity-70" aria-hidden="true"><path fill-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 1 0 4.243 11.964l3.271 3.272a.75.75 0 1 0 1.06-1.06l-3.272-3.272A6.75 6.75 0 0 0 10.5 3.75ZM5.25 10.5a5.25 5.25 0 1 1 10.5 0 5.25 5.25 0 0 1-10.5 0Z" clip-rule="evenodd"/></svg>
       <input type="text" class="grow" placeholder="Search students" bind:value={search} />
@@ -99,14 +99,14 @@
     <table class="table table-zebra">
       <thead class="sticky top-16 z-20 bg-base-200">
         <tr>
-          <th class="min-w-52 sticky left-0 z-10 bg-base-200">Student</th>
+          <th class="min-w-40 sm:min-w-52 sticky left-0 z-10 bg-base-200">Student</th>
           {#each assignments as a}
-            <th class="min-w-20 text-center">
+            <th class="min-w-16 sm:min-w-20 text-center">
               <div class="truncate" title={a.title}>{a.title}</div>
               <div class="text-xs opacity-70">{a.max_points}</div>
             </th>
           {/each}
-          <th class="min-w-48 text-right">Total</th>
+          <th class="min-w-36 sm:min-w-48 text-right">Total</th>
         </tr>
       </thead>
       <tbody>
