@@ -5,6 +5,7 @@
   import { page } from '$app/stores'
   import JSZip from 'jszip'
   import { FileTree } from '$lib'
+  import { formatDateTime } from '$lib/date'
 
 $: id = $page.params.id
 
@@ -16,6 +17,7 @@ $: id = $page.params.id
   let selected: { name: string; content: string } | null = null
   let highlighted = ''
   let esCtrl: { close: () => void } | null = null
+  let assignmentTitle: string = ''
 
   import hljs from 'highlight.js'
   import 'highlight.js/styles/github.css'
@@ -62,6 +64,13 @@ $: id = $page.params.id
       files = await parseFiles(submission.code_content)
       tree = buildTree(files)
       selected = files[0]
+
+      if (submission?.assignment_id) {
+        try {
+          const ad = await apiJSON(`/api/assignments/${submission.assignment_id}`)
+          assignmentTitle = ad.assignment?.title ?? ''
+        } catch {}
+      }
     } catch (e: any) {
       err = e.message
     }
@@ -100,6 +109,23 @@ $: id = $page.params.id
     if(s==='time_limit_exceeded' || s==='memory_limit_exceeded') return 'badge-warning'
     return ''
   }
+
+  function resultColor(s: string){
+    if(s === 'passed') return 'badge-success'
+    if(s === 'wrong_output') return 'badge-error'
+    if(s === 'runtime_error') return 'badge-error'
+    if(s === 'time_limit_exceeded' || s==='memory_limit_exceeded') return 'badge-warning'
+    return ''
+  }
+
+  function bgFromBadge(badgeClass: string){
+    return badgeClass.replace('badge','bg')
+  }
+
+  $: totalTests = results?.length ?? 0
+  $: passedCount = results.filter((r)=> r.status==='passed').length
+  $: failedCount = results.filter((r)=> ['wrong_output','runtime_error','failed'].includes(r.status)).length
+  $: warnedCount = results.filter((r)=> ['time_limit_exceeded','memory_limit_exceeded'].includes(r.status)).length
 
   function openFiles() {
     if (files.length) {
@@ -151,45 +177,99 @@ $: id = $page.params.id
 </script>
 
 {#if !submission}
-  <span class="loading loading-dots"></span>
+  <div class="flex justify-center py-10"><span class="loading loading-dots loading-lg"></span></div>
 {:else}
-  <div class="space-y-4">
+  <div class="space-y-6">
     <div class="card bg-base-100 shadow">
-      <div class="card-body">
-        <h1 class="card-title">Submission {submission.id}</h1>
-        <p><strong>Status:</strong> <span class={`badge ${statusColor(submission.status)}`}>{submission.status}</span></p>
+      <div class="card-body space-y-4">
+        <div class="flex items-start justify-between gap-6">
+          <div class="space-y-2">
+            <h1 class="card-title text-2xl">{assignmentTitle || 'Assignment'}</h1>
+            <div class="flex flex-wrap gap-2 text-xs sm:text-sm opacity-80">
+              <span class="inline-flex items-center gap-2 px-3 py-1 rounded bg-base-200">Submission #{submission.id}</span>
+              <span class="inline-flex items-center gap-2 px-3 py-1 rounded bg-base-200">Submitted {formatDateTime(submission.created_at)}</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class={`badge badge-lg ${statusColor(submission.status)}`}>{submission.status}</span>
+            <a class="btn btn-ghost" href="/submissions">Back</a>
+            <button class="btn btn-primary" on:click={openFiles}>View files</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div class="stat bg-base-200 rounded-box">
+            <div class="stat-title">Tests</div>
+            <div class="stat-value text-base">{totalTests}</div>
+          </div>
+          <div class="stat bg-base-200 rounded-box">
+            <div class="stat-title">Passed</div>
+            <div class="stat-value text-success">{passedCount}</div>
+          </div>
+          <div class="stat bg-base-200 rounded-box">
+            <div class="stat-title">Limited</div>
+            <div class="stat-value text-warning">{warnedCount}</div>
+          </div>
+          <div class="stat bg-base-200 rounded-box">
+            <div class="stat-title">Failed</div>
+            <div class="stat-value text-error">{failedCount}</div>
+          </div>
+        </div>
+
+        <div class="h-2 w-full rounded bg-base-200 overflow-hidden flex">
+          {#each results as r}
+            <div class={`h-full flex-1 ${bgFromBadge(resultColor(r.status))}`}></div>
+          {/each}
+          {#if !results.length}
+            <div class="h-full w-1/3 bg-info animate-pulse"></div>
+          {/if}
+        </div>
       </div>
     </div>
-    <div class="card bg-base-100 shadow">
-      <div class="card-body space-y-2">
-        <h3 class="card-title">Files</h3>
-        <button class="btn btn-primary" on:click={openFiles}>Show files</button>
-      </div>
-    </div>
+
     <div class="card bg-base-100 shadow">
       <div class="card-body">
         <h3 class="card-title">Results</h3>
-        <div class="overflow-x-auto">
-          <table class="table table-zebra">
-            <thead>
-              <tr><th>Test</th><th>Status</th><th>Runtime (ms)</th><th>Exit</th><th>Traceback</th></tr>
-            </thead>
-            <tbody>
-              {#each results as r, i}
-                <tr>
-                  <td>{i + 1}</td>
-                  <td><span class={`badge ${statusColor(r.status)}`}>{r.status}</span></td>
-                  <td>{r.runtime_ms}</td>
-                  <td>{r.exit_code}</td>
-                  <td><pre class="whitespace-pre-wrap max-w-xs overflow-x-auto">{r.stderr}</pre></td>
-                </tr>
-              {/each}
-              {#if Array.isArray(results) && !results.length}
-                <tr><td colspan="5"><i>No results yet</i></td></tr>
-              {/if}
-            </tbody>
-          </table>
-        </div>
+        {#if Array.isArray(results) && results.length}
+          <div class="space-y-2">
+            {#each results as r, i}
+              <details class="collapse collapse-arrow bg-base-200">
+                <summary class="collapse-title">
+                  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div class="font-medium">Test {i+1}</div>
+                    <div class="flex items-center flex-wrap gap-3 text-xs sm:text-sm">
+                      <span class={`badge ${statusColor(r.status)}`}>{r.status}</span>
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-base-300">
+                        <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <circle cx="12" cy="12" r="9"/>
+                          <path d="M12 7v5l3 2"/>
+                        </svg>
+                        {r.runtime_ms} ms
+                      </span>
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-base-300">
+                        <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <rect x="3" y="5" width="18" height="14" rx="2" ry="2"/>
+                          <path d="M7 9l3 3-3 3"/>
+                          <path d="M13 15h4"/>
+                        </svg>
+                        exit {r.exit_code}
+                      </span>
+                    </div>
+                  </div>
+                </summary>
+                <div class="collapse-content space-y-2">
+                  {#if r.stderr}
+                    <pre class="whitespace-pre-wrap bg-base-300 rounded p-3 overflow-x-auto">{r.stderr}</pre>
+                  {:else}
+                    <div class="text-sm opacity-70">No stderr output</div>
+                  {/if}
+                </div>
+              </details>
+            {/each}
+          </div>
+        {:else}
+          <div class="text-sm opacity-70 italic">No results yet. This submission may still be running.</div>
+        {/if}
       </div>
     </div>
   </div>

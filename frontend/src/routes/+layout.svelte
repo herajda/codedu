@@ -147,7 +147,7 @@ import { compressImage } from '$lib/utils/compressImage';
     <Sidebar />
   {/if}
 
-  <div class={`relative z-10 min-h-screen flex flex-col ${user && !$sidebarCollapsed ? 'sm:ml-60' : ''}`}>
+  <div class={`relative z-10 min-h-screen flex flex-col ${user && !$sidebarCollapsed ? 'sm:ml-64' : ''}`}>
     <div class="sticky top-0 z-50 px-3 py-2">
       <div class="appbar container mx-auto h-12 px-3 flex items-center justify-between">
         <div class="flex items-center gap-2 min-w-0">
