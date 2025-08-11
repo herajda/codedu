@@ -149,7 +149,7 @@ import { compressImage } from '$lib/utils/compressImage';
 
   <div class={`relative z-10 min-h-screen flex flex-col ${user && !$sidebarCollapsed ? 'sm:ml-64' : ''}`}>
     <div class="sticky top-0 z-50 px-3 py-1">
-      <div class="appbar container mx-auto h-14 px-3 flex items-center justify-between">
+      <div class="appbar w-full h-14 px-3 flex items-center">
         <div class="flex items-center gap-2 min-w-0">
         {#if user}
           <button
@@ -202,7 +202,8 @@ import { compressImage } from '$lib/utils/compressImage';
           <span class="truncate font-semibold tracking-tight">CodeGrader</span>
         </a>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex-1"></div>
+      <div class="flex items-center gap-2 shrink-0">
         {#if user}
           <button class="btn btn-ghost" aria-label="Toggle theme" type="button" on:click={toggleTheme}>
             {#if prefersDark}
