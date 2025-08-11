@@ -230,7 +230,7 @@ body.hide-navbar .navbar {
 }
 
 /* Normalize blend mode for all children to prevent text deformation through compositing */
-.appbar * {
+.appbar > * {
   mix-blend-mode: normal;
   position: relative;
   z-index: 1;
