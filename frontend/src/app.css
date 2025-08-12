@@ -160,7 +160,8 @@ body.hide-navbar .navbar {
     inset 0 1px 0 rgba(255, 255, 255, 0.521);
   /* Prevent child blending artifacts with page content */
   /* Avoid paint containment to fix duplicate rendering in Chromium */
-  overflow: hidden;
+  /* Allow dropdown menus to escape the appbar bounds */
+  overflow: visible;
 }
 
 /* Glass backdrop moved to pseudo-element to avoid Chromium ghosting */

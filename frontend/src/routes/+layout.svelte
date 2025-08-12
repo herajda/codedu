@@ -213,7 +213,7 @@ import { compressImage } from '$lib/utils/compressImage';
             {/if}
           </button>
           <div class="dropdown dropdown-end">
-            <button class="btn btn-ghost btn-circle avatar" aria-haspopup="menu" type="button">
+            <button class="btn btn-ghost btn-circle avatar" aria-haspopup="menu" type="button" tabindex="0">
               {#if user.avatar}
                 <div class="w-10 rounded-full ring-1 ring-base-300/60"><img src={user.avatar} alt="User avatar" /></div>
               {:else}
@@ -222,7 +222,7 @@ import { compressImage } from '$lib/utils/compressImage';
                 </div>
               {/if}
             </button>
-            <ul class="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-36" role="menu">
+            <ul class="mt-3 z-[60] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-36 border border-base-300/30" role="menu" tabindex="0">
               <li><button on:click={openSettings}>Settings</button></li>
               <li><button on:click={logout}>Logout</button></li>
             </ul>
