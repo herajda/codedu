@@ -928,7 +928,7 @@ type Message struct {
 	ID          int       `db:"id" json:"id"`
 	SenderID    int       `db:"sender_id" json:"sender_id"`
 	RecipientID int       `db:"recipient_id" json:"recipient_id"`
-	Content     string    `db:"content" json:"content"`
+	Text        string    `db:"content" json:"text"`
 	Image       *string   `db:"image" json:"image,omitempty"`
 	IsRead      bool      `db:"is_read" json:"is_read"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
@@ -945,7 +945,7 @@ func CreateMessage(m *Message) error {
 	const q = `INSERT INTO messages (sender_id, recipient_id, content, image)
                     VALUES ($1,$2,$3,$4)
                     RETURNING id, created_at, is_read`
-	err = DB.QueryRow(q, m.SenderID, m.RecipientID, m.Content, m.Image).
+	err = DB.QueryRow(q, m.SenderID, m.RecipientID, m.Text, m.Image).
 		Scan(&m.ID, &m.CreatedAt, &m.IsRead)
 	if err == nil {
 		broadcastMsg(sse.Event{Event: "message", Data: m})

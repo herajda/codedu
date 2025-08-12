@@ -4,7 +4,6 @@
   import { goto } from '$app/navigation';
   import { apiFetch, apiJSON } from '$lib/api';
   import { createEventSource } from '$lib/sse';
-  import { getKey, encryptText, decryptText } from '$lib/e2ee';
   import { auth } from '$lib/auth';
   import { compressImage } from '$lib/utils/compressImage';
   import { 
@@ -205,20 +204,7 @@
     }
     const list = await apiJSON(`/api/messages/${id}?limit=${pageSize}&offset=${offset}`);
     list.reverse();
-    const k = getKey();
     for (const m of list) {
-      if (m.content === '') {
-        m.text = '';
-      } else if (k) {
-        try { m.text = await decryptText(k, m.content); }
-        catch { m.text = '[decrypt error]'; }
-      } else {
-        m.text = '[locked]';
-      }
-      if (m.image && k) {
-        try { m.image = await decryptText(k, m.image); }
-        catch { m.image = ''; }
-      }
       m.showTime = false;
     }
     if (more) convo = [...list, ...convo];
@@ -231,20 +217,10 @@
 
   async function send() {
     err = '';
-    let ct = '';
-    let img = null;
-    const k = getKey();
-    if (msg.trim()) {
-      if (!k) { err = 'missing key'; return; }
-      ct = await encryptText(k, msg);
-    }
-    if (imageData) {
-      if (!k) { err = 'missing key'; return; }
-      img = await encryptText(k, imageData);
-    }
+    if (!msg.trim() && !imageData) return;
     const res = await apiFetch('/api/messages', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ to: parseInt(id), content: ct, image: img })
+      body: JSON.stringify({ to: parseInt(id), text: msg, image: imageData })
     });
     if (res.ok) { msg=''; imageData=null; offset=0; await load(); }
     else { err = (await res.json()).error; }
@@ -263,19 +239,6 @@
         src.addEventListener('message', async (ev) => {
           const d = JSON.parse((ev as MessageEvent).data);
           if (d.sender_id === parseInt(id) || d.recipient_id === parseInt(id)) {
-            const k = getKey();
-            if (d.content === '') {
-              d.text = '';
-            } else if (k) {
-              try { d.text = await decryptText(k, d.content); }
-              catch { d.text = '[decrypt error]'; }
-            } else {
-              d.text = '[locked]';
-            }
-            if (d.image && k) {
-              try { d.image = await decryptText(k, d.image); }
-              catch { d.image = ''; }
-            }
             d.showTime = false;
             convo = [...convo, d];
             if (d.sender_id === parseInt(id)) {
