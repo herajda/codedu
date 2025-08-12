@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import { apiJSON, apiFetch } from '$lib/api';
   import { goto } from '$app/navigation';
-  import { getKey, decryptText } from '$lib/e2ee';
   import { Search, MessageCircle, Plus, MoreVertical, Archive, Trash2, Star, StarOff, RefreshCw, X } from 'lucide-svelte';
 import NewChatModal from '$lib/components/NewChatModal.svelte';
 
@@ -25,16 +24,8 @@ import NewChatModal from '$lib/components/NewChatModal.svelte';
     isLoading = true;
     try {
       const list = await apiJSON('/api/messages');
-      const k = getKey();
       for (const c of list) {
-        if (c.content === '') {
-          c.text = '';
-        } else if (k) {
-          try { c.text = await decryptText(k, c.content); }
-          catch { c.text = '[decrypt error]'; }
-        } else {
-          c.text = '[locked]';
-        }
+        c.text = c.text ?? '';
         // Add computed properties for better UX
         c.lastMessageTime = new Date(c.created_at);
         c.isToday = isToday(c.lastMessageTime);
