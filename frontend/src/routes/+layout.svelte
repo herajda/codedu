@@ -8,7 +8,6 @@
   import { sidebarOpen, sidebarCollapsed } from '$lib/sidebar';
   import { apiFetch } from '$lib/api';
   import { sha256 } from '$lib/hash';
-import { initKey } from '$lib/e2ee';
 import { compressImage } from '$lib/utils/compressImage';
   import { onDestroy } from 'svelte';
 
@@ -110,7 +109,6 @@ import { compressImage } from '$lib/utils/compressImage';
 
   onMount(() => {
     auth.init();
-    initKey();
   });
   
   let prefersDark = false;

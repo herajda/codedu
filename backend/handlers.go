@@ -1408,15 +1408,15 @@ func getUserPublic(c *gin.Context) {
 
 func createMessage(c *gin.Context) {
 	var req struct {
-		To      int     `json:"to" binding:"required"`
-		Content string  `json:"content"`
-		Image   *string `json:"image"`
+		To    int     `json:"to" binding:"required"`
+		Text  string  `json:"text"`
+		Image *string `json:"image"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if strings.TrimSpace(req.Content) == "" && (req.Image == nil || *req.Image == "") {
+	if strings.TrimSpace(req.Text) == "" && (req.Image == nil || *req.Image == "") {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "empty message"})
 		return
 	}
@@ -1424,7 +1424,7 @@ func createMessage(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "image too large"})
 		return
 	}
-	msg := &Message{SenderID: c.GetInt("userID"), RecipientID: req.To, Content: req.Content, Image: req.Image}
+	msg := &Message{SenderID: c.GetInt("userID"), RecipientID: req.To, Text: req.Text, Image: req.Image}
 	if err := CreateMessage(msg); err != nil {
 		if errors.Is(err, ErrBlocked) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "blocked"})
