@@ -25,6 +25,14 @@ import { compressImage } from '$lib/utils/compressImage';
   let passwordError = '';
   let avatarChoices: string[] = [];
   let selectedAvatarFromCatalog: string | null = null;
+  let linkEmail = '';
+  let linkPassword = '';
+  let linkPassword2 = '';
+  let linkError = '';
+
+  function isValidEmail(email: string | null | undefined): boolean {
+    return !!email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
 
   function logout() {
     auth.logout();
@@ -37,6 +45,10 @@ import { compressImage } from '$lib/utils/compressImage';
     }
     avatarFile = null;
     selectedAvatarFromCatalog = null;
+    linkEmail = '';
+    linkPassword = '';
+    linkPassword2 = '';
+    linkError = '';
     // load catalog
     fetch('/api/avatars').then(r => r.ok ? r.json() : []).then((list) => { avatarChoices = list; });
     settingsDialog.showModal();
@@ -106,6 +118,34 @@ import { compressImage } from '$lib/utils/compressImage';
       }
     }
     settingsDialog.close();
+  }
+
+  async function linkLocal() {
+    linkError = '';
+    if (linkPassword !== linkPassword2) {
+      linkError = 'Passwords do not match';
+      return;
+    }
+    try {
+      const res = await apiFetch('/api/me/link-local', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: linkEmail, password: await sha256(linkPassword) })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        linkError = data.error ?? res.statusText;
+        return;
+      }
+      const meRes = await apiFetch('/api/me');
+      if (meRes.ok) {
+        const me = await meRes.json();
+        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null);
+      }
+      settingsDialog.close();
+    } catch (e: any) {
+      linkError = e.message;
+    }
   }
 
   $: user = $auth;
@@ -301,6 +341,17 @@ import { compressImage } from '$lib/utils/compressImage';
               {/if}
               {#if user.bk_uid == null}
                 <button class="btn" on:click={openPasswordDialog}>Change password</button>
+              {:else if !isValidEmail(user.email)}
+                <div class="space-y-2">
+                  <h4 class="font-semibold">Create local account</h4>
+                  <input type="email" class="input input-bordered w-full" bind:value={linkEmail} placeholder="Email" />
+                  <input type="password" class="input input-bordered w-full" bind:value={linkPassword} placeholder="Password" />
+                  <input type="password" class="input input-bordered w-full" bind:value={linkPassword2} placeholder="Repeat Password" />
+                  {#if linkError}
+                    <p class="text-error">{linkError}</p>
+                  {/if}
+                  <button class="btn" on:click={linkLocal}>Link account</button>
+                </div>
               {/if}
               <div class="modal-action">
                 <button class="btn" on:click={saveSettings}>Save</button>

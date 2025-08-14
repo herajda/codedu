@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"database/sql"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"net/mail"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -1268,6 +1270,44 @@ func changePassword(c *gin.Context) {
 	}
 	hash, _ := bcrypt.GenerateFromPassword([]byte(req.New), bcrypt.DefaultCost)
 	if err := UpdateUserPassword(uid, string(hash)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func linkLocalAccount(c *gin.Context) {
+	uid := c.GetInt("userID")
+	var req struct {
+		Email    string `json:"email" binding:"required,email"`
+		Password string `json:"password" binding:"required,min=6"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	user, err := GetUser(uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	if user.BkUID == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "non-bakalari account"})
+		return
+	}
+	if _, err := mail.ParseAddress(user.Email); err == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "already linked"})
+		return
+	}
+	if _, err := FindUserByEmail(req.Email); err == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "email already in use"})
+		return
+	} else if err != nil && err != sql.ErrNoRows {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	hash, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err := LinkLocalAccount(uid, req.Email, string(hash)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}

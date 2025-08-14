@@ -150,6 +150,12 @@ func UpdateUserPassword(id int, hash string) error {
 	return err
 }
 
+// LinkLocalAccount sets a new email and password hash for an existing user.
+func LinkLocalAccount(id int, email, hash string) error {
+	_, err := DB.Exec(`UPDATE users SET email=$1, password_hash=$2 WHERE id=$3`, email, hash, id)
+	return err
+}
+
 func ListAllClasses() ([]Class, error) {
 	var cls []Class
 	err := DB.Select(&cls,
