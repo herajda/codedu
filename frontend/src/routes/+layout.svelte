@@ -30,6 +30,10 @@ import { compressImage } from '$lib/utils/compressImage';
   let linkPassword2 = '';
   let linkError = '';
 
+  function isValidEmail(email: string | null | undefined): boolean {
+    return !!email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+
   function logout() {
     auth.logout();
     goto('/login');
@@ -337,7 +341,7 @@ import { compressImage } from '$lib/utils/compressImage';
               {/if}
               {#if user.bk_uid == null}
                 <button class="btn" on:click={openPasswordDialog}>Change password</button>
-              {:else if user.email === user.bk_uid && !user.email?.includes('@')}
+              {:else if !isValidEmail(user.email)}
                 <div class="space-y-2">
                   <h4 class="font-semibold">Create local account</h4>
                   <input type="email" class="input input-bordered w-full" bind:value={linkEmail} placeholder="Email" />

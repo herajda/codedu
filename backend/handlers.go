@@ -14,6 +14,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"net/mail"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -1294,7 +1295,7 @@ func linkLocalAccount(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "non-bakalari account"})
 		return
 	}
-	if user.Email != *user.BkUID || strings.Contains(user.Email, "@") {
+	if _, err := mail.ParseAddress(user.Email); err == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "already linked"})
 		return
 	}
