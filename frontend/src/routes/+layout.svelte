@@ -337,7 +337,7 @@ import { compressImage } from '$lib/utils/compressImage';
               {/if}
               {#if user.bk_uid == null}
                 <button class="btn" on:click={openPasswordDialog}>Change password</button>
-              {:else if user.email?.endsWith('@bakalari')}
+              {:else if user.email === `${user.bk_uid}@bakalari`}
                 <div class="space-y-2">
                   <h4 class="font-semibold">Create local account</h4>
                   <input type="email" class="input input-bordered w-full" bind:value={linkEmail} placeholder="Email" />
