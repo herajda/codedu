@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -212,7 +211,7 @@ func LoginBakalari(c *gin.Context) {
 		}
 		tmpPass := hex.EncodeToString(randBytes)
 		hash, _ := bcrypt.GenerateFromPassword([]byte(clientHash(tmpPass)), bcrypt.DefaultCost)
-		email := fmt.Sprintf("%s@bakalari", bkUID)
+		email := bkUID
 		if role == "teacher" {
 			err = CreateTeacher(email, string(hash), &bkUID)
 		} else {

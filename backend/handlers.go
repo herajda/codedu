@@ -1294,11 +1294,10 @@ func linkLocalAccount(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "non-bakalari account"})
 		return
 	}
-        expected := fmt.Sprintf("%s@bakalari", *user.BkUID)
-        if user.Email != expected {
-                c.JSON(http.StatusBadRequest, gin.H{"error": "already linked"})
-                return
-        }
+	if user.Email != *user.BkUID || strings.Contains(user.Email, "@") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "already linked"})
+		return
+	}
 	if _, err := FindUserByEmail(req.Email); err == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "email already in use"})
 		return
