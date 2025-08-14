@@ -1,6 +1,9 @@
-const BASE = import.meta.env.VITE_BAKALARI_BASE_URL as string;
+const BASE: string | undefined = import.meta.env.VITE_BAKALARI_BASE_URL;
+
+export const hasBakalari = !!BASE;
 
 export async function login(username: string, password: string) {
+  if (!BASE) throw new Error('Bakalari base URL is not configured');
   const form = new URLSearchParams();
   form.set('client_id', 'ANDR');
   form.set('grant_type', 'password');
@@ -21,6 +24,7 @@ export async function login(username: string, password: string) {
 }
 
 export async function getAtoms(token: string) {
+  if (!BASE) throw new Error('Bakalari base URL is not configured');
   const res = await fetch(`${BASE}/api/3/marking/atoms`, {
     headers: { Authorization: `Bearer ${token}` }
   });
@@ -30,6 +34,7 @@ export async function getAtoms(token: string) {
 }
 
 export async function getStudents(token: string, atomId: string) {
+  if (!BASE) throw new Error('Bakalari base URL is not configured');
   const res = await fetch(`${BASE}/api/3/marking/marks/${atomId}`, {
     headers: { Authorization: `Bearer ${token}` }
   });

@@ -2,7 +2,7 @@
   import { onMount, tick } from 'svelte';
   import { auth } from '$lib/auth';
   import { apiFetch, apiJSON } from '$lib/api';
-  import { login as bkLogin, getAtoms, getStudents } from '$lib/bakalari';
+  import { login as bkLogin, getAtoms, getStudents, hasBakalari } from '$lib/bakalari';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { BookOpen, Pencil, Trash2, UserPlus, UserMinus, Search as SearchIcon, Loader2, Check, X, Users, Download } from 'lucide-svelte';
@@ -218,28 +218,30 @@
 
     <!-- Integrations -->
     <div class="space-y-6">
-      <div class="card bg-base-100/80 backdrop-blur border border-base-300/60 shadow-md">
-        <div class="card-body">
-          <h2 class="card-title flex items-center gap-2"><Download class="size-5" /> Import from Bakaláři</h2>
-          <div class="form-control mt-2 space-y-2">
-            <input class="input input-bordered w-full" placeholder="Username" bind:value={bkUser} />
-            <input class="input input-bordered w-full" type="password" placeholder="Password" bind:value={bkPass} />
-            <button class="btn btn-outline w-full" on:click={fetchAtoms} disabled={loadingAtoms}>
-              {#if loadingAtoms}<Loader2 class="size-4 animate-spin" />{:else}<Download class="size-4" />{/if}
-              <span class="ml-1">Load classes</span>
-            </button>
+      {#if hasBakalari}
+        <div class="card bg-base-100/80 backdrop-blur border border-base-300/60 shadow-md">
+          <div class="card-body">
+            <h2 class="card-title flex items-center gap-2"><Download class="size-5" /> Import from Bakaláři</h2>
+            <div class="form-control mt-2 space-y-2">
+              <input class="input input-bordered w-full" placeholder="Username" bind:value={bkUser} />
+              <input class="input input-bordered w-full" type="password" placeholder="Password" bind:value={bkPass} />
+              <button class="btn btn-outline w-full" on:click={fetchAtoms} disabled={loadingAtoms}>
+                {#if loadingAtoms}<Loader2 class="size-4 animate-spin" />{:else}<Download class="size-4" />{/if}
+                <span class="ml-1">Load classes</span>
+              </button>
+            </div>
+            {#if bkAtoms.length}
+              <ul class="menu mt-3">
+                {#each bkAtoms as a}
+                  <li>
+                    <button class="btn btn-sm btn-outline w-full justify-between" on:click={() => importAtom(a.Id)}>{a.Name}</button>
+                  </li>
+                {/each}
+              </ul>
+            {/if}
           </div>
-          {#if bkAtoms.length}
-            <ul class="menu mt-3">
-              {#each bkAtoms as a}
-                <li>
-                  <button class="btn btn-sm btn-outline w-full justify-between" on:click={() => importAtom(a.Id)}>{a.Name}</button>
-                </li>
-              {/each}
-            </ul>
-          {/if}
         </div>
-      </div>
+      {/if}
 
       <!-- Danger zone -->
       {#if role === 'teacher' || role === 'admin'}
