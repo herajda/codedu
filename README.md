@@ -97,7 +97,7 @@ The backend expects several variables to be set (usually via a `.env` file):
 - `JWT_SECRET` – secret used to sign authentication tokens
 - `ADMIN_EMAIL` – email for the seeded administrator account
 - `ADMIN_PASSWORD` – password for the seeded administrator account
-- `VITE_BAKALARI_BASE_URL` – base URL of the Bakaláři API v3 instance
+- `BAKALARI_BASE_URL` – base URL of the Bakaláři API v3 instance
 
 When this variable is configured, the frontend login page presents a
 "Bakalari" tab that communicates with Bakaláři directly so credentials are

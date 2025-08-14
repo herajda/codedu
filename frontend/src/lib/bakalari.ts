@@ -1,4 +1,4 @@
-const BASE: string | undefined = import.meta.env.VITE_BAKALARI_BASE_URL;
+const BASE: string | undefined = import.meta.env.BAKALARI_BASE_URL;
 
 export const hasBakalari = !!BASE;
 
