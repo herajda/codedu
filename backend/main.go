@@ -132,6 +132,7 @@ func main() {
 		api.POST("/assignments/:id/tests/upload", RoleGuard("teacher", "admin"), uploadUnitTests)
 		api.PUT("/tests/:id", RoleGuard("teacher", "admin"), updateTestCase)
 		api.DELETE("/tests/:id", RoleGuard("teacher", "admin"), deleteTestCase)
+		api.POST("/assignments/:id/solution-run", RoleGuard("teacher", "admin"), runTeacherSolution)
 		api.POST("/assignments/:id/submissions", RoleGuard("student"), createSubmission)
 		api.GET("/submissions/:id", RoleGuard("student", "teacher", "admin"), getSubmission)
 		api.PUT("/submissions/:id/points", RoleGuard("teacher", "admin"), overrideSubmissionPoints)

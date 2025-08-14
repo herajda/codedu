@@ -316,6 +316,9 @@ if __name__ == '__main__':
     sys.exit(0 if result.wasSuccessful() else 1)
 `, "/code/"+mainFile, testCode, testName)
 	os.WriteFile(testPath, []byte(content), 0644)
+	// Ensure permissions are readable by container user (nobody)
+	_ = os.Chmod(dir, 0755)
+	_ = os.Chmod(testPath, 0644)
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout+dockerExtraTime)
 	defer cancel()

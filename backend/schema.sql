@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS submissions (
 
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS points NUMERIC;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS override_points NUMERIC;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS is_teacher_run BOOLEAN NOT NULL DEFAULT FALSE;
 
 DO $$ BEGIN
     CREATE TYPE result_status AS ENUM ('passed','time_limit_exceeded','memory_limit_exceeded','wrong_output','runtime_error');

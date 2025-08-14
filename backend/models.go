@@ -59,6 +59,7 @@ type Submission struct {
 	Status       string    `db:"status" json:"status"`
 	Points       *float64  `db:"points" json:"points"`
 	OverridePts  *float64  `db:"override_points" json:"override_points"`
+	IsTeacherRun bool      `db:"is_teacher_run" json:"is_teacher_run"`
 	CreatedAt    time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
 }
@@ -538,14 +539,14 @@ func ListSubmissionsForStudent(studentID int) ([]Submission, error) {
 
 func CreateSubmission(s *Submission) error {
 	const q = `
-          INSERT INTO submissions (assignment_id, student_id, code_path, code_content)
-          SELECT $1,$2,$3,$4
+          INSERT INTO submissions (assignment_id, student_id, code_path, code_content, is_teacher_run)
+          SELECT $1,$2,$3,$4,$5
             WHERE EXISTS (
                 SELECT 1 FROM assignments a
                 JOIN class_students cs ON cs.class_id = a.class_id
                WHERE a.id=$1 AND cs.student_id=$2)
           RETURNING id, status, created_at, updated_at`
-	return DB.QueryRow(q, s.AssignmentID, s.StudentID, s.CodePath, s.CodeContent).
+	return DB.QueryRow(q, s.AssignmentID, s.StudentID, s.CodePath, s.CodeContent, s.IsTeacherRun).
 		Scan(&s.ID, &s.Status, &s.CreatedAt, &s.UpdatedAt)
 }
 
@@ -589,6 +590,22 @@ func ListSubmissionsForAssignment(aid int) ([]SubmissionWithStudent, error) {
                  JOIN users u ON u.id = s.student_id
                 WHERE s.assignment_id = $1
                 ORDER BY s.created_at DESC`, aid)
+	return subs, err
+}
+
+// Teacher runs listing: include teacher email/name and is_teacher_run filter
+func ListTeacherRunsForAssignment(aid int) ([]SubmissionWithStudent, error) {
+	subs := []SubmissionWithStudent{}
+	err := DB.Select(&subs, `
+                SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.points, s.override_points, s.created_at, s.updated_at,
+                       u.email, u.name,
+                       (SELECT r.status FROM results r
+                          WHERE r.submission_id = s.id AND r.status <> 'passed'
+                           ORDER BY r.id LIMIT 1) AS failure_reason
+                  FROM submissions s
+                  JOIN users u ON u.id = s.student_id
+                 WHERE s.assignment_id = $1 AND s.is_teacher_run = TRUE
+                 ORDER BY s.created_at DESC`, aid)
 	return subs, err
 }
 

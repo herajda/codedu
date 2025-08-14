@@ -221,7 +221,9 @@ func getAssignment(c *gin.Context) {
 	resp := gin.H{"assignment": a, "tests": tests}
 	if role == "teacher" || role == "admin" {
 		subs, _ := ListSubmissionsForAssignment(id)
+		tsubs, _ := ListTeacherRunsForAssignment(id)
 		resp["submissions"] = subs
+		resp["teacher_runs"] = tsubs
 	}
 	c.JSON(http.StatusOK, resp)
 }
@@ -575,6 +577,20 @@ func createSubmission(c *gin.Context) {
 		}
 	}
 
+	// Ensure directory and files are readable by the container user (nobody)
+	// The container mounts this directory read-only and needs execute perms on dirs
+	filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			_ = os.Chmod(path, 0755)
+		} else {
+			_ = os.Chmod(path, 0644)
+		}
+		return nil
+	})
+
 	buf := new(bytes.Buffer)
 	zw := zip.NewWriter(buf)
 	err = filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
@@ -625,6 +641,222 @@ func createSubmission(c *gin.Context) {
 	// enqueue for grading
 	EnqueueJob(Job{SubmissionID: sub.ID})
 	c.JSON(http.StatusCreated, sub)
+}
+
+// runTeacherSolution: POST /api/assignments/:id/solution-run
+// Allows a teacher/admin to upload a reference solution and run all tests.
+// Does not persist a submission or results; returns a summary JSON immediately.
+func runTeacherSolution(c *gin.Context) {
+	aid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	// only teachers/admins and must own the assignment if teacher
+	if role := c.GetString("role"); role == "teacher" {
+		if ok, err := IsTeacherOfAssignment(aid, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+
+	if err := c.Request.ParseMultipartForm(32 << 20); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid form"})
+		return
+	}
+	var files []*multipart.FileHeader
+	if c.Request.MultipartForm != nil {
+		files = c.Request.MultipartForm.File["files"]
+	}
+	if len(files) == 0 {
+		if f, ferr := c.FormFile("file"); ferr == nil {
+			files = []*multipart.FileHeader{f}
+		}
+	}
+	if len(files) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no files"})
+		return
+	}
+
+	tmpDir, err := os.MkdirTemp("", "teacher-solution-")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "server error"})
+		return
+	}
+	defer os.RemoveAll(tmpDir)
+
+	for _, fh := range files {
+		dst := filepath.Join(tmpDir, filepath.Base(fh.Filename))
+		if err := c.SaveUploadedFile(fh, dst); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot save"})
+			return
+		}
+	}
+
+	// Detect main file similarly to worker
+	var mainFile string
+	var firstPy string
+	filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(info.Name(), ".py") {
+			rel, _ := filepath.Rel(tmpDir, path)
+			if firstPy == "" {
+				firstPy = rel
+			}
+			content, _ := os.ReadFile(path)
+			if strings.Contains(string(content), "__main__") {
+				mainFile = rel
+				return io.EOF
+			}
+		}
+		return nil
+	})
+	if mainFile == "" {
+		if _, err := os.Stat(filepath.Join(tmpDir, "main.py")); err == nil {
+			mainFile = "main.py"
+		} else {
+			mainFile = firstPy
+		}
+	}
+	if mainFile == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no python files found"})
+		return
+	}
+
+	tests, err := ListTestCases(aid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+
+	// Execute all tests and gather results without persisting
+	results := make([]map[string]any, 0, len(tests))
+	passed := 0
+	totalWeight := 0.0
+	earnedWeight := 0.0
+	for _, tc := range tests {
+		timeout := time.Duration(tc.TimeLimitSec * float64(time.Second))
+		var stdout, stderr string
+		var exitCode int
+		var timedOut bool
+		var runtime time.Duration
+		if tc.UnittestCode != nil && tc.UnittestName != nil {
+			stdout, stderr, exitCode, timedOut, runtime = executePythonUnit(tmpDir, mainFile, *tc.UnittestCode, *tc.UnittestName, timeout)
+		} else {
+			stdout, stderr, exitCode, timedOut, runtime = executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
+		}
+
+		status := "passed"
+		if tc.UnittestCode != nil && tc.UnittestName != nil {
+			if timedOut {
+				status = "time_limit_exceeded"
+			} else if exitCode != 0 {
+				status = "wrong_output"
+			}
+		} else {
+			switch {
+			case timedOut:
+				status = "time_limit_exceeded"
+			case exitCode != 0:
+				status = "runtime_error"
+			case strings.TrimSpace(stdout) != strings.TrimSpace(tc.ExpectedStdout):
+				status = "wrong_output"
+			}
+		}
+
+		if status == "passed" {
+			passed++
+			earnedWeight += tc.Weight
+		}
+		totalWeight += tc.Weight
+
+		item := map[string]any{
+			"test_case_id":    tc.ID,
+			"unittest_name":   tc.UnittestName,
+			"status":          status,
+			"runtime_ms":      int(runtime.Milliseconds()),
+			"exit_code":       exitCode,
+			"actual_stdout":   stdout,
+			"expected_stdout": tc.ExpectedStdout,
+			"stderr":          stderr,
+		}
+		results = append(results, item)
+	}
+
+	// Persist this run as a teacher submission for later viewing
+	// Zip uploaded files in-memory similar to student submission
+	buf := new(bytes.Buffer)
+	zw := zip.NewWriter(buf)
+	_ = filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		rel := filepath.Base(path)
+		w, e := zw.Create(rel)
+		if e != nil {
+			return e
+		}
+		data, e := os.ReadFile(path)
+		if e != nil {
+			return e
+		}
+		_, e = w.Write(data)
+		return e
+	})
+	_ = zw.Close()
+	_ = os.MkdirAll("uploads", 0755)
+	name := fmt.Sprintf("%d_%d_%d_teacher.zip", aid, c.GetInt("userID"), time.Now().UnixNano())
+	path := filepath.Join("uploads", name)
+	_ = os.WriteFile(path, buf.Bytes(), 0644)
+	sub := &Submission{AssignmentID: aid, StudentID: c.GetInt("userID"), CodePath: path, CodeContent: base64.StdEncoding.EncodeToString(buf.Bytes()), IsTeacherRun: true}
+	// Insert without enrollment requirement by bypassing CreateSubmission if teacher
+	if c.GetString("role") == "teacher" || c.GetString("role") == "admin" {
+		// direct insert
+		_ = DB.QueryRow(`INSERT INTO submissions (assignment_id, student_id, code_path, code_content, is_teacher_run)
+                          VALUES ($1,$2,$3,$4,TRUE) RETURNING id, status, created_at, updated_at`,
+			sub.AssignmentID, sub.StudentID, sub.CodePath, sub.CodeContent).Scan(&sub.ID, &sub.Status, &sub.CreatedAt, &sub.UpdatedAt)
+	} else {
+		_ = CreateSubmission(sub)
+	}
+	// Save per-test results to DB (so later details are available)
+	for i, tc := range tests {
+		item := results[i]
+		r := &Result{SubmissionID: sub.ID, TestCaseID: tc.ID, Status: item["status"].(string), ActualStdout: fmt.Sprint(item["actual_stdout"]), Stderr: fmt.Sprint(item["stderr"]), ExitCode: item["exit_code"].(int), RuntimeMS: item["runtime_ms"].(int)}
+		_ = CreateResult(r)
+	}
+
+	// Compute and persist overall status and points similar to worker
+	allPass := passed == len(tests)
+	if a, err := GetAssignment(aid); err == nil {
+		score := 0.0
+		switch a.GradingPolicy {
+		case "all_or_nothing":
+			if allPass {
+				score = float64(a.MaxPoints)
+			}
+		case "weighted":
+			score = earnedWeight
+		}
+		if sub.CreatedAt.After(a.Deadline) {
+			score = 0
+		}
+		_ = SetSubmissionPoints(sub.ID, score)
+	}
+	if allPass {
+		_ = UpdateSubmissionStatus(sub.ID, "completed")
+	} else {
+		_ = UpdateSubmissionStatus(sub.ID, "failed")
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"submission_id": sub.ID,
+		"total":         len(tests),
+		"passed":        passed,
+		"failed":        len(tests) - passed,
+		"results":       results,
+	})
 }
 
 // getSubmission: GET /api/submissions/:id

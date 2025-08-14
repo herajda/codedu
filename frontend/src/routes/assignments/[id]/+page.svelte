@@ -22,6 +22,7 @@ $: role = $auth?.role ?? '';
   let results:any[]=[]
   let esCtrl:{close:()=>void}|null=null
   let allSubs:any[]=[]     // teacher view
+  let teacherRuns:any[]=[] // persisted teacher submissions
   let students:any[]=[]    // class roster for teacher
   let progress:any[]=[]    // computed progress per student
   let expanded:number|null=null
@@ -46,9 +47,15 @@ $: testsPercent = results.length ? Math.round(testsPassed / results.length * 100
 $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.description) as string) : ''
 
   // Enhanced UX state
-  type TabKey = 'overview' | 'submissions' | 'results' | 'instructor'
+  type TabKey = 'overview' | 'submissions' | 'results' | 'instructor' | 'teacher-runs'
   let activeTab: TabKey = 'overview'
   let isDragging = false
+
+  // Teacher solution test-run state (modal in Teacher runs tab)
+  let solFiles: File[] = []
+  let isSolDragging = false
+  let solLoading = false
+  let teacherRunDialog: HTMLDialogElement
 
   function policyLabel(policy:string){
     if(policy==='all_or_nothing') return 'All or nothing'
@@ -113,6 +120,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         done = best >= assignment.max_points
       } else {
         allSubs = data.submissions ?? []
+        teacherRuns = data.teacher_runs ?? []
         const cls = await apiJSON(`/api/classes/${assignment.class_id}`)
         students = cls.students ?? []
         progress = students.map((s:any)=>{
@@ -127,6 +135,11 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
 
   onMount(async () => {
     await load()
+    // restore tab from URL
+    try{
+      const t = $page?.url?.searchParams?.get('tab') || ''
+      if (t && isValidTab(t)) activeTab = t as TabKey
+    }catch{}
     if(typeof sessionStorage!=='undefined'){
       const saved = sessionStorage.getItem(`assign-${id}-expanded`)
       if(saved) expanded = parseInt(saved)
@@ -246,6 +259,28 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     return '';
   }
 
+  function openTeacherRunModal(){
+    teacherRunDialog.showModal()
+  }
+
+  async function runTeacherSolution(){
+    if (!solFiles.length) return
+    const fd = new FormData()
+    for (const f of solFiles) fd.append('files', f)
+    try{
+      solLoading = true
+      await apiJSON(`/api/assignments/${id}/solution-run`, { method: 'POST', body: fd })
+      solFiles = []
+      teacherRunDialog.close()
+      await load()
+      activeTab = 'teacher-runs'
+    }catch(e:any){
+      err = e.message
+    }finally{
+      solLoading = false
+    }
+  }
+
   async function submit(){
     if(files.length === 0) return
     const fd = new FormData()
@@ -268,6 +303,35 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
   function openTestsModal(){ goto(`/assignments/${id}/tests`) }
 
   // removed updateTest (moved to tests page)
+
+  // Persist and restore selected tab via URL so back/forward keeps state
+  function isValidTab(key: string): key is TabKey {
+    const allowed: TabKey[] = ['overview']
+    if (role==='student') {
+      allowed.push('submissions','results')
+    }
+    if (role==='teacher' || role==='admin') {
+      allowed.push('instructor','teacher-runs')
+    }
+    return allowed.includes(key as TabKey)
+  }
+
+  // initialize activeTab from URL once on mount (do not keep overwriting on every reactive cycle)
+
+  function saveTabToUrl(){
+    try{
+      if(typeof location!=='undefined' && typeof history!=='undefined'){
+        const url = new URL(location.href)
+        url.searchParams.set('tab', activeTab)
+        history.replaceState(history.state, '', url)
+      }
+    }catch{}
+  }
+
+  function setTab(tab: TabKey){
+    activeTab = tab
+    saveTabToUrl()
+  }
 </script>
 
 {#if !assignment}
@@ -380,13 +444,14 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
       <div class="lg:col-span-8">
         <div class="tabs tabs-boxed w-full mb-4">
-          <button class={`tab ${activeTab==='overview' ? 'tab-active' : ''}`} on:click={() => activeTab='overview'}>Overview</button>
+          <button class={`tab ${activeTab==='overview' ? 'tab-active' : ''}`} on:click={() => setTab('overview')}>Overview</button>
           {#if role==='student'}
-            <button class={`tab ${activeTab==='submissions' ? 'tab-active' : ''}`} on:click={() => activeTab='submissions'}>Submissions</button>
-            <button class={`tab ${activeTab==='results' ? 'tab-active' : ''}`} on:click={() => activeTab='results'}>Results</button>
+            <button class={`tab ${activeTab==='submissions' ? 'tab-active' : ''}`} on:click={() => setTab('submissions')}>Submissions</button>
+            <button class={`tab ${activeTab==='results' ? 'tab-active' : ''}`} on:click={() => setTab('results')}>Results</button>
           {/if}
           {#if role==='teacher' || role==='admin'}
-            <button class={`tab ${activeTab==='instructor' ? 'tab-active' : ''}`} on:click={() => activeTab='instructor'}>Instructor</button>
+          <button class={`tab ${activeTab==='instructor' ? 'tab-active' : ''}`} on:click={() => setTab('instructor')}>Instructor</button>
+          <button class={`tab ${activeTab==='teacher-runs' ? 'tab-active' : ''}`} on:click={() => setTab('teacher-runs')}>Teacher runs</button>
           {/if}
         </div>
 
@@ -431,7 +496,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                     <tr>
                       <td>{formatDateTime(s.created_at)}</td>
                       <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span></td>
-                      <td><a href={`/submissions/${s.id}`} class="btn btn-sm btn-outline">View</a></td>
+                      <td><a href={`/submissions/${s.id}?fromTab=${activeTab}`} class="btn btn-sm btn-outline" on:click={saveState}>View</a></td>
                     </tr>
                   {/each}
                   {#if !submissions.length}
@@ -449,7 +514,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             {#if latestSub}
               <div class="flex items-center gap-2">
                 <span>Submission:</span>
-                <a class="link" href={`/submissions/${latestSub.id}`}>{formatDateTime(latestSub.created_at)}</a>
+                <a class="link" href={`/submissions/${latestSub.id}?fromTab=${activeTab}`} on:click={saveState}>{formatDateTime(latestSub.created_at)}</a>
                 <span class={`badge ${statusColor(latestSub.status)}`}>{latestSub.status}</span>
               </div>
               <div class="overflow-x-auto mt-2">
@@ -520,7 +585,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                                       {/if}
                                     </div>
                                     <div class="timeline-end timeline-box flex items-center m-0">
-                                      <a class="link" href={`/submissions/${s.id}`} on:click={saveState}>{formatDateTime(s.created_at)}</a>
+                                      <a class="link" href={`/submissions/${s.id}?fromTab=${activeTab}`} on:click={saveState}>{formatDateTime(s.created_at)}</a>
                                     </div>
                                     {#if i !== p.all.length - 1}<hr />{/if}
                                   </li>
@@ -539,6 +604,36 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                   </tbody>
                 </table>
               </div>
+            </div>
+
+          </section>
+        {/if}
+
+        {#if activeTab==='teacher-runs' && (role==='teacher' || role==='admin')}
+          <section class="card-elevated p-6 space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="font-semibold text-lg">Your runs</h3>
+              <button class="btn btn-sm" on:click={openTeacherRunModal}>New run</button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="table table-zebra">
+                <thead>
+                  <tr><th>Date</th><th>Status</th><th>First failure</th><th></th></tr>
+                </thead>
+                <tbody>
+                  {#each teacherRuns as s}
+                    <tr>
+                      <td>{formatDateTime(s.created_at)}</td>
+                      <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span></td>
+                      <td>{s.failure_reason ?? '-'}</td>
+                      <td><a class="btn btn-sm btn-outline" href={`/submissions/${s.id}?fromTab=${activeTab}`} on:click={saveState}>View</a></td>
+                    </tr>
+                  {/each}
+                  {#if !teacherRuns.length}
+                    <tr><td colspan="4"><i>No runs yet</i></td></tr>
+                  {/if}
+                </tbody>
+              </table>
             </div>
           </section>
         {/if}
@@ -560,7 +655,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
               <h3 class="font-semibold">Latest submission</h3>
               <div class="flex items-center gap-2">
                 <span class={`badge ${statusColor(latestSub.status)}`}>{latestSub.status}</span>
-                <a class="link" href={`/submissions/${latestSub.id}`}>{formatDateTime(latestSub.created_at)}</a>
+                <a class="link" href={`/submissions/${latestSub.id}?fromTab=${activeTab}`} on:click={saveState}>{formatDateTime(latestSub.created_at)}</a>
               </div>
             </div>
           {/if}
@@ -592,6 +687,33 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
       {/if}
       <div class="modal-action">
         <button class="btn" on:click={submit} disabled={!files.length}>Upload</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>
+
+  <!-- Teacher run upload modal -->
+  <dialog bind:this={teacherRunDialog} class="modal">
+    <div class="modal-box w-11/12 max-w-lg space-y-4">
+      <h3 class="font-bold text-lg">New teacher run</h3>
+      <div
+        role="region"
+        aria-label="Teacher solution dropzone"
+        class={`border-2 border-dashed rounded-xl p-6 text-center transition ${isSolDragging ? 'bg-base-200' : 'bg-base-100'}`}
+        on:dragover|preventDefault={() => isSolDragging = true}
+        on:dragleave={() => isSolDragging = false}
+        on:drop|preventDefault={(e)=>{ isSolDragging=false; const dt=(e as DragEvent).dataTransfer; if(dt){ solFiles=[...solFiles, ...Array.from(dt.files)].filter(f=>f.name.endsWith('.py')) } }}
+      >
+        <div class="text-sm opacity-70 mb-2">Drag and drop reference .py files here</div>
+        <div class="mb-3">or</div>
+        <input type="file" accept=".py" multiple class="file-input file-input-bordered w-full"
+          on:change={e=>solFiles=Array.from((e.target as HTMLInputElement).files||[])}>
+      </div>
+      {#if solFiles.length}
+        <div class="text-sm opacity-70">{solFiles.length} file{solFiles.length===1?'':'s'} selected</div>
+      {/if}
+      <div class="modal-action">
+        <button class={`btn btn-primary ${solLoading ? 'loading' : ''}`} on:click={runTeacherSolution} disabled={!solFiles.length || solLoading}>Run</button>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>

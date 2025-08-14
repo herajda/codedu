@@ -6,6 +6,7 @@
   import JSZip from 'jszip'
   import { FileTree } from '$lib'
   import { formatDateTime } from '$lib/date'
+  import { goto } from '$app/navigation'
 
 $: id = $page.params.id
 
@@ -134,6 +135,22 @@ $: id = $page.params.id
     }
   }
 
+  function goBack(){
+    try {
+      if (typeof window !== 'undefined' && window.history.length > 1) {
+        window.history.back()
+        return
+      }
+    } catch {}
+    const fromTab = $page?.url?.searchParams?.get('fromTab')
+    if (submission?.assignment_id) {
+      const tabPart = fromTab ? `?tab=${fromTab}` : ''
+      goto(`/assignments/${submission.assignment_id}${tabPart}`)
+    } else {
+      goto('/submissions')
+    }
+  }
+
   function chooseFile(n: FileNode) {
     if (n.content) {
       selected = { name: n.name, content: n.content }
@@ -192,7 +209,7 @@ $: id = $page.params.id
           </div>
           <div class="flex items-center gap-2">
             <span class={`badge badge-lg ${statusColor(submission.status)}`}>{submission.status}</span>
-            <a class="btn btn-ghost" href="/submissions">Back</a>
+            <button class="btn btn-ghost" on:click={goBack}>Back</button>
             <button class="btn btn-primary" on:click={openFiles}>View files</button>
           </div>
         </div>
