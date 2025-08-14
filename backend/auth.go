@@ -1,12 +1,12 @@
 package main
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"time"
 
@@ -17,7 +17,6 @@ import (
 )
 
 var jwtSecret []byte
-var bakalariBaseURL string
 
 const (
 	accessTokenTTL  = 15 * time.Minute
@@ -31,7 +30,6 @@ func InitAuth() {
 		log.Fatal("JWT_SECRET is not set")
 	}
 	jwtSecret = []byte(secret)
-	bakalariBaseURL = os.Getenv("BAKALARI_BASE_URL")
 }
 
 // clientHash replicates the SHA-256 hashing performed by the frontend before
@@ -175,130 +173,59 @@ func Login(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// LoginBakalari verifies credentials using Bakaláři API v3. If the user does
-// not exist locally, a new account is created with the provided role (student
-// or teacher).
+// LoginBakalari accepts user information obtained from the Bakaláři API on
+// the client and creates or updates a local account without handling the
+// user's Bakaláři credentials.
 func LoginBakalari(c *gin.Context) {
 	var req struct {
-		Username string `json:"username" binding:"required"`
-		Password string `json:"password" binding:"required"`
+		UID   string  `json:"uid" binding:"required"`
+		Role  string  `json:"role" binding:"required"`
+		Class *string `json:"class"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if bakalariBaseURL == "" {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "bakalari base url not configured"})
-		return
+	// trim UID to last three characters, matching previous behaviour
+	uid := req.UID
+	if len(uid) > 3 {
+		uid = uid[len(uid)-3:]
 	}
-
-	form := url.Values{}
-	form.Set("client_id", "ANDR")
-	form.Set("grant_type", "password")
-	form.Set("username", req.Username)
-	form.Set("password", req.Password)
-
-	resp, err := http.PostForm(bakalariBaseURL+"/api/login", form)
-	if err != nil {
-		log.Printf("bakalari login request failed: %v", err)
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
-		return
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
-		return
-	}
-
-	var bkres struct {
-		AccessToken string `json:"access_token"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&bkres); err != nil || bkres.AccessToken == "" {
-		log.Printf("bakalari login decode error: %v", err)
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
-		return
-	}
-
-	// fetch user info to determine role and class name
-	reqUser, _ := http.NewRequest("GET", bakalariBaseURL+"/api/3/user", nil)
-	reqUser.Header.Set("Authorization", "Bearer "+bkres.AccessToken)
-	userResp, err := http.DefaultClient.Do(reqUser)
-	if err != nil {
-		log.Printf("bakalari user request failed: %v", err)
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
-		return
-	}
-	defer userResp.Body.Close()
-	if userResp.StatusCode != http.StatusOK {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
-		return
-	}
-	var userInfo struct {
-		UserType string `json:"UserType"`
-		UserUID  string `json:"UserUID"`
-		Class    struct {
-			Abbrev string `json:"Abbrev"`
-		} `json:"Class"`
-	}
-	if err := json.NewDecoder(userResp.Body).Decode(&userInfo); err != nil {
-		log.Printf("decode user info failed: %v", err)
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
-		return
-	}
+	bkUID := uid
 
 	role := "student"
-	if userInfo.UserType == "teacher" {
+	if req.Role == "teacher" {
 		role = "teacher"
 	}
-	var bkClass *string
-	if role == "student" && userInfo.Class.Abbrev != "" {
-		bkClass = &userInfo.Class.Abbrev
-	}
-	var bkUID *string
-	if uid := userInfo.UserUID; uid != "" {
-		if len(uid) >= 3 {
-			id3 := uid[len(uid)-3:]
-			bkUID = &id3
-		} else {
-			bkUID = &uid
-		}
-	}
+	bkClass := req.Class
 
 	var user *User
-	if bkUID != nil {
-		user, err = FindUserByBkUID(*bkUID)
-	}
+	var err error
+	user, err = FindUserByBkUID(bkUID)
 	if err != nil || user == nil {
-		user, err = FindUserByEmail(req.Username)
-	}
-	if err != nil || user == nil {
-		// create new user with specified role
-		hash, _ := bcrypt.GenerateFromPassword([]byte(clientHash(req.Password)), bcrypt.DefaultCost)
+		// create new user with random password placeholder
+		randBytes := make([]byte, 16)
+		if _, err = rand.Read(randBytes); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "random"})
+			return
+		}
+		tmpPass := hex.EncodeToString(randBytes)
+		hash, _ := bcrypt.GenerateFromPassword([]byte(clientHash(tmpPass)), bcrypt.DefaultCost)
+		email := fmt.Sprintf("%s@bakalari", bkUID)
 		if role == "teacher" {
-			err = CreateTeacher(req.Username, string(hash), bkUID)
+			err = CreateTeacher(email, string(hash), &bkUID)
 		} else {
-			err = CreateStudent(req.Username, string(hash), nil, bkClass, bkUID)
+			err = CreateStudent(email, string(hash), nil, bkClass, &bkUID)
 		}
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create user"})
 			return
 		}
-		user, _ = FindUserByEmail(req.Username)
-	} else {
-		// update stored bakalari info when changed
-		if role == "student" && bkClass != nil && (user.BkClass == nil || *user.BkClass != *bkClass) {
-			_, _ = DB.Exec(`UPDATE users SET bk_class=$1 WHERE id=$2`, *bkClass, user.ID)
-			user.BkClass = bkClass
-		}
-		if bkUID != nil && (user.BkUID == nil || *user.BkUID != *bkUID) {
-			_, _ = DB.Exec(`UPDATE users SET bk_uid=$1 WHERE id=$2`, *bkUID, user.ID)
-			user.BkUID = bkUID
-		}
-		if user.Email != req.Username {
-			_, _ = DB.Exec(`UPDATE users SET email=$1 WHERE id=$2`, req.Username, user.ID)
-			user.Email = req.Username
-		}
+		user, _ = FindUserByBkUID(bkUID)
+	} else if role == "student" && bkClass != nil && (user.BkClass == nil || *user.BkClass != *bkClass) {
+		_, _ = DB.Exec(`UPDATE users SET bk_class=$1 WHERE id=$2`, *bkClass, user.ID)
+		user.BkClass = bkClass
 	}
 
 	access, refresh, err := issueTokens(user.ID, user.Role)

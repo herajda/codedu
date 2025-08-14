@@ -3,6 +3,7 @@
     import { apiFetch } from '$lib/api'
     import { sha256 } from '$lib/hash'
     import { goto } from '$app/navigation'
+    import { login as bkLogin } from '$lib/bakalari'
     let email = ''
     let password = ''
     let bkUser = ''
@@ -36,23 +37,28 @@
     }
     async function submitBk() {
       error = ''
-      const res = await fetch('/api/login-bakalari', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ username: bkUser, password: bkPass })
-      })
-      if (!res.ok) {
-        error = (await res.json()).error
-        return
+      try {
+        const { info } = await bkLogin(bkUser, bkPass)
+        const res = await fetch('/api/login-bakalari', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ uid: info.UserUID, role: info.UserType, class: info.Class?.Abbrev ?? null })
+        })
+        if (!res.ok) {
+          error = (await res.json()).error
+          return
+        }
+        const meRes = await apiFetch('/api/me')
+        if (!meRes.ok) {
+          error = 'Couldn\u2019t fetch user info'
+          return
+        }
+        const me = await meRes.json()
+        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null)
+        goto('/dashboard')
+      } catch (e: any) {
+        error = e.message
       }
-      const meRes = await apiFetch('/api/me')
-      if (!meRes.ok) {
-        error = 'Couldn\u2019t fetch user info'
-        return
-      }
-      const me = await meRes.json()
-      auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null)
-      goto('/dashboard')
     }
   </script>
   

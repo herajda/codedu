@@ -2,6 +2,7 @@
   import { onMount, tick } from 'svelte';
   import { auth } from '$lib/auth';
   import { apiFetch, apiJSON } from '$lib/api';
+  import { login as bkLogin, getAtoms, getStudents } from '$lib/bakalari';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { BookOpen, Pencil, Trash2, UserPlus, UserMinus, Search as SearchIcon, Loader2, Check, X, Users, Download } from 'lucide-svelte';
@@ -101,13 +102,16 @@
   let bkUser = '';
   let bkPass = '';
   let bkAtoms: { Id: string; Name: string }[] = [];
+  let bkToken: string | null = null;
   let loadingAtoms = false;
 
   async function fetchAtoms() {
     err = '';
     loadingAtoms = true;
     try {
-      bkAtoms = await apiJSON('/api/bakalari/atoms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: bkUser, password: bkPass }) });
+      const { token } = await bkLogin(bkUser, bkPass);
+      bkToken = token;
+      bkAtoms = await getAtoms(token);
     } catch (e: any) { err = e.message }
     loadingAtoms = false;
   }
@@ -115,7 +119,9 @@
   async function importAtom(aid: string) {
     err = '';
     try {
-      const res = await apiJSON<{ added: number }>(`/api/classes/${id}/import-bakalari`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: bkUser, password: bkPass, atom_id: aid }) });
+      if (!bkToken) throw new Error('Not logged in');
+      const students = await getStudents(bkToken, aid);
+      const res = await apiJSON<{ added: number }>(`/api/classes/${id}/import-bakalari`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ Students: students }) });
       await load();
       alert(`Imported ${res.added} students`);
     } catch (e: any) { err = e.message }

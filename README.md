@@ -97,11 +97,11 @@ The backend expects several variables to be set (usually via a `.env` file):
 - `JWT_SECRET` – secret used to sign authentication tokens
 - `ADMIN_EMAIL` – email for the seeded administrator account
 - `ADMIN_PASSWORD` – password for the seeded administrator account
-- `BAKALARI_BASE_URL` – base URL of the Bakaláři API v3 instance
+- `VITE_BAKALARI_BASE_URL` – base URL of the Bakaláři API v3 instance
 
 When this variable is configured, the frontend login page presents a
-"Bakalari" tab allowing students and teachers to authenticate using their
-school credentials.
+"Bakalari" tab that communicates with Bakaláři directly so credentials are
+never sent to the Code Grader server.
 
 You can copy `backend/.env.example` and adjust it for your environment.
 

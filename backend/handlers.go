@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"image"
@@ -14,7 +13,6 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -745,106 +743,24 @@ func addStudents(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// bakalariLogin performs a simple username/password login and returns the access token.
-func bakalariLogin(username, password string) (string, error) {
-	form := url.Values{}
-	form.Set("client_id", "ANDR")
-	form.Set("grant_type", "password")
-	form.Set("username", username)
-	form.Set("password", password)
-	resp, err := http.PostForm(bakalariBaseURL+"/api/login", form)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("login failed")
-	}
-	var r struct {
-		AccessToken string `json:"access_token"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil || r.AccessToken == "" {
-		return "", fmt.Errorf("login failed")
-	}
-	return r.AccessToken, nil
-}
-
-// bakalariAtoms fetches teacher's marking atoms from Bakaláři.
-func bakalariAtoms(c *gin.Context) {
-	var req struct {
-		Username string `json:"username" binding:"required"`
-		Password string `json:"password" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	token, err := bakalariLogin(req.Username, req.Password)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
-		return
-	}
-	httpReq, _ := http.NewRequest("GET", bakalariBaseURL+"/api/3/marking/atoms", nil)
-	httpReq.Header.Set("Authorization", "Bearer "+token)
-	resp, err := http.DefaultClient.Do(httpReq)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "bakalari request failed"})
-		return
-	}
-	defer resp.Body.Close()
-	var data struct {
-		Atoms []struct {
-			Id   string `json:"Id"`
-			Name string `json:"Name"`
-		} `json:"Atoms"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "decode"})
-		return
-	}
-	c.JSON(http.StatusOK, data.Atoms)
-}
-
-// importBakalariStudents imports students from a Bakaláři class atom and adds them to a local class.
+// importBakalariStudents imports students provided by the frontend from a Bakaláři class atom and adds them to a local class.
 func importBakalariStudents(c *gin.Context) {
 	localID, _ := strconv.Atoi(c.Param("id"))
 	var req struct {
-		Username string `json:"username" binding:"required"`
-		Password string `json:"password" binding:"required"`
-		AtomID   string `json:"atom_id" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	token, err := bakalariLogin(req.Username, req.Password)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
-		return
-	}
-	httpReq, _ := http.NewRequest("GET", bakalariBaseURL+"/api/3/marking/marks/"+req.AtomID, nil)
-	httpReq.Header.Set("Authorization", "Bearer "+token)
-	resp, err := http.DefaultClient.Do(httpReq)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "bakalari request failed"})
-		return
-	}
-	defer resp.Body.Close()
-	var data struct {
 		Students []struct {
 			Id         string `json:"Id"`
 			ClassId    string `json:"ClassId"`
 			FirstName  string `json:"FirstName"`
 			MiddleName string `json:"MiddleName"`
 			LastName   string `json:"LastName"`
-		} `json:"Students"`
+		} `json:"Students" binding:"required"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "decode"})
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	var ids []int
-	for _, s := range data.Students {
+	for _, s := range req.Students {
 		full := strings.TrimSpace(strings.Join([]string{s.FirstName, s.MiddleName, s.LastName}, " "))
 		id, err := EnsureStudentForBk(s.Id, s.ClassId, full)
 		if err == nil {
