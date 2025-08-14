@@ -114,6 +114,7 @@ func main() {
 		})
 		api.PUT("/me", updateProfile)
 		api.PUT("/me/password", changePassword)
+		api.POST("/me/link-local", linkLocalAccount)
 
 		// Assignments
 		api.GET("/assignments", RoleGuard("student", "teacher", "admin"), listAssignments)

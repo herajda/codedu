@@ -13,6 +13,7 @@ import { compressImage } from '$lib/utils/compressImage';
 
   let settingsDialog: HTMLDialogElement;
   let passwordDialog: HTMLDialogElement;
+  let linkDialog: HTMLDialogElement;
   let avatarInput: HTMLInputElement;
   let name = '';
   let avatarFile: string | null = null;
@@ -20,6 +21,10 @@ import { compressImage } from '$lib/utils/compressImage';
   let newPassword = '';
   let newPassword2 = '';
   let passwordError = '';
+  let linkEmail = '';
+  let linkPassword = '';
+  let linkPassword2 = '';
+  let linkError = '';
   let avatarChoices: string[] = [];
   let selectedAvatarFromCatalog: string | null = null;
 
@@ -83,6 +88,45 @@ import { compressImage } from '$lib/utils/compressImage';
       passwordDialog.close();
     } catch (e: any) {
       passwordError = e.message;
+    }
+  }
+
+  function openLinkDialog() {
+    linkEmail = '';
+    linkPassword = '';
+    linkPassword2 = '';
+    linkError = '';
+    linkDialog.showModal();
+  }
+
+  async function linkLocal() {
+    linkError = '';
+    if (linkPassword !== linkPassword2) {
+      linkError = 'Passwords do not match';
+      return;
+    }
+    try {
+      const res = await apiFetch('/api/me/link-local', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: linkEmail,
+          password: await sha256(linkPassword)
+        })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        linkError = data.error ?? res.statusText;
+        return;
+      }
+      linkDialog.close();
+      const meRes = await apiFetch('/api/me');
+      if (meRes.ok) {
+        const me = await meRes.json();
+        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null);
+      }
+    } catch (e: any) {
+      linkError = e.message;
     }
   }
 
@@ -269,6 +313,8 @@ import { compressImage } from '$lib/utils/compressImage';
               {/if}
               {#if user.bk_uid == null}
                 <button class="btn" on:click={openPasswordDialog}>Change password</button>
+              {:else if user.email && user.email.endsWith('@bakalari')}
+                <button class="btn" on:click={openLinkDialog}>Create local account</button>
               {/if}
               <div class="modal-action">
                 <button class="btn" on:click={saveSettings}>Save</button>
@@ -296,6 +342,30 @@ import { compressImage } from '$lib/utils/compressImage';
               {/if}
               <div class="modal-action">
                 <button class="btn" on:click={savePassword}>Save</button>
+              </div>
+            </div>
+            <form method="dialog" class="modal-backdrop"><button>close</button></form>
+          </dialog>
+          <dialog bind:this={linkDialog} class="modal">
+            <div class="modal-box space-y-4">
+              <h3 class="font-bold text-lg">Create Local Account</h3>
+              <label class="form-control w-full space-y-1">
+                <span class="label-text">Email</span>
+                <input type="email" class="input input-bordered w-full" bind:value={linkEmail} />
+              </label>
+              <label class="form-control w-full space-y-1">
+                <span class="label-text">Password</span>
+                <input type="password" class="input input-bordered w-full" bind:value={linkPassword} />
+              </label>
+              <label class="form-control w-full space-y-1">
+                <span class="label-text">Repeat Password</span>
+                <input type="password" class="input input-bordered w-full" bind:value={linkPassword2} />
+              </label>
+              {#if linkError}
+                <p class="text-error">{linkError}</p>
+              {/if}
+              <div class="modal-action">
+                <button class="btn" on:click={linkLocal}>Save</button>
               </div>
             </div>
             <form method="dialog" class="modal-backdrop"><button>close</button></form>

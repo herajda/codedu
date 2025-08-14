@@ -1274,6 +1274,38 @@ func changePassword(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// linkLocalAccount allows a Bakalari user to set local login credentials.
+func linkLocalAccount(c *gin.Context) {
+	uid := c.GetInt("userID")
+	var req struct {
+		Email    string `json:"email" binding:"required,email"`
+		Password string `json:"password" binding:"required,min=6"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	user, err := GetUser(uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	if user.BkUID == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "not a bakalari account"})
+		return
+	}
+	if existing, err := FindUserByEmail(req.Email); err == nil && existing.ID != uid {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "email already in use"})
+		return
+	}
+	hash, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if _, err := DB.Exec(`UPDATE users SET email=$1, password_hash=$2 WHERE id=$3`, req.Email, string(hash), uid); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 // ──────────────────────────────────────────
 // messaging handlers
 // ──────────────────────────────────────────
