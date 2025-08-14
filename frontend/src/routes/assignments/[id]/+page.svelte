@@ -16,7 +16,7 @@ let role = '';
 $: role = $auth?.role ?? '';
 
   let assignment:any=null
-  let tests:any[]=[] // teacher/admin only
+  // tests moved to standalone page
   let submissions:any[]=[] // student submissions
   let latestSub:any=null
   let results:any[]=[]
@@ -31,12 +31,12 @@ $: role = $auth?.role ?? '';
   let testsPassed=0
   let testsPercent=0
   let err=''
-  let tStdin='', tStdout='', tLimit='', tWeight='1'
+  // removed test creation inputs (moved to tests page)
   let files: File[] = []
   let templateFile:File|null=null
-  let unittestFile:File|null=null
+  // removed unittest file input (moved to tests page)
   let submitDialog: HTMLDialogElement;
-  let testsDialog: HTMLDialogElement;
+  // removed tests dialog (moved to tests page)
 $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100) : 0;
 $: testsPassed = results.filter((r:any) => r.status === 'passed').length;
 $: testsPercent = results.length ? Math.round(testsPassed / results.length * 100) : 0;
@@ -112,7 +112,6 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         pointsEarned = best
         done = best >= assignment.max_points
       } else {
-        tests = data.tests ?? []
         allSubs = data.submissions ?? []
         const cls = await apiJSON(`/api/classes/${assignment.class_id}`)
         students = cls.students ?? []
@@ -160,19 +159,6 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     window.removeEventListener('beforeunload', saveState)
   })
 
-  async function addTest(){
-    try{
-      await apiFetch(`/api/assignments/${id}/tests`,{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({stdin:tStdin, expected_stdout:tStdout, weight: parseFloat(tWeight) || 1, time_limit_sec: parseFloat(tLimit) || undefined})
-      })
-      tStdin=tStdout=tLimit=''
-      tWeight='1'
-      await load()
-    }catch(e:any){ err=e.message }
-  }
-
   async function uploadTemplate(){
     if(!templateFile) return
     const fd = new FormData()
@@ -180,17 +166,6 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     try{
       await apiFetch(`/api/assignments/${id}/template`,{method:'POST', body:fd})
       templateFile=null
-      await load()
-    }catch(e:any){ err=e.message }
-  }
-
-  async function uploadUnitTests(){
-    if(!unittestFile) return
-    const fd = new FormData()
-    fd.append('file', unittestFile)
-    try{
-      await apiFetch(`/api/assignments/${id}/tests/upload`,{method:'POST', body:fd})
-      unittestFile=null
       await load()
     }catch(e:any){ err=e.message }
   }
@@ -249,14 +224,6 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     }catch(e:any){ err=e.message }
   }
 
-  async function delTest(tid:number){
-    if(!confirm('Delete this test?')) return
-    try{
-      await apiFetch(`/api/tests/${tid}`,{method:'DELETE'})
-      await load()
-    }catch(e:any){ err=e.message }
-  }
-
   function saveState(){
     if(typeof sessionStorage==='undefined') return
     sessionStorage.setItem(`assign-${id}-expanded`, expanded===null ? '' : String(expanded))
@@ -298,20 +265,9 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     submitDialog.showModal()
   }
 
-  function openTestsModal(){
-    testsDialog.showModal()
-  }
+  function openTestsModal(){ goto(`/assignments/${id}/tests`) }
 
-  async function updateTest(t:any){
-    try{
-      await apiFetch(`/api/tests/${t.id}`,{
-        method:'PUT',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({stdin:t.stdin, expected_stdout:t.expected_stdout, weight: parseFloat(t.weight) || 1, time_limit_sec: parseFloat(t.time_limit_sec) || undefined})
-      })
-      await load()
-    }catch(e:any){ err=e.message }
-  }
+  // removed updateTest (moved to tests page)
 </script>
 
 {#if !assignment}
@@ -641,82 +597,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
   </dialog>
 
-  <dialog bind:this={testsDialog} class="modal">
-    <div class="modal-box w-11/12 max-w-2xl space-y-4">
-      <h3 class="font-bold text-lg mb-2">Manage tests</h3>
-      <p class="text-sm opacity-70">Specify stdin, expected stdout, time limit and weight. You can also upload a unittest file.</p>
-      <div class="grid gap-3 max-h-64 overflow-y-auto">
-        {#each tests as t, i}
-          <div class="rounded-xl border border-base-300/60 p-3 space-y-2">
-            <div class="flex items-center justify-between">
-              <div class="font-semibold">Test {i+1}
-                {#if t.unittest_name}
-                  <span class="badge badge-outline ml-2">{t.unittest_name}</span>
-                {/if}
-              </div>
-              <div class="flex gap-2">
-                <button class="btn btn-xs" on:click={()=>updateTest(t)}>Save</button>
-                <button class="btn btn-xs btn-error" on:click={()=>delTest(t.id)}>Delete</button>
-              </div>
-            </div>
-            {#if !t.unittest_name}
-              <div class="grid sm:grid-cols-2 gap-2">
-                <label class="form-control w-full space-y-1">
-                  <span class="label-text">Input</span>
-                  <input class="input input-bordered w-full" placeholder="stdin" bind:value={t.stdin}>
-                </label>
-                <label class="form-control w-full space-y-1">
-                  <span class="label-text">Expected output</span>
-                  <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={t.expected_stdout}>
-                </label>
-              </div>
-            {/if}
-            <div class="grid sm:grid-cols-2 gap-2">
-              <label class="form-control w-full space-y-1">
-                <span class="label-text">Time limit (s)</span>
-                <input class="input input-bordered w-full" placeholder="seconds" bind:value={t.time_limit_sec}>
-              </label>
-              <label class="form-control w-full space-y-1">
-                <span class="label-text">Weight</span>
-                <input class="input input-bordered w-full" placeholder="points" bind:value={t.weight}>
-              </label>
-            </div>
-          </div>
-        {/each}
-        {#if !(tests && tests.length)}<p><i>No tests</i></p>{/if}
-      </div>
-      <div class="border-t pt-3 space-y-2">
-        <h4 class="font-semibold">Add test</h4>
-        <div class="grid sm:grid-cols-2 gap-2">
-          <label class="form-control w-full space-y-1">
-            <span class="label-text">Input</span>
-            <input class="input input-bordered w-full" placeholder="stdin" bind:value={tStdin}>
-          </label>
-          <label class="form-control w-full space-y-1">
-            <span class="label-text">Expected output</span>
-            <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={tStdout}>
-          </label>
-          <label class="form-control w-full space-y-1">
-            <span class="label-text">Time limit (s)</span>
-            <input class="input input-bordered w-full" placeholder="seconds" bind:value={tLimit}>
-          </label>
-          <label class="form-control w-full space-y-1">
-            <span class="label-text">Weight</span>
-            <input class="input input-bordered w-full" placeholder="points" bind:value={tWeight}>
-          </label>
-        </div>
-        <div class="modal-action">
-          <button class="btn btn-primary" on:click={addTest} disabled={!tStdin || !tStdout}>Add</button>
-        </div>
-        <h4 class="font-semibold mt-2">Upload unittest file</h4>
-        <input type="file" accept=".py" class="file-input file-input-bordered w-full" on:change={e=>unittestFile=(e.target as HTMLInputElement).files?.[0] || null}>
-        <div class="modal-action">
-          <button class="btn" on:click={uploadUnitTests} disabled={!unittestFile}>Upload</button>
-        </div>
-      </div>
-    </div>
-    <form method="dialog" class="modal-backdrop"><button>close</button></form>
-  </dialog>
+  
 
   {#if err}
     <div class="alert alert-error mt-4"><span>{err}</span></div>
