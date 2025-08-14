@@ -95,10 +95,10 @@
 {:else if err}
   <p class="text-error">{err}</p>
 {:else}
-  <div class="card-elevated p-4 overflow-x-auto">
+  <div class="card-elevated p-4 pt-12 overflow-x-auto">
     <table class="table table-zebra">
-      <thead class="sticky top-16 z-20 bg-base-200">
-        <tr>
+      <thead class="bg-base-200">
+        <tr class="h-12">
           <th class="min-w-40 sm:min-w-52 sticky left-0 z-10 bg-base-200">Student</th>
           {#each assignments as a}
             <th class="min-w-16 sm:min-w-20 text-center">
@@ -115,7 +115,6 @@
           <tr class="hover bg-base-100/10 cursor-pointer" on:click={() => openStudent(s.id)}>
             <td class="sticky left-0 bg-base-200/60 backdrop-blur supports-[backdrop-filter]:bg-base-200/50">
               <div class="font-medium truncate"><a class="link" href={`/classes/${id}/progress/${s.id}`}>{s.name ?? s.email}</a></div>
-              <div class="text-xs opacity-70 truncate">{s.email}</div>
             </td>
             {#each assignments as a}
               {#key `${s.id}-${a.id}`}
