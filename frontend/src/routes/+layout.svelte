@@ -313,7 +313,7 @@ import { compressImage } from '$lib/utils/compressImage';
               {/if}
               {#if user.bk_uid == null}
                 <button class="btn" on:click={openPasswordDialog}>Change password</button>
-              {:else if user.email && user.email.endsWith('@bakalari')}
+              {:else if !user.email || user.email === user.bk_uid}
                 <button class="btn" on:click={openLinkDialog}>Create local account</button>
               {/if}
               <div class="modal-action">
