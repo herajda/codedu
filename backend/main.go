@@ -137,7 +137,6 @@ func main() {
 		// TEACHER / STUDENT common
 		api.GET("/classes", RoleGuard("teacher", "student"), myClasses)
 		api.POST("/classes/:id/students", RoleGuard("teacher", "admin"), addStudents)
-		api.POST("/bakalari/atoms", RoleGuard("teacher"), bakalariAtoms)
 		api.POST("/classes/:id/import-bakalari", RoleGuard("teacher"), importBakalariStudents)
 		api.GET("/classes/all", RoleGuard("admin"), listAllClasses) // new
 

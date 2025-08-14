@@ -4,16 +4,17 @@ import { defineConfig } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
-	plugins: [
-		tailwindcss(),
-		sveltekit(),
-		devtoolsJson()
-	],
-	worker: {
-		format: 'es'
-	},
-	ssr: {
-		worker: { format: 'es' }
+        plugins: [
+                tailwindcss(),
+                sveltekit(),
+                devtoolsJson()
+        ],
+        envPrefix: ['VITE_', 'BAKALARI_'],
+        worker: {
+                format: 'es'
+        },
+        ssr: {
+                worker: { format: 'es' }
 	},
 	server: {
     proxy: {
