@@ -121,13 +121,7 @@
   $: teacherStats = role === 'teacher' ? (() => {
     const studentsTotal = classes.reduce((sum: number, c: any) => sum + (c.students?.length ?? 0), 0);
     const activeAssignments = classes.reduce((sum: number, c: any) => sum + c.assignments.length, 0);
-    const outstanding = classes.reduce((sum: number, c: any) => {
-      return sum + c.assignments.reduce((s: number, a: any) => {
-        const done = (c.progress?.find((p: any) => p.id === a.id)?.done) ?? 0;
-        return s + Math.max(0, (c.students?.length ?? 0) - done);
-      }, 0);
-    }, 0);
-    return { studentsTotal, activeAssignments, outstanding };
+    return { studentsTotal, activeAssignments };
   })() : null;
 </script>
 
@@ -136,7 +130,7 @@
 {:else}
 
   {#if role === 'student'}
-    <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+    <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
       <div class="card-elevated p-4 flex items-center gap-3">
         <BookOpen class="w-5 h-5 opacity-70" aria-hidden="true" />
         <div>
@@ -245,13 +239,7 @@
           <div class="text-xl font-semibold">{teacherStats?.activeAssignments ?? 0}</div>
         </div>
       </div>
-      <div class="card-elevated p-4 flex items-center gap-3">
-        <Inbox class="w-5 h-5 opacity-70" aria-hidden="true" />
-        <div>
-          <div class="text-xs uppercase opacity-70">Outstanding</div>
-          <div class="text-xl font-semibold">{teacherStats?.outstanding ?? 0}</div>
-        </div>
-      </div>
+      
     </section>
 
     <section class="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
