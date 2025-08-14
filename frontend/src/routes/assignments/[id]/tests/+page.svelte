@@ -4,6 +4,8 @@
   import { apiFetch, apiJSON } from '$lib/api'
   import { auth } from '$lib/auth'
   import CodeMirror from '$lib/components/ui/CodeMirror.svelte'
+  import { python } from '@codemirror/lang-python'
+  import { Plus, Save, Trash2, Eye, FlaskConical, FileUp, Code2, Copy, Clock, Scale, Upload as UploadIcon } from 'lucide-svelte'
 
   $: id = $page.params.id
   $: role = $auth?.role ?? ''
@@ -43,36 +45,52 @@
   let utTests: UTTest[] = []
   let utShowPreview = false
   let utPreviewCode = ''
+  let showAdvanced = false
+  let copiedPreview = false
 
   function getInputs(a: UTAssertion): string {
     return (a as any).args ? ((a as any).args as string[]).join('\n') : ''
   }
   function setInputs(a: UTAssertion, v: string) {
     if ((a as any).args) (a as any).args = v.split('\n')
+    utTests = [...utTests]
   }
   function getExpected(a: UTAssertion): string {
     return (a as any).expected ?? ''
   }
   function setExpected(a: UTAssertion, v: string) {
     (a as any).expected = v
+    utTests = [...utTests]
   }
   function getPattern(a: UTAssertion): string {
     return (a as any).pattern ?? ''
   }
   function setPattern(a: UTAssertion, v: string) {
     (a as any).pattern = v
+    utTests = [...utTests]
   }
   function getException(a: UTAssertion): string {
     return (a as any).exception ?? 'Exception'
   }
   function setException(a: UTAssertion, v: string) {
     (a as any).exception = v
+    utTests = [...utTests]
   }
   function getCustom(a: UTAssertion): string {
     return (a as any).code ?? ''
   }
   function setCustom(a: UTAssertion, v: string) {
     (a as any).code = v
+    utTests = [...utTests]
+  }
+
+  // Auto-generate preview code reactively when inputs change
+  $: {
+    utClassName; utSetup; utTeardown; utTests;
+    const nextCode = generateUnittestCode()
+    if (nextCode !== utPreviewCode) {
+      utPreviewCode = nextCode
+    }
   }
 
   async function load() {
@@ -230,6 +248,14 @@
     utPreviewCode = generateUnittestCode()
   }
 
+  async function copyPreview() {
+    try {
+      await navigator.clipboard.writeText(utPreviewCode)
+      copiedPreview = true
+      setTimeout(() => (copiedPreview = false), 1500)
+    } catch {}
+  }
+
   async function uploadGeneratedUnitTests() {
     try {
       const code = generateUnittestCode()
@@ -312,11 +338,19 @@
     </div>
   {:else}
     <div class="mb-4 flex items-center justify-between">
-      <h1 class="text-2xl font-semibold">Manage tests — {assignment.title}</h1>
+      <div>
+        <h1 class="text-2xl font-semibold">Manage tests — {assignment.title}</h1>
+        <p class="text-sm opacity-70">Create IO tests or build Python unittest-based tests visually.</p>
+      </div>
       <a class="btn" href={`/assignments/${id}`}>Back to assignment</a>
     </div>
     <div class="card-elevated p-6 space-y-6">
-      <p class="text-sm opacity-70">Create IO tests or build Python unittest-based tests visually. You can also upload a `.py` file.</p>
+      <div class="alert">
+        <div>
+          <span class="font-medium">Tip:</span>
+          Use <code>student_code(...)</code> in assertions to run the student's program with inputs.
+        </div>
+      </div>
 
       <!-- Tabs -->
       <div role="tablist" class="tabs tabs-lifted">
@@ -326,14 +360,18 @@
             {#each tests as t, i}
               <div class="rounded-xl border border-base-300/60 p-3 space-y-2">
                 <div class="flex items-center justify-between">
-                  <div class="font-semibold">Test {i + 1}
+                  <div class="flex items-center gap-2 font-semibold">
+                    <span class="opacity-70">#{i + 1}</span>
                     {#if t.unittest_name}
-                      <span class="badge badge-outline ml-2">{t.unittest_name}</span>
+                      <span class="badge badge-primary gap-1"><FlaskConical size={14}/> unittest</span>
+                      <span class="badge badge-outline ml-1">{t.unittest_name}</span>
+                    {:else}
+                      <span class="badge badge-secondary gap-1">IO</span>
                     {/if}
                   </div>
                   <div class="flex gap-2">
-                    <button class="btn btn-xs" on:click={() => updateTest(t)}>Save</button>
-                    <button class="btn btn-xs btn-error" on:click={() => delTest(t.id)}>Delete</button>
+                    <button class="btn btn-xs" on:click={() => updateTest(t)}><Save size={14}/> Save</button>
+                    <button class="btn btn-xs btn-error" on:click={() => delTest(t.id)}><Trash2 size={14}/> Delete</button>
                   </div>
                 </div>
                 {#if !t.unittest_name}
@@ -350,18 +388,18 @@
                 {:else}
                   {#if t.unittest_code}
                     <details class="mt-1">
-                      <summary class="cursor-pointer text-sm opacity-70">View unittest code</summary>
-                      <pre class="mt-2 whitespace-pre-wrap text-xs opacity-80">{t.unittest_code}</pre>
+                      <summary class="cursor-pointer text-sm opacity-70 flex items-center gap-1"><Eye size={14}/> View unittest code</summary>
+                      <pre class="mt-2 whitespace-pre-wrap text-xs opacity-80 p-2 rounded-lg bg-base-200">{t.unittest_code}</pre>
                     </details>
                   {/if}
                 {/if}
                 <div class="grid sm:grid-cols-2 gap-2">
                   <label class="form-control w-full space-y-1">
-                    <span class="label-text">Time limit (s)</span>
+                    <span class="label-text flex items-center gap-1"><Clock size={14}/> <span>Time limit (s)</span></span>
                     <input class="input input-bordered w-full" placeholder="seconds" bind:value={t.time_limit_sec}>
                   </label>
                   <label class="form-control w-full space-y-1">
-                    <span class="label-text">Weight</span>
+                    <span class="label-text flex items-center gap-1"><Scale size={14}/> <span>Weight</span></span>
                     <input class="input input-bordered w-full" placeholder="points" bind:value={t.weight}>
                   </label>
                 </div>
@@ -374,7 +412,7 @@
         <input type="radio" name="tests-tab" role="tab" class="tab" aria-label="Add IO test">
         <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4">
           <div class="border-base-300/60 space-y-2">
-            <h4 class="font-semibold">Add IO test</h4>
+            <h4 class="font-semibold flex items-center gap-2"><Code2 size={18}/> Add IO test</h4>
             <div class="grid sm:grid-cols-2 gap-2">
               <label class="form-control w-full space-y-1">
                 <span class="label-text">Input</span>
@@ -385,16 +423,16 @@
                 <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={tStdout}>
               </label>
               <label class="form-control w-full space-y-1">
-                <span class="label-text">Time limit (s)</span>
+                <span class="label-text flex items-center gap-1"><Clock size={14}/> <span>Time limit (s)</span></span>
                 <input class="input input-bordered w-full" placeholder="seconds" bind:value={tLimit}>
               </label>
               <label class="form-control w-full space-y-1">
-                <span class="label-text">Weight</span>
+                <span class="label-text flex items-center gap-1"><Scale size={14}/> <span>Weight</span></span>
                 <input class="input input-bordered w-full" placeholder="points" bind:value={tWeight}>
               </label>
             </div>
             <div>
-              <button class="btn btn-primary" on:click={addTest} disabled={!tStdin || !tStdout}>Add</button>
+              <button class="btn btn-primary" on:click={addTest} disabled={!tStdin || !tStdout}><Plus size={16}/> Add</button>
             </div>
           </div>
         </div>
@@ -407,21 +445,26 @@
               <input class="input input-bordered w-full" bind:value={utClassName} placeholder="TestAssignment">
             </label>
             <div class="flex items-end gap-2">
-              <button class="btn btn-outline" on:click={addUTTest}>Add test method</button>
-              <button class="btn" on:click={() => { utShowPreview = !utShowPreview; refreshPreview() }}>{utShowPreview ? 'Hide' : 'Preview'} code</button>
-              <button class="btn btn-primary" disabled={utTests.length === 0} on:click={uploadGeneratedUnitTests}>Create tests</button>
+              <button class="btn btn-outline" on:click={addUTTest}><Plus size={16}/> Add test method</button>
+              <button class="btn" on:click={() => { utShowPreview = !utShowPreview; refreshPreview() }}><Eye size={16}/> {utShowPreview ? 'Hide' : 'Preview'} code</button>
+              <button class="btn btn-primary" disabled={utTests.length === 0} on:click={uploadGeneratedUnitTests}><FlaskConical size={16}/> Create tests</button>
             </div>
           </div>
 
-          <div class="grid sm:grid-cols-2 gap-3">
-            <label class="form-control w-full space-y-1">
-              <span class="label-text">setUp() (optional)</span>
-              <textarea class="textarea textarea-bordered h-28" bind:value={utSetup} placeholder="# Python code to run before each test"></textarea>
-            </label>
-            <label class="form-control w-full space-y-1">
-              <span class="label-text">tearDown() (optional)</span>
-              <textarea class="textarea textarea-bordered h-28" bind:value={utTeardown} placeholder="# Python code to run after each test"></textarea>
-            </label>
+          <div>
+            <button class="btn btn-outline btn-sm" on:click={() => showAdvanced = !showAdvanced}>{showAdvanced ? 'Hide' : 'Advanced: setUp/tearDown'}</button>
+            {#if showAdvanced}
+              <div class="grid sm:grid-cols-2 gap-3 mt-3">
+                <div>
+                  <div class="label"><span class="label-text">setUp() (optional)</span></div>
+                  <CodeMirror bind:value={utSetup} lang={python()} readOnly={false} />
+                </div>
+                <div>
+                  <div class="label"><span class="label-text">tearDown() (optional)</span></div>
+                  <CodeMirror bind:value={utTeardown} lang={python()} readOnly={false} />
+                </div>
+              </div>
+            {/if}
           </div>
 
           <div class="space-y-3">
@@ -439,16 +482,16 @@
                     </label>
                   </div>
                   <div class="flex items-end gap-2">
-                    <button class="btn btn-ghost btn-xs" on:click={() => removeUTTest(ti)}>Remove</button>
+                    <button class="btn btn-ghost btn-xs" on:click={() => removeUTTest(ti)}><Trash2 size={14}/> Remove</button>
                   </div>
                 </div>
                 <div class="grid sm:grid-cols-2 gap-2">
                   <label class="form-control w-full space-y-1">
-                    <span class="label-text">Time limit (s)</span>
+                    <span class="label-text flex items-center gap-1"><Clock size={14}/> <span>Time limit (s)</span></span>
                     <input class="input input-bordered w-full" bind:value={ut.timeLimit}>
                   </label>
                   <label class="form-control w-full space-y-1">
-                    <span class="label-text">Weight</span>
+                    <span class="label-text flex items-center gap-1"><Scale size={14}/> <span>Weight</span></span>
                     <input class="input input-bordered w-full" bind:value={ut.weight}>
                   </label>
                 </div>
@@ -456,13 +499,13 @@
                   <div class="flex items-center justify-between">
                     <div class="font-medium">Assertions</div>
                     <div class="join">
-                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'equals')}>Equals</button>
-                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'notEquals')}>Not equals</button>
-                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'contains')}>Contains</button>
-                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'notContains')}>Not contains</button>
-                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'regex')}>Regex</button>
-                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'raises')}>Raises</button>
-                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'custom')}>Custom</button>
+                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'equals')}><Plus size={12}/> Equals</button>
+                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'notEquals')}><Plus size={12}/> Not equals</button>
+                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'contains')}><Plus size={12}/> Contains</button>
+                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'notContains')}><Plus size={12}/> Not contains</button>
+                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'regex')}><Plus size={12}/> Regex</button>
+                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'raises')}><Plus size={12}/> Raises</button>
+                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'custom')}><Plus size={12}/> Custom</button>
                     </div>
                   </div>
                   <div class="space-y-2">
@@ -470,7 +513,7 @@
                       <div class="rounded-lg border border-base-300/60 p-2 space-y-2">
                         <div class="flex items-center justify-between">
                           <span class="badge badge-outline">{a.kind}</span>
-                          <button class="btn btn-ghost btn-xs" on:click={() => removeUTAssertion(ti, ai)}>Remove</button>
+                          <button class="btn btn-ghost btn-xs" on:click={() => removeUTAssertion(ti, ai)}><Trash2 size={14}/> Remove</button>
                         </div>
                         {#if a.kind === 'custom'}
                           <label class="form-control w-full space-y-1">
@@ -526,19 +569,22 @@
             <div class="space-y-2">
               <div class="flex items-center justify-between">
                 <h4 class="font-semibold">Generated Python</h4>
-                <button class="btn btn-sm" on:click={refreshPreview}>Refresh</button>
+                <div class="join">
+                  <button class="btn btn-sm join-item" on:click={refreshPreview}><Code2 size={14}/> Refresh</button>
+                  <button class="btn btn-sm join-item" on:click={copyPreview}><Copy size={14}/> {copiedPreview ? 'Copied' : 'Copy'}</button>
+                </div>
               </div>
-              <CodeMirror bind:value={utPreviewCode} lang={null} readOnly={true} />
+              <CodeMirror bind:value={utPreviewCode} lang={python()} readOnly={true} />
             </div>
           {/if}
         </div>
 
         <input type="radio" name="tests-tab" role="tab" class="tab" aria-label="Upload .py">
         <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4">
-          <h4 class="font-semibold mb-2">Upload unittest file</h4>
+          <h4 class="font-semibold mb-2 flex items-center gap-2"><FileUp size={18}/> Upload unittest file</h4>
           <input type="file" accept=".py" class="file-input file-input-bordered w-full" on:change={(e) => (unittestFile = (e.target as HTMLInputElement).files?.[0] || null)}>
           <div class="mt-2">
-            <button class="btn" on:click={uploadUnitTests} disabled={!unittestFile}>Upload</button>
+            <button class="btn" on:click={uploadUnitTests} disabled={!unittestFile}><UploadIcon size={16}/> Upload</button>
           </div>
           <p class="text-xs opacity-70 mt-2">Each method named <code>test_*</code> in classes derived from <code>unittest.TestCase</code> will become a separate test. Use <code>student_code(...)</code> to run the student's program with inputs.</p>
         </div>
