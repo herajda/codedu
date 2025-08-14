@@ -4,6 +4,7 @@
   import '@fortawesome/fontawesome-free/css/all.min.css';
   import { sidebarOpen, sidebarCollapsed } from '$lib/sidebar';
   import { auth } from '$lib/auth';
+  import { unreadMessages } from '$lib/stores/messages';
 
   type ClassSummary = { id: number | string; name: string };
 
@@ -59,6 +60,9 @@
           >
             <i class="fa-solid fa-message nav-icon" aria-hidden="true"></i>
             <span class="truncate">Messages</span>
+            {#if $unreadMessages > 0 && !isSection('/messages')}
+              <span class="badge badge-primary badge-sm ml-auto">{$unreadMessages}</span>
+            {/if}
           </a>
         </nav>
 

@@ -10,6 +10,9 @@
   import { sha256 } from '$lib/hash';
 import { compressImage } from '$lib/utils/compressImage';
   import { onDestroy } from 'svelte';
+  import { page } from '$app/stores';
+  import { createEventSource } from '$lib/sse';
+  import { incrementUnreadMessages, resetUnreadMessages } from '$lib/stores/messages';
 
   let settingsDialog: HTMLDialogElement;
   let passwordDialog: HTMLDialogElement;
@@ -111,6 +114,33 @@ import { compressImage } from '$lib/utils/compressImage';
     auth.init();
   });
   
+  let msgES: { close: () => void } | null = null;
+  $: if (user && !msgES) {
+    msgES = createEventSource(
+      '/api/messages/events',
+      (src) => {
+        src.addEventListener('message', (ev) => {
+          try {
+            const d = JSON.parse((ev as MessageEvent).data);
+            if (d && d.recipient_id === user?.id) {
+              if (!$page.url.pathname.startsWith('/messages')) {
+                incrementUnreadMessages();
+              }
+            }
+          } catch {}
+        });
+      },
+      { onError: () => {} }
+    );
+  }
+  
+  // Clear unread indicator when viewing messages routes
+  $: if ($page.url.pathname.startsWith('/messages')) {
+    resetUnreadMessages();
+  }
+
+  $: if (!user && msgES) { msgES.close(); msgES = null; }
+  
   let prefersDark = false;
   let media: MediaQueryList;
   function applyThemeFromPreference() {
@@ -125,6 +155,8 @@ import { compressImage } from '$lib/utils/compressImage';
     onDestroy(() => media.removeEventListener('change', handler));
   });
   $: if (user) { prefersDark = user.theme === 'dark'; applyThemeFromPreference(); }
+
+  onDestroy(() => { msgES?.close(); });
 
   async function toggleTheme() {
     prefersDark = !prefersDark;
