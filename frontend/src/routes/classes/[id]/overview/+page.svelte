@@ -22,8 +22,12 @@ async function load(){
   try {
     cls = await apiJSON(`/api/classes/${id}`);
     submissions = await apiJSON('/api/my-submissions');
-    cls.pointsTotal = cls.assignments.reduce((s:any,a:any)=>s+a.max_points,0);
-    cls.assignmentProgress = cls.assignments.map((a:any)=>{
+    // Normalize potentially null/undefined payloads
+    const assignments:any[] = Array.isArray(cls?.assignments) ? cls.assignments : [];
+    submissions = Array.isArray(submissions) ? submissions : [];
+    cls.assignments = assignments;
+    cls.pointsTotal = assignments.reduce((s:any,a:any)=>s+a.max_points,0);
+    cls.assignmentProgress = assignments.map((a:any)=>{
       const best = submissions
         .filter((s:any)=>s.assignment_id===a.id)
         .reduce((m:number,s:any)=>{
@@ -35,7 +39,7 @@ async function load(){
     cls.completed = cls.assignmentProgress.filter((p:any)=>p.best>=p.max_points).length;
     cls.pointsEarned = cls.assignmentProgress.reduce((tot:any,a:any)=>tot+a.best,0);
     const now = new Date();
-    cls.upcoming = cls.assignments
+    cls.upcoming = assignments
       .filter((a:any)=>new Date(a.deadline) > now)
       .sort((a:any,b:any)=>new Date(a.deadline).getTime()-new Date(b.deadline).getTime());
     cls = { ...cls };
@@ -79,7 +83,7 @@ function badgeFor(a: any) {
   <div class="flex items-start justify-between gap-3 mb-4 flex-wrap">
     <div>
       <h1 class="text-2xl font-semibold">{cls.name} · Overview</h1>
-      <p class="opacity-70 text-sm">Teacher: {cls.teacher.name ?? cls.teacher.email}</p>
+      <p class="opacity-70 text-sm">Teacher: {cls.teacher?.name ?? cls.teacher?.email ?? '—'}</p>
     </div>
     <div class="hidden sm:flex gap-2">
       <a href={`/classes/${id}/files`} class="btn btn-outline"><FolderOpen class="w-4 h-4" aria-hidden="true" /> Files</a>
