@@ -37,6 +37,7 @@ type Assignment struct {
 	GradingPolicy string    `db:"grading_policy" json:"grading_policy"`
 	Published     bool      `db:"published" json:"published"`
 	ShowTraceback bool      `db:"show_traceback" json:"show_traceback"`
+	ManualReview  bool      `db:"manual_review" json:"manual_review"`
 	TemplatePath  *string   `db:"template_path" json:"template_path"`
 	CreatedAt     time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
@@ -169,12 +170,12 @@ func ListAllClasses() ([]Class, error) {
 // ──────────────────────────────────────────────────────────────────────────────
 func CreateAssignment(a *Assignment) error {
 	const q = `
-          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, template_path, class_id)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, manual_review, template_path, class_id)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
           RETURNING id, created_at, updated_at`
 	return DB.QueryRow(q,
 		a.Title, a.Description, a.CreatedBy, a.Deadline,
-		a.MaxPoints, a.GradingPolicy, a.Published, a.ShowTraceback, a.TemplatePath, a.ClassID,
+		a.MaxPoints, a.GradingPolicy, a.Published, a.ShowTraceback, a.ManualReview, a.TemplatePath, a.ClassID,
 	).Scan(&a.ID, &a.CreatedAt, &a.UpdatedAt)
 }
 
@@ -183,7 +184,7 @@ func ListAssignments(role string, userID int) ([]Assignment, error) {
 	list := []Assignment{}
 	query := `
     SELECT a.id, a.title, a.description, a.created_by, a.deadline,
-           a.max_points, a.grading_policy, a.published, a.show_traceback, a.template_path,
+           a.max_points, a.grading_policy, a.published, a.show_traceback, a.manual_review, a.template_path,
            a.created_at, a.updated_at, a.class_id
       FROM assignments a`
 	var args []any
@@ -208,7 +209,7 @@ func ListAssignments(role string, userID int) ([]Assignment, error) {
 func GetAssignment(id int) (*Assignment, error) {
 	var a Assignment
 	err := DB.Get(&a, `
-    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, template_path, created_at, updated_at, class_id
+    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, manual_review, template_path, created_at, updated_at, class_id
       FROM assignments
      WHERE id = $1`, id)
 	if err != nil {
@@ -222,7 +223,7 @@ func GetAssignmentForSubmission(subID int) (*Assignment, error) {
 	var a Assignment
 	err := DB.Get(&a, `
         SELECT a.id, a.title, a.description, a.created_by, a.deadline,
-               a.max_points, a.grading_policy, a.published, a.show_traceback, a.template_path,
+               a.max_points, a.grading_policy, a.published, a.show_traceback, a.manual_review, a.template_path,
                a.created_at, a.updated_at, a.class_id
           FROM assignments a
           JOIN submissions s ON s.assignment_id = a.id
@@ -238,11 +239,11 @@ func UpdateAssignment(a *Assignment) error {
 	res, err := DB.Exec(`
     UPDATE assignments
        SET title=$1, description=$2, deadline=$3,
-           max_points=$4, grading_policy=$5, show_traceback=$6,
+           max_points=$4, grading_policy=$5, show_traceback=$6, manual_review=$7,
            updated_at=now()
-     WHERE id=$7`,
+     WHERE id=$8`,
 		a.Title, a.Description, a.Deadline,
-		a.MaxPoints, a.GradingPolicy, a.ShowTraceback,
+		a.MaxPoints, a.GradingPolicy, a.ShowTraceback, a.ManualReview,
 		a.ID)
 	if err != nil {
 		return err
@@ -629,7 +630,7 @@ func UpdateTestCase(tc *TestCase) error {
 	res, err := DB.Exec(`
                 UPDATE test_cases
                    SET stdin=$1, expected_stdout=$2, weight=$3, time_limit_sec=$4,
-                       unittest_code=$5, unittest_name=$6,
+                       unittest_code=COALESCE($5, unittest_code), unittest_name=COALESCE($6, unittest_name),
                        updated_at=now()
                  WHERE id=$7`,
 		tc.Stdin, tc.ExpectedStdout, tc.Weight, tc.TimeLimitSec, tc.UnittestCode, tc.UnittestName, tc.ID)
@@ -654,6 +655,12 @@ func ListTestCases(assignmentID int) ([]TestCase, error) {
 
 func DeleteTestCase(id int) error {
 	_, err := DB.Exec(`DELETE FROM test_cases WHERE id=$1`, id)
+	return err
+}
+
+// DeleteAllTestCasesForAssignment removes all test cases for a given assignment.
+func DeleteAllTestCasesForAssignment(assignmentID int) error {
+	_, err := DB.Exec(`DELETE FROM test_cases WHERE assignment_id=$1`, assignmentID)
 	return err
 }
 

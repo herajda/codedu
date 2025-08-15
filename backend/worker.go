@@ -58,6 +58,10 @@ func runSubmission(id int) {
 	if err != nil {
 		return
 	}
+	// Early exit for manual-review assignments: do not change status or run tests
+	if a, err := GetAssignment(sub.AssignmentID); err == nil && a.ManualReview {
+		return
+	}
 
 	UpdateSubmissionStatus(id, "running")
 

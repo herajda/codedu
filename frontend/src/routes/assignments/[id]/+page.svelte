@@ -43,6 +43,7 @@ $: testsPassed = results.filter((r:any) => r.status === 'passed').length;
 $: testsPercent = results.length ? Math.round(testsPassed / results.length * 100) : 0;
   let editing=false
   let eTitle='', eDesc='', eDeadline='', ePoints=0, ePolicy='all_or_nothing', eShowTraceback=false
+  let eManualReview=false
   let safeDesc=''
 $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.description) as string) : ''
 
@@ -207,6 +208,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     ePoints=assignment.max_points
     ePolicy=assignment.grading_policy
     eShowTraceback=assignment.show_traceback
+    eManualReview=assignment.manual_review
   }
 
   async function saveEdit(){
@@ -221,7 +223,8 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           deadline:new Date(eDeadline).toISOString(),
           max_points:Number(ePoints),
           grading_policy:ePolicy,
-          show_traceback:eShowTraceback
+          show_traceback:eShowTraceback,
+          manual_review:eManualReview
         })
       })
       editing=false
@@ -308,7 +311,8 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
   function isValidTab(key: string): key is TabKey {
     const allowed: TabKey[] = ['overview']
     if (role==='student') {
-      allowed.push('submissions','results')
+      allowed.push('submissions')
+      if (!assignment?.manual_review) allowed.push('results')
     }
     if (role==='teacher' || role==='admin') {
       allowed.push('instructor','teacher-runs')
@@ -360,6 +364,10 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             <input type="checkbox" class="checkbox" bind:checked={eShowTraceback}>
             <span class="label-text">Show traceback to students</span>
           </label>
+          <label class="flex items-center gap-2 sm:col-span-2">
+            <input type="checkbox" class="checkbox" bind:checked={eManualReview}>
+            <span class="label-text">Manual review (teacher assigns points)</span>
+          </label>
         </div>
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2">
@@ -394,6 +402,9 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             <span class={`badge ${deadlineBadgeClass}`}>{deadlineLabel}</span>
             <span class="badge badge-ghost">Max {assignment.max_points} pts</span>
             <span class="badge badge-ghost">{policyLabel(assignment.grading_policy)}</span>
+            {#if assignment.manual_review}
+              <span class="badge badge-info">Manual review</span>
+            {/if}
             {#if role!=='student'}
               {#if assignment.published}
                 <span class="badge badge-success">Published</span>
@@ -413,7 +424,9 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
               {#if !assignment.published}
                 <button class="btn btn-sm btn-secondary" on:click={publish}>Publish</button>
               {/if}
-              <button class="btn btn-sm" on:click={openTestsModal}>Manage tests</button>
+              {#if !assignment.manual_review}
+                <button class="btn btn-sm" on:click={openTestsModal}>Manage tests</button>
+              {/if}
               <button class="btn btn-sm" on:click={startEdit}>Edit</button>
               <button class="btn btn-sm btn-error" on:click={delAssignment}>Delete</button>
             {:else}
@@ -434,6 +447,11 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         {/if}
       </div>
     </section>
+    {#if role==='student' && assignment.manual_review}
+      <div class="alert alert-info mb-4">
+        <span>This assignment is graded by teacher review. Automatic tests will not run; points will appear after review.</span>
+      </div>
+    {/if}
     {#if deadlineSoon}
       <div class="alert alert-warning mb-4">
         <span>The deadline is near!</span>
@@ -447,7 +465,9 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           <button class={`tab ${activeTab==='overview' ? 'tab-active' : ''}`} on:click={() => setTab('overview')}>Overview</button>
           {#if role==='student'}
             <button class={`tab ${activeTab==='submissions' ? 'tab-active' : ''}`} on:click={() => setTab('submissions')}>Submissions</button>
-            <button class={`tab ${activeTab==='results' ? 'tab-active' : ''}`} on:click={() => setTab('results')}>Results</button>
+            {#if !assignment.manual_review}
+              <button class={`tab ${activeTab==='results' ? 'tab-active' : ''}`} on:click={() => setTab('results')}>Results</button>
+            {/if}
           {/if}
           {#if role==='teacher' || role==='admin'}
           <button class={`tab ${activeTab==='instructor' ? 'tab-active' : ''}`} on:click={() => setTab('instructor')}>Instructor</button>
@@ -551,7 +571,9 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             <div class="card-elevated p-6">
               <div class="flex items-center justify-between">
                 <h3 class="font-semibold text-lg">Student progress</h3>
-                <button class="btn btn-sm" on:click={openTestsModal}>Manage tests</button>
+                {#if !assignment.manual_review}
+                  <button class="btn btn-sm" on:click={openTestsModal}>Manage tests</button>
+                {/if}
               </div>
               <div class="overflow-x-auto mt-3">
                 <table class="table table-zebra">

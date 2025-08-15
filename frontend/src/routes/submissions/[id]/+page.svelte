@@ -1,12 +1,13 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte'
-  import { apiJSON } from '$lib/api'
+  import { apiJSON, apiFetch } from '$lib/api'
   import { createEventSource } from '$lib/sse'
   import { page } from '$app/stores'
   import JSZip from 'jszip'
   import { FileTree } from '$lib'
   import { formatDateTime } from '$lib/date'
   import { goto } from '$app/navigation'
+  import { auth } from '$lib/auth'
 
 $: id = $page.params.id
 
@@ -19,10 +20,35 @@ $: id = $page.params.id
   let highlighted = ''
   let esCtrl: { close: () => void } | null = null
   let assignmentTitle: string = ''
+  let assignmentManual: boolean = false
+  let role = ''
+  $: role = $auth?.role ?? ''
 
   import hljs from 'highlight.js'
   import 'highlight.js/styles/github.css'
   let fileDialog: HTMLDialogElement
+
+  // Inline teacher points override component
+  // This is a tiny Svelte component defined in-file using a function that returns markup via a slot approach
+  // Svelte does not support runtime component definitions; instead use a block here:
+  let overrideValue: string | number | null = ''
+  let savingOverride = false
+  async function saveOverride(){
+    try{
+      savingOverride = true
+      const raw: any = overrideValue
+      const str = raw == null ? '' : (typeof raw === 'string' ? raw : String(raw))
+      const v = str.trim() === '' ? null : Number(str)
+      await apiFetch(`/api/submissions/${submission.id}/points`,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ points: v })
+      })
+      await load()
+      overrideValue = ''
+    }catch(e:any){ err = e.message }
+    finally{ savingOverride = false }
+  }
 
   interface FileNode {
     name: string
@@ -70,6 +96,7 @@ $: id = $page.params.id
         try {
           const ad = await apiJSON(`/api/assignments/${submission.assignment_id}`)
           assignmentTitle = ad.assignment?.title ?? ''
+          assignmentManual = !!ad.assignment?.manual_review
         } catch {}
       }
     } catch (e: any) {
@@ -205,6 +232,9 @@ $: id = $page.params.id
             <div class="flex flex-wrap gap-2 text-xs sm:text-sm opacity-80">
               <span class="inline-flex items-center gap-2 px-3 py-1 rounded bg-base-200">Submission #{submission.id}</span>
               <span class="inline-flex items-center gap-2 px-3 py-1 rounded bg-base-200">Submitted {formatDateTime(submission.created_at)}</span>
+              {#if assignmentManual}
+                <span class="inline-flex items-center gap-2 px-3 py-1 rounded bg-info/20 text-info">Manual review</span>
+              {/if}
             </div>
           </div>
           <div class="flex items-center gap-2">
@@ -213,6 +243,17 @@ $: id = $page.params.id
             <button class="btn btn-primary" on:click={openFiles}>View files</button>
           </div>
         </div>
+
+        {#if assignmentManual && (role==='teacher' || role==='admin')}
+          <div class="rounded-box bg-base-200 p-4 mt-2 flex items-end gap-3">
+            <div class="flex-1">
+              <div class="font-medium mb-1">Teacher override points</div>
+              <input type="number" step="0.01" min="0" class="input input-bordered w-full" bind:value={overrideValue} placeholder="e.g. 10" aria-label="Override points">
+              <div class="text-xs opacity-70 mt-1">Leave empty to clear override. Saving will also mark submission completed.</div>
+            </div>
+            <button class={`btn btn-primary ${savingOverride ? 'loading' : ''}`} on:click={saveOverride} disabled={savingOverride}>Save</button>
+          </div>
+        {/if}
 
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div class="stat bg-base-200 rounded-box">

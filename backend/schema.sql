@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS assignments (
   grading_policy TEXT NOT NULL DEFAULT 'all_or_nothing' CHECK (grading_policy IN ('all_or_nothing','weighted')),
   published BOOLEAN NOT NULL DEFAULT FALSE,
   show_traceback BOOLEAN NOT NULL DEFAULT FALSE,
+  manual_review BOOLEAN NOT NULL DEFAULT FALSE,
   template_path TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -43,6 +44,7 @@ CREATE TABLE IF NOT EXISTS assignments (
 
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS template_path TEXT;
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS show_traceback BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS manual_review BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE TABLE IF NOT EXISTS test_cases (
   id SERIAL PRIMARY KEY,

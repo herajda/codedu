@@ -146,6 +146,7 @@ func createAssignment(c *gin.Context) {
 		Title         string `json:"title" binding:"required"`
 		Description   string `json:"description"`
 		ShowTraceback bool   `json:"show_traceback"`
+		ManualReview  bool   `json:"manual_review"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -161,6 +162,7 @@ func createAssignment(c *gin.Context) {
 		GradingPolicy: "all_or_nothing",
 		Published:     false,
 		ShowTraceback: req.ShowTraceback,
+		ManualReview:  req.ManualReview,
 		CreatedBy:     c.GetInt("userID"),
 	}
 	if err := CreateAssignment(a); err != nil {
@@ -256,6 +258,7 @@ func updateAssignment(c *gin.Context) {
 		MaxPoints     int    `json:"max_points" binding:"required"`
 		GradingPolicy string `json:"grading_policy" binding:"required"`
 		ShowTraceback bool   `json:"show_traceback"`
+		ManualReview  bool   `json:"manual_review"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -275,6 +278,7 @@ func updateAssignment(c *gin.Context) {
 		MaxPoints:     req.MaxPoints,
 		GradingPolicy: req.GradingPolicy,
 		ShowTraceback: req.ShowTraceback,
+		ManualReview:  req.ManualReview,
 	}
 	if err := UpdateAssignment(a); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not update"})
@@ -663,10 +667,12 @@ func updateTestCase(c *gin.Context) {
 		return
 	}
 	var req struct {
-		Stdin          string  `json:"stdin" binding:"required"`
-		ExpectedStdout string  `json:"expected_stdout" binding:"required"`
+		Stdin          string  `json:"stdin"`
+		ExpectedStdout string  `json:"expected_stdout"`
 		Weight         float64 `json:"weight"`
 		TimeLimitSec   float64 `json:"time_limit_sec"`
+		UnittestCode   *string `json:"unittest_code"`
+		UnittestName   *string `json:"unittest_name"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -675,7 +681,7 @@ func updateTestCase(c *gin.Context) {
 	if req.Weight == 0 {
 		req.Weight = 1
 	}
-	tc := &TestCase{ID: id, Stdin: req.Stdin, ExpectedStdout: req.ExpectedStdout, Weight: req.Weight, TimeLimitSec: req.TimeLimitSec}
+	tc := &TestCase{ID: id, Stdin: req.Stdin, ExpectedStdout: req.ExpectedStdout, Weight: req.Weight, TimeLimitSec: req.TimeLimitSec, UnittestCode: req.UnittestCode, UnittestName: req.UnittestName}
 	if err := UpdateTestCase(tc); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
@@ -691,6 +697,26 @@ func deleteTestCase(c *gin.Context) {
 		return
 	}
 	if err := DeleteTestCase(id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// deleteAllTestCases: DELETE /api/assignments/:id/tests
+func deleteAllTestCases(c *gin.Context) {
+	aid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if c.GetString("role") == "teacher" {
+		if ok, err := IsTeacherOfAssignment(aid, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	if err := DeleteAllTestCasesForAssignment(aid); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
@@ -808,8 +834,10 @@ func createSubmission(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
-	// enqueue for grading
-	EnqueueJob(Job{SubmissionID: sub.ID})
+	// enqueue for grading unless manual review is enabled
+	if a, err := GetAssignment(aid); err == nil && !a.ManualReview {
+		EnqueueJob(Job{SubmissionID: sub.ID})
+	}
 	c.JSON(http.StatusCreated, sub)
 }
 
@@ -1281,6 +1309,10 @@ func overrideSubmissionPoints(c *gin.Context) {
 	if err := SetSubmissionOverridePoints(sid, req.Points); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
+	}
+	// If manual review is enabled and points were set, mark as completed
+	if a.ManualReview && req.Points != nil {
+		_ = UpdateSubmissionStatus(sid, "completed")
 	}
 	c.Status(http.StatusNoContent)
 }

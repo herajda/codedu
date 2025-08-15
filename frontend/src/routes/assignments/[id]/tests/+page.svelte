@@ -8,7 +8,7 @@
   import { Plus, Save, Trash2, Eye, FlaskConical, FileUp, Code, Copy, Clock, Scale, Upload as UploadIcon } from 'lucide-svelte'
 
   $: id = $page.params.id
-  $: role = $auth?.role ?? ''
+  $: role = ($auth as any)?.role ?? ''
 
   let assignment: any = null
   let tests: any[] = []
@@ -61,6 +61,182 @@
   let utPreviewCode = ''
   let showAdvanced = false
   let copiedPreview = false
+
+  // ──────────────────────────────────────────────────────
+  // Unittest per-method view/edit helpers
+  // ──────────────────────────────────────────────────────
+  let editDialog: HTMLDialogElement
+  let editingTest: any = null
+  let editingMethodCode = ''
+
+  function parseQN(qn: string): { cls: string; method: string } {
+    const parts = String(qn || '').split('.')
+    return { cls: parts[0] || 'TestCase', method: parts[1] || 'test_case' }
+  }
+
+  function leadingIndent(s: string): string {
+    const m = s.match(/^[\t ]*/)
+    return m ? m[0] : ''
+  }
+
+  function extractMethodFromUnittest(src: string, qn: string): string {
+    try {
+      const { cls, method } = parseQN(qn)
+      const lines = String(src || '').split('\n')
+      const classRE = new RegExp(`^([\\\t ]*)class\\s+${cls}\\s*\\(.*unittest\\.TestCase.*\\):`)
+      const methodRE = new RegExp(`^([\\\t ]*)def\\s+${method}\\s*\\(`)
+      let classIdx = -1
+      let classIndent = ''
+      for (let i = 0; i < lines.length; i++) {
+        const m = lines[i].match(classRE)
+        if (m) {
+          classIdx = i
+          classIndent = m[1] || ''
+          break
+        }
+      }
+      if (classIdx === -1) return ''
+      let start = -1
+      let startIndent = ''
+      for (let i = classIdx + 1; i < lines.length; i++) {
+        const l = lines[i]
+        if (l.trim() === '') continue
+        if (!l.startsWith(classIndent) && leadingIndent(l).length <= classIndent.length) break
+        const m = l.match(methodRE)
+        if (m) {
+          start = i
+          startIndent = m[1] || ''
+          while (start - 1 > classIdx && lines[start - 1].trim().startsWith('@') && leadingIndent(lines[start - 1]) === startIndent) {
+            start--
+          }
+          break
+        }
+      }
+      if (start === -1) return ''
+      let end = lines.length
+      for (let i = start + 1; i < lines.length; i++) {
+        const l = lines[i]
+        if (l.trim() === '') continue
+        const ind = leadingIndent(l)
+        const t = l.trimStart()
+        if (ind.length <= startIndent.length && (t.startsWith('def ') || t.startsWith('class '))) {
+          end = i
+          break
+        }
+      }
+      return lines.slice(start, end).join('\n')
+    } catch (e) {
+      return ''
+    }
+  }
+
+  function normalizeIndent(block: string): { lines: string[]; base: number } {
+    const raw = String(block || '').replace(/\r\n?/g, '\n')
+    const lines = raw.split('\n')
+    let base = Infinity
+    for (const l of lines) {
+      if (l.trim() === '') continue
+      const ind = leadingIndent(l).length
+      base = Math.min(base, ind)
+    }
+    if (!isFinite(base)) base = 0
+    const out = lines.map((l) => (l.length >= base ? l.slice(base) : l))
+    return { lines: out, base }
+  }
+
+  function replaceMethodInUnittest(src: string, qn: string, newMethod: string): string {
+    const { cls, method } = parseQN(qn)
+    const lines = String(src || '').split('\n')
+    const classRE = new RegExp(`^([\\\t ]*)class\\s+${cls}\\s*\\(.*unittest\\.TestCase.*\\):`)
+    const methodRE = new RegExp(`^([\\\t ]*)def\\s+${method}\\s*\\(`)
+    let classIdx = -1
+    let classIndent = ''
+    for (let i = 0; i < lines.length; i++) {
+      const m = lines[i].match(classRE)
+      if (m) {
+        classIdx = i
+        classIndent = m[1] || ''
+        break
+      }
+    }
+    if (classIdx === -1) return src
+    let start = -1
+    let startIndent = ''
+    for (let i = classIdx + 1; i < lines.length; i++) {
+      const l = lines[i]
+      if (l.trim() === '') continue
+      if (!l.startsWith(classIndent) && leadingIndent(l).length <= classIndent.length) break
+      const m = l.match(methodRE)
+      if (m) {
+        start = i
+        startIndent = m[1] || ''
+        while (start - 1 > classIdx && lines[start - 1].trim().startsWith('@') && leadingIndent(lines[start - 1]) === startIndent) {
+          start--
+        }
+        break
+      }
+    }
+    if (start === -1) return src
+    let end = lines.length
+    for (let i = start + 1; i < lines.length; i++) {
+      const l = lines[i]
+      if (l.trim() === '') continue
+      const ind = leadingIndent(l)
+      const t = l.trimStart()
+      if (ind.length <= startIndent.length && (t.startsWith('def ') || t.startsWith('class '))) {
+        end = i
+        break
+      }
+    }
+    const { lines: newLines } = normalizeIndent(newMethod)
+    const pad = startIndent
+    const adjusted = newLines.map((l) => (l.trim() === '' ? l.trimEnd() : pad + l))
+    const replaced = [...lines.slice(0, start), ...adjusted, ...lines.slice(end)]
+    return replaced.join('\n')
+  }
+
+  function openEditUnitTest(t: any) {
+    editingTest = t
+    editingMethodCode = extractMethodFromUnittest(String(t.unittest_code || ''), String(t.unittest_name || ''))
+    editDialog?.showModal()
+  }
+
+  function closeEditUnitTest() {
+    editDialog?.close()
+    editingTest = null
+    editingMethodCode = ''
+  }
+
+  async function saveEditUnitTest() {
+    if (!editingTest) return
+    try {
+      const before = String(editingTest.unittest_code || '')
+      const qn = String(editingTest.unittest_name || '')
+      const updated = replaceMethodInUnittest(before, qn, editingMethodCode)
+      let newQN = qn
+      const m = editingMethodCode.match(/def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/)
+      if (m) {
+        const { cls } = parseQN(qn)
+        newQN = `${cls}.${m[1]}`
+      }
+      await apiFetch(`/api/tests/${editingTest.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stdin: editingTest.stdin ?? '',
+          expected_stdout: editingTest.expected_stdout ?? '',
+          weight: parseFloat(editingTest.weight) || 1,
+          time_limit_sec: parseFloat(editingTest.time_limit_sec) || 1,
+          unittest_code: updated,
+          unittest_name: newQN
+        })
+      })
+      closeEditUnitTest()
+      await load()
+    } catch (e: any) {
+      err = e.message
+    }
+  }
 
   function getInputs(a: UTAssertion): string {
     return (a as any).args ? ((a as any).args as string[]).join('\n') : ''
@@ -450,6 +626,16 @@
     }
   }
 
+  async function deleteAllTests() {
+    if (!confirm('Delete ALL tests for this assignment? This cannot be undone.')) return
+    try {
+      await apiFetch(`/api/assignments/${id}/tests`, { method: 'DELETE' })
+      await load()
+    } catch (e: any) {
+      err = e.message
+    }
+  }
+
   async function updateTest(t: any) {
     try {
       await apiFetch(`/api/tests/${t.id}`, {
@@ -484,6 +670,11 @@
       <div>
         <h1 class="text-2xl font-semibold">Manage tests — {assignment.title}</h1>
         <p class="text-sm opacity-70">Create IO tests or build Python unittest-based tests visually.</p>
+        {#if assignment?.manual_review}
+          <div class="alert alert-info mt-2">
+            <span>Manual review is enabled for this assignment. Tests are optional and won't auto-assign points.</span>
+          </div>
+        {/if}
       </div>
       <a class="btn" href={`/assignments/${id}`}>Back to assignment</a>
     </div>
@@ -499,6 +690,10 @@
       <div role="tablist" class="tabs tabs-lifted">
         <input type="radio" name="tests-tab" role="tab" class="tab" aria-label="Existing tests" checked>
         <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-sm opacity-70">{tests?.length || 0} tests</div>
+            <button class="btn btn-error btn-sm" on:click={deleteAllTests} disabled={!tests || tests.length === 0}><Trash2 size={14}/> Delete all</button>
+          </div>
           <div class="grid gap-3 max-h-[32rem] overflow-y-auto">
             {#each tests as t, i}
               <div class="rounded-xl border border-base-300/60 p-3 space-y-2">
@@ -513,6 +708,9 @@
                     {/if}
                   </div>
                   <div class="flex gap-2">
+                    {#if t.unittest_name && t.unittest_code}
+                      <button class="btn btn-xs" on:click={() => openEditUnitTest(t)}><Code size={14}/> Edit</button>
+                    {/if}
                     <button class="btn btn-xs" on:click={() => updateTest(t)}><Save size={14}/> Save</button>
                     <button class="btn btn-xs btn-error" on:click={() => delTest(t.id)}><Trash2 size={14}/> Delete</button>
                   </div>
@@ -529,10 +727,10 @@
                     </label>
                   </div>
                 {:else}
-                  {#if t.unittest_code}
+                  {#if t.unittest_code && t.unittest_name}
                     <details class="mt-1">
-                      <summary class="cursor-pointer text-sm opacity-70 flex items-center gap-1"><Eye size={14}/> View unittest code</summary>
-                      <pre class="mt-2 whitespace-pre-wrap text-xs opacity-80 p-2 rounded-lg bg-base-200">{t.unittest_code}</pre>
+                      <summary class="cursor-pointer text-sm opacity-70 flex items-center gap-1"><Eye size={14}/> View test method code</summary>
+                      <pre class="mt-2 whitespace-pre-wrap text-xs opacity-80 p-2 rounded-lg bg-base-200">{extractMethodFromUnittest(t.unittest_code, t.unittest_name)}</pre>
                     </details>
                   {/if}
                 {/if}
@@ -814,6 +1012,20 @@
 {#if err}
   <div class="alert alert-error mt-4"><span>{err}</span></div>
 {/if}
+
+<dialog bind:this={editDialog} class="modal">
+  <div class="modal-box w-11/12 max-w-4xl space-y-3">
+    <h3 class="font-semibold">Edit unittest method</h3>
+    <p class="text-xs opacity-70">{editingTest?.unittest_name}</p>
+    <CodeMirror bind:value={editingMethodCode} lang={python()} readOnly={false} />
+    <div class="modal-action">
+      <button class="btn" on:click={saveEditUnitTest}><Save size={16}/> Save</button>
+      <form method="dialog">
+        <button class="btn btn-ghost" on:click={closeEditUnitTest}>Close</button>
+      </form>
+    </div>
+  </div>
+</dialog>
 
 <style>
   :global(.card-elevated){
