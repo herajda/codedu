@@ -295,6 +295,13 @@ def _assertEqual(self, first, second, msg=None):
     orig_assertEqual(self, str(first), str(second), msg)
 unittest.TestCase.assertEqual = _assertEqual
 
+# prevent provided test modules from auto-running all tests (e.g., unittest.main())
+# so that we can selectively run a single test method by name below
+
+def __grader_noop__(*args, **kwargs):
+    return None
+unittest.main = __grader_noop__
+
 student_source = open('%s').read()
 
 def student_code(*args):

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"image"
@@ -422,6 +423,175 @@ func parseUnittestMethods(src string) []string {
 		}
 	}
 	return methods
+}
+
+// generateAITests: POST /api/assignments/:id/tests/ai-generate
+// Calls an LLM (default: GPT-5 via OpenAI API) to generate a Python unittest file
+// and a corresponding builder-friendly JSON plan from the assignment title/description.
+func generateAITests(c *gin.Context) {
+	aid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	// Only teachers/admins and must own the assignment if teacher
+	if role := c.GetString("role"); role == "teacher" {
+		if ok, err := IsTeacherOfAssignment(aid, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+
+	assign, err := GetAssignment(aid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "assignment not found"})
+		return
+	}
+
+	var req struct {
+		Instructions string `json:"instructions"`
+		NumTests     int    `json:"num_tests"`
+		AutoTests    bool   `json:"auto_tests"`
+	}
+	_ = c.ShouldBindJSON(&req)
+	if !req.AutoTests && req.NumTests <= 0 {
+		req.NumTests = 5
+	}
+
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if strings.TrimSpace(apiKey) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "OPENAI_API_KEY not configured on server"})
+		return
+	}
+	model := os.Getenv("OPENAI_MODEL")
+	if model == "" {
+		model = "gpt-5"
+	}
+	base := os.Getenv("OPENAI_API_BASE")
+	if base == "" {
+		base = "https://api.openai.com/v1"
+	}
+
+	// Build prompt
+	sys := "You are an expert Python educator and testing assistant. Generate high-quality unit tests."
+	// When auto_tests is enabled, we let the model decide how many tests are needed.
+	constraint := ""
+	if req.AutoTests {
+		constraint = "- Decide the appropriate number of test methods to ensure thorough coverage (typical cases, edge cases, and error handling)."
+	} else {
+		constraint = fmt.Sprintf("- Cover edge cases and typical cases. Add at least %d test methods.", req.NumTests)
+	}
+	basePrompt := `Create a Python unittest module for the following programming assignment.
+
+Constraints:
+- Use Python's unittest module and a single test class.
+- Each test must call student_code(...) to execute the student's program, passing input values as separate arguments. student_code returns the program's stdout string without trailing newlines.
+- Prefer small, independent tests. Avoid flaky or slow tests.
+%s
+
+Return a single JSON object with fields:
+{
+  "python": "<full .py file contents>",
+  "builder": {
+    "class_name": "<TestClassName>",
+    "tests": [
+      {
+        "name": "test_...",
+        "description": "...",
+        "weight": "1",
+        "timeLimit": "1",
+        "assertions": [
+          // Allowed assertion objects (match exactly these shapes):
+          {"kind": "equals", "args": ["..."], "expected": "..."},
+          {"kind": "notEquals", "args": ["..."], "expected": "..."},
+          {"kind": "contains", "args": ["..."], "expected": "..."},
+          {"kind": "notContains", "args": ["..."], "expected": "..."},
+          {"kind": "regex", "args": ["..."], "pattern": "^...$"},
+          {"kind": "raises", "args": ["..."], "exception": "ValueError"},
+          {"kind": "custom", "code": "self.assertTrue(...)"}
+        ]
+      }
+    ]
+  }
+}
+
+Assignment title: %s
+Assignment description:\n%s
+
+Additional guidance (optional): %s
+`
+	user := fmt.Sprintf(basePrompt, constraint, assign.Title, assign.Description, req.Instructions)
+
+	// Call OpenAI Chat Completions
+	payload := map[string]any{
+		"model": model,
+		"messages": []map[string]string{
+			{"role": "system", "content": sys},
+			{"role": "user", "content": user},
+		},
+	}
+	body, _ := json.Marshal(payload)
+	endpoint := strings.TrimRight(base, "/") + "/chat/completions"
+	reqHTTP, _ := http.NewRequest("POST", endpoint, bytes.NewReader(body))
+	reqHTTP.Header.Set("Authorization", "Bearer "+apiKey)
+	reqHTTP.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(reqHTTP)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "llm request failed"})
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		data, _ := io.ReadAll(resp.Body)
+		c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("llm error: %s", strings.TrimSpace(string(data)))})
+		return
+	}
+	var raw struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil || len(raw.Choices) == 0 {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "invalid llm response"})
+		return
+	}
+	content := strings.TrimSpace(raw.Choices[0].Message.Content)
+
+	// Try to parse as JSON bundle
+	var bundle struct {
+		Python  string `json:"python"`
+		Builder struct {
+			ClassName string          `json:"class_name"`
+			Tests     json.RawMessage `json:"tests"`
+		} `json:"builder"`
+	}
+	parsed := json.Unmarshal([]byte(content), &bundle) == nil && strings.TrimSpace(bundle.Python) != ""
+	if !parsed {
+		// try to extract fenced JSON``` blocks
+		start := strings.Index(content, "{")
+		end := strings.LastIndex(content, "}")
+		if start >= 0 && end > start {
+			_ = json.Unmarshal([]byte(content[start:end+1]), &bundle)
+			parsed = strings.TrimSpace(bundle.Python) != ""
+		}
+	}
+
+	if !parsed {
+		// Fall back: return raw content as python code
+		bundle.Python = content
+		bundle.Builder.ClassName = "TestAssignment"
+		bundle.Builder.Tests = json.RawMessage([]byte("[]"))
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"python": bundle.Python,
+		"builder": gin.H{
+			"class_name": bundle.Builder.ClassName,
+			"tests":      json.RawMessage(bundle.Builder.Tests),
+		},
+	})
 }
 
 // getTemplate: GET /api/assignments/:id/template
@@ -1389,7 +1559,9 @@ func resizeAvatar(data string) (string, error) {
 	if len(parts) != 2 {
 		return "", fmt.Errorf("invalid data url")
 	}
-	meta, enc := parts[0], parts[1]
+	// parts[0] contains the original prefix, but we will compute the correct
+	// prefix again after encoding to ensure it matches the actual output format
+	enc := parts[1]
 	b, err := base64.StdEncoding.DecodeString(enc)
 	if err != nil {
 		return "", err
@@ -1406,16 +1578,17 @@ func resizeAvatar(data string) (string, error) {
 	switch format {
 	case "jpeg", "jpg":
 		err = jpeg.Encode(&buf, dst, &jpeg.Options{Quality: 90})
-		meta = "data:image/jpeg;base64"
+		format = "jpeg"
 	default:
 		err = png.Encode(&buf, dst)
-		meta = "data:image/png;base64"
+		format = "png"
 	}
 	if err != nil {
 		return "", err
 	}
 
-	return meta + "," + base64.StdEncoding.EncodeToString(buf.Bytes()), nil
+	prefix := "data:image/" + format + ";base64"
+	return prefix + "," + base64.StdEncoding.EncodeToString(buf.Bytes()), nil
 }
 
 func updateProfile(c *gin.Context) {
@@ -1534,7 +1707,7 @@ func linkLocalAccount(c *gin.Context) {
 	if _, err := FindUserByEmail(req.Email); err == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "email already in use"})
 		return
-	} else if err != nil && err != sql.ErrNoRows {
+	} else if !errors.Is(err, sql.ErrNoRows) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}

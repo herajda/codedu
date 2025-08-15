@@ -5,7 +5,7 @@
   import { auth } from '$lib/auth'
   import CodeMirror from '$lib/components/ui/CodeMirror.svelte'
   import { python } from '@codemirror/lang-python'
-  import { Plus, Save, Trash2, Eye, FlaskConical, FileUp, Code2, Copy, Clock, Scale, Upload as UploadIcon } from 'lucide-svelte'
+  import { Plus, Save, Trash2, Eye, FlaskConical, FileUp, Code, Copy, Clock, Scale, Upload as UploadIcon } from 'lucide-svelte'
 
   $: id = $page.params.id
   $: role = $auth?.role ?? ''
@@ -20,6 +20,20 @@
   let tLimit = ''
   let tWeight = '1'
   let unittestFile: File | null = null
+
+  // ──────────────────────────────────────────────────────
+  // AI generator state
+  // ──────────────────────────────────────────────────────
+  let aiNumTests = '5'
+  let aiInstructions = ''
+  let aiGenerating = false
+  let aiCode = ''
+  let hasAIBuilder = false
+  let aiAuto = true
+  // Teacher solution testing
+  let teacherSolutionFile: File | null = null
+  let teacherRun: any = null
+  let teacherRunLoading = false
 
   // ──────────────────────────────────────────────────────
   // Unittest Builder state
@@ -256,6 +270,135 @@
     } catch {}
   }
 
+  // ──────────────────────────────────────────────────────
+  // AI generator actions
+  // ──────────────────────────────────────────────────────
+  function stripOuterQuotes(s: string): string {
+    const t = s.trim()
+    if ((t.startsWith("'") && t.endsWith("'")) || (t.startsWith('"') && t.endsWith('"'))) {
+      return t.slice(1, -1)
+    }
+    return t
+  }
+  function splitArgsPreserveQuoted(inner: string): string[] {
+    const out: string[] = []
+    let buf = ''
+    let q: string | null = null
+    for (let i = 0; i < inner.length; i++) {
+      const ch = inner[i]
+      if (q) {
+        if (ch === q) {
+          q = null
+        }
+        buf += ch
+        continue
+      }
+      if (ch === '"' || ch === "'") {
+        q = ch
+        buf += ch
+        continue
+      }
+      if (ch === ',') {
+        out.push(buf.trim())
+        buf = ''
+        continue
+      }
+      buf += ch
+    }
+    if (buf.trim() !== '') out.push(buf.trim())
+    return out
+  }
+  function parseArgsFromMaybeStudentCode(v: any): string[] {
+    const raw = String(v ?? '').trim()
+    const m = raw.match(/^student_code\s*\(([\s\S]*)\)$/)
+    if (m) {
+      const inner = m[1]
+      return splitArgsPreserveQuoted(inner).map((p) => stripOuterQuotes(p))
+    }
+    return [stripOuterQuotes(raw)]
+  }
+  function coerceUTAssertion(a: any): UTAssertion {
+    const kind = (a?.kind as UTAssertKind) || 'custom'
+    if (kind === 'custom') return { kind: 'custom', code: String(a?.code ?? '') }
+    const rawArgs: any[] = Array.isArray(a?.args) ? a.args : (a?.args != null ? [a.args] : [])
+    const normalized: string[] = rawArgs.flatMap((v: any) => parseArgsFromMaybeStudentCode(v))
+    if (kind === 'regex') return { kind: 'regex', args: normalized, pattern: String(a?.pattern ?? '') }
+    if (kind === 'raises') return { kind: 'raises', args: normalized, exception: String(a?.exception ?? 'Exception') }
+    return { kind, args: normalized, expected: String(a?.expected ?? '') }
+  }
+  function coerceUTTest(t: any): UTTest {
+    return {
+      name: String(t?.name ?? 'test_case'),
+      description: t?.description ? String(t?.description) : '',
+      weight: String(t?.weight ?? '1'),
+      timeLimit: String(t?.timeLimit ?? '1'),
+      assertions: Array.isArray(t?.assertions) ? t.assertions.map(coerceUTAssertion) : []
+    }
+  }
+  async function generateWithAI() {
+    aiGenerating = true
+    err = ''
+    hasAIBuilder = false
+    teacherRun = null
+    try {
+      const payload: any = { instructions: aiInstructions }
+      if (aiAuto) {
+        payload.auto_tests = true
+      } else {
+        payload.num_tests = parseInt(aiNumTests) || 5
+      }
+      const res = await apiJSON(`/api/assignments/${id}/tests/ai-generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      aiCode = res.python || ''
+      if (res.builder && res.builder.class_name) {
+        try {
+          utClassName = String(res.builder.class_name)
+          const testsRaw = Array.isArray(res.builder.tests) ? res.builder.tests : JSON.parse(res.builder.tests || '[]')
+          utTests = (testsRaw || []).map(coerceUTTest)
+          hasAIBuilder = utTests.length > 0
+        } catch (e) {
+          hasAIBuilder = false
+        }
+        refreshPreview()
+      }
+    } catch (e: any) {
+      err = e.message
+    } finally {
+      aiGenerating = false
+    }
+  }
+  async function uploadAIUnitTestsCode() {
+    if (!aiCode.trim()) return
+    try {
+      const blob = new Blob([aiCode], { type: 'text/x-python' })
+      const file = new File([blob], 'ai_tests.py', { type: 'text/x-python' })
+      const fd = new FormData()
+      fd.append('file', file)
+      await apiFetch(`/api/assignments/${id}/tests/upload`, { method: 'POST', body: fd })
+      await load()
+    } catch (e: any) {
+      err = e.message
+    }
+  }
+  async function runTeacherSolution() {
+    if (!teacherSolutionFile) return
+    teacherRunLoading = true
+    err = ''
+    try {
+      const fd = new FormData()
+      fd.append('file', teacherSolutionFile)
+      const res = await apiJSON(`/api/assignments/${id}/solution-run`, { method: 'POST', body: fd })
+      teacherRun = res
+    } catch (e: any) {
+      err = e.message
+    } finally {
+      teacherRunLoading = false
+    }
+  }
+
   async function uploadGeneratedUnitTests() {
     try {
       const code = generateUnittestCode()
@@ -412,7 +555,7 @@
         <input type="radio" name="tests-tab" role="tab" class="tab" aria-label="Add IO test">
         <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4">
           <div class="border-base-300/60 space-y-2">
-            <h4 class="font-semibold flex items-center gap-2"><Code2 size={18}/> Add IO test</h4>
+            <h4 class="font-semibold flex items-center gap-2"><Code size={18}/> Add IO test</h4>
             <div class="grid sm:grid-cols-2 gap-2">
               <label class="form-control w-full space-y-1">
                 <span class="label-text">Input</span>
@@ -469,8 +612,8 @@
 
           <div class="space-y-3">
             {#each utTests as ut, ti}
-              <div class="rounded-xl border border-base-300/60 p-3 space-y-2">
-                <div class="flex items-center justify-between gap-3">
+              <div class="rounded-xl border border-base-300/60 p-3 space-y-2 ut-method">
+                <div class="flex items-center justify-between gap-3 ut-method-header">
                   <div class="grid sm:grid-cols-2 gap-2 flex-1">
                     <label class="form-control w-full space-y-1">
                       <span class="label-text">Method name</span>
@@ -495,9 +638,9 @@
                     <input class="input input-bordered w-full" bind:value={ut.weight}>
                   </label>
                 </div>
-                <div class="space-y-2">
+                <div class="space-y-2 ut-assertions">
                   <div class="flex items-center justify-between">
-                    <div class="font-medium">Assertions</div>
+                    <div class="font-medium text-primary">Assertions</div>
                     <div class="join">
                       <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'equals')}><Plus size={12}/> Equals</button>
                       <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'notEquals')}><Plus size={12}/> Not equals</button>
@@ -510,9 +653,9 @@
                   </div>
                   <div class="space-y-2">
                     {#each ut.assertions as a, ai}
-                      <div class="rounded-lg border border-base-300/60 p-2 space-y-2">
+                      <div class="rounded-lg border border-base-300/60 p-2 space-y-2 ut-assertion-item">
                         <div class="flex items-center justify-between">
-                          <span class="badge badge-outline">{a.kind}</span>
+                          <span class="badge badge-primary">{a.kind}</span>
                           <button class="btn btn-ghost btn-xs" on:click={() => removeUTAssertion(ti, ai)}><Trash2 size={14}/> Remove</button>
                         </div>
                         {#if a.kind === 'custom'}
@@ -570,11 +713,86 @@
               <div class="flex items-center justify-between">
                 <h4 class="font-semibold">Generated Python</h4>
                 <div class="join">
-                  <button class="btn btn-sm join-item" on:click={refreshPreview}><Code2 size={14}/> Refresh</button>
+                  <button class="btn btn-sm join-item" on:click={refreshPreview}><Code size={14}/> Refresh</button>
                   <button class="btn btn-sm join-item" on:click={copyPreview}><Copy size={14}/> {copiedPreview ? 'Copied' : 'Copy'}</button>
                 </div>
               </div>
               <CodeMirror bind:value={utPreviewCode} lang={python()} readOnly={true} />
+            </div>
+          {/if}
+        </div>
+
+        <input type="radio" name="tests-tab" role="tab" class="tab" aria-label="AI generate">
+        <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4 space-y-4">
+          <div class="grid sm:grid-cols-3 gap-3">
+            <label class="form-control w-full space-y-1">
+              <span class="label-text">Test count mode</span>
+              <div class="join">
+                <button type="button" class="btn join-item {aiAuto ? 'btn-primary' : 'btn-outline'}" on:click={() => aiAuto = true}>Auto</button>
+                <button type="button" class="btn join-item {aiAuto ? 'btn-outline' : 'btn-primary'}" on:click={() => aiAuto = false}>Manual</button>
+              </div>
+              {#if !aiAuto}
+                <div class="mt-2">
+                  <input type="number" min="1" class="input input-bordered w-full" bind:value={aiNumTests} placeholder="How many tests?">
+                </div>
+              {/if}
+              <span class="text-xs opacity-70">Auto lets the model decide the right number of tests.</span>
+            </label>
+            <div class="sm:col-span-2">
+              <label class="form-control w-full space-y-1">
+                <span class="label-text">Additional instructions (optional)</span>
+                <input class="input input-bordered w-full" bind:value={aiInstructions} placeholder="Edge cases to cover, constraints, etc.">
+              </label>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-primary" on:click={generateWithAI} disabled={aiGenerating}><FlaskConical size={16}/> {aiGenerating ? 'Generating…' : 'Generate with AI'}</button>
+            <button class="btn" on:click={uploadAIUnitTestsCode} disabled={!aiCode}><UploadIcon size={16}/> Save as tests</button>
+          </div>
+          {#if aiCode}
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <h4 class="font-semibold">AI Python (editable)</h4>
+                <span class="text-xs opacity-70">You can edit this before saving.</span>
+              </div>
+              <CodeMirror bind:value={aiCode} lang={python()} readOnly={false} />
+            </div>
+          {/if}
+          {#if hasAIBuilder}
+            <div class="alert">
+              <span>AI also prepared a builder structure below. You can tweak it in the Unittest builder tab and upload from there.</span>
+            </div>
+          {/if}
+
+          <div class="divider">Optional: test on teacher solution</div>
+          <div class="grid sm:grid-cols-2 gap-3 items-end">
+            <div>
+              <h4 class="font-semibold mb-2 flex items-center gap-2"><UploadIcon size={18}/> Upload teacher solution</h4>
+              <input type="file" accept=".py,.zip" class="file-input file-input-bordered w-full" on:change={(e) => (teacherSolutionFile = (e.target as HTMLInputElement).files?.[0] || null)}>
+            </div>
+            <div class="flex gap-2">
+              <button class="btn" disabled={!teacherSolutionFile || teacherRunLoading} on:click={runTeacherSolution}><FlaskConical size={16}/> {teacherRunLoading ? 'Running…' : 'Run tests on solution'}</button>
+            </div>
+          </div>
+          {#if teacherRun}
+            <div class="mt-2 rounded-xl border border-base-300/60 p-3 space-y-2">
+              <div class="font-medium">Results: {teacherRun.passed}/{teacherRun.total} passed</div>
+              <div class="grid gap-2 max-h-64 overflow-y-auto">
+                {#each teacherRun.results as r}
+                  <div class="rounded-lg border border-base-300/60 p-2 text-sm">
+                    <div class="flex items-center justify-between">
+                      <div>
+                        <span class="badge mr-2">#{r.test_case_id}</span>
+                        {#if r.unittest_name}<span class="badge badge-primary">{r.unittest_name}</span>{/if}
+                      </div>
+                      <span class="badge {r.status === 'passed' ? 'badge-success' : 'badge-error'}">{r.status}</span>
+                    </div>
+                    {#if r.stderr}
+                      <pre class="mt-1 whitespace-pre-wrap opacity-80">{r.stderr}</pre>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
             </div>
           {/if}
         </div>
@@ -603,6 +821,29 @@
     border: 1px solid color-mix(in oklab, currentColor 20%, transparent);
     background: var(--fallback-b1, oklch(var(--b1)));
     box-shadow: 0 8px 24px rgba(0,0,0,.06);
+  }
+  :global(.ut-method){
+    border-color: color-mix(in oklab, oklch(var(--p)) 28%, oklch(var(--bc)) 72%);
+    background: color-mix(in oklab, var(--fallback-b1, oklch(var(--b1))) 94%, oklch(var(--p)) 6%);
+  }
+  :global(.ut-method-header){
+    padding: .25rem .25rem;
+    border-radius: .5rem;
+    background: color-mix(in oklab, oklch(var(--p)) 10%, transparent);
+  }
+  :global(.ut-assertions){
+    position: relative;
+    margin-left: .25rem;
+    padding-left: .75rem;
+    border-left: 3px solid oklch(var(--p));
+    background: color-mix(in oklab, transparent 92%, oklch(var(--p)) 8%);
+    border-radius: .5rem;
+    padding-top: .5rem;
+    padding-bottom: .5rem;
+  }
+  :global(.ut-assertion-item){
+    background: color-mix(in oklab, var(--fallback-b1, oklch(var(--b1))) 90%, oklch(var(--p)) 10%);
+    border-color: color-mix(in oklab, oklch(var(--p)) 40%, oklch(var(--bc)) 60%);
   }
 </style>
 
