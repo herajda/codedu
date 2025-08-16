@@ -12,19 +12,24 @@ import (
 	"image/jpeg"
 	"image/png"
 	"io"
+	"log"
 	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/mail"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/creack/pty"
 	"github.com/disintegration/imaging"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -1082,6 +1087,184 @@ func getSubmission(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, gin.H{"submission": sub, "results": results})
+}
+
+// submissionTerminalWS: GET /api/submissions/:id/terminal (WS)
+// Upgrades to a websocket and bridges an interactive shell inside a Docker
+// container seeded with the submission's files. Teacher/admin only; also
+// validates teacher owns the assignment's class if teacher role.
+func submissionTerminalWS(c *gin.Context) {
+	sid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	sub, err := GetSubmission(sid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	a, err := GetAssignmentForSubmission(sid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "assignment not found"})
+		return
+	}
+	if c.GetString("role") == "teacher" {
+		if ok, err := IsTeacherOfAssignment(a.ID, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+
+	// Upgrade to WebSocket early so client doesn't time out while we prepare
+	up := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	conn, err := up.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		return
+	}
+	wsFail := func(msg string) {
+		_ = conn.WriteMessage(websocket.TextMessage, []byte("ERROR: "+msg))
+		_ = conn.Close()
+	}
+
+	// Decode submission archive to a temp dir
+	tmpDir, err := os.MkdirTemp("", "term-sub-")
+	if err != nil {
+		wsFail("server error")
+		return
+	}
+	// Ensure cleanup later
+	// Note: cannot defer here because we'll upgrade connection and hold.
+
+	// Try to decode either base64 zip or plain text
+	data, berr := base64.StdEncoding.DecodeString(sub.CodeContent)
+	var isZip bool
+	if berr == nil && len(data) > 4 && (string(data[:2]) == "PK") {
+		isZip = true
+	}
+	if isZip {
+		zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+		if err != nil {
+			os.RemoveAll(tmpDir)
+			wsFail("invalid zip")
+			return
+		}
+		for _, f := range zr.File {
+			if f.FileInfo().IsDir() {
+				continue
+			}
+			dst := filepath.Join(tmpDir, filepath.Base(f.Name))
+			rc, _ := f.Open()
+			b, _ := io.ReadAll(rc)
+			_ = os.WriteFile(dst, b, 0644)
+			_ = rc.Close()
+		}
+	} else {
+		// write single file main.py
+		b := data
+		if berr != nil {
+			b = []byte(sub.CodeContent)
+		}
+		_ = os.WriteFile(filepath.Join(tmpDir, "main.py"), b, 0644)
+	}
+	// Permissions for container user
+	_ = filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			_ = os.Chmod(path, 0755)
+		} else {
+			_ = os.Chmod(path, 0644)
+		}
+		return nil
+	})
+
+	// Prepare docker run with TTY and bash
+	abs, _ := filepath.Abs(tmpDir)
+	// Configure a clean prompt and disable bracketed paste to avoid stray sequences
+	// We also set a custom INPUTRC in /tmp to tweak readline behaviour and prevent rc files
+	bootstrap := strings.Join([]string{
+		"cd /code",
+		// Write a minimal inputrc to /tmp and use it for this shell
+		"printf 'set enable-bracketed-paste off\nset show-all-if-ambiguous on\nset completion-ignore-case on\n' > /tmp/inputrc",
+		"export INPUTRC=/tmp/inputrc",
+		// Set a minimal prompt and disable PROMPT_COMMAND hooks.
+		"export PS1='~% '",
+		"unset PROMPT_COMMAND",
+		// Start interactive bash without sourcing system/user rc that may override PS1
+		"exec bash --noprofile --norc -i",
+	}, " && ")
+
+	// Give the container a unique name so we can force-remove it on session end
+	containerName := fmt.Sprintf("term-%d-%d", sub.ID, time.Now().UnixNano())
+
+	cmd := exec.Command("docker", "run",
+		"--rm",
+		"--name", containerName,
+		"-it",
+		"--network=none",
+		"--user", dockerUser,
+		"--cpus", dockerCPUs,
+		"--memory", dockerMemory,
+		"-e", "PS1=~% ",
+		"-e", "PROMPT_COMMAND=",
+		"-v", fmt.Sprintf("%s:/code:rw,z", abs),
+		pythonImage, "bash", "-lc", bootstrap)
+
+	// PTY for interactive session
+	ptyFile, err := pty.Start(cmd)
+	if err != nil {
+		os.RemoveAll(tmpDir)
+		wsFail("container start failed")
+		return
+	}
+
+	// IO pump: container stdout -> ws, ws -> container stdin
+	done := make(chan struct{})
+	var once sync.Once
+	safeClose := func() { once.Do(func() { close(done) }) }
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := ptyFile.Read(buf)
+			if n > 0 {
+				if werr := conn.WriteMessage(websocket.BinaryMessage, buf[:n]); werr != nil {
+					break
+				}
+			}
+			if err != nil {
+				break
+			}
+		}
+		safeClose()
+	}()
+
+	go func() {
+		for {
+			mt, msg, err := conn.ReadMessage()
+			if err != nil {
+				break
+			}
+			if mt == websocket.TextMessage || mt == websocket.BinaryMessage {
+				_, _ = ptyFile.Write(msg)
+			}
+		}
+		safeClose()
+	}()
+
+	// Wait for termination
+	<-done
+	_ = conn.Close()
+	_ = ptyFile.Close()
+	if cmd.Process != nil {
+		_ = cmd.Process.Kill()
+	}
+	// Best-effort force removal of the named container to avoid leftovers
+	_ = exec.Command("docker", "rm", "-f", containerName).Run()
+	// cleanup temp files
+	go func() { time.Sleep(2 * time.Second); _ = os.RemoveAll(tmpDir) }()
+	log.Println("terminal session closed for submission", sub.ID)
 }
 
 // ---- ADMIN adds a teacher ----

@@ -4,7 +4,7 @@
   import { createEventSource } from '$lib/sse'
   import { page } from '$app/stores'
   import JSZip from 'jszip'
-  import { FileTree } from '$lib'
+  import { FileTree, Terminal } from '$lib'
   import { formatDateTime } from '$lib/date'
   import { goto } from '$app/navigation'
   import { auth } from '$lib/auth'
@@ -21,6 +21,8 @@ $: id = $page.params.id
   let esCtrl: { close: () => void } | null = null
   let assignmentTitle: string = ''
   let assignmentManual: boolean = false
+  let assignmentTestsCount: number = 0
+  let sid: number = 0
   let role = ''
   $: role = $auth?.role ?? ''
 
@@ -97,6 +99,7 @@ $: id = $page.params.id
           const ad = await apiJSON(`/api/assignments/${submission.assignment_id}`)
           assignmentTitle = ad.assignment?.title ?? ''
           assignmentManual = !!ad.assignment?.manual_review
+          try { assignmentTestsCount = Array.isArray(ad.tests) ? ad.tests.length : 0 } catch { assignmentTestsCount = 0 }
         } catch {}
       }
     } catch (e: any) {
@@ -145,6 +148,8 @@ $: id = $page.params.id
     if(s === 'time_limit_exceeded' || s==='memory_limit_exceeded') return 'badge-warning'
     return ''
   }
+
+  $: hideAutoUI = assignmentTestsCount === 0
 
   function bgFromBadge(badgeClass: string){
     return badgeClass.replace('badge','bg')
@@ -218,6 +223,7 @@ $: id = $page.params.id
     )
   })
   onDestroy(() => { esCtrl?.close() })
+  $: sid = submission?.id ?? Number(id)
 </script>
 
 {#if !submission}
@@ -255,6 +261,7 @@ $: id = $page.params.id
           </div>
         {/if}
 
+        {#if !hideAutoUI}
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div class="stat bg-base-200 rounded-box">
             <div class="stat-title">Tests</div>
@@ -273,7 +280,6 @@ $: id = $page.params.id
             <div class="stat-value text-error">{failedCount}</div>
           </div>
         </div>
-
         <div class="h-2 w-full rounded bg-base-200 overflow-hidden flex">
           {#each results as r}
             <div class={`h-full flex-1 ${bgFromBadge(resultColor(r.status))}`}></div>
@@ -282,54 +288,67 @@ $: id = $page.params.id
             <div class="h-full w-1/3 bg-info animate-pulse"></div>
           {/if}
         </div>
-      </div>
-    </div>
-
-    <div class="card bg-base-100 shadow">
-      <div class="card-body">
-        <h3 class="card-title">Results</h3>
-        {#if Array.isArray(results) && results.length}
-          <div class="space-y-2">
-            {#each results as r, i}
-              <details class="collapse collapse-arrow bg-base-200">
-                <summary class="collapse-title">
-                  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <div class="font-medium">Test {i+1}</div>
-                    <div class="flex items-center flex-wrap gap-3 text-xs sm:text-sm">
-                      <span class={`badge ${statusColor(r.status)}`}>{r.status}</span>
-                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-base-300">
-                        <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                          <circle cx="12" cy="12" r="9"/>
-                          <path d="M12 7v5l3 2"/>
-                        </svg>
-                        {r.runtime_ms} ms
-                      </span>
-                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-base-300">
-                        <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                          <rect x="3" y="5" width="18" height="14" rx="2" ry="2"/>
-                          <path d="M7 9l3 3-3 3"/>
-                          <path d="M13 15h4"/>
-                        </svg>
-                        exit {r.exit_code}
-                      </span>
-                    </div>
-                  </div>
-                </summary>
-                <div class="collapse-content space-y-2">
-                  {#if r.stderr}
-                    <pre class="whitespace-pre-wrap bg-base-300 rounded p-3 overflow-x-auto">{r.stderr}</pre>
-                  {:else}
-                    <div class="text-sm opacity-70">No stderr output</div>
-                  {/if}
-                </div>
-              </details>
-            {/each}
-          </div>
-        {:else}
-          <div class="text-sm opacity-70 italic">No results yet. This submission may still be running.</div>
         {/if}
       </div>
     </div>
+
+    {#if !hideAutoUI}
+      <div class="card bg-base-100 shadow">
+        <div class="card-body">
+          <h3 class="card-title">Results</h3>
+          {#if Array.isArray(results) && results.length}
+            <div class="space-y-2">
+              {#each results as r, i}
+                <details class="collapse collapse-arrow bg-base-200">
+                  <summary class="collapse-title">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <div class="font-medium">Test {i+1}</div>
+                      <div class="flex items-center flex-wrap gap-3 text-xs sm:text-sm">
+                        <span class={`badge ${statusColor(r.status)}`}>{r.status}</span>
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-base-300">
+                          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="12" cy="12" r="9"/>
+                            <path d="M12 7v5l3 2"/>
+                          </svg>
+                          {r.runtime_ms} ms
+                        </span>
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-base-300">
+                          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="3" y="5" width="18" height="14" rx="2" ry="2"/>
+                            <path d="M7 9l3 3-3 3"/>
+                            <path d="M13 15h4"/>
+                          </svg>
+                          exit {r.exit_code}
+                        </span>
+                      </div>
+                    </div>
+                  </summary>
+                  <div class="collapse-content space-y-2">
+                    {#if r.stderr}
+                      <pre class="whitespace-pre-wrap bg-base-300 rounded p-3 overflow-x-auto">{r.stderr}</pre>
+                    {:else}
+                      <div class="text-sm opacity-70">No stderr output</div>
+                    {/if}
+                  </div>
+                </details>
+              {/each}
+            </div>
+          {:else}
+            <div class="text-sm opacity-70 italic">No results yet. This submission may still be running.</div>
+          {/if}
+        </div>
+      </div>
+    {/if}
+
+    {#if (role==='teacher' || role==='admin') && (assignmentManual || hideAutoUI)}
+      <div class="card bg-base-100 shadow">
+        <div class="card-body space-y-3">
+          <h3 class="card-title">Manual testing</h3>
+          <p class="text-sm opacity-70">Run commands against the student's submission inside an isolated container.</p>
+          <Terminal submissionId={sid} />
+        </div>
+      </div>
+    {/if}
   </div>
 {/if}
 

@@ -162,6 +162,8 @@ func main() {
 		// List my submissions (student)
 		api.GET("/my-submissions", RoleGuard("student"), listSubs)
 		api.GET("/events", RoleGuard("student", "teacher", "admin"), eventsHandler)
+		// Interactive terminal for manual review sessions (teacher/admin only)
+		api.GET("/submissions/:id/terminal", RoleGuard("teacher", "admin"), submissionTerminalWS)
 		api.DELETE("/classes/:id/students/:sid", RoleGuard("teacher", "admin"), removeStudent)
 
 		api.GET("/students", RoleGuard("teacher", "admin"), listStudents)

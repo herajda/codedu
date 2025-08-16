@@ -3,5 +3,6 @@ export { default as MarkdownEditor } from './MarkdownEditor.svelte';
 export { default as FileTree } from './FileTree.svelte';
 export { default as AdminPanel } from './AdminPanel.svelte';
 export { default as NotebookEditor } from './components/NotebookEditor.svelte';
+export { default as Terminal } from './components/Terminal.svelte';
 export * from './sse';
 export * from './date';
