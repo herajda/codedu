@@ -31,7 +31,9 @@ $: role = $auth?.role ?? '';
   let percent=0
   let testsPassed=0
   let testsPercent=0
+  let testsCount=0
   let err=''
+  let subStats: Record<number, {passed:number, total:number}> = {}
   // removed test creation inputs (moved to tests page)
   let files: File[] = []
   let templateFile:File|null=null
@@ -44,6 +46,11 @@ $: testsPercent = results.length ? Math.round(testsPassed / results.length * 100
   let editing=false
   let eTitle='', eDesc='', eDeadline='', ePoints=0, ePolicy='all_or_nothing', eShowTraceback=false
   let eManualReview=false
+  let eLLMInteractive=false
+  let eLLMFeedback=false
+  let eLLMAutoAward=true
+  let eLLMScenarios=''
+  const exampleScenario = '[{"name":"calc","steps":[{"send":"2 + 2","expect_after":"4"}]}]'
   let safeDesc=''
 $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.description) as string) : ''
 
@@ -109,6 +116,8 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         submissions = data.submissions ?? []
         latestSub = submissions[0] ?? null
         results = []
+        // test count comes from tests_count for students
+        testsCount = (typeof data.tests_count === 'number' ? data.tests_count : (Array.isArray((data as any).tests) ? (data as any).tests.length : 0)) || 0
         if(latestSub){
           const subData = await apiJSON(`/api/submissions/${latestSub.id}`)
           results = subData.results ?? []
@@ -119,9 +128,12 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         },0)
         pointsEarned = best
         done = best >= assignment.max_points
+        await loadSubmissionStats()
       } else {
         allSubs = data.submissions ?? []
         teacherRuns = data.teacher_runs ?? []
+        // for non-students, tests array is present
+        try { testsCount = Array.isArray((data as any).tests) ? (data as any).tests.length : 0 } catch { testsCount = 0 }
         const cls = await apiJSON(`/api/classes/${assignment.class_id}`)
         students = cls.students ?? []
         progress = students.map((s:any)=>{
@@ -131,6 +143,27 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         })
       }
     }catch(e:any){ err=e.message }
+  }
+
+  async function loadSubmissionStats(){
+    subStats = {}
+    try{
+      if(testsCount>0 && Array.isArray(submissions) && submissions.length){
+        const pairs = await Promise.all(submissions.map(async (s:any)=>{
+          try{
+            const subData = await apiJSON(`/api/submissions/${s.id}`)
+            const res = subData.results ?? []
+            const passed = Array.isArray(res) ? res.filter((r:any)=>r.status==='passed').length : 0
+            return [s.id, {passed, total: res.length}] as const
+          }catch{
+            return [s.id, {passed: 0, total: 0}] as const
+          }
+        }))
+        const map: Record<number, {passed:number, total:number}> = {}
+        for(const [sid, st] of pairs){ map[sid]=st }
+        subStats = map
+      }
+    }catch{}
   }
 
 
@@ -209,6 +242,10 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     ePolicy=assignment.grading_policy
     eShowTraceback=assignment.show_traceback
     eManualReview=assignment.manual_review
+    eLLMInteractive=!!assignment.llm_interactive
+    eLLMFeedback=!!assignment.llm_feedback
+    eLLMAutoAward=assignment.llm_auto_award ?? true
+    eLLMScenarios=assignment.llm_scenarios_json ?? ''
   }
 
   async function saveEdit(){
@@ -224,7 +261,11 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           max_points:Number(ePoints),
           grading_policy:ePolicy,
           show_traceback:eShowTraceback,
-          manual_review:eManualReview
+          manual_review:eManualReview,
+          llm_interactive:eLLMInteractive,
+          llm_feedback:eLLMFeedback,
+          llm_auto_award:eLLMAutoAward,
+          llm_scenarios_json:eLLMScenarios.trim() ? eLLMScenarios : null
         })
       })
       editing=false
@@ -368,6 +409,23 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             <input type="checkbox" class="checkbox" bind:checked={eManualReview}>
             <span class="label-text">Manual review (teacher assigns points)</span>
           </label>
+          <div class="divider sm:col-span-2">LLM-Interactive testing</div>
+          <label class="flex items-center gap-2 sm:col-span-2">
+            <input type="checkbox" class="checkbox" bind:checked={eLLMInteractive}>
+            <span class="label-text">Enable LLM-Interactive mode</span>
+          </label>
+          <label class="flex items-center gap-2">
+            <input type="checkbox" class="checkbox" bind:checked={eLLMFeedback}>
+            <span class="label-text">LLM feedback visible to students</span>
+          </label>
+          <label class="flex items-center gap-2">
+            <input type="checkbox" class="checkbox" bind:checked={eLLMAutoAward}>
+            <span class="label-text">Auto-award full points if all scenarios pass</span>
+          </label>
+          <label class="form-control w-full sm:col-span-2">
+            <span class="label-text">Scenarios JSON (optional)</span>
+            <textarea class="textarea textarea-bordered h-40" bind:value={eLLMScenarios} placeholder={exampleScenario}></textarea>
+          </label>
         </div>
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2">
@@ -391,7 +449,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         <div class="flex-1 p-6">
           <div class="flex items-center justify-between gap-3">
             <h1 class="text-2xl sm:text-3xl font-semibold tracking-tight">{assignment.title}</h1>
-            {#if role==='student'}
+            {#if role==='student' && !assignment.manual_review && testsCount > 0}
               <div class="hidden sm:flex items-center gap-3">
                 <div class="radial-progress text-primary" style="--value:{testsPercent};" aria-valuenow={testsPercent} role="progressbar">{testsPercent}%</div>
                 <span class="font-semibold">{testsPassed} / {results.length} tests</span>
@@ -509,18 +567,30 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             <div class="overflow-x-auto">
               <table class="table table-zebra">
                 <thead>
-                  <tr><th>Date</th><th>Status</th><th></th></tr>
+                  <tr>
+                    <th>Date</th>
+                    <th>Status</th>
+                    {#if testsCount>0}
+                      <th>Passed</th>
+                      <th>Points</th>
+                    {/if}
+                    <th></th>
+                  </tr>
                 </thead>
                 <tbody>
                   {#each submissions as s}
                     <tr>
                       <td>{formatDateTime(s.created_at)}</td>
                       <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span></td>
+                      {#if testsCount>0}
+                        <td>{#if subStats[s.id]}{subStats[s.id].passed} / {testsCount}{:else}-{/if}</td>
+                        <td>{(s.override_points ?? s.points ?? 0)}</td>
+                      {/if}
                       <td><a href={`/submissions/${s.id}?fromTab=${activeTab}`} class="btn btn-sm btn-outline" on:click={saveState}>View</a></td>
                     </tr>
                   {/each}
                   {#if !submissions.length}
-                    <tr><td colspan="3"><i>No submissions yet</i></td></tr>
+                    <tr><td colspan="{testsCount>0?5:3}"><i>No submissions yet</i></td></tr>
                   {/if}
                 </tbody>
               </table>

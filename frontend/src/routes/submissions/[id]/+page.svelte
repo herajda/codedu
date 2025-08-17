@@ -22,6 +22,8 @@ $: id = $page.params.id
   let assignmentTitle: string = ''
   let assignmentManual: boolean = false
   let assignmentTestsCount: number = 0
+  let assignmentLLMInteractive: boolean = false
+  let assignmentLLMFeedback: boolean = false
   let sid: number = 0
   let role = ''
   $: role = $auth?.role ?? ''
@@ -29,6 +31,10 @@ $: id = $page.params.id
   import hljs from 'highlight.js'
   import 'highlight.js/styles/github.css'
   let fileDialog: HTMLDialogElement
+
+  let llm: any = null
+  type TabKey = 'auto' | 'llm' | 'files'
+  let tab: TabKey = 'auto'
 
   // Inline teacher points override component
   // This is a tiny Svelte component defined in-file using a function that returns markup via a slot approach
@@ -89,6 +95,7 @@ $: id = $page.params.id
       const data = await apiJSON(`/api/submissions/${id}`)
       submission = data.submission
       results = data.results
+      llm = data.llm ?? null
 
       files = await parseFiles(submission.code_content)
       tree = buildTree(files)
@@ -99,7 +106,16 @@ $: id = $page.params.id
           const ad = await apiJSON(`/api/assignments/${submission.assignment_id}`)
           assignmentTitle = ad.assignment?.title ?? ''
           assignmentManual = !!ad.assignment?.manual_review
-          try { assignmentTestsCount = Array.isArray(ad.tests) ? ad.tests.length : 0 } catch { assignmentTestsCount = 0 }
+          assignmentLLMInteractive = !!ad.assignment?.llm_interactive
+          assignmentLLMFeedback = !!ad.assignment?.llm_feedback
+          // Prefer aggregate tests_count when present (student view), fallback to tests array (teacher/admin)
+          try {
+            assignmentTestsCount = typeof ad.tests_count === 'number'
+              ? ad.tests_count
+              : (Array.isArray(ad.tests) ? ad.tests.length : 0)
+          } catch {
+            assignmentTestsCount = 0
+          }
         } catch {}
       }
     } catch (e: any) {
@@ -150,6 +166,7 @@ $: id = $page.params.id
   }
 
   $: hideAutoUI = assignmentTestsCount === 0
+  $: showLLMTab = assignmentLLMInteractive && (role !== 'student' || assignmentLLMFeedback)
 
   function bgFromBadge(badgeClass: string){
     return badgeClass.replace('badge','bg')
@@ -250,6 +267,13 @@ $: id = $page.params.id
           </div>
         </div>
 
+        {#if showLLMTab}
+          <div class="tabs tabs-boxed">
+            <button class={`tab ${tab==='auto' ? 'tab-active':''}`} on:click={()=>tab='auto'}>Auto tests</button>
+            <button class={`tab ${tab==='llm' ? 'tab-active':''}`} on:click={()=>tab='llm'}>LLM</button>
+          </div>
+        {/if}
+
         {#if assignmentManual && (role==='teacher' || role==='admin')}
           <div class="rounded-box bg-base-200 p-4 mt-2">
             <div class="font-medium mb-2">Teacher override points</div>
@@ -261,7 +285,7 @@ $: id = $page.params.id
           </div>
         {/if}
 
-        {#if !hideAutoUI}
+        {#if (!hideAutoUI) && (tab==='auto' || !showLLMTab)}
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div class="stat bg-base-200 rounded-box">
             <div class="stat-title">Tests</div>
@@ -292,7 +316,7 @@ $: id = $page.params.id
       </div>
     </div>
 
-    {#if !hideAutoUI}
+    {#if (!hideAutoUI) && (tab==='auto' || !showLLMTab)}
       <div class="card bg-base-100 shadow">
         <div class="card-body">
           <h3 class="card-title">Results</h3>
@@ -335,6 +359,56 @@ $: id = $page.params.id
             </div>
           {:else}
             <div class="text-sm opacity-70 italic">No results yet. This submission may still be running.</div>
+          {/if}
+        </div>
+      </div>
+    {/if}
+
+    {#if showLLMTab && tab==='llm'}
+      <div class="card bg-base-100 shadow">
+        <div class="card-body space-y-3">
+          <h3 class="card-title">LLM-Interactive</h3>
+          {#if llm}
+            <div class="grid md:grid-cols-3 gap-3">
+              <div class="rounded-box bg-base-200 p-3">
+                <div class="font-medium">Smoke test</div>
+                <div class="text-sm">{llm.smoke_ok ? 'OK' : 'Failed'}</div>
+              </div>
+              <div class="rounded-box bg-base-200 p-3">
+                <div class="font-medium">Verdict</div>
+                <div class="text-sm">{llm.verdict ?? '-'}</div>
+              </div>
+              <div class="rounded-box bg-base-200 p-3">
+                <div class="font-medium">Reason</div>
+                <div class="text-sm break-words">{llm.reason ?? '-'}</div>
+              </div>
+            </div>
+            {#if llm.review_json}
+              <details class="collapse collapse-arrow bg-base-200">
+                <summary class="collapse-title">LLM Review</summary>
+                <div class="collapse-content">
+                  <pre class="whitespace-pre-wrap">{llm.review_json}</pre>
+                </div>
+              </details>
+            {/if}
+            {#if llm.interactive_json}
+              <details class="collapse collapse-arrow bg-base-200">
+                <summary class="collapse-title">Scenarios</summary>
+                <div class="collapse-content">
+                  <pre class="whitespace-pre-wrap">{llm.interactive_json}</pre>
+                </div>
+              </details>
+            {/if}
+            {#if llm.transcript}
+              <details class="collapse collapse-arrow bg-base-200">
+                <summary class="collapse-title">Interactive transcript</summary>
+                <div class="collapse-content">
+                  <pre class="whitespace-pre-wrap">{llm.transcript}</pre>
+                </div>
+              </details>
+            {/if}
+          {:else}
+            <div class="text-sm opacity-70">No LLM data yet.</div>
           {/if}
         </div>
       </div>

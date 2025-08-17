@@ -42,6 +42,12 @@ type Assignment struct {
 	CreatedAt     time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
 	ClassID       int       `db:"class_id" json:"class_id"`
+
+	// LLM-interactive testing configuration
+	LLMInteractive  bool    `db:"llm_interactive" json:"llm_interactive"`
+	LLMFeedback     bool    `db:"llm_feedback" json:"llm_feedback"`
+	LLMAutoAward    bool    `db:"llm_auto_award" json:"llm_auto_award"`
+	LLMScenariosRaw *string `db:"llm_scenarios_json" json:"llm_scenarios_json"`
 }
 type Class struct {
 	ID        int       `db:"id"        json:"id"`
@@ -185,7 +191,11 @@ func ListAssignments(role string, userID int) ([]Assignment, error) {
 	query := `
     SELECT a.id, a.title, a.description, a.created_by, a.deadline,
            a.max_points, a.grading_policy, a.published, a.show_traceback, a.manual_review, a.template_path,
-           a.created_at, a.updated_at, a.class_id
+           a.created_at, a.updated_at, a.class_id,
+           COALESCE(a.llm_interactive,false) AS llm_interactive,
+           COALESCE(a.llm_feedback,false) AS llm_feedback,
+           COALESCE(a.llm_auto_award,true) AS llm_auto_award,
+           a.llm_scenarios_json
       FROM assignments a`
 	var args []any
 	switch role {
@@ -209,7 +219,11 @@ func ListAssignments(role string, userID int) ([]Assignment, error) {
 func GetAssignment(id int) (*Assignment, error) {
 	var a Assignment
 	err := DB.Get(&a, `
-    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, manual_review, template_path, created_at, updated_at, class_id
+    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, manual_review, template_path, created_at, updated_at, class_id,
+           COALESCE(llm_interactive,false) AS llm_interactive,
+           COALESCE(llm_feedback,false) AS llm_feedback,
+           COALESCE(llm_auto_award,true) AS llm_auto_award,
+           llm_scenarios_json
       FROM assignments
      WHERE id = $1`, id)
 	if err != nil {
@@ -224,7 +238,11 @@ func GetAssignmentForSubmission(subID int) (*Assignment, error) {
 	err := DB.Get(&a, `
         SELECT a.id, a.title, a.description, a.created_by, a.deadline,
                a.max_points, a.grading_policy, a.published, a.show_traceback, a.manual_review, a.template_path,
-               a.created_at, a.updated_at, a.class_id
+               a.created_at, a.updated_at, a.class_id,
+               COALESCE(a.llm_interactive,false) AS llm_interactive,
+               COALESCE(a.llm_feedback,false) AS llm_feedback,
+               COALESCE(a.llm_auto_award,true) AS llm_auto_award,
+               a.llm_scenarios_json
           FROM assignments a
           JOIN submissions s ON s.assignment_id = a.id
          WHERE s.id=$1`, subID)
@@ -240,10 +258,12 @@ func UpdateAssignment(a *Assignment) error {
     UPDATE assignments
        SET title=$1, description=$2, deadline=$3,
            max_points=$4, grading_policy=$5, show_traceback=$6, manual_review=$7,
+           llm_interactive=$8, llm_feedback=$9, llm_auto_award=$10, llm_scenarios_json=$11,
            updated_at=now()
-     WHERE id=$8`,
+     WHERE id=$12`,
 		a.Title, a.Description, a.Deadline,
 		a.MaxPoints, a.GradingPolicy, a.ShowTraceback, a.ManualReview,
+		a.LLMInteractive, a.LLMFeedback, a.LLMAutoAward, a.LLMScenariosRaw,
 		a.ID)
 	if err != nil {
 		return err
@@ -492,7 +512,11 @@ func GetClassDetail(id int, role string, userID int) (*ClassDetail, error) {
 	query := `
                 SELECT id, title, description, created_by, deadline,
                        max_points, grading_policy, published, template_path,
-                       created_at, updated_at, class_id
+                       created_at, updated_at, class_id,
+                       COALESCE(llm_interactive,false) AS llm_interactive,
+                       COALESCE(llm_feedback,false) AS llm_feedback,
+                       COALESCE(llm_auto_award,true) AS llm_auto_award,
+                       llm_scenarios_json
                   FROM assignments
                  WHERE class_id = $1`
 	if role == "student" {
@@ -681,6 +705,42 @@ type Result struct {
 	CreatedAt    time.Time `db:"created_at" json:"created_at"`
 }
 
+// LLMRun stores artifacts from an LLM-interactive testing run for a submission.
+type LLMRun struct {
+	ID              int       `db:"id" json:"id"`
+	SubmissionID    int       `db:"submission_id" json:"submission_id"`
+	SmokeOK         bool      `db:"smoke_ok" json:"smoke_ok"`
+	ReviewJSON      *string   `db:"review_json" json:"review_json,omitempty"`
+	InteractiveJSON *string   `db:"interactive_json" json:"interactive_json,omitempty"`
+	Transcript      *string   `db:"transcript" json:"transcript,omitempty"`
+	Verdict         *string   `db:"verdict" json:"verdict,omitempty"`
+	Reason          *string   `db:"reason" json:"reason,omitempty"`
+	ModelName       *string   `db:"model_name" json:"model_name,omitempty"`
+	ToolCalls       *int      `db:"tool_calls" json:"tool_calls,omitempty"`
+	WallTimeMS      *int      `db:"wall_time_ms" json:"wall_time_ms,omitempty"`
+	OutputSize      *int      `db:"output_size" json:"output_size,omitempty"`
+	CreatedAt       time.Time `db:"created_at" json:"created_at"`
+}
+
+func CreateLLMRun(r *LLMRun) error {
+	const q = `
+        INSERT INTO llm_runs (submission_id, smoke_ok, review_json, interactive_json, transcript, verdict, reason, model_name, tool_calls, wall_time_ms, output_size)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        RETURNING id, created_at`
+	return DB.QueryRow(q, r.SubmissionID, r.SmokeOK, r.ReviewJSON, r.InteractiveJSON, r.Transcript, r.Verdict, r.Reason, r.ModelName, r.ToolCalls, r.WallTimeMS, r.OutputSize).
+		Scan(&r.ID, &r.CreatedAt)
+}
+
+func GetLatestLLMRun(subID int) (*LLMRun, error) {
+	var r LLMRun
+	err := DB.Get(&r, `SELECT id, submission_id, smoke_ok, review_json, interactive_json, transcript, verdict, reason, model_name, tool_calls, wall_time_ms, output_size, created_at
+                         FROM llm_runs WHERE submission_id=$1 ORDER BY id DESC LIMIT 1`, subID)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
 func GetSubmission(id int) (*Submission, error) {
 	var s Submission
 	err := DB.Get(&s, `
@@ -762,7 +822,11 @@ func GetClassProgress(classID int) (*ClassProgress, error) {
 	if err := DB.Select(&asg, `
                 SELECT id, title, description, created_by, deadline,
                        max_points, grading_policy, published, template_path,
-                       created_at, updated_at, class_id
+                       created_at, updated_at, class_id,
+                       COALESCE(llm_interactive,false) AS llm_interactive,
+                       COALESCE(llm_feedback,false) AS llm_feedback,
+                       COALESCE(llm_auto_award,true) AS llm_auto_award,
+                       llm_scenarios_json
                   FROM assignments
                  WHERE class_id=$1
                  ORDER BY deadline ASC`, classID); err != nil {

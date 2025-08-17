@@ -85,6 +85,8 @@ func main() {
 	api := r.Group("/api")
 	api.Use(JWTAuth())
 	{
+		// LLM interactive session API
+		registerSessionRoutes(api)
 		// health-check
 		api.GET("/ping", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"msg": "pong"})

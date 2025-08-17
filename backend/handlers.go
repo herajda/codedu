@@ -251,7 +251,8 @@ func getAssignment(c *gin.Context) {
 			return
 		}
 		subs, _ := ListSubmissionsForAssignmentAndStudent(id, c.GetInt("userID"))
-		c.JSON(http.StatusOK, gin.H{"assignment": a, "submissions": subs})
+		tests, _ := ListTestCases(id)
+		c.JSON(http.StatusOK, gin.H{"assignment": a, "submissions": subs, "tests_count": len(tests)})
 		return
 	} else if role == "teacher" {
 		if ok, err := IsTeacherOfAssignment(id, c.GetInt("userID")); err != nil || !ok {
@@ -298,13 +299,17 @@ func updateAssignment(c *gin.Context) {
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	var req struct {
-		Title         string `json:"title" binding:"required"`
-		Description   string `json:"description"`
-		Deadline      string `json:"deadline" binding:"required"`
-		MaxPoints     int    `json:"max_points" binding:"required"`
-		GradingPolicy string `json:"grading_policy" binding:"required"`
-		ShowTraceback bool   `json:"show_traceback"`
-		ManualReview  bool   `json:"manual_review"`
+		Title           string  `json:"title" binding:"required"`
+		Description     string  `json:"description"`
+		Deadline        string  `json:"deadline" binding:"required"`
+		MaxPoints       int     `json:"max_points" binding:"required"`
+		GradingPolicy   string  `json:"grading_policy" binding:"required"`
+		ShowTraceback   bool    `json:"show_traceback"`
+		ManualReview    bool    `json:"manual_review"`
+		LLMInteractive  bool    `json:"llm_interactive"`
+		LLMFeedback     bool    `json:"llm_feedback"`
+		LLMAutoAward    bool    `json:"llm_auto_award"`
+		LLMScenariosRaw *string `json:"llm_scenarios_json"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -317,14 +322,18 @@ func updateAssignment(c *gin.Context) {
 	}
 
 	a := &Assignment{
-		ID:            id,
-		Title:         req.Title,
-		Description:   req.Description,
-		Deadline:      dl,
-		MaxPoints:     req.MaxPoints,
-		GradingPolicy: req.GradingPolicy,
-		ShowTraceback: req.ShowTraceback,
-		ManualReview:  req.ManualReview,
+		ID:              id,
+		Title:           req.Title,
+		Description:     req.Description,
+		Deadline:        dl,
+		MaxPoints:       req.MaxPoints,
+		GradingPolicy:   req.GradingPolicy,
+		ShowTraceback:   req.ShowTraceback,
+		ManualReview:    req.ManualReview,
+		LLMInteractive:  req.LLMInteractive,
+		LLMFeedback:     req.LLMFeedback,
+		LLMAutoAward:    req.LLMAutoAward,
+		LLMScenariosRaw: req.LLMScenariosRaw,
 	}
 	if err := UpdateAssignment(a); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not update"})
@@ -880,9 +889,11 @@ func createSubmission(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
-	// enqueue for grading unless manual review is enabled
-	if a, err := GetAssignment(aid); err == nil && !a.ManualReview {
-		EnqueueJob(Job{SubmissionID: sub.ID})
+	// enqueue for grading unless manual review is enabled (unless LLM interactive is on)
+	if a, err := GetAssignment(aid); err == nil {
+		if a.LLMInteractive || !a.ManualReview {
+			EnqueueJob(Job{SubmissionID: sub.ID})
+		}
 	}
 	c.JSON(http.StatusCreated, sub)
 }
@@ -1127,7 +1138,22 @@ func getSubmission(c *gin.Context) {
 			}
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{"submission": sub, "results": results})
+	resp := gin.H{"submission": sub, "results": results}
+	// Attach latest LLM run if available
+	if llm, err := GetLatestLLMRun(sid); err == nil && llm != nil {
+		// apply feedback visibility for students
+		if role := c.GetString("role"); role == "student" {
+			if a, e := GetAssignmentForSubmission(sub.ID); e == nil {
+				if !a.LLMFeedback {
+					// hide detailed artifacts for students if disabled
+					llm.ReviewJSON = nil
+					llm.Transcript = nil
+				}
+			}
+		}
+		resp["llm"] = llm
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 // submissionTerminalWS: GET /api/submissions/:id/terminal (WS)
