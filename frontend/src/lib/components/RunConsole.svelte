@@ -52,7 +52,9 @@
               // Server indicates a GUI-capable session; embed noVNC and minimize terminal
               showGUI = true;
               guiBase = String(msg.base || '').replace(/[^\/]$/, '$&/');
-              guiUrl = `${guiBase}vnc.html?autoconnect=1&resize=scale&path=websockify`;
+              // noVNC expects an absolute WebSocket path, include guiBase
+              const wsPath = `${guiBase}websockify`;
+              guiUrl = `${guiBase}vnc.html?autoconnect=1&resize=scale&path=${encodeURIComponent(wsPath)}`;
               terminalCollapsed = true;
               break;
             case 'started':
