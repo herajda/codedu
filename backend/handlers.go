@@ -1615,7 +1615,7 @@ func submissionRunWS(c *gin.Context) {
 					"autorestart=true",
 					"",
 					"[program:web]",
-					"command=/usr/bin/websockify --web=/usr/share/novnc 6080 localhost:5900",
+					"command=/usr/bin/websockify --web=/usr/share/novnc --wrap-mode=ignore 6080 localhost:5900",
 					"priority=35",
 					"autorestart=true",
 					"",
