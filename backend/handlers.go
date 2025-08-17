@@ -310,6 +310,8 @@ func updateAssignment(c *gin.Context) {
 		LLMFeedback     bool    `json:"llm_feedback"`
 		LLMAutoAward    bool    `json:"llm_auto_award"`
 		LLMScenariosRaw *string `json:"llm_scenarios_json"`
+		LLMStrictness   *int    `json:"llm_strictness"`
+		LLMRubric       *string `json:"llm_rubric"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -334,6 +336,14 @@ func updateAssignment(c *gin.Context) {
 		LLMFeedback:     req.LLMFeedback,
 		LLMAutoAward:    req.LLMAutoAward,
 		LLMScenariosRaw: req.LLMScenariosRaw,
+	}
+	if req.LLMStrictness != nil {
+		a.LLMStrictness = *req.LLMStrictness
+	} else {
+		a.LLMStrictness = 50
+	}
+	if req.LLMRubric != nil {
+		a.LLMRubric = req.LLMRubric
 	}
 	if err := UpdateAssignment(a); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not update"})

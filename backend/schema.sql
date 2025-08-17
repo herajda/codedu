@@ -50,6 +50,9 @@ ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_interactive BOOLEAN NOT NUL
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_feedback BOOLEAN NOT NULL DEFAULT FALSE; -- show LLM feedback to students
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_auto_award BOOLEAN NOT NULL DEFAULT TRUE; -- auto-award max points if all scenarios pass
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_scenarios_json TEXT; -- JSON describing interactive scenarios
+-- Strictness slider (0-100) and teacher rubric for OK/Wrong definitions
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_strictness INTEGER NOT NULL DEFAULT 50; -- 0=Beginner (lenient), 100=Pro (strict)
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_rubric TEXT; -- freeform teacher guidance on what is OK vs WRONG
 
 CREATE TABLE IF NOT EXISTS test_cases (
   id SERIAL PRIMARY KEY,

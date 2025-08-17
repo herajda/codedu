@@ -425,6 +425,14 @@ func runLLMInteractive(sub *Submission, a *Assignment) {
 
 func strPtr(s string) *string { return &s }
 
+// Helper to deref optional string pointer
+func stringOrEmpty(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}
+
 // smokePythonProgram tries to run the program briefly (expecting input). Timeout is OK.
 func smokePythonProgram(dir, file string) (bool, string) {
 	abs, _ := filepath.Abs(dir)
@@ -490,8 +498,32 @@ func llmStaticReview(a *Assignment, dir string) map[string]any {
 		files = append(files, fmt.Sprintf("# %s\n%s", rel, s))
 		return nil
 	})
-	// Critical, adversarial mindset and strict JSON schema
-	sys := "You are an code reviewer for CLI programs. Be moderately critical and practical. Don't accept any code that has some mistake in it that falls into category of wrong edge-case handling, wrong output for input. Return ONLY strict JSON."
+	// Calibrate tone using assignment strictness and optional rubric
+	level := a.LLMStrictness
+	if level < 0 {
+		level = 0
+	}
+	if level > 100 {
+		level = 100
+	}
+	var stance string
+	switch {
+	case level <= 20:
+		stance = "Be lenient and supportive for beginners. Minor style or small edge-case omissions are acceptable unless they break core functionality."
+	case level <= 50:
+		stance = "Be moderately critical and practical. Focus on correctness and key edge cases."
+	case level <= 80:
+		stance = "Be strict and thorough. Edge cases and robustness matter."
+	default:
+		stance = "Be very strict and professional (PRO level). Do not accept any incorrect handling or deviations from requirements."
+	}
+	rubric := stringOrEmpty(a.LLMRubric)
+	rubricPart := ""
+	if rubric != "" {
+		rubricPart = "Teacher rubric (defines OK vs WRONG):\n" + rubric + "\n\n"
+	}
+	// Critical mindset and strict JSON schema; include stance and rubric
+	sys := "You are a code reviewer for CLI programs. " + stance + " Return ONLY strict JSON."
 	user := fmt.Sprintf(`Assignment title: %s
 Assignment description:
 %s
@@ -499,6 +531,7 @@ Assignment description:
 Student code (truncated excerpts):
 %s
 
+%s
 Return STRICT JSON exactly in this shape (no extra keys, no markdown, no comments):
 {
   "summary": "string",
@@ -516,7 +549,7 @@ Return STRICT JSON exactly in this shape (no extra keys, no markdown, no comment
 Rules:
 - Severity reflects impact. Prefer concrete, reproducible risks.
 - risk_based_tests should turn suspected failures into runnable steps.
-- If unknown, use empty arrays.`, a.Title, a.Description, strings.Join(files, "\n\n"))
+- If unknown, use empty arrays.`, a.Title, a.Description, strings.Join(files, "\n\n"), rubricPart)
 	payload := map[string]any{"model": model, "messages": []map[string]string{{"role": "system", "content": sys}, {"role": "user", "content": user}}}
 	body, _ := json.Marshal(payload)
 	endpoint := strings.TrimRight(base, "/") + "/chat/completions"
@@ -589,7 +622,31 @@ func llmPlanScenarios(a *Assignment, dir string, review map[string]any) ([]inter
 			reviewPart = string(b)
 		}
 	}
-	sys := "You design black-box CLI test scenarios. Output ONLY strict JSON that the runner can execute."
+	// Strictness calibration and optional rubric influence
+	lvl := a.LLMStrictness
+	if lvl < 0 {
+		lvl = 0
+	}
+	if lvl > 100 {
+		lvl = 100
+	}
+	var aggressiveness string
+	switch {
+	case lvl <= 20:
+		aggressiveness = "Prefer simple, happy-path scenarios with gentle checks."
+	case lvl <= 50:
+		aggressiveness = "Cover typical and some edge cases with practical expectations."
+	case lvl <= 80:
+		aggressiveness = "Include thorough edge cases and robustness checks."
+	default:
+		aggressiveness = "Be adversarial and exhaustive within reason; enforce precise outputs."
+	}
+	rubric := stringOrEmpty(a.LLMRubric)
+	rubricPart := ""
+	if rubric != "" {
+		rubricPart = "\nTeacher rubric (defines OK vs WRONG):\n" + rubric + "\n"
+	}
+	sys := "You design black-box CLI test scenarios. " + aggressiveness + " Output ONLY strict JSON that the runner can execute."
 	user := fmt.Sprintf(`Assignment title: %s
 Assignment description:
 %s
@@ -599,7 +656,7 @@ Student code (truncated excerpts):
 
 Static review (may include risks):
 %s
-
+%s
 Return STRICT JSON exactly in this shape (no extras):
 {
   "scenarios": [
@@ -617,7 +674,7 @@ Guidelines:
 - 1-5 scenarios, 1-6 steps each.
 - steps simulate user typing lines into stdin; expect_regex is optional and must be a compact regex.
 - Avoid problem-specific jargon in send values unless clearly present in the assignment.
-- Incorporate risk-based tests from the review when present.`, a.Title, a.Description, strings.Join(files, "\n\n"), reviewPart)
+- Incorporate risk-based tests from the review when present.`, a.Title, a.Description, strings.Join(files, "\n\n"), reviewPart, rubricPart)
 	payload := map[string]any{"model": model, "messages": []map[string]string{{"role": "system", "content": sys}, {"role": "user", "content": user}}}
 	body, _ := json.Marshal(payload)
 	endpoint := strings.TrimRight(base, "/") + "/chat/completions"
@@ -661,16 +718,18 @@ Guidelines:
 			if v, ok := st["send"]; ok {
 				m["send"] = v
 			}
-			if v, ok := st["expect_regex"]; ok {
+			if v, ok := st["expect_after"]; ok {
 				m["expect_after"] = v
-			} else if v, ok := st["expect"]; ok {
+			}
+			if v, ok := st["expect_regex"]; ok && m["expect_after"] == "" {
 				m["expect_after"] = v
 			}
 			steps = append(steps, m)
 		}
 		out = append(out, interactiveScenario{Name: s.Name, Notes: s.Rationale, Steps: steps})
 	}
-	return out, txt
+	b, _ := json.Marshal(map[string]any{"scenarios": p.Scenarios})
+	return out, string(b)
 }
 
 func runInteractiveScenarios(dir, mainFile string, scenarios []interactiveScenario) (bool, string, string, string, string) {

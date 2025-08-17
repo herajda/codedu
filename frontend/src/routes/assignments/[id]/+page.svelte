@@ -50,6 +50,8 @@ $: testsPercent = results.length ? Math.round(testsPassed / results.length * 100
   let eLLMFeedback=false
   let eLLMAutoAward=true
   let eLLMScenarios=''
+  let eLLMStrictness:number=50
+  let eLLMRubric=''
   const exampleScenario = '[{"name":"calc","steps":[{"send":"2 + 2","expect_after":"4"}]}]'
   let safeDesc=''
 $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.description) as string) : ''
@@ -139,7 +141,9 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         progress = students.map((s:any)=>{
           const subs = allSubs.filter((x:any)=>x.student_id===s.id)
           const latest = subs[0]
-          return {student:s, latest, all: subs}
+          const hasCompleted = subs.some((x:any)=>x.status==='completed' || x.status==='passed')
+          const displayStatus = hasCompleted ? 'completed' : (latest ? latest.status : 'none')
+          return {student:s, latest, all: subs, displayStatus}
         })
       }
     }catch(e:any){ err=e.message }
@@ -246,6 +250,8 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     eLLMFeedback=!!assignment.llm_feedback
     eLLMAutoAward=assignment.llm_auto_award ?? true
     eLLMScenarios=assignment.llm_scenarios_json ?? ''
+    eLLMStrictness = typeof assignment.llm_strictness === 'number' ? assignment.llm_strictness : 50
+    eLLMRubric = assignment.llm_rubric ?? ''
   }
 
   async function saveEdit(){
@@ -265,7 +271,9 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           llm_interactive:eLLMInteractive,
           llm_feedback:eLLMFeedback,
           llm_auto_award:eLLMAutoAward,
-          llm_scenarios_json:eLLMScenarios.trim() ? eLLMScenarios : null
+          llm_scenarios_json:eLLMScenarios.trim() ? eLLMScenarios : null,
+          llm_strictness: Number.isFinite(eLLMStrictness) ? Math.min(100, Math.max(0, Number(eLLMStrictness))) : 50,
+          llm_rubric: eLLMRubric.trim() ? eLLMRubric : null
         })
       })
       editing=false
@@ -426,6 +434,25 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             <span class="label-text">Scenarios JSON (optional)</span>
             <textarea class="textarea textarea-bordered h-40" bind:value={eLLMScenarios} placeholder={exampleScenario}></textarea>
           </label>
+          <div class="sm:col-span-2 grid gap-3">
+            <label class="form-control w-full">
+              <div class="flex items-center justify-between">
+                <span class="label-text">Strictness level</span>
+                <div class="text-sm opacity-70">{eLLMStrictness} / 100</div>
+              </div>
+              <input type="range" min="0" max="100" step="10" class="range range-primary" bind:value={eLLMStrictness}>
+              <div class="flex justify-between text-xs opacity-70 mt-1">
+                <span>Beginner</span>
+                <span>Intermediate</span>
+                <span>Advanced</span>
+                <span>PRO</span>
+              </div>
+            </label>
+            <label class="form-control w-full">
+              <span class="label-text">Teacher rubric (what is OK vs WRONG)</span>
+              <textarea class="textarea textarea-bordered h-32" bind:value={eLLMRubric} placeholder="Describe what is acceptable and what should be considered wrong. This text will guide the LLM's evaluation."></textarea>
+            </label>
+          </div>
         </div>
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2">
@@ -654,7 +681,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                     {#each progress as p (p.student.id)}
                       <tr class="cursor-pointer" on:click={() => toggleStudent(p.student.id)}>
                         <td>{p.student.name ?? p.student.email}</td>
-                        <td><span class={`badge ${statusColor(p.latest ? p.latest.status : 'none')}`}>{p.latest ? p.latest.status : 'none'}</span></td>
+                        <td><span class={`badge ${statusColor(p.displayStatus)}`}>{p.displayStatus}</span></td>
                         <td>{p.latest ? formatDateTime(p.latest.created_at) : '-'}</td>
                       </tr>
                       {#if expanded === p.student.id}
