@@ -1674,20 +1674,23 @@ func submissionRunWS(c *gin.Context) {
 				broadcast(map[string]any{"type": "started"})
 				go func(port int, subID int) {
 					url := fmt.Sprintf("http://127.0.0.1:%d/vnc.html", port)
-					deadline := time.Now().Add(10 * time.Second)
+					// give the container ample time to install GUI packages and start noVNC
+					deadline := time.Now().Add(60 * time.Second)
 					for time.Now().Before(deadline) {
 						resp, err := http.Get(url)
 						if err == nil {
 							_, _ = io.Copy(io.Discard, resp.Body)
 							_ = resp.Body.Close()
 							if resp.StatusCode < 500 {
+								// only announce GUI once the web interface is reachable
 								broadcast(map[string]any{"type": "gui", "base": fmt.Sprintf("/api/submissions/%d/gui/", subID)})
 								return
 							}
 						}
-						time.Sleep(200 * time.Millisecond)
+						time.Sleep(500 * time.Millisecond)
 					}
-					broadcast(map[string]any{"type": "gui", "base": fmt.Sprintf("/api/submissions/%d/gui/", subID)})
+					// if we get here the GUI never became ready; inform client instead of serving 502s
+					broadcast(map[string]any{"type": "error", "message": "GUI failed to start"})
 				}(hostPort, sub.ID)
 
 				go func() {
