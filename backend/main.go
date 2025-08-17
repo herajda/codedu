@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -197,7 +198,11 @@ func main() {
 				return
 			}
 			// Build a proxy that points to container noVNC and explicitly set the path from the *path param
-			target, _ := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", hostPort))
+			host := "127.0.0.1"
+			if _, err := net.ResolveIPAddr("ip", "host.docker.internal"); err == nil {
+				host = "host.docker.internal"
+			}
+			target, _ := url.Parse(fmt.Sprintf("http://%s:%d", host, hostPort))
 			proxy := httputil.NewSingleHostReverseProxy(target)
 			proxy.Director = func(r *http.Request) {
 				p := c.Param("path")

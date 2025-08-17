@@ -1635,7 +1635,7 @@ func submissionRunWS(c *gin.Context) {
 					"/usr/bin/supervisord -c /tmp/supervisord.conf",
 				}, "\n"))
 				cmd := exec.Command("docker", "run", "--rm", "--name", containerName,
-					"-p", fmt.Sprintf("127.0.0.1:%d:6080", hostPort),
+					"-p", fmt.Sprintf("%d:6080", hostPort),
 					"--cpus", dockerCPUs, "--memory", dockerMemory,
 					"-v", fmt.Sprintf("%s:/code:ro,z", abs),
 					pythonImage, "bash", "-lc", script)
@@ -1673,7 +1673,11 @@ func submissionRunWS(c *gin.Context) {
 				// Announce start, then probe noVNC HTTP before telling client to load GUI to avoid early 502s
 				broadcast(map[string]any{"type": "started"})
 				go func(port int, subID int) {
-					url := fmt.Sprintf("http://127.0.0.1:%d/vnc.html", port)
+					host := "127.0.0.1"
+					if _, err := net.ResolveIPAddr("ip", "host.docker.internal"); err == nil {
+						host = "host.docker.internal"
+					}
+					url := fmt.Sprintf("http://%s:%d/vnc.html", host, port)
 					deadline := time.Now().Add(10 * time.Second)
 					for time.Now().Before(deadline) {
 						resp, err := http.Get(url)
