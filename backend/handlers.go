@@ -299,19 +299,20 @@ func updateAssignment(c *gin.Context) {
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	var req struct {
-		Title           string  `json:"title" binding:"required"`
-		Description     string  `json:"description"`
-		Deadline        string  `json:"deadline" binding:"required"`
-		MaxPoints       int     `json:"max_points" binding:"required"`
-		GradingPolicy   string  `json:"grading_policy" binding:"required"`
-		ShowTraceback   bool    `json:"show_traceback"`
-		ManualReview    bool    `json:"manual_review"`
-		LLMInteractive  bool    `json:"llm_interactive"`
-		LLMFeedback     bool    `json:"llm_feedback"`
-		LLMAutoAward    bool    `json:"llm_auto_award"`
-		LLMScenariosRaw *string `json:"llm_scenarios_json"`
-		LLMStrictness   *int    `json:"llm_strictness"`
-		LLMRubric       *string `json:"llm_rubric"`
+		Title              string  `json:"title" binding:"required"`
+		Description        string  `json:"description"`
+		Deadline           string  `json:"deadline" binding:"required"`
+		MaxPoints          int     `json:"max_points" binding:"required"`
+		GradingPolicy      string  `json:"grading_policy" binding:"required"`
+		ShowTraceback      bool    `json:"show_traceback"`
+		ManualReview       bool    `json:"manual_review"`
+		LLMInteractive     bool    `json:"llm_interactive"`
+		LLMFeedback        bool    `json:"llm_feedback"`
+		LLMAutoAward       bool    `json:"llm_auto_award"`
+		LLMScenariosRaw    *string `json:"llm_scenarios_json"`
+		LLMStrictness      *int    `json:"llm_strictness"`
+		LLMRubric          *string `json:"llm_rubric"`
+		LLMTeacherBaseline *string `json:"llm_teacher_baseline_json"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -344,6 +345,9 @@ func updateAssignment(c *gin.Context) {
 	}
 	if req.LLMRubric != nil {
 		a.LLMRubric = req.LLMRubric
+	}
+	if req.LLMTeacherBaseline != nil {
+		a.LLMTeacherBaseline = req.LLMTeacherBaseline
 	}
 	if err := UpdateAssignment(a); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not update"})
@@ -1113,6 +1117,20 @@ func runTeacherSolution(c *gin.Context) {
 		_ = UpdateSubmissionStatus(sub.ID, "completed")
 	} else {
 		_ = UpdateSubmissionStatus(sub.ID, "failed")
+	}
+
+	// Save teacher baseline (plan+results) on assignment so student runs can use it as standard
+	baseline := map[string]any{
+		"tests":      results,
+		"summary":    map[string]any{"total": len(tests), "passed": passed},
+		"created_at": time.Now().Format(time.RFC3339Nano),
+	}
+	if a, err := GetAssignment(aid); err == nil {
+		if b, e := json.Marshal(baseline); e == nil {
+			s := string(b)
+			a.LLMTeacherBaseline = &s
+			_ = UpdateAssignment(a)
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{

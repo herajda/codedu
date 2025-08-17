@@ -402,6 +402,9 @@ func runLLMInteractive(sub *Submission, a *Assignment) {
 	var res any
 	_ = json.Unmarshal([]byte(resultsJSON), &res)
 	comb := map[string]any{"plan": plan, "results": res}
+	if a.LLMTeacherBaseline != nil && strings.TrimSpace(*a.LLMTeacherBaseline) != "" {
+		comb["baseline"] = json.RawMessage(*a.LLMTeacherBaseline)
+	}
 	combBytes, _ := json.Marshal(comb)
 	combStr := string(combBytes)
 
@@ -524,6 +527,17 @@ func llmStaticReview(a *Assignment, dir string) map[string]any {
 	}
 	// Critical mindset and strict JSON schema; include stance and rubric
 	sys := "You are a code reviewer for CLI programs. " + stance + " Return ONLY strict JSON."
+	// Include teacher baseline as authoritative standard if present (truncated for prompt safety)
+	baselinePart := ""
+	if a.LLMTeacherBaseline != nil {
+		b := strings.TrimSpace(*a.LLMTeacherBaseline)
+		if b != "" {
+			if len(b) > 1500 {
+				b = b[:1500] + "\n..."
+			}
+			baselinePart = "Teacher baseline (authoritative standard):\n" + b + "\n\n"
+		}
+	}
 	user := fmt.Sprintf(`Assignment title: %s
 Assignment description:
 %s
@@ -531,8 +545,7 @@ Assignment description:
 Student code (truncated excerpts):
 %s
 
-%s
-Return STRICT JSON exactly in this shape (no extra keys, no markdown, no comments):
+%s%sReturn STRICT JSON exactly in this shape (no extra keys, no markdown, no comments):
 {
   "summary": "string",
   "issues": [
@@ -549,7 +562,9 @@ Return STRICT JSON exactly in this shape (no extra keys, no markdown, no comment
 Rules:
 - Severity reflects impact. Prefer concrete, reproducible risks.
 - risk_based_tests should turn suspected failures into runnable steps.
-- If unknown, use empty arrays.`, a.Title, a.Description, strings.Join(files, "\n\n"), rubricPart)
+- If unknown, use empty arrays.
+- Treat the Teacher baseline as authoritative: do not mark as an issue or rejection any behavior that also occurs in the baseline.
+- If you believe the baseline contains a flaw, annotate it as a "baseline_flaw" in suggestions but DO NOT penalize acceptance for student code exhibiting the same behavior.`, a.Title, a.Description, strings.Join(files, "\n\n"), rubricPart, baselinePart)
 	payload := map[string]any{"model": model, "messages": []map[string]string{{"role": "system", "content": sys}, {"role": "user", "content": user}}}
 	body, _ := json.Marshal(payload)
 	endpoint := strings.TrimRight(base, "/") + "/chat/completions"
@@ -632,14 +647,28 @@ func llmPlanScenarios(a *Assignment, dir string, review map[string]any) ([]inter
 	}
 	var aggressiveness string
 	switch {
+	case lvl <= 0:
+		aggressiveness = "Use only the simplest, most basic happy-path scenarios. Avoid any edge cases or tricky inputs."
+	case lvl <= 10:
+		aggressiveness = "Focus on very simple, happy-path scenarios. Only minimal checks for obvious mistakes."
 	case lvl <= 20:
-		aggressiveness = "Prefer simple, happy-path scenarios with gentle checks."
+		aggressiveness = "Prefer simple, happy-path scenarios with gentle checks. Minor edge cases may be included."
+	case lvl <= 30:
+		aggressiveness = "Include mostly typical scenarios, with a few straightforward edge cases."
+	case lvl <= 40:
+		aggressiveness = "Cover typical scenarios and some practical edge cases. Checks should be reasonable."
 	case lvl <= 50:
-		aggressiveness = "Cover typical and some edge cases with practical expectations."
+		aggressiveness = "Cover typical and some edge cases with practical expectations. Moderate thoroughness."
+	case lvl <= 60:
+		aggressiveness = "Include a mix of typical and less common edge cases. Be more attentive to possible errors."
+	case lvl <= 70:
+		aggressiveness = "Be thorough with edge cases and robustness checks. Look for less obvious mistakes."
 	case lvl <= 80:
-		aggressiveness = "Include thorough edge cases and robustness checks."
-	default:
-		aggressiveness = "Be adversarial and exhaustive within reason; enforce precise outputs."
+		aggressiveness = "Include thorough edge cases and robustness checks. Expect careful handling of inputs."
+	case lvl <= 90:
+		aggressiveness = "Be strict and adversarial. Test for rare edge cases and subtle errors."
+	default: // lvl <= 100
+		aggressiveness = "Be maximally adversarial and exhaustive. Enforce precise outputs and test all conceivable edge cases."
 	}
 	rubric := stringOrEmpty(a.LLMRubric)
 	rubricPart := ""
@@ -647,6 +676,17 @@ func llmPlanScenarios(a *Assignment, dir string, review map[string]any) ([]inter
 		rubricPart = "\nTeacher rubric (defines OK vs WRONG):\n" + rubric + "\n"
 	}
 	sys := "You design black-box CLI test scenarios. " + aggressiveness + " Output ONLY strict JSON that the runner can execute."
+	// Include teacher baseline as authoritative context
+	baselinePart := ""
+	if a.LLMTeacherBaseline != nil {
+		b := strings.TrimSpace(*a.LLMTeacherBaseline)
+		if b != "" {
+			if len(b) > 1500 {
+				b = b[:1500] + "\n..."
+			}
+			baselinePart = "\nTeacher baseline (authoritative standard):\n" + b + "\n"
+		}
+	}
 	user := fmt.Sprintf(`Assignment title: %s
 Assignment description:
 %s
@@ -656,8 +696,7 @@ Student code (truncated excerpts):
 
 Static review (may include risks):
 %s
-%s
-Return STRICT JSON exactly in this shape (no extras):
+%s%sReturn STRICT JSON exactly in this shape (no extras):
 {
   "scenarios": [
     {
@@ -674,7 +713,8 @@ Guidelines:
 - 1-5 scenarios, 1-6 steps each.
 - steps simulate user typing lines into stdin; expect_regex is optional and must be a compact regex.
 - Avoid problem-specific jargon in send values unless clearly present in the assignment.
-- Incorporate risk-based tests from the review when present.`, a.Title, a.Description, strings.Join(files, "\n\n"), reviewPart, rubricPart)
+- Incorporate risk-based tests from the review when present.
+- Treat the Teacher baseline as authoritative. Do not generate expectations that would fail for the teacher baseline; if the baseline exhibits a behavior, students should not be penalized for matching it.`, a.Title, a.Description, strings.Join(files, "\n\n"), reviewPart, rubricPart, baselinePart)
 	payload := map[string]any{"model": model, "messages": []map[string]string{{"role": "system", "content": sys}, {"role": "user", "content": user}}}
 	body, _ := json.Marshal(payload)
 	endpoint := strings.TrimRight(base, "/") + "/chat/completions"

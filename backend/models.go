@@ -44,12 +44,13 @@ type Assignment struct {
 	ClassID       int       `db:"class_id" json:"class_id"`
 
 	// LLM-interactive testing configuration
-	LLMInteractive  bool    `db:"llm_interactive" json:"llm_interactive"`
-	LLMFeedback     bool    `db:"llm_feedback" json:"llm_feedback"`
-	LLMAutoAward    bool    `db:"llm_auto_award" json:"llm_auto_award"`
-	LLMScenariosRaw *string `db:"llm_scenarios_json" json:"llm_scenarios_json"`
-	LLMStrictness   int     `db:"llm_strictness" json:"llm_strictness"`
-	LLMRubric       *string `db:"llm_rubric" json:"llm_rubric"`
+	LLMInteractive     bool    `db:"llm_interactive" json:"llm_interactive"`
+	LLMFeedback        bool    `db:"llm_feedback" json:"llm_feedback"`
+	LLMAutoAward       bool    `db:"llm_auto_award" json:"llm_auto_award"`
+	LLMScenariosRaw    *string `db:"llm_scenarios_json" json:"llm_scenarios_json"`
+	LLMStrictness      int     `db:"llm_strictness" json:"llm_strictness"`
+	LLMRubric          *string `db:"llm_rubric" json:"llm_rubric"`
+	LLMTeacherBaseline *string `db:"llm_teacher_baseline_json" json:"llm_teacher_baseline_json"`
 }
 type Class struct {
 	ID        int       `db:"id"        json:"id"`
@@ -199,7 +200,8 @@ func ListAssignments(role string, userID int) ([]Assignment, error) {
            COALESCE(a.llm_auto_award,true) AS llm_auto_award,
            a.llm_scenarios_json,
            COALESCE(a.llm_strictness,50) AS llm_strictness,
-           a.llm_rubric
+           a.llm_rubric,
+           a.llm_teacher_baseline_json
       FROM assignments a`
 	var args []any
 	switch role {
@@ -229,7 +231,8 @@ func GetAssignment(id int) (*Assignment, error) {
            COALESCE(llm_auto_award,true) AS llm_auto_award,
            llm_scenarios_json,
            COALESCE(llm_strictness,50) AS llm_strictness,
-           llm_rubric
+           llm_rubric,
+           llm_teacher_baseline_json
       FROM assignments
      WHERE id = $1`, id)
 	if err != nil {
@@ -250,7 +253,8 @@ func GetAssignmentForSubmission(subID int) (*Assignment, error) {
                COALESCE(a.llm_auto_award,true) AS llm_auto_award,
                a.llm_scenarios_json,
                COALESCE(a.llm_strictness,50) AS llm_strictness,
-               a.llm_rubric
+               a.llm_rubric,
+               a.llm_teacher_baseline_json
           FROM assignments a
           JOIN submissions s ON s.assignment_id = a.id
          WHERE s.id=$1`, subID)
@@ -267,13 +271,13 @@ func UpdateAssignment(a *Assignment) error {
        SET title=$1, description=$2, deadline=$3,
            max_points=$4, grading_policy=$5, show_traceback=$6, manual_review=$7,
            llm_interactive=$8, llm_feedback=$9, llm_auto_award=$10, llm_scenarios_json=$11,
-           llm_strictness=$12, llm_rubric=$13,
+           llm_strictness=$12, llm_rubric=$13, llm_teacher_baseline_json=$14,
            updated_at=now()
-     WHERE id=$14`,
+     WHERE id=$15`,
 		a.Title, a.Description, a.Deadline,
 		a.MaxPoints, a.GradingPolicy, a.ShowTraceback, a.ManualReview,
 		a.LLMInteractive, a.LLMFeedback, a.LLMAutoAward, a.LLMScenariosRaw,
-		a.LLMStrictness, a.LLMRubric,
+		a.LLMStrictness, a.LLMRubric, a.LLMTeacherBaseline,
 		a.ID)
 	if err != nil {
 		return err
