@@ -186,6 +186,11 @@ import { compressImage } from '$lib/utils/compressImage';
   function applyThemeFromPreference() {
     document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
   }
+  
+  let isScrolled = false;
+  function handleScroll() {
+    isScrolled = typeof window !== 'undefined' && window.scrollY > 0;
+  }
   onMount(() => {
     media = window.matchMedia('(prefers-color-scheme: dark)');
     prefersDark = media.matches;
@@ -193,10 +198,14 @@ import { compressImage } from '$lib/utils/compressImage';
     const handler = (e: MediaQueryListEvent) => { if (!user) { prefersDark = e.matches; applyThemeFromPreference(); } };
     media.addEventListener('change', handler);
     onDestroy(() => media.removeEventListener('change', handler));
+    // Initialize and watch scroll to adjust appbar opacity
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
   });
   $: if (user) { prefersDark = user.theme === 'dark'; applyThemeFromPreference(); }
 
   onDestroy(() => { msgES?.close(); });
+  onDestroy(() => { if (typeof window !== 'undefined') window.removeEventListener('scroll', handleScroll); });
 
   async function toggleTheme() {
     prefersDark = !prefersDark;
@@ -219,7 +228,7 @@ import { compressImage } from '$lib/utils/compressImage';
 
   <div class={`relative z-10 min-h-screen flex flex-col ${user && !$sidebarCollapsed ? 'sm:ml-64' : ''}`}>
     <div class="sticky top-0 z-50 px-3 py-1">
-      <div class="appbar w-full h-14 px-3 flex items-center">
+      <div class="appbar w-full h-14 px-3 flex items-center" class:appbar--scrolled={isScrolled}>
         <div class="flex items-center gap-2 min-w-0">
         {#if user}
           <button

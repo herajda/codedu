@@ -15,6 +15,7 @@ import (
 	"log"
 	"mime"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/mail"
 	"os"
@@ -32,6 +33,46 @@ import (
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/bcrypt"
 )
+
+// ──────────────────────────────────────────────────────────────────────────────
+// persistent run sessions for manual review
+// ──────────────────────────────────────────────────────────────────────────────
+
+type RunSession struct {
+	ContainerName string
+	TmpDir        string
+	StartedAt     time.Time
+	LastActive    time.Time
+	TTL           time.Duration
+	Running       bool
+	Ended         bool
+	TimedOut      bool
+	ExitCode      int
+	AttachCount   int
+
+	// process and IO
+	Cmd   *exec.Cmd
+	Stdin io.WriteCloser
+
+	// output buffers (accumulated for replay on reattach)
+	BufOut []byte
+	BufErr []byte
+
+	// subscribers receive JSON-like maps already typed for the WS
+	Subs map[chan map[string]any]struct{}
+
+	Timer *time.Timer
+
+	Mu sync.Mutex
+
+	// GUI (noVNC) session information for Tkinter apps
+	GuiContainerName string
+	GuiHostPort      int // localhost port for container's noVNC HTTP
+	GuiEnabled       bool
+}
+
+var runSessionsMu sync.Mutex
+var runSessions = map[string]*RunSession{}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // utilities
@@ -1265,6 +1306,656 @@ func submissionTerminalWS(c *gin.Context) {
 	// cleanup temp files
 	go func() { time.Sleep(2 * time.Second); _ = os.RemoveAll(tmpDir) }()
 	log.Println("terminal session closed for submission", sub.ID)
+}
+
+// submissionRunWS: GET /api/submissions/:id/run (WS)
+// A simplified run session for manual review: each "execute" message starts a fresh
+// docker container that runs the student's Python program and streams stdout/stderr
+// back to the client. The client can send "input" messages to forward stdin and
+// "stop" to terminate the current run. Errors are sent as JSON messages.
+func submissionRunWS(c *gin.Context) {
+	sid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	sub, err := GetSubmission(sid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	a, err := GetAssignmentForSubmission(sid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "assignment not found"})
+		return
+	}
+	if c.GetString("role") == "teacher" {
+		if ok, err := IsTeacherOfAssignment(a.ID, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	} else if c.GetString("role") != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+
+	// Upgrade WS
+	up := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	conn, err := up.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		return
+	}
+
+	sessionKey := fmt.Sprintf("sub-%d", sub.ID)
+
+	// channel to serialize writes
+	ch := make(chan map[string]any, 128)
+	done := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case m := <-ch:
+				b, _ := json.Marshal(m)
+				if err := conn.WriteMessage(websocket.TextMessage, b); err != nil {
+					close(done)
+					return
+				}
+			case <-done:
+				return
+			}
+		}
+	}()
+
+	// attach to session
+	runSessionsMu.Lock()
+	sess, exists := runSessions[sessionKey]
+	if !exists {
+		sess = &RunSession{TTL: 60 * time.Second, Subs: make(map[chan map[string]any]struct{})}
+		runSessions[sessionKey] = sess
+	}
+	sess.Mu.Lock()
+	sess.AttachCount++
+	sess.LastActive = time.Now()
+	if sess.Timer != nil {
+		sess.Timer.Stop()
+		sess.Timer = nil
+	}
+	sess.Subs[ch] = struct{}{}
+	// replay
+	if len(sess.BufOut) > 0 {
+		ch <- map[string]any{"type": "stdout", "data": string(sess.BufOut)}
+	}
+	if len(sess.BufErr) > 0 {
+		ch <- map[string]any{"type": "stderr", "data": string(sess.BufErr)}
+	}
+	if sess.Running {
+		ch <- map[string]any{"type": "started"}
+	} else if sess.Ended {
+		ch <- map[string]any{"type": "exit", "code": sess.ExitCode, "timedOut": sess.TimedOut}
+	}
+	sess.Mu.Unlock()
+	runSessionsMu.Unlock()
+
+	broadcast := func(m map[string]any) {
+		runSessionsMu.Lock()
+		s := runSessions[sessionKey]
+		runSessionsMu.Unlock()
+		if s == nil {
+			return
+		}
+		s.Mu.Lock()
+		for subCh := range s.Subs {
+			select {
+			case subCh <- m:
+			default:
+			}
+		}
+		s.Mu.Unlock()
+	}
+
+	// helper to stage code into tmp dir once per session
+	ensureTmp := func() (string, error) {
+		runSessionsMu.Lock()
+		s := runSessions[sessionKey]
+		runSessionsMu.Unlock()
+		if s == nil {
+			return "", fmt.Errorf("no session")
+		}
+		s.Mu.Lock()
+		td := s.TmpDir
+		s.Mu.Unlock()
+		if td != "" {
+			return td, nil
+		}
+		tmpDir, err := os.MkdirTemp("", "run-sub-")
+		if err != nil {
+			return "", err
+		}
+		// decode
+		data, berr := base64.StdEncoding.DecodeString(sub.CodeContent)
+		isZip := berr == nil && len(data) > 4 && (string(data[:2]) == "PK")
+		if isZip {
+			zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+			if err != nil {
+				os.RemoveAll(tmpDir)
+				return "", fmt.Errorf("invalid zip")
+			}
+			for _, f := range zr.File {
+				if f.FileInfo().IsDir() {
+					continue
+				}
+				dst := filepath.Join(tmpDir, filepath.Base(f.Name))
+				rc, _ := f.Open()
+				b, _ := io.ReadAll(rc)
+				_ = rc.Close()
+				_ = os.WriteFile(dst, b, 0644)
+			}
+		} else {
+			b := data
+			if berr != nil {
+				b = []byte(sub.CodeContent)
+			}
+			_ = os.WriteFile(filepath.Join(tmpDir, "main.py"), b, 0644)
+		}
+		_ = filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return nil
+			}
+			if info.IsDir() {
+				_ = os.Chmod(path, 0755)
+			} else {
+				_ = os.Chmod(path, 0644)
+			}
+			return nil
+		})
+		runSessionsMu.Lock()
+		s = runSessions[sessionKey]
+		if s != nil {
+			s.Mu.Lock()
+			s.TmpDir = tmpDir
+			s.Mu.Unlock()
+		}
+		runSessionsMu.Unlock()
+		return tmpDir, nil
+	}
+
+	// read loop from client
+	for {
+		_, raw, rerr := conn.ReadMessage()
+		if rerr != nil {
+			break
+		}
+		var m struct {
+			Type      string `json:"type"`
+			Data      string `json:"data,omitempty"`
+			TimeoutMs *int   `json:"timeout_ms,omitempty"`
+		}
+		if err := json.Unmarshal(raw, &m); err != nil {
+			ch <- map[string]any{"type": "error", "message": "invalid message"}
+			continue
+		}
+		switch m.Type {
+		case "execute":
+			// stop existing if any, then start a fresh container
+			runSessionsMu.Lock()
+			s := runSessions[sessionKey]
+			runSessionsMu.Unlock()
+			if s == nil {
+				ch <- map[string]any{"type": "error", "message": "session not found"}
+				continue
+			}
+			s.Mu.Lock()
+			if s.Running {
+				if s.Cmd != nil && s.Cmd.Process != nil {
+					_ = s.Cmd.Process.Kill()
+				}
+				if s.ContainerName != "" {
+					_ = exec.Command("docker", "rm", "-f", s.ContainerName).Run()
+				}
+				if s.GuiContainerName != "" {
+					_ = exec.Command("docker", "rm", "-f", s.GuiContainerName).Run()
+				}
+			}
+			s.BufOut = nil
+			s.BufErr = nil
+			s.Ended = false
+			s.TimedOut = false
+			s.ExitCode = 0
+			s.GuiEnabled = false
+			s.GuiContainerName = ""
+			s.GuiHostPort = 0
+			s.Mu.Unlock()
+
+			td, terr := ensureTmp()
+			if terr != nil {
+				ch <- map[string]any{"type": "error", "message": terr.Error()}
+				continue
+			}
+			abs, _ := filepath.Abs(td)
+
+			// detect main file
+			var mainFile, firstPy string
+			_ = filepath.Walk(td, func(path string, info os.FileInfo, err error) error {
+				if err != nil || info.IsDir() {
+					return nil
+				}
+				if strings.HasSuffix(info.Name(), ".py") {
+					rel, _ := filepath.Rel(td, path)
+					if firstPy == "" {
+						firstPy = rel
+					}
+					content, _ := os.ReadFile(path)
+					if strings.Contains(string(content), "__main__") {
+						mainFile = rel
+						return io.EOF
+					}
+				}
+				return nil
+			})
+			if mainFile == "" {
+				if _, err := os.Stat(filepath.Join(td, "main.py")); err == nil {
+					mainFile = "main.py"
+				} else {
+					mainFile = firstPy
+				}
+			}
+			if mainFile == "" {
+				ch <- map[string]any{"type": "error", "message": "no python files found"}
+				continue
+			}
+
+			// detect if submission likely uses Tkinter and needs GUI
+			guiWanted := false
+			_ = filepath.Walk(td, func(path string, info os.FileInfo, err error) error {
+				if err != nil || info.IsDir() || !strings.HasSuffix(strings.ToLower(info.Name()), ".py") {
+					return nil
+				}
+				b, _ := os.ReadFile(path)
+				text := strings.ToLower(string(b))
+				if strings.Contains(text, "import tkinter") || strings.Contains(text, "from tkinter import") {
+					guiWanted = true
+					return io.EOF
+				}
+				return nil
+			})
+
+			// choose mode: GUI vs headless
+			if guiWanted {
+				// Start a GUI-capable container exposing noVNC on a random localhost port
+				hostPort := 0
+				ln, lerr := net.Listen("tcp", "127.0.0.1:0")
+				if lerr == nil {
+					hostPort = ln.Addr().(*net.TCPAddr).Port
+					_ = ln.Close()
+				}
+				if hostPort == 0 {
+					ch <- map[string]any{"type": "error", "message": "no free port for GUI"}
+					continue
+				}
+				containerName := fmt.Sprintf("gui-%d-%d", sub.ID, time.Now().UnixNano())
+				// Supervisord-inspired approach for robust process management
+				sup := strings.Join([]string{
+					"[supervisord]",
+					"nodaemon=true",
+					"",
+					"[program:xvfb]",
+					"command=/usr/bin/Xvfb :0 -screen 0 1280x800x24 -nolisten tcp",
+					"priority=10",
+					"autorestart=true",
+					"",
+					"[program:wm]",
+					"command=/usr/bin/fluxbox",
+					"environment=DISPLAY=\":0\"",
+					"priority=20",
+					"autorestart=true",
+					"",
+					"[program:vnc]",
+					"command=/usr/bin/x11vnc -display :0 -forever -shared -nopw -rfbport 5900 -repeat",
+					"priority=30",
+					"autorestart=true",
+					"",
+					"[program:web]",
+					"command=/usr/bin/websockify --web=/usr/share/novnc 6080 localhost:5900",
+					"priority=35",
+					"autorestart=true",
+					"",
+					"[program:app]",
+					fmt.Sprintf("command=/usr/local/bin/python /code/%s", strings.ReplaceAll(mainFile, "'", "'\\''")),
+					"directory=/code",
+					"environment=DISPLAY=\":0\"",
+					"priority=40",
+					"autorestart=false",
+				}, "\n")
+				script := fmt.Sprintf(strings.Join([]string{
+					"export DEBIAN_FRONTEND=noninteractive",
+					"apt-get update >/dev/null 2>&1 || true",
+					"apt-get install -y --no-install-recommends xvfb x11vnc fluxbox novnc websockify python3-tk supervisor >/dev/null 2>&1 || true",
+					"rm -rf /var/lib/apt/lists/*",
+					fmt.Sprintf("cat > /tmp/supervisord.conf << 'EOF'\n%s\nEOF", sup),
+					"/usr/bin/supervisord -c /tmp/supervisord.conf",
+				}, "\n"))
+				cmd := exec.Command("docker", "run", "--rm", "--name", containerName,
+					"-p", fmt.Sprintf("127.0.0.1:%d:6080", hostPort),
+					"--cpus", dockerCPUs, "--memory", dockerMemory,
+					"-v", fmt.Sprintf("%s:/code:ro,z", abs),
+					pythonImage, "bash", "-lc", script)
+				stdoutPipe, e1 := cmd.StdoutPipe()
+				stderrPipe, e2 := cmd.StderrPipe()
+				if e1 != nil || e2 != nil {
+					ch <- map[string]any{"type": "error", "message": "container start failed"}
+					continue
+				}
+				if err := cmd.Start(); err != nil {
+					ch <- map[string]any{"type": "error", "message": "container start failed"}
+					continue
+				}
+
+				runSessionsMu.Lock()
+				s = runSessions[sessionKey]
+				runSessionsMu.Unlock()
+				if s == nil {
+					_ = cmd.Process.Kill()
+					_ = exec.Command("docker", "rm", "-f", containerName).Run()
+					continue
+				}
+				s.Mu.Lock()
+				s.Cmd = cmd
+				s.Stdin = nil
+				s.ContainerName = containerName
+				s.GuiContainerName = containerName
+				s.GuiHostPort = hostPort
+				s.GuiEnabled = true
+				s.Running = true
+				s.Ended = false
+				s.LastActive = time.Now()
+				s.Mu.Unlock()
+
+				// Announce start, then probe noVNC HTTP before telling client to load GUI to avoid early 502s
+				broadcast(map[string]any{"type": "started"})
+				go func(port int, subID int) {
+					url := fmt.Sprintf("http://127.0.0.1:%d/vnc.html", port)
+					deadline := time.Now().Add(10 * time.Second)
+					for time.Now().Before(deadline) {
+						resp, err := http.Get(url)
+						if err == nil {
+							_, _ = io.Copy(io.Discard, resp.Body)
+							_ = resp.Body.Close()
+							if resp.StatusCode < 500 {
+								broadcast(map[string]any{"type": "gui", "base": fmt.Sprintf("/api/submissions/%d/gui/", subID)})
+								return
+							}
+						}
+						time.Sleep(200 * time.Millisecond)
+					}
+					broadcast(map[string]any{"type": "gui", "base": fmt.Sprintf("/api/submissions/%d/gui/", subID)})
+				}(hostPort, sub.ID)
+
+				go func() {
+					buf := make([]byte, 4096)
+					for {
+						n, rerr := stdoutPipe.Read(buf)
+						if n > 0 {
+							chunk := append([]byte(nil), buf[:n]...)
+							runSessionsMu.Lock()
+							s := runSessions[sessionKey]
+							if s != nil {
+								s.Mu.Lock()
+								s.BufOut = append(s.BufOut, chunk...)
+								s.Mu.Unlock()
+							}
+							runSessionsMu.Unlock()
+							broadcast(map[string]any{"type": "stdout", "data": string(chunk)})
+						}
+						if rerr != nil {
+							return
+						}
+					}
+				}()
+				go func() {
+					buf := make([]byte, 4096)
+					for {
+						n, rerr := stderrPipe.Read(buf)
+						if n > 0 {
+							chunk := append([]byte(nil), buf[:n]...)
+							runSessionsMu.Lock()
+							s := runSessions[sessionKey]
+							if s != nil {
+								s.Mu.Lock()
+								s.BufErr = append(s.BufErr, chunk...)
+								s.Mu.Unlock()
+							}
+							runSessionsMu.Unlock()
+							broadcast(map[string]any{"type": "stderr", "data": string(chunk)})
+						}
+						if rerr != nil {
+							return
+						}
+					}
+				}()
+				go func() {
+					err := cmd.Wait()
+					exitCode := 0
+					if err != nil {
+						if ee, ok := err.(*exec.ExitError); ok {
+							exitCode = ee.ExitCode()
+						} else {
+							exitCode = -1
+						}
+					}
+					runSessionsMu.Lock()
+					s := runSessions[sessionKey]
+					runSessionsMu.Unlock()
+					if s != nil {
+						s.Mu.Lock()
+						s.Running = false
+						s.Ended = true
+						s.ExitCode = exitCode
+						s.Mu.Unlock()
+					}
+					broadcast(map[string]any{"type": "exit", "code": exitCode, "timedOut": false})
+				}()
+				break
+			}
+
+			// Headless mode (no GUI)
+			containerName := fmt.Sprintf("run-%d-%d", sub.ID, time.Now().UnixNano())
+			script := fmt.Sprintf("cd /code && python %s", strings.ReplaceAll(mainFile, "'", "'\\''"))
+			cmd := exec.Command("docker", "run", "--rm", "--name", containerName, "-i", "--network=none", "--user", dockerUser, "--cpus", dockerCPUs, "--memory", dockerMemory, "-v", fmt.Sprintf("%s:/code:ro,z", abs), pythonImage, "bash", "-lc", script)
+			stdoutPipe, e1 := cmd.StdoutPipe()
+			stderrPipe, e2 := cmd.StderrPipe()
+			stdinPipe, e3 := cmd.StdinPipe()
+			if e1 != nil || e2 != nil || e3 != nil {
+				ch <- map[string]any{"type": "error", "message": "container start failed"}
+				continue
+			}
+			if err := cmd.Start(); err != nil {
+				ch <- map[string]any{"type": "error", "message": "container start failed"}
+				continue
+			}
+
+			runSessionsMu.Lock()
+			s = runSessions[sessionKey]
+			runSessionsMu.Unlock()
+			if s == nil {
+				_ = cmd.Process.Kill()
+				_ = exec.Command("docker", "rm", "-f", containerName).Run()
+				continue
+			}
+			s.Mu.Lock()
+			s.Cmd = cmd
+			s.Stdin = stdinPipe
+			s.ContainerName = containerName
+			s.Running = true
+			s.Ended = false
+			s.LastActive = time.Now()
+			s.Mu.Unlock()
+
+			broadcast(map[string]any{"type": "started"})
+
+			go func() {
+				buf := make([]byte, 4096)
+				for {
+					n, rerr := stdoutPipe.Read(buf)
+					if n > 0 {
+						chunk := append([]byte(nil), buf[:n]...)
+						runSessionsMu.Lock()
+						s := runSessions[sessionKey]
+						if s != nil {
+							s.Mu.Lock()
+							s.BufOut = append(s.BufOut, chunk...)
+							s.Mu.Unlock()
+						}
+						runSessionsMu.Unlock()
+						broadcast(map[string]any{"type": "stdout", "data": string(chunk)})
+					}
+					if rerr != nil {
+						return
+					}
+				}
+			}()
+			go func() {
+				buf := make([]byte, 4096)
+				for {
+					n, rerr := stderrPipe.Read(buf)
+					if n > 0 {
+						chunk := append([]byte(nil), buf[:n]...)
+						runSessionsMu.Lock()
+						s := runSessions[sessionKey]
+						if s != nil {
+							s.Mu.Lock()
+							s.BufErr = append(s.BufErr, chunk...)
+							s.Mu.Unlock()
+						}
+						runSessionsMu.Unlock()
+						broadcast(map[string]any{"type": "stderr", "data": string(chunk)})
+					}
+					if rerr != nil {
+						return
+					}
+				}
+			}()
+			go func() {
+				err := cmd.Wait()
+				exitCode := 0
+				if err != nil {
+					if ee, ok := err.(*exec.ExitError); ok {
+						exitCode = ee.ExitCode()
+					} else {
+						exitCode = -1
+					}
+				}
+				runSessionsMu.Lock()
+				s := runSessions[sessionKey]
+				runSessionsMu.Unlock()
+				if s != nil {
+					s.Mu.Lock()
+					s.Running = false
+					s.Ended = true
+					s.ExitCode = exitCode
+					s.Mu.Unlock()
+				}
+				broadcast(map[string]any{"type": "exit", "code": exitCode, "timedOut": false})
+			}()
+
+		case "input":
+			runSessionsMu.Lock()
+			s := runSessions[sessionKey]
+			runSessionsMu.Unlock()
+			if s != nil {
+				s.Mu.Lock()
+				in := s.Stdin
+				s.LastActive = time.Now()
+				s.Mu.Unlock()
+				if in != nil {
+					_, _ = io.WriteString(in, m.Data)
+				}
+			}
+		case "stop":
+			runSessionsMu.Lock()
+			s := runSessions[sessionKey]
+			runSessionsMu.Unlock()
+			if s != nil {
+				s.Mu.Lock()
+				cmd := s.Cmd
+				cname := s.ContainerName
+				gname := s.GuiContainerName
+				s.Mu.Unlock()
+				if cmd != nil && cmd.Process != nil {
+					_ = cmd.Process.Kill()
+				}
+				if cname != "" {
+					_ = exec.Command("docker", "rm", "-f", cname).Run()
+				}
+				if gname != "" {
+					_ = exec.Command("docker", "rm", "-f", gname).Run()
+				}
+				runSessionsMu.Lock()
+				s = runSessions[sessionKey]
+				if s != nil {
+					s.Mu.Lock()
+					s.Running = false
+					s.Ended = true
+					s.ExitCode = -1
+					s.GuiEnabled = false
+					s.GuiHostPort = 0
+					s.GuiContainerName = ""
+					s.Mu.Unlock()
+				}
+				runSessionsMu.Unlock()
+				broadcast(map[string]any{"type": "exit", "code": -1, "timedOut": false})
+			}
+		default:
+			ch <- map[string]any{"type": "error", "message": "unknown message type"}
+		}
+	}
+
+	// detach on close, start TTL if no viewers
+	runSessionsMu.Lock()
+	s := runSessions[sessionKey]
+	runSessionsMu.Unlock()
+	if s != nil {
+		s.Mu.Lock()
+		delete(s.Subs, ch)
+		s.AttachCount--
+		zero := s.AttachCount <= 0
+		s.LastActive = time.Now()
+		if zero && s.Timer == nil {
+			ttl := s.TTL
+			s.Timer = time.AfterFunc(ttl, func() {
+				runSessionsMu.Lock()
+				ss := runSessions[sessionKey]
+				runSessionsMu.Unlock()
+				if ss == nil {
+					return
+				}
+				ss.Mu.Lock()
+				running := ss.Running
+				cmd := ss.Cmd
+				cname := ss.ContainerName
+				tmp := ss.TmpDir
+				ss.Running = false
+				ss.Ended = true
+				ss.TimedOut = true
+				ss.ExitCode = -1
+				ss.Mu.Unlock()
+				if running && cmd != nil && cmd.Process != nil {
+					_ = cmd.Process.Kill()
+				}
+				if cname != "" {
+					_ = exec.Command("docker", "rm", "-f", cname).Run()
+				}
+				if tmp != "" {
+					_ = os.RemoveAll(tmp)
+				}
+				runSessionsMu.Lock()
+				delete(runSessions, sessionKey)
+				runSessionsMu.Unlock()
+			})
+		}
+		s.Mu.Unlock()
+	}
+	close(done)
+	_ = conn.Close()
 }
 
 // ---- ADMIN adds a teacher ----

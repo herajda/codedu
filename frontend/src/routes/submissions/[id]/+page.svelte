@@ -4,7 +4,7 @@
   import { createEventSource } from '$lib/sse'
   import { page } from '$app/stores'
   import JSZip from 'jszip'
-  import { FileTree, Terminal } from '$lib'
+  import { FileTree, RunConsole } from '$lib'
   import { formatDateTime } from '$lib/date'
   import { goto } from '$app/navigation'
   import { auth } from '$lib/auth'
@@ -344,8 +344,8 @@ $: id = $page.params.id
       <div class="card bg-base-100 shadow">
         <div class="card-body space-y-3">
           <h3 class="card-title">Manual testing</h3>
-          <p class="text-sm opacity-70">Run commands against the student's submission inside an isolated container.</p>
-          <Terminal submissionId={sid} />
+          <p class="text-sm opacity-70">Run the student's script in an isolated container with live I/O.</p>
+          <RunConsole submissionId={sid} />
         </div>
       </div>
     {/if}

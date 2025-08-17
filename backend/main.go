@@ -2,11 +2,15 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -164,6 +168,61 @@ func main() {
 		api.GET("/events", RoleGuard("student", "teacher", "admin"), eventsHandler)
 		// Interactive terminal for manual review sessions (teacher/admin only)
 		api.GET("/submissions/:id/terminal", RoleGuard("teacher", "admin"), submissionTerminalWS)
+		// Simplified run session WS for manual review
+		api.GET("/submissions/:id/run", RoleGuard("teacher", "admin"), submissionRunWS)
+
+		// GUI proxy (noVNC static + WebSocket) when a Tkinter GUI is detected
+		api.GET("/submissions/:id/gui/*path", RoleGuard("teacher", "admin"), func(c *gin.Context) {
+			// Look up active run session and reverse proxy to local noVNC on 127.0.0.1:GuiHostPort
+			sidStr := c.Param("id")
+			var sid int
+			if _, err := fmt.Sscanf(sidStr, "%d", &sid); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+				return
+			}
+			sessionKey := fmt.Sprintf("sub-%d", sid)
+			runSessionsMu.Lock()
+			sess := runSessions[sessionKey]
+			runSessionsMu.Unlock()
+			if sess == nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "no active session"})
+				return
+			}
+			sess.Mu.Lock()
+			hostPort := sess.GuiHostPort
+			enabled := sess.GuiEnabled
+			sess.Mu.Unlock()
+			if !enabled || hostPort == 0 {
+				c.JSON(http.StatusNotFound, gin.H{"error": "gui not available"})
+				return
+			}
+			// Build a proxy that points to container noVNC and explicitly set the path from the *path param
+			target, _ := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", hostPort))
+			proxy := httputil.NewSingleHostReverseProxy(target)
+			proxy.Director = func(r *http.Request) {
+				p := c.Param("path")
+				if p == "" {
+					p = "/"
+				}
+				if !strings.HasPrefix(p, "/") {
+					p = "/" + p
+				}
+				r.URL.Scheme = "http"
+				r.URL.Host = target.Host
+				r.URL.Path = p
+				r.URL.RawPath = p
+				r.Host = target.Host
+			}
+			proxy.ErrorHandler = func(rw http.ResponseWriter, r *http.Request, e error) {
+				rw.WriteHeader(http.StatusBadGateway)
+				msg := "proxy error"
+				if e != nil {
+					msg += ": " + e.Error()
+				}
+				_, _ = rw.Write([]byte(msg))
+			}
+			proxy.ServeHTTP(c.Writer, c.Request)
+		})
 		api.DELETE("/classes/:id/students/:sid", RoleGuard("teacher", "admin"), removeStudent)
 
 		api.GET("/students", RoleGuard("teacher", "admin"), listStudents)
