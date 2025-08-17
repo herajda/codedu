@@ -40,7 +40,7 @@ $: id = $page.params.id
       savingOverride = true
       const raw: any = overrideValue
       const str = raw == null ? '' : (typeof raw === 'string' ? raw : String(raw))
-      const v = str.trim() === '' ? null : Number(str)
+      const v = str.trim() === '' ? null : parseInt(str, 10)
       await apiFetch(`/api/submissions/${submission.id}/points`,{
         method:'PUT',
         headers:{'Content-Type':'application/json'},
@@ -251,13 +251,13 @@ $: id = $page.params.id
         </div>
 
         {#if assignmentManual && (role==='teacher' || role==='admin')}
-          <div class="rounded-box bg-base-200 p-4 mt-2 flex items-end gap-3">
-            <div class="flex-1">
-              <div class="font-medium mb-1">Teacher override points</div>
-              <input type="number" step="0.01" min="0" class="input input-bordered w-full" bind:value={overrideValue} placeholder="e.g. 10" aria-label="Override points">
-              <div class="text-xs opacity-70 mt-1">Leave empty to clear override. Saving will also mark submission completed.</div>
+          <div class="rounded-box bg-base-200 p-4 mt-2">
+            <div class="font-medium mb-2">Teacher override points</div>
+            <div class="flex items-center gap-3">
+              <input type="number" step="1" min="0" inputmode="numeric" pattern="[0-9]*" on:keydown={(e) => { if (['e','E','+','-','.',','].includes(e.key)) e.preventDefault() }} class="input input-bordered input-sm w-28 sm:w-32" bind:value={overrideValue} placeholder="e.g. 10" aria-label="Override points">
+              <button class={`btn btn-primary btn-sm ${savingOverride ? 'loading' : ''}`} on:click={saveOverride} disabled={savingOverride}>Save</button>
             </div>
-            <button class={`btn btn-primary ${savingOverride ? 'loading' : ''}`} on:click={saveOverride} disabled={savingOverride}>Save</button>
+            <div class="text-xs opacity-70 mt-2">Leave empty to clear override. Saving will also mark submission completed.</div>
           </div>
         {/if}
 
