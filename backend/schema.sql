@@ -160,3 +160,16 @@ CREATE TABLE IF NOT EXISTS archived_conversations (
   PRIMARY KEY (user_id, other_id)
 );
 
+-- Class forum messages table
+CREATE TABLE IF NOT EXISTS forum_messages (
+  id SERIAL PRIMARY KEY,
+  class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  image TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_forum_messages_class_created
+  ON forum_messages(class_id, created_at);
+ALTER TABLE forum_messages ADD COLUMN IF NOT EXISTS image TEXT;
+

@@ -96,6 +96,10 @@
                     <i class="fa-regular fa-note-sticky sub-icon" aria-hidden="true"></i>
                     <span>Notes</span>
                   </a>
+                  <a class={`nav-sublink ${isActive(`/classes/${c.id}/forum`) ? 'is-active' : ''}`} href={`/classes/${c.id}/forum`} on:click={() => sidebarOpen.set(false)}>
+                    <i class="fa-regular fa-comments sub-icon" aria-hidden="true"></i>
+                    <span>Forum</span>
+                  </a>
                   {#if $auth?.role !== 'student'}
                     <a class={`nav-sublink ${isActive(`/classes/${c.id}/progress`) ? 'is-active' : ''}`} href={`/classes/${c.id}/progress`} on:click={() => sidebarOpen.set(false)}>
                       <i class="fa-solid fa-chart-line sub-icon" aria-hidden="true"></i>

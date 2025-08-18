@@ -87,8 +87,8 @@ function badgeFor(a: any) {
     </div>
     <div class="hidden sm:flex gap-2">
       <a href={`/classes/${id}/files`} class="btn btn-outline"><FolderOpen class="w-4 h-4" aria-hidden="true" /> Files</a>
-      <a href="/messages" class="btn btn-outline"><MessageSquare class="w-4 h-4" aria-hidden="true" /> Messages</a>
-    </div>
+      <a href={`/classes/${id}/forum`} class="btn btn-outline"><MessageSquare class="w-4 h-4" aria-hidden="true" /> Forum</a>
+      </div>
   </div>
 
   <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
