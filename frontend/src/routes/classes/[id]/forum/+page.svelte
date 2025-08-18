@@ -62,7 +62,7 @@
   }
 
   function displayName(m: any) {
-    return m.name ?? m.email ?? '';
+    return m.name ?? m.email?.split('@')[0] ?? 'Unknown';
   }
 
   afterUpdate(() => {
@@ -81,14 +81,14 @@
     {#each msgs as m}
       <div class={`flex gap-2 ${m.user_id === $auth?.id ? 'justify-end text-right' : 'justify-start'}`}>
         {#if m.user_id !== $auth?.id}
-          <img src={m.avatar ?? '/avatars/a1.svg'} alt="" class="w-8 h-8 rounded-full" />
+          <img src={m.avatar ?? '/avatars/a1.svg'} alt="" class="w-8 h-8 rounded-full object-cover shrink-0" />
         {/if}
         <div>
           <div class="text-xs opacity-70">{m.user_id === $auth?.id ? 'You' : displayName(m)}</div>
           <div class="px-3 py-2 rounded-lg bg-base-200 break-words max-w-xs">{m.text}</div>
         </div>
         {#if m.user_id === $auth?.id}
-          <img src={$auth?.avatar ?? '/avatars/a1.svg'} alt="" class="w-8 h-8 rounded-full" />
+          <img src={$auth?.avatar ?? '/avatars/a1.svg'} alt="" class="w-8 h-8 rounded-full object-cover shrink-0" />
         {/if}
       </div>
     {/each}
