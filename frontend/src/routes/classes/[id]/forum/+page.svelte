@@ -79,16 +79,24 @@
 <div class="flex flex-col h-[70vh] max-h-[70vh]">
   <div class="flex-1 overflow-y-auto space-y-2 p-2" bind:this={chatBox}>
     {#each msgs as m}
-      <div class={`flex gap-2 ${m.user_id === $auth?.id ? 'justify-end text-right' : 'justify-start'}`}>
+      <div class={`flex items-end gap-2 ${m.user_id === $auth?.id ? 'justify-end text-right' : 'justify-start'}`}>
         {#if m.user_id !== $auth?.id}
-          <img src={m.avatar ?? '/avatars/a1.svg'} alt="" class="w-8 h-8 rounded-full object-cover shrink-0" />
+          <div class="avatar flex-shrink-0">
+            <div class="w-8 h-8 rounded-full overflow-hidden">
+              <img src={m.avatar ?? '/avatars/a1.svg'} alt="" class="w-full h-full object-cover" />
+            </div>
+          </div>
         {/if}
         <div>
           <div class="text-xs opacity-70">{m.user_id === $auth?.id ? 'You' : displayName(m)}</div>
           <div class="px-3 py-2 rounded-lg bg-base-200 break-words max-w-xs">{m.text}</div>
         </div>
         {#if m.user_id === $auth?.id}
-          <img src={$auth?.avatar ?? '/avatars/a1.svg'} alt="" class="w-8 h-8 rounded-full object-cover shrink-0" />
+          <div class="avatar flex-shrink-0">
+            <div class="w-8 h-8 rounded-full overflow-hidden">
+              <img src={$auth?.avatar ?? '/avatars/a1.svg'} alt="" class="w-full h-full object-cover" />
+            </div>
+          </div>
         {/if}
       </div>
     {/each}
