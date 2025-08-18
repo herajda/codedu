@@ -1113,6 +1113,8 @@ type ForumMessage struct {
 	UserID    int       `db:"user_id" json:"user_id"`
 	Text      string    `db:"content" json:"text"`
 	Image     *string   `db:"image" json:"image,omitempty"`
+	FileName  *string   `db:"file_name" json:"file_name,omitempty"`
+	File      *string   `db:"file" json:"file,omitempty"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	Name      *string   `db:"name" json:"name"`
 	Email     string    `db:"email" json:"email"`
@@ -1120,10 +1122,10 @@ type ForumMessage struct {
 }
 
 func CreateForumMessage(m *ForumMessage) error {
-	const q = `INSERT INTO forum_messages (class_id, user_id, content, image)
-                    VALUES ($1,$2,$3,$4)
-                    RETURNING id, created_at`
-	if err := DB.QueryRow(q, m.ClassID, m.UserID, m.Text, m.Image).Scan(&m.ID, &m.CreatedAt); err != nil {
+	const q = `INSERT INTO forum_messages (class_id, user_id, content, image, file_name, file)
+                   VALUES ($1,$2,$3,$4,$5,$6)
+                   RETURNING id, created_at`
+	if err := DB.QueryRow(q, m.ClassID, m.UserID, m.Text, m.Image, m.FileName, m.File).Scan(&m.ID, &m.CreatedAt); err != nil {
 		return err
 	}
 	_ = DB.QueryRow(`SELECT name, email, avatar FROM users WHERE id=$1`, m.UserID).Scan(&m.Name, &m.Email, &m.Avatar)
@@ -1133,11 +1135,11 @@ func CreateForumMessage(m *ForumMessage) error {
 
 func ListForumMessages(classID, limit, offset int) ([]ForumMessage, error) {
 	msgs := []ForumMessage{}
-	err := DB.Select(&msgs, `SELECT fm.id, fm.class_id, fm.user_id, fm.content, fm.image, fm.created_at,
-                                        u.name, u.email, u.avatar
-                                   FROM forum_messages fm
-                                   JOIN users u ON u.id=fm.user_id
-                                  WHERE fm.class_id=$1
+	err := DB.Select(&msgs, `SELECT fm.id, fm.class_id, fm.user_id, fm.content, fm.image, fm.file_name, fm.file, fm.created_at,
+                                       u.name, u.email, u.avatar
+                                  FROM forum_messages fm
+                                  JOIN users u ON u.id=fm.user_id
+                                 WHERE fm.class_id=$1
                                ORDER BY fm.created_at ASC
                                   LIMIT $2 OFFSET $3`,
 		classID, limit, offset)
