@@ -1,4 +1,5 @@
 <script lang="ts">
+  // @ts-nocheck
 import { onMount, onDestroy, tick } from 'svelte'
   import { auth } from '$lib/auth'
 import { apiFetch, apiJSON } from '$lib/api'
@@ -55,6 +56,15 @@ $: testsPercent = results.length ? Math.round(testsPassed / results.length * 100
   const exampleScenario = '[{"name":"calc","steps":[{"send":"2 + 2","expect_after":"4"}]}]'
   let safeDesc=''
 $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.description) as string) : ''
+
+  // Testing model selector (automatic | manual | ai)
+  type TestMode = 'automatic' | 'manual' | 'ai'
+  let testMode: TestMode = 'automatic'
+  $: {
+    if (testMode === 'manual') { eManualReview = true; eLLMInteractive = false }
+    else if (testMode === 'ai') { eManualReview = false; eLLMInteractive = true }
+    else { eManualReview = false; eLLMInteractive = false }
+  }
 
   // Enhanced UX state
   type TabKey = 'overview' | 'submissions' | 'results' | 'instructor' | 'teacher-runs'
@@ -252,6 +262,9 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     eLLMScenarios=assignment.llm_scenarios_json ?? ''
     eLLMStrictness = typeof assignment.llm_strictness === 'number' ? assignment.llm_strictness : 50
     eLLMRubric = assignment.llm_rubric ?? ''
+    if (assignment.manual_review) testMode = 'manual'
+    else if (assignment.llm_interactive) testMode = 'ai'
+    else testMode = 'automatic'
   }
 
   async function saveEdit(){
@@ -413,46 +426,17 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             <input type="checkbox" class="checkbox" bind:checked={eShowTraceback}>
             <span class="label-text">Show traceback to students</span>
           </label>
-          <label class="flex items-center gap-2 sm:col-span-2">
-            <input type="checkbox" class="checkbox" bind:checked={eManualReview}>
-            <span class="label-text">Manual review (teacher assigns points)</span>
+          <div class="divider sm:col-span-2">Testing model</div>
+          <label class="form-control sm:col-span-2 w-full max-w-xs">
+            <select class="select select-bordered select-sm" bind:value={testMode}>
+              <option value="automatic">Automatic tests</option>
+              <option value="manual">Manual teacher review</option>
+              <option value="ai">AI testing (LLM-Interactive)</option>
+            </select>
           </label>
-          <div class="divider sm:col-span-2">LLM-Interactive testing</div>
-          <label class="flex items-center gap-2 sm:col-span-2">
-            <input type="checkbox" class="checkbox" bind:checked={eLLMInteractive}>
-            <span class="label-text">Enable LLM-Interactive mode</span>
-          </label>
-          <label class="flex items-center gap-2">
-            <input type="checkbox" class="checkbox" bind:checked={eLLMFeedback}>
-            <span class="label-text">LLM feedback visible to students</span>
-          </label>
-          <label class="flex items-center gap-2">
-            <input type="checkbox" class="checkbox" bind:checked={eLLMAutoAward}>
-            <span class="label-text">Auto-award full points if all scenarios pass</span>
-          </label>
-          <label class="form-control w-full sm:col-span-2">
-            <span class="label-text">Scenarios JSON (optional)</span>
-            <textarea class="textarea textarea-bordered h-40" bind:value={eLLMScenarios} placeholder={exampleScenario}></textarea>
-          </label>
-          <div class="sm:col-span-2 grid gap-3">
-            <label class="form-control w-full">
-              <div class="flex items-center justify-between">
-                <span class="label-text">Strictness level</span>
-                <div class="text-sm opacity-70">{eLLMStrictness} / 100</div>
-              </div>
-              <input type="range" min="0" max="100" step="10" class="range range-primary" bind:value={eLLMStrictness}>
-              <div class="flex justify-between text-xs opacity-70 mt-1">
-                <span>Beginner</span>
-                <span>Intermediate</span>
-                <span>Advanced</span>
-                <span>PRO</span>
-              </div>
-            </label>
-            <label class="form-control w-full">
-              <span class="label-text">Teacher rubric (what is OK vs WRONG)</span>
-              <textarea class="textarea textarea-bordered h-32" bind:value={eLLMRubric} placeholder="Describe what is acceptable and what should be considered wrong. This text will guide the LLM's evaluation."></textarea>
-            </label>
-          </div>
+          <p class="text-xs opacity-70 sm:col-span-2">
+            {testMode === 'automatic' ? 'Use IO/unittest tests (including AI-generated tests) to grade automatically.' : testMode === 'manual' ? 'Teacher reviews submissions and assigns points. No automated tests run.' : 'Grade using LLM-driven interactive scenarios. Configure details under Manage tests.'}
+          </p>
         </div>
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2">

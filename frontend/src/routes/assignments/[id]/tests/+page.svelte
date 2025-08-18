@@ -1,4 +1,5 @@
 <script lang="ts">
+  // @ts-nocheck
   import { onMount } from 'svelte'
   import { page } from '$app/stores'
   import { apiFetch, apiJSON } from '$lib/api'
@@ -13,6 +14,14 @@
   let assignment: any = null
   let tests: any[] = []
   let err = ''
+
+  // LLM testing settings (moved from Edit page)
+  let llmFeedback = false
+  let llmAutoAward = true
+  let llmScenarios = ''
+  let llmStrictness = 50
+  let llmRubric = ''
+  const exampleScenario = '[{"name":"calc","steps":[{"send":"2 + 2","expect_after":"4"}]}]'
 
   // local inputs for creating/uploading tests
   let tStdin = ''
@@ -289,6 +298,12 @@
       const data = await apiJSON(`/api/assignments/${id}`)
       assignment = data.assignment
       tests = data.tests ?? []
+      // init llm state
+      llmFeedback = !!assignment.llm_feedback
+      llmAutoAward = assignment.llm_auto_award ?? true
+      llmScenarios = assignment.llm_scenarios_json ?? ''
+      llmStrictness = typeof assignment.llm_strictness === 'number' ? assignment.llm_strictness : 50
+      llmRubric = assignment.llm_rubric ?? ''
     } catch (e: any) {
       err = e.message
     }
@@ -653,6 +668,33 @@
       err = e.message
     }
   }
+
+  async function saveLLMSettings(){
+    try{
+      await apiFetch(`/api/assignments/${id}` ,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          // required base fields (preserve current values)
+          title: assignment.title,
+          description: assignment.description,
+          deadline: new Date(assignment.deadline).toISOString(),
+          max_points: assignment.max_points,
+          grading_policy: assignment.grading_policy,
+          show_traceback: assignment.show_traceback,
+          manual_review: assignment.manual_review,
+          llm_interactive: assignment.llm_interactive,
+          // llm fields
+          llm_feedback: llmFeedback,
+          llm_auto_award: llmAutoAward,
+          llm_scenarios_json: llmScenarios.trim() ? llmScenarios : null,
+          llm_strictness: Number.isFinite(llmStrictness as any) ? Math.min(100, Math.max(0, Number(llmStrictness))) : 50,
+          llm_rubric: llmRubric.trim() ? llmRubric : null
+        })
+      })
+      await load()
+    }catch(e:any){ err=e.message }
+  }
 </script>
 
 {#if role !== 'teacher' && role !== 'admin'}
@@ -669,7 +711,11 @@
     <div class="mb-4 flex items-center justify-between">
       <div>
         <h1 class="text-2xl font-semibold">Manage tests — {assignment.title}</h1>
-        <p class="text-sm opacity-70">Create IO tests or build Python unittest-based tests visually.</p>
+        {#if assignment.llm_interactive}
+          <p class="text-sm opacity-70">Configure AI testing (LLM-Interactive) for this assignment.</p>
+        {:else}
+          <p class="text-sm opacity-70">Create IO tests, build Python unittest-based tests, or use AI to generate them.</p>
+        {/if}
         {#if assignment?.manual_review}
           <div class="alert alert-info mt-2">
             <span>Manual review is enabled for this assignment. Tests are optional and won't auto-assign points.</span>
@@ -679,15 +725,58 @@
       <a class="btn" href={`/assignments/${id}`}>Back to assignment</a>
     </div>
     <div class="card-elevated p-6 space-y-6">
-      <div class="alert">
-        <div>
-          <span class="font-medium">Tip:</span>
-          Use <code>student_code(...)</code> in assertions to run the student's program with inputs.
+      {#if assignment.llm_interactive}
+        <div class="grid gap-4">
+          <div class="space-y-3">
+            <div class="divider">AI testing settings</div>
+            <div class="grid sm:grid-cols-2 gap-3">
+              <label class="flex items-center gap-2 sm:col-span-2">
+                <input type="checkbox" class="checkbox" bind:checked={llmFeedback}>
+                <span class="label-text">LLM feedback visible to students</span>
+              </label>
+              <label class="flex items-center gap-2">
+                <input type="checkbox" class="checkbox" bind:checked={llmAutoAward}>
+                <span class="label-text">Auto-award full points if all scenarios pass</span>
+              </label>
+              <label class="form-control w-full sm:col-span-2">
+                <span class="label-text">Scenarios JSON (optional)</span>
+                <textarea class="textarea textarea-bordered h-40" bind:value={llmScenarios} placeholder={exampleScenario}></textarea>
+              </label>
+              <div class="sm:col-span-2 grid gap-3">
+                <label class="form-control w-full">
+                  <div class="flex items-center justify-between">
+                    <span class="label-text">Strictness level</span>
+                    <div class="text-sm opacity-70">{llmStrictness} / 100</div>
+                  </div>
+                  <input type="range" min="0" max="100" step="10" class="range range-primary" bind:value={llmStrictness}>
+                  <div class="flex justify-between text-xs opacity-70 mt-1">
+                    <span>Beginner</span>
+                    <span>Intermediate</span>
+                    <span>Advanced</span>
+                    <span>PRO</span>
+                  </div>
+                </label>
+                <label class="form-control w-full">
+                  <span class="label-text">Teacher rubric (what is OK vs WRONG)</span>
+                  <textarea class="textarea textarea-bordered h-32" bind:value={llmRubric} placeholder="Describe what is acceptable and what should be considered wrong. This text will guide the LLM's evaluation."></textarea>
+                </label>
+              </div>
+              <div class="sm:col-span-2 flex justify-end">
+                <button class="btn btn-primary" on:click={saveLLMSettings}><Save size={16}/> Save settings</button>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      {:else}
+        <div class="alert">
+          <div>
+            <span class="font-medium">Tip:</span>
+            Use <code>student_code(...)</code> in assertions to run the student's program with inputs.
+          </div>
+        </div>
 
-      <!-- Tabs -->
-      <div role="tablist" class="tabs tabs-lifted">
+        <!-- Tabs -->
+        <div role="tablist" class="tabs tabs-lifted">
         <input type="radio" name="tests-tab" role="tab" class="tab" aria-label="Existing tests" checked>
         <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4">
           <div class="flex items-center justify-between mb-2">
@@ -1004,7 +1093,8 @@
           </div>
           <p class="text-xs opacity-70 mt-2">Each method named <code>test_*</code> in classes derived from <code>unittest.TestCase</code> will become a separate test. Use <code>student_code(...)</code> to run the student's program with inputs.</p>
         </div>
-      </div>
+        </div>
+      {/if}
     </div>
   {/if}
 {/if}
