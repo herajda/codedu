@@ -53,7 +53,6 @@ $: id = $page.params.id
         body: JSON.stringify({ points: v })
       })
       await load()
-      overrideValue = ''
     }catch(e:any){ err = e.message }
     finally{ savingOverride = false }
   }
@@ -96,6 +95,12 @@ $: id = $page.params.id
       submission = data.submission
       results = data.results
       llm = data.llm ?? null
+
+      // Prefill override input with the currently assigned points (teacher sees what's set)
+      try {
+        const cur = (submission?.override_points ?? submission?.points)
+        overrideValue = (cur ?? '') as any
+      } catch {}
 
       files = await parseFiles(submission.code_content)
       tree = buildTree(files)
@@ -262,6 +267,9 @@ $: id = $page.params.id
           </div>
           <div class="flex items-center gap-2">
             <span class={`badge badge-lg ${statusColor(submission.status)}`}>{submission.status}</span>
+            {#if submission.manually_accepted}
+              <span class="badge badge-outline badge-success" title="Accepted by teacher">Manually accepted</span>
+            {/if}
             <button class="btn btn-ghost" on:click={goBack}>Back</button>
             <button class="btn btn-primary" on:click={openFiles}>View files</button>
           </div>
@@ -274,14 +282,15 @@ $: id = $page.params.id
           </div>
         {/if}
 
-        {#if assignmentManual && (role==='teacher' || role==='admin')}
+        {#if (role==='teacher' || role==='admin')}
           <div class="rounded-box bg-base-200 p-4 mt-2">
-            <div class="font-medium mb-2">Teacher override points</div>
+            <div class="font-medium mb-2">Teacher actions</div>
             <div class="flex items-center gap-3">
-              <input type="number" step="1" min="0" inputmode="numeric" pattern="[0-9]*" on:keydown={(e) => { if (['e','E','+','-','.',','].includes(e.key)) e.preventDefault() }} class="input input-bordered input-sm w-28 sm:w-32" bind:value={overrideValue} placeholder="e.g. 10" aria-label="Override points">
-              <button class={`btn btn-primary btn-sm ${savingOverride ? 'loading' : ''}`} on:click={saveOverride} disabled={savingOverride}>Save</button>
+              <input type="number" step="1" min="0" inputmode="numeric" pattern="[0-9]*" on:keydown={(e) => { if (['e','E','+','-','.',','].includes(e.key)) e.preventDefault() }} class="input input-bordered input-sm w-28 sm:w-32" bind:value={overrideValue} placeholder="points (optional)" aria-label="Override points">
+              <button class={`btn btn-primary btn-sm ${savingOverride ? 'loading' : ''}`} on:click={saveOverride} disabled={savingOverride}>Save points</button>
+              <button class="btn btn-success btn-sm" on:click={async()=>{ try{ const raw:any=overrideValue; const str = raw==null? '' : (typeof raw==='string'? raw : String(raw)); const v = str.trim()===''? null : parseInt(str,10); await apiFetch(`/api/submissions/${submission.id}/accept`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ points: v })}); await load(); }catch(e:any){ err=e.message } }}>Accept submission</button>
             </div>
-            <div class="text-xs opacity-70 mt-2">Leave empty to clear override. Saving will also mark submission completed.</div>
+            <div class="text-xs opacity-70 mt-2">Leave points empty to accept without overriding. Acceptance marks the submission completed and visible to the student as manually accepted.</div>
           </div>
         {/if}
 

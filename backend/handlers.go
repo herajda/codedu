@@ -975,7 +975,7 @@ func runTeacherSolution(c *gin.Context) {
 				firstPy = rel
 			}
 			content, _ := os.ReadFile(path)
-			if strings.Contains(string(content), "__main__") {
+			if mainGuard.Match(content) {
 				mainFile = rel
 				return io.EOF
 			}
@@ -1106,10 +1106,14 @@ func runTeacherSolution(c *gin.Context) {
 				score = float64(a.MaxPoints)
 			}
 		case "weighted":
-			score = earnedWeight
+			// normalize to MaxPoints
+			if totalWeight > 0 {
+				score = earnedWeight * (float64(a.MaxPoints) / totalWeight)
+			}
 		}
 		if sub.CreatedAt.After(a.Deadline) {
-			score = 0
+			_ = SetSubmissionLate(sub.ID, true)
+			score *= 0.8
 		}
 		_ = SetSubmissionPoints(sub.ID, score)
 	}
@@ -1182,6 +1186,56 @@ func getSubmission(c *gin.Context) {
 		resp["llm"] = llm
 	}
 	c.JSON(http.StatusOK, resp)
+}
+
+// acceptSubmission: PUT /api/submissions/:id/accept
+// Allows a teacher/admin to manually accept a submission and optionally set points (capped to assignment max).
+func acceptSubmission(c *gin.Context) {
+	sid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	a, err := GetAssignmentForSubmission(sid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if role := c.GetString("role"); role == "teacher" {
+		if ok, err := IsTeacherOfAssignment(a.ID, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	var req struct {
+		Points *float64 `json:"points"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	// Cap points to [0, max_points]
+	if req.Points != nil {
+		p := *req.Points
+		if p < 0 {
+			p = 0
+		}
+		if p > float64(a.MaxPoints) {
+			p = float64(a.MaxPoints)
+		}
+		*req.Points = p
+		if err := SetSubmissionOverridePoints(sid, req.Points); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+			return
+		}
+	}
+	// Mark as manually accepted and completed
+	_ = SetSubmissionManualAccept(sid, true)
+	if err := UpdateSubmissionStatus(sid, "completed"); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // submissionTerminalWS: GET /api/submissions/:id/terminal (WS)
@@ -1599,7 +1653,7 @@ func submissionRunWS(c *gin.Context) {
 						firstPy = rel
 					}
 					content, _ := os.ReadFile(path)
-					if strings.Contains(string(content), "__main__") {
+					if mainGuard.Match(content) {
 						mainFile = rel
 						return io.EOF
 					}

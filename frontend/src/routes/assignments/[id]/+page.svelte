@@ -595,7 +595,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                       <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span></td>
                       {#if testsCount>0}
                         <td>{#if subStats[s.id]}{subStats[s.id].passed} / {testsCount}{:else}-{/if}</td>
-                        <td>{(s.override_points ?? s.points ?? 0)}</td>
+                        <td>{(s.override_points ?? s.points ?? 0)} {#if s.manually_accepted}<span class="badge badge-xs badge-outline badge-success ml-2" title="Accepted by teacher">accepted</span>{/if}</td>
                       {/if}
                       <td><a href={`/submissions/${s.id}?fromTab=${activeTab}`} class="btn btn-sm btn-outline" on:click={saveState}>View</a></td>
                     </tr>
@@ -689,6 +689,9 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                                     </div>
                                     <div class="timeline-end timeline-box flex items-center m-0">
                                       <a class="link" href={`/submissions/${s.id}?fromTab=${activeTab}`} on:click={saveState}>{formatDateTime(s.created_at)}</a>
+                                      {#if s.manually_accepted}
+                                        <span class="badge badge-xs badge-outline badge-success ml-2" title="Accepted by teacher">accepted</span>
+                                      {/if}
                                     </div>
                                     {#if i !== p.all.length - 1}<hr />{/if}
                                   </li>

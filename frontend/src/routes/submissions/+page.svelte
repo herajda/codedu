@@ -9,6 +9,7 @@
     assignment_id: number;
     status: string;
     created_at: string;
+    manually_accepted?: boolean;
     results?: any[];
   }
 
@@ -239,7 +240,7 @@
                     <div class="text-xs opacity-60">#{s.id}</div>
                   </td>
                   <td class="whitespace-nowrap">{formatDateTime(s.created_at)}</td>
-                  <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span></td>
+                  <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span> {#if s.manually_accepted}<span class="badge badge-xs badge-outline badge-success ml-2" title="Accepted by teacher">accepted</span>{/if}</td>
                   <td>
                     {#if s.results && s.results.length}
                       {Math.round((passRatio(s).passed / Math.max(1, passRatio(s).total)) * 100)}%
@@ -294,6 +295,9 @@
                     {/if}
                   </div>
                 </div>
+                {#if s.manually_accepted}
+                  <div class="text-xs text-success">Manually accepted</div>
+                {/if}
               </div>
             </a>
           {/each}
