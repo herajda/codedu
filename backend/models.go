@@ -1102,3 +1102,46 @@ func UnarchiveConversation(userID, otherID int) error {
 	_, err := DB.Exec(`DELETE FROM archived_conversations WHERE user_id=$1 AND other_id=$2`, userID, otherID)
 	return err
 }
+
+// ──────────────────────────────────────────────────────
+// class forum messaging
+// ──────────────────────────────────────────────────────
+
+type ForumMessage struct {
+	ID        int       `db:"id" json:"id"`
+	ClassID   int       `db:"class_id" json:"class_id"`
+	UserID    int       `db:"user_id" json:"user_id"`
+	Text      string    `db:"content" json:"text"`
+	Image     *string   `db:"image" json:"image,omitempty"`
+	FileName  *string   `db:"file_name" json:"file_name,omitempty"`
+	File      *string   `db:"file" json:"file,omitempty"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	Name      *string   `db:"name" json:"name"`
+	Email     string    `db:"email" json:"email"`
+	Avatar    *string   `db:"avatar" json:"avatar"`
+}
+
+func CreateForumMessage(m *ForumMessage) error {
+	const q = `INSERT INTO forum_messages (class_id, user_id, content, image, file_name, file)
+                   VALUES ($1,$2,$3,$4,$5,$6)
+                   RETURNING id, created_at`
+	if err := DB.QueryRow(q, m.ClassID, m.UserID, m.Text, m.Image, m.FileName, m.File).Scan(&m.ID, &m.CreatedAt); err != nil {
+		return err
+	}
+	_ = DB.QueryRow(`SELECT name, email, avatar FROM users WHERE id=$1`, m.UserID).Scan(&m.Name, &m.Email, &m.Avatar)
+	broadcastForumMsg(m)
+	return nil
+}
+
+func ListForumMessages(classID, limit, offset int) ([]ForumMessage, error) {
+	msgs := []ForumMessage{}
+	err := DB.Select(&msgs, `SELECT fm.id, fm.class_id, fm.user_id, fm.content, fm.image, fm.file_name, fm.file, fm.created_at,
+                                       u.name, u.email, u.avatar
+                                  FROM forum_messages fm
+                                  JOIN users u ON u.id=fm.user_id
+                                 WHERE fm.class_id=$1
+                               ORDER BY fm.created_at ASC
+                                  LIMIT $2 OFFSET $3`,
+		classID, limit, offset)
+	return msgs, err
+}

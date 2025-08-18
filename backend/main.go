@@ -182,6 +182,11 @@ func main() {
 		api.DELETE("/messages/:id/archive", RoleGuard("student", "teacher", "admin"), unarchiveConversation)
 		api.GET("/messages/events", RoleGuard("student", "teacher", "admin"), messageEventsHandler)
 
+		// Class forums
+		api.GET("/classes/:id/forum", RoleGuard("teacher", "student", "admin"), listForumMessagesHandler)
+		api.POST("/classes/:id/forum", RoleGuard("teacher", "student", "admin"), createForumMessageHandler)
+		api.GET("/classes/:id/forum/events", RoleGuard("teacher", "student", "admin"), forumEventsHandler)
+
 		// Class file system
 		api.GET("/classes/:id/files", RoleGuard("teacher", "student", "admin"), listClassFiles)
 		api.GET("/classes/:id/notebooks", RoleGuard("teacher", "student", "admin"), listClassNotebooks)
