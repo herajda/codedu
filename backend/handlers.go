@@ -1113,7 +1113,7 @@ func runTeacherSolution(c *gin.Context) {
 		}
 		if sub.CreatedAt.After(a.Deadline) {
 			_ = SetSubmissionLate(sub.ID, true)
-			score *= 0.8
+			score = 0.0
 		}
 		_ = SetSubmissionPoints(sub.ID, score)
 	}

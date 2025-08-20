@@ -619,7 +619,7 @@ func runSubmission(id int) {
 		}
 		if sub.CreatedAt.After(a.Deadline) {
 			_ = SetSubmissionLate(id, true)
-			score *= 0.8
+			score = 0.0
 		}
 		SetSubmissionPoints(id, score)
 	}
@@ -811,7 +811,12 @@ func runLLMInteractive(sub *Submission, a *Assignment) {
 
 	if pass {
 		if a.LLMAutoAward {
-			_ = SetSubmissionPoints(sub.ID, float64(a.MaxPoints))
+			score := float64(a.MaxPoints)
+			if sub.CreatedAt.After(a.Deadline) {
+				_ = SetSubmissionLate(sub.ID, true)
+				score = 0.0
+			}
+			_ = SetSubmissionPoints(sub.ID, score)
 		}
 		UpdateSubmissionStatus(sub.ID, "completed")
 	} else {
