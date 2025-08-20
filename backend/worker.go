@@ -617,10 +617,21 @@ func runSubmission(id int) {
 				score = earnedWeight * (float64(a.MaxPoints) / totalWeight)
 			}
 		}
+
+		// Handle late submission logic with second deadline
 		if sub.CreatedAt.After(a.Deadline) {
 			_ = SetSubmissionLate(id, true)
-			score = 0.0
+
+			// Check if there's a second deadline and submission is within it
+			if a.SecondDeadline != nil && sub.CreatedAt.Before(*a.SecondDeadline) {
+				// Apply penalty ratio for second deadline submissions
+				score = score * a.LatePenaltyRatio
+			} else {
+				// No second deadline or submission is after second deadline - no points
+				score = 0.0
+			}
 		}
+
 		SetSubmissionPoints(id, score)
 	}
 
@@ -812,10 +823,21 @@ func runLLMInteractive(sub *Submission, a *Assignment) {
 	if pass {
 		if a.LLMAutoAward {
 			score := float64(a.MaxPoints)
+
+			// Handle late submission logic with second deadline
 			if sub.CreatedAt.After(a.Deadline) {
 				_ = SetSubmissionLate(sub.ID, true)
-				score = 0.0
+
+				// Check if there's a second deadline and submission is within it
+				if a.SecondDeadline != nil && sub.CreatedAt.Before(*a.SecondDeadline) {
+					// Apply penalty ratio for second deadline submissions
+					score = score * a.LatePenaltyRatio
+				} else {
+					// No second deadline or submission is after second deadline - no points
+					score = 0.0
+				}
 			}
+
 			_ = SetSubmissionPoints(sub.ID, score)
 		}
 		UpdateSubmissionStatus(sub.ID, "completed")

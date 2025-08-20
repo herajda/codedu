@@ -163,6 +163,10 @@
                       <span class={new Date(a.deadline) < new Date() && !a.completed ? 'text-error' : ''}>{formatDateTime(a.deadline)}</span>
                       <span>·</span>
                       <span>{countdown(a.deadline, a.completed)}</span>
+                      {#if a.second_deadline}
+                        <span>·</span>
+                        <span class="text-warning">2nd: {formatDateTime(a.second_deadline)} ({Math.round(a.late_penalty_ratio * 100)}%)</span>
+                      {/if}
                     </div>
                   </div>
                   <div class="flex items-center gap-3 shrink-0">

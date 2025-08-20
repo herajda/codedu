@@ -200,16 +200,18 @@ func createAssignment(c *gin.Context) {
 	}
 
 	a := &Assignment{
-		ClassID:       classID,
-		Title:         req.Title,
-		Description:   req.Description,
-		Deadline:      time.Now().Add(24 * time.Hour),
-		MaxPoints:     100,
-		GradingPolicy: "all_or_nothing",
-		Published:     false,
-		ShowTraceback: req.ShowTraceback,
-		ManualReview:  req.ManualReview,
-		CreatedBy:     c.GetInt("userID"),
+		ClassID:          classID,
+		Title:            req.Title,
+		Description:      req.Description,
+		Deadline:         time.Now().Add(24 * time.Hour),
+		MaxPoints:        100,
+		GradingPolicy:    "all_or_nothing",
+		Published:        false,
+		ShowTraceback:    req.ShowTraceback,
+		ManualReview:     req.ManualReview,
+		CreatedBy:        c.GetInt("userID"),
+		SecondDeadline:   nil,
+		LatePenaltyRatio: 0.5,
 	}
 	if err := CreateAssignment(a); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create assignment"})
@@ -299,20 +301,22 @@ func updateAssignment(c *gin.Context) {
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	var req struct {
-		Title              string  `json:"title" binding:"required"`
-		Description        string  `json:"description"`
-		Deadline           string  `json:"deadline" binding:"required"`
-		MaxPoints          int     `json:"max_points" binding:"required"`
-		GradingPolicy      string  `json:"grading_policy" binding:"required"`
-		ShowTraceback      bool    `json:"show_traceback"`
-		ManualReview       bool    `json:"manual_review"`
-		LLMInteractive     bool    `json:"llm_interactive"`
-		LLMFeedback        bool    `json:"llm_feedback"`
-		LLMAutoAward       bool    `json:"llm_auto_award"`
-		LLMScenariosRaw    *string `json:"llm_scenarios_json"`
-		LLMStrictness      *int    `json:"llm_strictness"`
-		LLMRubric          *string `json:"llm_rubric"`
-		LLMTeacherBaseline *string `json:"llm_teacher_baseline_json"`
+		Title              string   `json:"title" binding:"required"`
+		Description        string   `json:"description"`
+		Deadline           string   `json:"deadline" binding:"required"`
+		MaxPoints          int      `json:"max_points" binding:"required"`
+		GradingPolicy      string   `json:"grading_policy" binding:"required"`
+		ShowTraceback      bool     `json:"show_traceback"`
+		ManualReview       bool     `json:"manual_review"`
+		LLMInteractive     bool     `json:"llm_interactive"`
+		LLMFeedback        bool     `json:"llm_feedback"`
+		LLMAutoAward       bool     `json:"llm_auto_award"`
+		LLMScenariosRaw    *string  `json:"llm_scenarios_json"`
+		LLMStrictness      *int     `json:"llm_strictness"`
+		LLMRubric          *string  `json:"llm_rubric"`
+		LLMTeacherBaseline *string  `json:"llm_teacher_baseline_json"`
+		SecondDeadline     *string  `json:"second_deadline"`
+		LatePenaltyRatio   *float64 `json:"late_penalty_ratio"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -348,6 +352,17 @@ func updateAssignment(c *gin.Context) {
 	}
 	if req.LLMTeacherBaseline != nil {
 		a.LLMTeacherBaseline = req.LLMTeacherBaseline
+	}
+	if req.SecondDeadline != nil {
+		dl, err := time.Parse(time.RFC3339Nano, *req.SecondDeadline)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid second deadline"})
+			return
+		}
+		a.SecondDeadline = &dl
+	}
+	if req.LatePenaltyRatio != nil {
+		a.LatePenaltyRatio = *req.LatePenaltyRatio
 	}
 	if err := UpdateAssignment(a); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not update"})
@@ -1111,10 +1126,21 @@ func runTeacherSolution(c *gin.Context) {
 				score = earnedWeight * (float64(a.MaxPoints) / totalWeight)
 			}
 		}
+
+		// Handle late submission logic with second deadline
 		if sub.CreatedAt.After(a.Deadline) {
 			_ = SetSubmissionLate(sub.ID, true)
-			score = 0.0
+
+			// Check if there's a second deadline and submission is within it
+			if a.SecondDeadline != nil && sub.CreatedAt.Before(*a.SecondDeadline) {
+				// Apply penalty ratio for second deadline submissions
+				score = score * a.LatePenaltyRatio
+			} else {
+				// No second deadline or submission is after second deadline - no points
+				score = 0.0
+			}
 		}
+
 		_ = SetSubmissionPoints(sub.ID, score)
 	}
 	if allPass {

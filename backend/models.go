@@ -51,6 +51,10 @@ type Assignment struct {
 	LLMStrictness      int     `db:"llm_strictness" json:"llm_strictness"`
 	LLMRubric          *string `db:"llm_rubric" json:"llm_rubric"`
 	LLMTeacherBaseline *string `db:"llm_teacher_baseline_json" json:"llm_teacher_baseline_json"`
+
+	// Second deadline feature
+	SecondDeadline   *time.Time `db:"second_deadline" json:"second_deadline"`
+	LatePenaltyRatio float64    `db:"late_penalty_ratio" json:"late_penalty_ratio"`
 }
 type Class struct {
 	ID        int       `db:"id"        json:"id"`
@@ -182,12 +186,13 @@ func ListAllClasses() ([]Class, error) {
 // ──────────────────────────────────────────────────────────────────────────────
 func CreateAssignment(a *Assignment) error {
 	const q = `
-          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, manual_review, template_path, class_id)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, manual_review, template_path, class_id, second_deadline, late_penalty_ratio)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
           RETURNING id, created_at, updated_at`
 	return DB.QueryRow(q,
 		a.Title, a.Description, a.CreatedBy, a.Deadline,
 		a.MaxPoints, a.GradingPolicy, a.Published, a.ShowTraceback, a.ManualReview, a.TemplatePath, a.ClassID,
+		a.SecondDeadline, a.LatePenaltyRatio,
 	).Scan(&a.ID, &a.CreatedAt, &a.UpdatedAt)
 }
 
@@ -204,7 +209,9 @@ func ListAssignments(role string, userID int) ([]Assignment, error) {
            a.llm_scenarios_json,
            COALESCE(a.llm_strictness,50) AS llm_strictness,
            a.llm_rubric,
-           a.llm_teacher_baseline_json
+           a.llm_teacher_baseline_json,
+           a.second_deadline,
+           COALESCE(a.late_penalty_ratio,0.5) AS late_penalty_ratio
       FROM assignments a`
 	var args []any
 	switch role {
@@ -235,7 +242,9 @@ func GetAssignment(id int) (*Assignment, error) {
            llm_scenarios_json,
            COALESCE(llm_strictness,50) AS llm_strictness,
            llm_rubric,
-           llm_teacher_baseline_json
+           llm_teacher_baseline_json,
+           second_deadline,
+           COALESCE(late_penalty_ratio,0.5) AS late_penalty_ratio
       FROM assignments
      WHERE id = $1`, id)
 	if err != nil {
@@ -257,7 +266,9 @@ func GetAssignmentForSubmission(subID int) (*Assignment, error) {
                a.llm_scenarios_json,
                COALESCE(a.llm_strictness,50) AS llm_strictness,
                a.llm_rubric,
-               a.llm_teacher_baseline_json
+               a.llm_teacher_baseline_json,
+               a.second_deadline,
+               COALESCE(a.late_penalty_ratio,0.5) AS late_penalty_ratio
           FROM assignments a
           JOIN submissions s ON s.assignment_id = a.id
          WHERE s.id=$1`, subID)
@@ -275,12 +286,14 @@ func UpdateAssignment(a *Assignment) error {
            max_points=$4, grading_policy=$5, show_traceback=$6, manual_review=$7,
            llm_interactive=$8, llm_feedback=$9, llm_auto_award=$10, llm_scenarios_json=$11,
            llm_strictness=$12, llm_rubric=$13, llm_teacher_baseline_json=$14,
+           second_deadline=$15, late_penalty_ratio=$16,
            updated_at=now()
-     WHERE id=$15`,
+     WHERE id=$17`,
 		a.Title, a.Description, a.Deadline,
 		a.MaxPoints, a.GradingPolicy, a.ShowTraceback, a.ManualReview,
 		a.LLMInteractive, a.LLMFeedback, a.LLMAutoAward, a.LLMScenariosRaw,
 		a.LLMStrictness, a.LLMRubric, a.LLMTeacherBaseline,
+		a.SecondDeadline, a.LatePenaltyRatio,
 		a.ID)
 	if err != nil {
 		return err
@@ -883,7 +896,9 @@ func GetClassProgress(classID int) (*ClassProgress, error) {
                        COALESCE(llm_interactive,false) AS llm_interactive,
                        COALESCE(llm_feedback,false) AS llm_feedback,
                        COALESCE(llm_auto_award,true) AS llm_auto_award,
-                       llm_scenarios_json
+                       llm_scenarios_json,
+                       second_deadline,
+                       COALESCE(late_penalty_ratio,0.5) AS late_penalty_ratio
                   FROM assignments
                  WHERE class_id=$1
                  ORDER BY deadline ASC`, classID); err != nil {

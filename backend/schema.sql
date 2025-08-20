@@ -55,6 +55,10 @@ ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_strictness INTEGER NOT NULL
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_rubric TEXT; -- freeform teacher guidance on what is OK vs WRONG
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_teacher_baseline_json TEXT; -- plan+results JSON from teacher standard solution (defines accepted behavior)
 
+-- Second deadline feature
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS second_deadline TIMESTAMPTZ; -- optional second deadline for late submissions
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS late_penalty_ratio NUMERIC NOT NULL DEFAULT 0.5 CHECK (late_penalty_ratio >= 0 AND late_penalty_ratio <= 1); -- points multiplier for second deadline submissions
+
 CREATE TABLE IF NOT EXISTS test_cases (
   id SERIAL PRIMARY KEY,
   assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
