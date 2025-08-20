@@ -240,7 +240,6 @@ import { compressImage } from '$lib/utils/compressImage';
   let prefersDark = false;
   let media: MediaQueryList;
   function applyThemeFromPreference() {
-    if (!browser) return;
     document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
   }
   

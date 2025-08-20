@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount, onDestroy, afterUpdate } from 'svelte';
-  import { browser } from '$app/environment';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { apiFetch, apiJSON } from '$lib/api';
@@ -365,13 +364,11 @@
     if (e.key === 'ArrowRight') showNextImage();
   }
 
-  // Attach keyboard navigation only while lightbox is open (guarded for SSR)
-  $: if (browser) {
-    if (lightboxOpen) {
-      document.addEventListener('keydown', handleLightboxKeydown);
-    } else {
-      document.removeEventListener('keydown', handleLightboxKeydown);
-    }
+  // Attach keyboard navigation only while lightbox is open
+  $: if (lightboxOpen) {
+    document.addEventListener('keydown', handleLightboxKeydown);
+  } else {
+    document.removeEventListener('keydown', handleLightboxKeydown);
   }
 
   function handleKeydown(e: KeyboardEvent) {

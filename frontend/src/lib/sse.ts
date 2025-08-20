@@ -12,10 +12,6 @@ export function createEventSource(
   setup: (es: EventSource) => void,
   opts: SSEOptions = {}
 ) {
-  // No-op on server during SSR
-  if (typeof window === 'undefined') {
-    return { close() {} };
-  }
   let es: EventSource | null = null;
   let closed = false;
   const retry = opts.retry ?? 5000;
