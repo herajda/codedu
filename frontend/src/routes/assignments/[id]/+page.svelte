@@ -1,10 +1,11 @@
 <script lang="ts">
-import { onMount, onDestroy } from 'svelte'
-  import { get } from 'svelte/store'
+  // @ts-nocheck
+import { onMount, onDestroy, tick } from 'svelte'
   import { auth } from '$lib/auth'
 import { apiFetch, apiJSON } from '$lib/api'
 import { MarkdownEditor } from '$lib'
 import { marked } from 'marked'
+import { formatDateTime } from "$lib/date";
 import DOMPurify from 'dompurify'
 import { goto } from '$app/navigation'
 import { page } from '$app/stores'
@@ -12,31 +13,99 @@ import { page } from '$app/stores'
 
 
 $: id = $page.params.id
-const role = get(auth)?.role!;
+let role = '';
+$: role = $auth?.role ?? '';
 
   let assignment:any=null
-  let tests:any[]=[] // teacher/admin only
+  // tests moved to standalone page
   let submissions:any[]=[] // student submissions
   let latestSub:any=null
   let results:any[]=[]
-  let es:EventSource|null=null
+  let esCtrl:{close:()=>void}|null=null
   let allSubs:any[]=[]     // teacher view
+  let teacherRuns:any[]=[] // persisted teacher submissions
   let students:any[]=[]    // class roster for teacher
   let progress:any[]=[]    // computed progress per student
+  let expanded:number|null=null
   let pointsEarned=0
   let done=false
   let percent=0
+  let testsPassed=0
+  let testsPercent=0
+  let testsCount=0
   let err=''
-  let tStdin='', tStdout='', tLimit='', tWeight='1'
+  let subStats: Record<number, {passed:number, total:number}> = {}
+  // removed test creation inputs (moved to tests page)
   let files: File[] = []
   let templateFile:File|null=null
+  // removed unittest file input (moved to tests page)
   let submitDialog: HTMLDialogElement;
-  let testsDialog: HTMLDialogElement;
+  // removed tests dialog (moved to tests page)
 $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100) : 0;
+$: testsPassed = results.filter((r:any) => r.status === 'passed').length;
+$: testsPercent = results.length ? Math.round(testsPassed / results.length * 100) : 0;
   let editing=false
   let eTitle='', eDesc='', eDeadline='', ePoints=0, ePolicy='all_or_nothing', eShowTraceback=false
+  let eManualReview=false
+  let eLLMInteractive=false
+  let eLLMFeedback=false
+  let eLLMAutoAward=true
+  let eLLMScenarios=''
+  let eLLMStrictness:number=50
+  let eLLMRubric=''
+  const exampleScenario = '[{"name":"calc","steps":[{"send":"2 + 2","expect_after":"4"}]}]'
   let safeDesc=''
 $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.description) as string) : ''
+
+  // Testing model selector (automatic | manual | ai)
+  type TestMode = 'automatic' | 'manual' | 'ai'
+  let testMode: TestMode = 'automatic'
+  $: {
+    if (testMode === 'manual') { eManualReview = true; eLLMInteractive = false }
+    else if (testMode === 'ai') { eManualReview = false; eLLMInteractive = true }
+    else { eManualReview = false; eLLMInteractive = false }
+  }
+
+  // Enhanced UX state
+  type TabKey = 'overview' | 'submissions' | 'results' | 'instructor' | 'teacher-runs'
+  let activeTab: TabKey = 'overview'
+  let isDragging = false
+
+  // Teacher solution test-run state (modal in Teacher runs tab)
+  let solFiles: File[] = []
+  let isSolDragging = false
+  let solLoading = false
+  let teacherRunDialog: HTMLDialogElement
+
+  function policyLabel(policy:string){
+    if(policy==='all_or_nothing') return 'All or nothing'
+    if(policy==='weighted') return 'Weighted'
+    return policy
+  }
+  function relativeToDeadline(deadline:string){
+    const now = new Date()
+    const due = new Date(deadline)
+    const diffMs = due.getTime() - now.getTime()
+    const abs = Math.abs(diffMs)
+    const mins = Math.round(abs / 60000)
+    const hrs = Math.round(mins / 60)
+    const days = Math.round(hrs / 24)
+    if(abs < 60) return `${diffMs>=0 ? 'in' : ''} ${mins} min${mins===1?'':'s'}${diffMs<0 ? ' ago' : ''}`
+    if(abs < 60*24) return `${diffMs>=0 ? 'in' : ''} ${hrs} hour${hrs===1?'':'s'}${diffMs<0 ? ' ago' : ''}`
+    return `${diffMs>=0 ? 'in' : ''} ${days} day${days===1?'':'s'}${diffMs<0 ? ' ago' : ''}`
+  }
+  $: isOverdue = assignment ? new Date(assignment.deadline) < new Date() : false
+  $: timeUntilDeadline = assignment ? new Date(assignment.deadline).getTime() - Date.now() : 0
+  $: deadlineSoon = timeUntilDeadline > 0 && timeUntilDeadline <= 24 * 60 * 60 * 1000
+  $: deadlineBadgeClass = isOverdue && !(role==='student' && done) ? 'badge-error' : 'badge-ghost'
+  $: deadlineLabel = assignment ? (
+      isOverdue
+        ? (role==='student' && done
+            ? `Deadline passed ${relativeToDeadline(assignment.deadline)}`
+            : `Due ${relativeToDeadline(assignment.deadline)}`
+          )
+        : `Due ${relativeToDeadline(assignment.deadline)}`
+    ) : ''
 
   async function publish(){
     try{
@@ -50,10 +119,17 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     try{
       const data = await apiJSON(`/api/assignments/${id}`)
       assignment = data.assignment
+      // If this was newly created, switch to edit mode by default
+      if (role !== 'student' && typeof location !== 'undefined' && new URLSearchParams(location.search).get('new') === '1') {
+        startEdit()
+        history.replaceState(null, '', location.pathname)
+      }
       if(role==='student') {
         submissions = data.submissions ?? []
         latestSub = submissions[0] ?? null
         results = []
+        // test count comes from tests_count for students
+        testsCount = (typeof data.tests_count === 'number' ? data.tests_count : (Array.isArray((data as any).tests) ? (data as any).tests.length : 0)) || 0
         if(latestSub){
           const subData = await apiJSON(`/api/submissions/${latestSub.id}`)
           results = subData.results ?? []
@@ -64,52 +140,85 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         },0)
         pointsEarned = best
         done = best >= assignment.max_points
+        await loadSubmissionStats()
       } else {
-        tests = data.tests ?? []
         allSubs = data.submissions ?? []
+        teacherRuns = data.teacher_runs ?? []
+        // for non-students, tests array is present
+        try { testsCount = Array.isArray((data as any).tests) ? (data as any).tests.length : 0 } catch { testsCount = 0 }
         const cls = await apiJSON(`/api/classes/${assignment.class_id}`)
         students = cls.students ?? []
         progress = students.map((s:any)=>{
           const subs = allSubs.filter((x:any)=>x.student_id===s.id)
           const latest = subs[0]
-          return {student:s, latest, all: subs}
+          const hasCompleted = subs.some((x:any)=>x.status==='completed' || x.status==='passed')
+          const displayStatus = hasCompleted ? 'completed' : (latest ? latest.status : 'none')
+          return {student:s, latest, all: subs, displayStatus}
         })
       }
     }catch(e:any){ err=e.message }
   }
 
-  onMount(() => {
-    load()
-    es = new EventSource('/api/events')
-    es.addEventListener('status', (ev) => {
+  async function loadSubmissionStats(){
+    subStats = {}
+    try{
+      if(testsCount>0 && Array.isArray(submissions) && submissions.length){
+        const pairs = await Promise.all(submissions.map(async (s:any)=>{
+          try{
+            const subData = await apiJSON(`/api/submissions/${s.id}`)
+            const res = subData.results ?? []
+            const passed = Array.isArray(res) ? res.filter((r:any)=>r.status==='passed').length : 0
+            return [s.id, {passed, total: res.length}] as const
+          }catch{
+            return [s.id, {passed: 0, total: 0}] as const
+          }
+        }))
+        const map: Record<number, {passed:number, total:number}> = {}
+        for(const [sid, st] of pairs){ map[sid]=st }
+        subStats = map
+      }
+    }catch{}
+  }
+
+
+  onMount(async () => {
+    await load()
+    // restore tab from URL
+    try{
+      const t = $page?.url?.searchParams?.get('tab') || ''
+      if (t && isValidTab(t)) activeTab = t as TabKey
+    }catch{}
+    if(typeof sessionStorage!=='undefined'){
+      const saved = sessionStorage.getItem(`assign-${id}-expanded`)
+      if(saved) expanded = parseInt(saved)
+      await tick()
+      const scroll = sessionStorage.getItem(`assign-${id}-scroll`)
+      if(scroll) window.scrollTo(0, parseInt(scroll))
+    }
+    window.addEventListener('beforeunload', saveState)
+    
+    const evs = new EventSource('/api/events')
+    evs.addEventListener('status', (ev: MessageEvent) => {
       const d = JSON.parse((ev as MessageEvent).data)
       if(latestSub && d.submission_id===latestSub.id){
         latestSub.status = d.status
         if(d.status!== 'running') load()
       }
     })
-    es.addEventListener('result', (ev) => {
+    evs.addEventListener('result', (ev: MessageEvent) => {
       const d = JSON.parse((ev as MessageEvent).data)
       if(latestSub && d.submission_id===latestSub.id){
         results = [...results, d]
       }
     })
+    esCtrl = { close: () => evs.close() }
   })
 
-  onDestroy(()=>{es?.close()})
 
-  async function addTest(){
-    try{
-      await apiFetch(`/api/assignments/${id}/tests`,{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({stdin:tStdin, expected_stdout:tStdout, weight: parseFloat(tWeight) || 1, time_limit_sec: parseFloat(tLimit) || undefined})
-      })
-      tStdin=tStdout=tLimit=''
-      tWeight='1'
-      await load()
-    }catch(e:any){ err=e.message }
-  }
+  onDestroy(()=>{
+    esCtrl?.close()
+    window.removeEventListener('beforeunload', saveState)
+  })
 
   async function uploadTemplate(){
     if(!templateFile) return
@@ -146,6 +255,16 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     ePoints=assignment.max_points
     ePolicy=assignment.grading_policy
     eShowTraceback=assignment.show_traceback
+    eManualReview=assignment.manual_review
+    eLLMInteractive=!!assignment.llm_interactive
+    eLLMFeedback=!!assignment.llm_feedback
+    eLLMAutoAward=assignment.llm_auto_award ?? true
+    eLLMScenarios=assignment.llm_scenarios_json ?? ''
+    eLLMStrictness = typeof assignment.llm_strictness === 'number' ? assignment.llm_strictness : 50
+    eLLMRubric = assignment.llm_rubric ?? ''
+    if (assignment.manual_review) testMode = 'manual'
+    else if (assignment.llm_interactive) testMode = 'ai'
+    else testMode = 'automatic'
   }
 
   async function saveEdit(){
@@ -160,7 +279,14 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           deadline:new Date(eDeadline).toISOString(),
           max_points:Number(ePoints),
           grading_policy:ePolicy,
-          show_traceback:eShowTraceback
+          show_traceback:eShowTraceback,
+          manual_review:eManualReview,
+          llm_interactive:eLLMInteractive,
+          llm_feedback:eLLMFeedback,
+          llm_auto_award:eLLMAutoAward,
+          llm_scenarios_json:eLLMScenarios.trim() ? eLLMScenarios : null,
+          llm_strictness: Number.isFinite(eLLMStrictness) ? Math.min(100, Math.max(0, Number(eLLMStrictness))) : 50,
+          llm_rubric: eLLMRubric.trim() ? eLLMRubric : null
         })
       })
       editing=false
@@ -176,12 +302,15 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     }catch(e:any){ err=e.message }
   }
 
-  async function delTest(tid:number){
-    if(!confirm('Delete this test?')) return
-    try{
-      await apiFetch(`/api/tests/${tid}`,{method:'DELETE'})
-      await load()
-    }catch(e:any){ err=e.message }
+  function saveState(){
+    if(typeof sessionStorage==='undefined') return
+    sessionStorage.setItem(`assign-${id}-expanded`, expanded===null ? '' : String(expanded))
+    sessionStorage.setItem(`assign-${id}-scroll`, String(window.scrollY))
+  }
+
+  function toggleStudent(id:number){
+    expanded = expanded===id ? null : id
+    saveState()
   }
 
   function statusColor(s:string){
@@ -193,6 +322,28 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     if(s==='runtime_error') return 'badge-error';
     if(s==='time_limit_exceeded' || s==='memory_limit_exceeded') return 'badge-warning';
     return '';
+  }
+
+  function openTeacherRunModal(){
+    teacherRunDialog.showModal()
+  }
+
+  async function runTeacherSolution(){
+    if (!solFiles.length) return
+    const fd = new FormData()
+    for (const f of solFiles) fd.append('files', f)
+    try{
+      solLoading = true
+      await apiJSON(`/api/assignments/${id}/solution-run`, { method: 'POST', body: fd })
+      solFiles = []
+      teacherRunDialog.close()
+      await load()
+      activeTab = 'teacher-runs'
+    }catch(e:any){
+      err = e.message
+    }finally{
+      solLoading = false
+    }
   }
 
   async function submit(){
@@ -214,212 +365,432 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     submitDialog.showModal()
   }
 
-  function openTestsModal(){
-    testsDialog.showModal()
+  function openTestsModal(){ goto(`/assignments/${id}/tests`) }
+
+  // removed updateTest (moved to tests page)
+
+  // Persist and restore selected tab via URL so back/forward keeps state
+  function isValidTab(key: string): key is TabKey {
+    const allowed: TabKey[] = ['overview']
+    if (role==='student') {
+      allowed.push('submissions')
+      if (!assignment?.manual_review) allowed.push('results')
+    }
+    if (role==='teacher' || role==='admin') {
+      allowed.push('instructor','teacher-runs')
+    }
+    return allowed.includes(key as TabKey)
   }
 
-  async function updateTest(t:any){
+  // initialize activeTab from URL once on mount (do not keep overwriting on every reactive cycle)
+
+  function saveTabToUrl(){
     try{
-      await apiFetch(`/api/tests/${t.id}`,{
-        method:'PUT',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({stdin:t.stdin, expected_stdout:t.expected_stdout, weight: parseFloat(t.weight) || 1, time_limit_sec: parseFloat(t.time_limit_sec) || undefined})
-      })
-      await load()
-    }catch(e:any){ err=e.message }
+      if(typeof location!=='undefined' && typeof history!=='undefined'){
+        const url = new URL(location.href)
+        url.searchParams.set('tab', activeTab)
+        history.replaceState(history.state, '', url)
+      }
+    }catch{}
+  }
+
+  function setTab(tab: TabKey){
+    activeTab = tab
+    saveTabToUrl()
   }
 </script>
 
 {#if !assignment}
-  <p>Loading…</p>
+  <div class="flex items-center gap-3">
+    <span class="loading loading-spinner loading-md"></span>
+    <p>Loading assignment…</p>
+  </div>
 {:else}
   {#if editing}
-    <div class="card bg-base-100 shadow mb-4">
-      <div class="card-body space-y-3">
-        <h1 class="card-title">Edit assignment</h1>
+    <div class="card-elevated mb-6">
+      <div class="card-body space-y-4 p-6">
+        <div class="flex items-center justify-between">
+          <h1 class="card-title text-2xl">Edit assignment</h1>
+          <div class="badge badge-outline">ID #{assignment.id}</div>
+        </div>
         <input class="input input-bordered w-full" bind:value={eTitle} placeholder="Title" required>
         <MarkdownEditor bind:value={eDesc} placeholder="Description" />
-        <input type="number" min="1" class="input input-bordered w-full" bind:value={ePoints} placeholder="Max points" required>
-        <select class="select select-bordered w-full" bind:value={ePolicy}>
-          <option value="all_or_nothing">all_or_nothing</option>
-          <option value="weighted">weighted</option>
-        </select>
-        <input type="datetime-local" class="input input-bordered w-full" bind:value={eDeadline} required>
-        <label class="flex items-center gap-2">
-          <input type="checkbox" class="checkbox" bind:checked={eShowTraceback}>
-          <span class="label-text">Show traceback to students</span>
-        </label>
-        <div class="card-actions justify-end">
-          <button class="btn btn-primary" on:click={saveEdit}>Save</button>
-          <button class="btn" on:click={()=>editing=false}>Cancel</button>
+        <div class="grid sm:grid-cols-2 gap-3">
+          <input type="number" min="1" class="input input-bordered w-full" bind:value={ePoints} placeholder="Max points" required>
+          <select class="select select-bordered w-full" bind:value={ePolicy}>
+            <option value="all_or_nothing">All or nothing</option>
+            <option value="weighted">Weighted</option>
+          </select>
+          <input type="datetime-local" class="input input-bordered w-full sm:col-span-2" bind:value={eDeadline} required>
+          <label class="flex items-center gap-2 sm:col-span-2">
+            <input type="checkbox" class="checkbox" bind:checked={eShowTraceback}>
+            <span class="label-text">Show traceback to students</span>
+          </label>
+          <div class="divider sm:col-span-2">Testing model</div>
+          <label class="form-control sm:col-span-2 w-full max-w-xs">
+            <select class="select select-bordered select-sm" bind:value={testMode}>
+              <option value="automatic">Automatic tests</option>
+              <option value="manual">Manual teacher review</option>
+              <option value="ai">AI testing (LLM-Interactive)</option>
+            </select>
+          </label>
+          <p class="text-xs opacity-70 sm:col-span-2">
+            {testMode === 'automatic' ? 'Use IO/unittest tests (including AI-generated tests) to grade automatically.' : testMode === 'manual' ? 'Teacher reviews submissions and assigns points. No automated tests run.' : 'Grade using LLM-driven interactive scenarios. Configure details under Manage tests.'}
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <input type="file" class="file-input file-input-bordered" on:change={e=>templateFile=(e.target as HTMLInputElement).files?.[0] || null}>
+            <button class="btn" on:click={uploadTemplate} disabled={!templateFile}>Upload template</button>
+            {#if assignment.template_path}
+              <button class="btn btn-ghost" on:click|preventDefault={downloadTemplate}>Download current</button>
+            {/if}
+          </div>
+          <div class="card-actions">
+            <button class="btn" on:click={()=>editing=false}>Cancel</button>
+            <button class="btn btn-primary" on:click={saveEdit}>Save changes</button>
+          </div>
         </div>
       </div>
     </div>
   {:else}
-    <div class="card bg-base-100 shadow mb-4">
-      <div class="card-body space-y-2">
-        <div class="flex justify-between items-start">
-          <h1 class="card-title text-2xl">{assignment.title}</h1>
-          {#if role==='student'}
-            <div class="flex items-center gap-2">
-              <div class="radial-progress text-primary" style="--value:{percent};" aria-valuenow={percent} role="progressbar">{percent}%</div>
-              <span class="font-semibold">{pointsEarned} / {assignment.max_points} pts</span>
-            </div>
-          {/if}
-        </div>
-        <div class="markdown">{@html safeDesc}</div>
-        <p><strong>Deadline:</strong> {new Date(assignment.deadline).toLocaleString()}</p>
-        <p><strong>Max points:</strong> {assignment.max_points}</p>
-        <p><strong>Policy:</strong> {assignment.grading_policy}</p>
-        {#if assignment.template_path}
-          <a class="link" href={`/api/assignments/${id}/template`} on:click|preventDefault={downloadTemplate}>Download template</a>
-        {/if}
-        {#if role==='teacher' || role==='admin'}
-          <div class="mt-2 space-x-2">
-            <input type="file" class="file-input file-input-bordered" on:change={e=>templateFile=(e.target as HTMLInputElement).files?.[0] || null}>
-            <button class="btn" on:click={uploadTemplate} disabled={!templateFile}>Upload template</button>
+    <!-- Hero header -->
+    <section class="relative overflow-hidden mb-6 rounded-2xl border border-base-300/60 bg-gradient-to-br from-primary/10 to-secondary/10 p-0">
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-0 sm:gap-6">
+        <div class="flex-1 p-6">
+          <div class="flex items-center justify-between gap-3">
+            <h1 class="text-2xl sm:text-3xl font-semibold tracking-tight">{assignment.title}</h1>
+            {#if role==='student' && !assignment.manual_review && testsCount > 0}
+              <div class="hidden sm:flex items-center gap-3">
+                <div class="radial-progress text-primary" style="--value:{testsPercent};" aria-valuenow={testsPercent} role="progressbar">{testsPercent}%</div>
+                <span class="font-semibold">{testsPassed} / {results.length} tests</span>
+              </div>
+            {/if}
           </div>
-        {/if}
-        {#if done}
-          <span class="badge badge-success">Done</span>
-        {/if}
-        {#if role==='teacher' || role==='admin'}
-          <div class="card-actions justify-end">
-            <button class="btn" on:click={openTestsModal}>Manage tests</button>
-            <button class="btn" on:click={startEdit}>Edit</button>
-            <button class="btn btn-error" on:click={delAssignment}>Delete</button>
+          <div class="mt-3 flex flex-wrap items-center gap-2">
+            <span class={`badge ${deadlineBadgeClass}`}>{deadlineLabel}</span>
+            <span class="badge badge-ghost">Max {assignment.max_points} pts</span>
+            <span class="badge badge-ghost">{policyLabel(assignment.grading_policy)}</span>
+            {#if assignment.manual_review}
+              <span class="badge badge-info">Manual review</span>
+            {/if}
+            {#if role!=='student'}
+              {#if assignment.published}
+                <span class="badge badge-success">Published</span>
+              {:else}
+                <span class="badge badge-warning">Draft</span>
+              {/if}
+            {/if}
+            {#if done}
+              <span class="badge badge-success">Completed</span>
+            {/if}
+          </div>
+          <div class="mt-4 flex flex-wrap items-center gap-2">
+            {#if assignment.template_path}
+              <a class="btn btn-sm btn-ghost" href={`/api/assignments/${id}/template`} on:click|preventDefault={downloadTemplate}>Download template</a>
+            {/if}
+            {#if role==='teacher' || role==='admin'}
+              {#if !assignment.published}
+                <button class="btn btn-sm btn-secondary" on:click={publish}>Publish</button>
+              {/if}
+              {#if !assignment.manual_review}
+                <button class="btn btn-sm" on:click={openTestsModal}>Manage tests</button>
+              {/if}
+              <button class="btn btn-sm" on:click={startEdit}>Edit</button>
+              <button class="btn btn-sm btn-error" on:click={delAssignment}>Delete</button>
+            {:else}
+              <button class="btn btn-sm btn-primary" on:click={openSubmitModal}>Submit solution</button>
+            {/if}
+          </div>
+        </div>
+        {#if role==='student'}
+          <div class="sm:border-l border-base-300/60 p-6 flex items-center justify-center">
+            <div class="flex items-center gap-3">
+              <div class="radial-progress text-primary" style="--value:{percent}; --size:6rem; --thickness:10px" aria-valuenow={percent} role="progressbar">{percent}%</div>
+              <div>
+                <div class="text-xl font-semibold">{pointsEarned} / {assignment.max_points}</div>
+                <div class="text-sm opacity-70">points earned</div>
+              </div>
+            </div>
           </div>
         {/if}
       </div>
+    </section>
+    {#if role==='student' && assignment.manual_review}
+      <div class="alert alert-info mb-4">
+        <span>This assignment is graded by teacher review. Automatic tests will not run; points will appear after review.</span>
+      </div>
+    {/if}
+    {#if deadlineSoon}
+      <div class="alert alert-warning mb-4">
+        <span>The deadline is near!</span>
+      </div>
+    {/if}
+
+    <!-- Content with tabs and optional sidebar for students -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div class="lg:col-span-8">
+        <div class="tabs tabs-boxed w-full mb-4">
+          <button class={`tab ${activeTab==='overview' ? 'tab-active' : ''}`} on:click={() => setTab('overview')}>Overview</button>
+          {#if role==='student'}
+            <button class={`tab ${activeTab==='submissions' ? 'tab-active' : ''}`} on:click={() => setTab('submissions')}>Submissions</button>
+            {#if !assignment.manual_review}
+              <button class={`tab ${activeTab==='results' ? 'tab-active' : ''}`} on:click={() => setTab('results')}>Results</button>
+            {/if}
+          {/if}
+          {#if role==='teacher' || role==='admin'}
+          <button class={`tab ${activeTab==='instructor' ? 'tab-active' : ''}`} on:click={() => setTab('instructor')}>Instructor</button>
+          <button class={`tab ${activeTab==='teacher-runs' ? 'tab-active' : ''}`} on:click={() => setTab('teacher-runs')}>Teacher runs</button>
+          {/if}
+        </div>
+
+        {#if activeTab==='overview'}
+          <article class="card-elevated p-6 space-y-4">
+            <div class="markdown">{@html safeDesc}</div>
+            <div class="grid sm:grid-cols-3 gap-3">
+              <div class="stat bg-base-100 rounded-xl border border-base-300/60">
+                <div class="stat-title">Deadline</div>
+                <div class="stat-value text-lg">{formatDateTime(assignment.deadline)}</div>
+                <div class="stat-desc">{relativeToDeadline(assignment.deadline)}</div>
+              </div>
+              <div class="stat bg-base-100 rounded-xl border border-base-300/60">
+                <div class="stat-title">Max points</div>
+                <div class="stat-value text-lg">{assignment.max_points}</div>
+                <div class="stat-desc">{policyLabel(assignment.grading_policy)}</div>
+              </div>
+              {#if role!=='student'}
+                <div class="stat bg-base-100 rounded-xl border border-base-300/60">
+                  <div class="stat-title">Status</div>
+                  <div class="stat-value text-lg">{assignment.published ? 'Published' : 'Draft'}</div>
+                  <div class="stat-desc">Assignment visibility</div>
+                </div>
+              {/if}
+            </div>
+          </article>
+        {/if}
+
+        {#if activeTab==='submissions' && role==='student'}
+          <section class="card-elevated p-6 space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="font-semibold text-lg">Your submissions</h3>
+              <button class="btn btn-sm" on:click={openSubmitModal}>New submission</button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="table table-zebra">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Status</th>
+                    {#if testsCount>0}
+                      <th>Passed</th>
+                      <th>Points</th>
+                    {/if}
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each submissions as s}
+                    <tr>
+                      <td>{formatDateTime(s.created_at)}</td>
+                      <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span></td>
+                      {#if testsCount>0}
+                        <td>{#if subStats[s.id]}{subStats[s.id].passed} / {testsCount}{:else}-{/if}</td>
+                        <td>{(s.override_points ?? s.points ?? 0)} {#if s.manually_accepted}<span class="badge badge-xs badge-outline badge-success ml-2" title="Accepted by teacher">accepted</span>{/if}</td>
+                      {/if}
+                      <td><a href={`/submissions/${s.id}?fromTab=${activeTab}`} class="btn btn-sm btn-outline" on:click={saveState}>View</a></td>
+                    </tr>
+                  {/each}
+                  {#if !submissions.length}
+                    <tr><td colspan="{testsCount>0?5:3}"><i>No submissions yet</i></td></tr>
+                  {/if}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        {/if}
+
+        {#if activeTab==='results' && role==='student'}
+          <section class="card-elevated p-6 space-y-3">
+            <h3 class="font-semibold text-lg">Latest results</h3>
+            {#if latestSub}
+              <div class="flex items-center gap-2">
+                <span>Submission:</span>
+                <a class="link" href={`/submissions/${latestSub.id}?fromTab=${activeTab}`} on:click={saveState}>{formatDateTime(latestSub.created_at)}</a>
+                <span class={`badge ${statusColor(latestSub.status)}`}>{latestSub.status}</span>
+              </div>
+              <div class="overflow-x-auto mt-2">
+                <table class="table table-zebra">
+                  <thead>
+                    <tr><th>#</th><th>Status</th><th>Runtime (ms)</th><th>Exit</th><th>Traceback</th></tr>
+                  </thead>
+                  <tbody>
+                    {#each results as r, i}
+                      <tr>
+                        <td>{i+1}</td>
+                        <td><span class={`badge ${statusColor(r.status)}`}>{r.status}</span></td>
+                        <td>{r.runtime_ms}</td>
+                        <td>{r.exit_code}</td>
+                        <td><pre class="whitespace-pre-wrap max-w-xs overflow-x-auto">{r.stderr}</pre></td>
+                      </tr>
+                    {/each}
+                    {#if !results.length}
+                      <tr><td colspan="5"><i>No results yet</i></td></tr>
+                    {/if}
+                  </tbody>
+                </table>
+              </div>
+            {:else}
+              <div class="alert">
+                <span>No submission yet. Submit your solution to see results.</span>
+              </div>
+            {/if}
+          </section>
+        {/if}
+
+        {#if activeTab==='instructor' && (role==='teacher' || role==='admin')}
+          <section class="space-y-4">
+            <div class="card-elevated p-6">
+              <div class="flex items-center justify-between">
+                <h3 class="font-semibold text-lg">Student progress</h3>
+                {#if !assignment.manual_review}
+                  <button class="btn btn-sm" on:click={openTestsModal}>Manage tests</button>
+                {/if}
+              </div>
+              <div class="overflow-x-auto mt-3">
+                <table class="table table-zebra">
+                  <thead>
+                    <tr><th>Student</th><th>Status</th><th>Last submission</th></tr>
+                  </thead>
+                  <tbody>
+                    {#each progress as p (p.student.id)}
+                      <tr class="cursor-pointer" on:click={() => toggleStudent(p.student.id)}>
+                        <td>{p.student.name ?? p.student.email}</td>
+                        <td><span class={`badge ${statusColor(p.displayStatus)}`}>{p.displayStatus}</span></td>
+                        <td>{p.latest ? formatDateTime(p.latest.created_at) : '-'}</td>
+                      </tr>
+                      {#if expanded === p.student.id}
+                        <tr>
+                          <td colspan="3">
+                            {#if p.all && p.all.length}
+                              <ul class="timeline timeline-vertical timeline-compact m-0 p-0">
+                                {#each p.all as s, i}
+                                  <li>
+                                    {#if i !== 0}<hr />{/if}
+                                    <div class="timeline-middle">
+                                      {#if s.status === 'completed' || s.status === 'passed'}
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-success">
+                                          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
+                                        </svg>
+                                      {:else}
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-error">
+                                          <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM8.28 7.22a.75.75 0 0 0-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 1 0 1.06 1.06L10 11.06l1.72 1.72a.75.75 0 1 0 1.06-1.06L11.06 10l1.72-1.72a.75.75 0 0 0-1.06-1.06L10 8.94 8.28 7.22Z" clip-rule="evenodd" />
+                                        </svg>
+                                      {/if}
+                                    </div>
+                                    <div class="timeline-end timeline-box flex items-center m-0">
+                                      <a class="link" href={`/submissions/${s.id}?fromTab=${activeTab}`} on:click={saveState}>{formatDateTime(s.created_at)}</a>
+                                      {#if s.manually_accepted}
+                                        <span class="badge badge-xs badge-outline badge-success ml-2" title="Accepted by teacher">accepted</span>
+                                      {/if}
+                                    </div>
+                                    {#if i !== p.all.length - 1}<hr />{/if}
+                                  </li>
+                                {/each}
+                              </ul>
+                            {:else}
+                              <i>No submissions</i>
+                            {/if}
+                          </td>
+                        </tr>
+                      {/if}
+                    {/each}
+                    {#if !progress.length}
+                      <tr><td colspan="3"><i>No students</i></td></tr>
+                    {/if}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </section>
+        {/if}
+
+        {#if activeTab==='teacher-runs' && (role==='teacher' || role==='admin')}
+          <section class="card-elevated p-6 space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="font-semibold text-lg">Your runs</h3>
+              <button class="btn btn-sm" on:click={openTeacherRunModal}>New run</button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="table table-zebra">
+                <thead>
+                  <tr><th>Date</th><th>Status</th><th>First failure</th><th></th></tr>
+                </thead>
+                <tbody>
+                  {#each teacherRuns as s}
+                    <tr>
+                      <td>{formatDateTime(s.created_at)}</td>
+                      <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span></td>
+                      <td>{s.failure_reason ?? '-'}</td>
+                      <td><a class="btn btn-sm btn-outline" href={`/submissions/${s.id}?fromTab=${activeTab}`} on:click={saveState}>View</a></td>
+                    </tr>
+                  {/each}
+                  {#if !teacherRuns.length}
+                    <tr><td colspan="4"><i>No runs yet</i></td></tr>
+                  {/if}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        {/if}
+      </div>
+
+      {#if role==='student'}
+        <aside class="lg:col-span-4 lg:sticky lg:top-24 h-fit space-y-4">
+          <div class="card-elevated p-5 space-y-3">
+            <h3 class="font-semibold">Quick actions</h3>
+            <button class="btn btn-primary w-full" on:click={openSubmitModal}>Submit solution</button>
+            {#if assignment.template_path}
+              <div class="divider my-1"></div>
+              <div class="text-sm opacity-70">Need a starting point?</div>
+              <button class="btn btn-ghost btn-sm" on:click|preventDefault={downloadTemplate}>Download template</button>
+            {/if}
+          </div>
+          {#if latestSub}
+            <div class="card-elevated p-5 space-y-2">
+              <h3 class="font-semibold">Latest submission</h3>
+              <div class="flex items-center gap-2">
+                <span class={`badge ${statusColor(latestSub.status)}`}>{latestSub.status}</span>
+                <a class="link" href={`/submissions/${latestSub.id}?fromTab=${activeTab}`} on:click={saveState}>{formatDateTime(latestSub.created_at)}</a>
+              </div>
+            </div>
+          {/if}
+        </aside>
+      {/if}
     </div>
   {/if}
 
   <!-- tests list moved to modal -->
 
-{#if role==='teacher' || role==='admin'}
-  <details class="mb-4">
-    <summary class="cursor-pointer font-semibold">Student progress</summary>
-    <div class="overflow-x-auto mt-2">
-      <table class="table table-zebra">
-        <thead>
-          <tr><th>Student</th><th>Status</th><th>Last submission</th><th>Attempts</th></tr>
-        </thead>
-        <tbody>
-          {#each progress as p}
-            <tr>
-              <td>{p.student.name ?? p.student.email}</td>
-              <td><span class={`badge ${statusColor(p.latest ? p.latest.status : 'none')}`}>{p.latest ? p.latest.status : 'none'}</span></td>
-              <td>{p.latest ? new Date(p.latest.created_at).toLocaleString() : '-'}</td>
-              <td>
-                {#if p.all && p.all.length}
-                  <ul class="timeline timeline-vertical timeline-compact m-0 p-0">
-                    {#each p.all as s, i}
-                      <li>
-                        {#if i !== 0}<hr />{/if}
-                        <div class="timeline-middle">
-                          {#if s.status === 'completed' || s.status === 'passed'}
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-success">
-                              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
-                            </svg>
-                          {:else}
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-error">
-                              <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM8.28 7.22a.75.75 0 0 0-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 1 0 1.06 1.06L10 11.06l1.72 1.72a.75.75 0 1 0 1.06-1.06L11.06 10l1.72-1.72a.75.75 0 0 0-1.06-1.06L10 8.94 8.28 7.22Z" clip-rule="evenodd" />
-                            </svg>
-                          {/if}
-                        </div>
-                        <div class="timeline-end timeline-box flex items-center m-0">
-                          <a class="link" href={`/submissions/${s.id}`}>{new Date(s.created_at).toLocaleString()}</a>
-                        </div>
-                        {#if i !== p.all.length - 1}<hr />{/if}
-                      </li>
-                    {/each}
-                  </ul>
-                {/if}
-              </td>
-            </tr>
-          {/each}
-          {#if !progress.length}
-            <tr><td colspan="4"><i>No students</i></td></tr>
-          {/if}
-        </tbody>
-      </table>
-    </div>
-  </details>
-{/if}
-
-  {#if role==='student'}
-    <div class="card bg-base-100 shadow mb-4">
-      <div class="card-body space-y-2">
-        <h3 class="card-title">Your submissions</h3>
-        <details class="mt-2">
-          <summary class="cursor-pointer">View table</summary>
-          <div class="overflow-x-auto mt-2">
-          <table class="table table-zebra">
-            <thead>
-              <tr><th>Date</th><th>Status</th><th></th></tr>
-            </thead>
-            <tbody>
-              {#each submissions as s}
-                <tr>
-                  <td>{new Date(s.created_at).toLocaleString()}</td>
-                  <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span></td>
-                  <td><a href={`/submissions/${s.id}`} class="btn btn-sm btn-outline">view</a></td>
-                </tr>
-              {/each}
-              {#if !submissions.length}
-                <tr><td colspan="3"><i>No submissions yet</i></td></tr>
-              {/if}
-            </tbody>
-          </table>
-          </div>
-        </details>
-        <button class="btn" on:click={openSubmitModal}>Submit new solution</button>
-      </div>
-    </div>
-    {#if latestSub}
-    <div class="card bg-base-100 shadow mb-4">
-      <div class="card-body space-y-2">
-        <h3 class="card-title">Latest submission results</h3>
-        <p>Status: <span class={`badge ${statusColor(latestSub.status)}`}>{latestSub.status}</span></p>
-        <details class="mt-2">
-          <summary class="cursor-pointer">View results</summary>
-          <div class="overflow-x-auto mt-2">
-          <table class="table table-zebra">
-            <thead>
-              <tr><th>Test</th><th>Status</th><th>Runtime (ms)</th><th>Exit</th><th>Traceback</th></tr>
-            </thead>
-            <tbody>
-              {#each results as r, i}
-                <tr>
-                  <td>{i+1}</td>
-                  <td><span class={`badge ${statusColor(r.status)}`}>{r.status}</span></td>
-                  <td>{r.runtime_ms}</td>
-                  <td>{r.exit_code}</td>
-                  <td><pre class="whitespace-pre-wrap max-w-xs overflow-x-auto">{r.stderr}</pre></td>
-                </tr>
-              {/each}
-              {#if !results.length}
-                <tr><td colspan="5"><i>No results yet</i></td></tr>
-              {/if}
-            </tbody>
-          </table>
-          </div>
-        </details>
-      </div>
-    </div>
-    {/if}
-  {/if}
-
-{#if role==='teacher' || role==='admin'}
-    {#if !assignment.published}
-      <button class="btn btn-secondary mb-4" on:click={publish}>Publish assignment</button>
-    {/if}
-{/if}
-
   <dialog bind:this={submitDialog} class="modal">
-    <div class="modal-box w-11/12 max-w-md space-y-2">
+    <div class="modal-box w-11/12 max-w-lg space-y-4">
       <h3 class="font-bold text-lg">Submit solution</h3>
-      <input type="file" accept=".py" multiple class="file-input file-input-bordered w-full" on:change={e=>files=Array.from((e.target as HTMLInputElement).files||[])}>
+      <div
+        role="group"
+        aria-label="Upload dropzone"
+        class={`border-2 border-dashed rounded-xl p-6 text-center transition ${isDragging ? 'bg-base-200' : 'bg-base-100'}`}
+        on:dragover|preventDefault={() => isDragging = true}
+        on:dragleave={() => isDragging = false}
+        on:drop|preventDefault={(e)=>{ isDragging=false; const dt=(e as DragEvent).dataTransfer; if(dt){ files=[...files, ...Array.from(dt.files)].filter(f=>f.name.endsWith('.py')) } }}
+      >
+        <div class="text-sm opacity-70 mb-2">Drag and drop your .py files here</div>
+        <div class="mb-3">or</div>
+        <input type="file" accept=".py" multiple class="file-input file-input-bordered w-full"
+          on:change={e=>files=Array.from((e.target as HTMLInputElement).files||[])}>
+      </div>
+      {#if files.length}
+        <div class="text-sm opacity-70">{files.length} file{files.length===1?'':'s'} selected</div>
+      {/if}
       <div class="modal-action">
         <button class="btn" on:click={submit} disabled={!files.length}>Upload</button>
       </div>
@@ -427,65 +798,38 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
   </dialog>
 
-  <dialog bind:this={testsDialog} class="modal">
-    <div class="modal-box w-11/12 max-w-xl space-y-4">
-      <h3 class="font-bold text-lg mb-2">Manage tests</h3>
-      <p class="text-sm text-gray-500">Specify the program input, expected output and time limit in seconds.</p>
-      <div class="space-y-4 max-h-60 overflow-y-auto">
-        {#each tests as t, i}
-          <div class="border rounded p-2 space-y-2">
-            <div class="font-semibold">Test {i+1}</div>
-            <label class="form-control w-full space-y-1">
-              <span class="label-text">Input</span>
-              <input class="input input-bordered w-full" placeholder="stdin" bind:value={t.stdin}>
-            </label>
-            <label class="form-control w-full space-y-1">
-              <span class="label-text">Expected output</span>
-              <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={t.expected_stdout}>
-            </label>
-            <label class="form-control w-full space-y-1">
-              <span class="label-text">Time limit (s)</span>
-              <input class="input input-bordered w-full" placeholder="seconds" bind:value={t.time_limit_sec}>
-            </label>
-            <label class="form-control w-full space-y-1">
-              <span class="label-text">Weight</span>
-              <input class="input input-bordered w-full" placeholder="points" bind:value={t.weight}>
-            </label>
-            <div class="flex justify-end gap-2">
-              <button class="btn btn-sm" on:click={()=>updateTest(t)}>Save</button>
-              <button class="btn btn-sm btn-error" on:click={()=>delTest(t.id)}>Delete</button>
-            </div>
-          </div>
-        {/each}
-        {#if !(tests && tests.length)}<p><i>No tests</i></p>{/if}
+  <!-- Teacher run upload modal -->
+  <dialog bind:this={teacherRunDialog} class="modal">
+    <div class="modal-box w-11/12 max-w-lg space-y-4">
+      <h3 class="font-bold text-lg">New teacher run</h3>
+      <div
+        role="region"
+        aria-label="Teacher solution dropzone"
+        class={`border-2 border-dashed rounded-xl p-6 text-center transition ${isSolDragging ? 'bg-base-200' : 'bg-base-100'}`}
+        on:dragover|preventDefault={() => isSolDragging = true}
+        on:dragleave={() => isSolDragging = false}
+        on:drop|preventDefault={(e)=>{ isSolDragging=false; const dt=(e as DragEvent).dataTransfer; if(dt){ solFiles=[...solFiles, ...Array.from(dt.files)].filter(f=>f.name.endsWith('.py')) } }}
+      >
+        <div class="text-sm opacity-70 mb-2">Drag and drop reference .py files here</div>
+        <div class="mb-3">or</div>
+        <input type="file" accept=".py" multiple class="file-input file-input-bordered w-full"
+          on:change={e=>solFiles=Array.from((e.target as HTMLInputElement).files||[])}>
       </div>
-      <div class="border-t pt-2 space-y-2">
-        <h4 class="font-semibold">Add test</h4>
-        <label class="form-control w-full space-y-1">
-          <span class="label-text">Input</span>
-          <input class="input input-bordered w-full" placeholder="stdin" bind:value={tStdin}>
-        </label>
-        <label class="form-control w-full space-y-1">
-          <span class="label-text">Expected output</span>
-          <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={tStdout}>
-        </label>
-        <label class="form-control w-full space-y-1">
-          <span class="label-text">Time limit (s)</span>
-          <input class="input input-bordered w-full" placeholder="seconds" bind:value={tLimit}>
-        </label>
-        <label class="form-control w-full space-y-1">
-          <span class="label-text">Weight</span>
-          <input class="input input-bordered w-full" placeholder="points" bind:value={tWeight}>
-        </label>
-        <div class="modal-action">
-          <button class="btn btn-primary" on:click={addTest} disabled={!tStdin || !tStdout}>Add</button>
-        </div>
+      {#if solFiles.length}
+        <div class="text-sm opacity-70">{solFiles.length} file{solFiles.length===1?'':'s'} selected</div>
+      {/if}
+      <div class="modal-action">
+        <button class={`btn btn-primary ${solLoading ? 'loading' : ''}`} on:click={runTeacherSolution} disabled={!solFiles.length || solLoading}>Run</button>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
   </dialog>
 
-  {#if err}<p style="color:red">{err}</p>{/if}
+  
+
+  {#if err}
+    <div class="alert alert-error mt-4"><span>{err}</span></div>
+  {/if}
 {/if}
 
 <style>

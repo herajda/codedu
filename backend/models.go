@@ -1,6 +1,8 @@
 package main
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,12 +12,16 @@ import (
 
 const maxFileSize = 20 * 1024 * 1024 // 20 MB
 
+var ErrBlocked = errors.New("blocked")
+
 type User struct {
 	ID           int       `db:"id"`
 	Email        string    `db:"email"`
 	PasswordHash string    `db:"password_hash"`
 	Name         *string   `db:"name"`
+	Avatar       *string   `db:"avatar"`
 	Role         string    `db:"role"`
+	Theme        string    `db:"theme"`
 	BkClass      *string   `db:"bk_class"`
 	BkUID        *string   `db:"bk_uid"`
 	CreatedAt    time.Time `db:"created_at"`
@@ -31,10 +37,20 @@ type Assignment struct {
 	GradingPolicy string    `db:"grading_policy" json:"grading_policy"`
 	Published     bool      `db:"published" json:"published"`
 	ShowTraceback bool      `db:"show_traceback" json:"show_traceback"`
+	ManualReview  bool      `db:"manual_review" json:"manual_review"`
 	TemplatePath  *string   `db:"template_path" json:"template_path"`
 	CreatedAt     time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
 	ClassID       int       `db:"class_id" json:"class_id"`
+
+	// LLM-interactive testing configuration
+	LLMInteractive     bool    `db:"llm_interactive" json:"llm_interactive"`
+	LLMFeedback        bool    `db:"llm_feedback" json:"llm_feedback"`
+	LLMAutoAward       bool    `db:"llm_auto_award" json:"llm_auto_award"`
+	LLMScenariosRaw    *string `db:"llm_scenarios_json" json:"llm_scenarios_json"`
+	LLMStrictness      int     `db:"llm_strictness" json:"llm_strictness"`
+	LLMRubric          *string `db:"llm_rubric" json:"llm_rubric"`
+	LLMTeacherBaseline *string `db:"llm_teacher_baseline_json" json:"llm_teacher_baseline_json"`
 }
 type Class struct {
 	ID        int       `db:"id"        json:"id"`
@@ -45,16 +61,19 @@ type Class struct {
 }
 
 type Submission struct {
-	ID           int       `db:"id" json:"id"`
-	AssignmentID int       `db:"assignment_id" json:"assignment_id"`
-	StudentID    int       `db:"student_id" json:"student_id"`
-	CodePath     string    `db:"code_path" json:"code_path"`
-	CodeContent  string    `db:"code_content" json:"code_content"`
-	Status       string    `db:"status" json:"status"`
-	Points       *float64  `db:"points" json:"points"`
-	OverridePts  *float64  `db:"override_points" json:"override_points"`
-	CreatedAt    time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
+	ID               int       `db:"id" json:"id"`
+	AssignmentID     int       `db:"assignment_id" json:"assignment_id"`
+	StudentID        int       `db:"student_id" json:"student_id"`
+	CodePath         string    `db:"code_path" json:"code_path"`
+	CodeContent      string    `db:"code_content" json:"code_content"`
+	Status           string    `db:"status" json:"status"`
+	Points           *float64  `db:"points" json:"points"`
+	OverridePts      *float64  `db:"override_points" json:"override_points"`
+	IsTeacherRun     bool      `db:"is_teacher_run" json:"is_teacher_run"`
+	ManuallyAccepted bool      `db:"manually_accepted" json:"manually_accepted"`
+	Late             bool      `db:"late" json:"late"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
 }
 
 type TestCase struct {
@@ -65,6 +84,8 @@ type TestCase struct {
 	Weight         float64   `db:"weight" json:"weight"`
 	TimeLimitSec   float64   `db:"time_limit_sec" json:"time_limit_sec"`
 	MemoryLimitKB  int       `db:"memory_limit_kb" json:"memory_limit_kb"`
+	UnittestCode   *string   `db:"unittest_code" json:"unittest_code"`
+	UnittestName   *string   `db:"unittest_name" json:"unittest_name"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
 }
@@ -101,6 +122,53 @@ func UpdateUserRole(id int, role string) error {
 	return err
 }
 
+func GetUser(id int) (*User, error) {
+	var u User
+	err := DB.Get(&u, `SELECT id, email, password_hash, name, avatar, role, theme, bk_class, bk_uid, created_at
+                FROM users WHERE id=$1`, id)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+func UpdateUserProfile(id int, name, avatar, theme *string) error {
+	_, err := DB.Exec(`UPDATE users SET name=COALESCE($1,name), avatar=COALESCE($2,avatar), theme=COALESCE($3,theme) WHERE id=$4`, name, avatar, theme, id)
+	return err
+}
+
+// AssignRandomAvatarsToUsersWithout assigns a random avatar from the provided list
+// to all users whose avatar is NULL. It is safe to call on startup.
+func AssignRandomAvatarsToUsersWithout(catalog []string) error {
+	if len(catalog) == 0 {
+		return nil
+	}
+	type row struct{ ID int }
+	var rows []row
+	if err := DB.Select(&rows, `SELECT id FROM users WHERE avatar IS NULL`); err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	for _, r := range rows {
+		pick := catalog[int(time.Now().UnixNano()+int64(r.ID))%len(catalog)]
+		_, _ = DB.Exec(`UPDATE users SET avatar=$1 WHERE id=$2`, pick, r.ID)
+	}
+	return nil
+}
+
+func UpdateUserPassword(id int, hash string) error {
+	_, err := DB.Exec(`UPDATE users SET password_hash=$1 WHERE id=$2`, hash, id)
+	return err
+}
+
+// LinkLocalAccount sets a new email and password hash for an existing user.
+func LinkLocalAccount(id int, email, hash string) error {
+	_, err := DB.Exec(`UPDATE users SET email=$1, password_hash=$2 WHERE id=$3`, email, hash, id)
+	return err
+}
+
 func ListAllClasses() ([]Class, error) {
 	var cls []Class
 	err := DB.Select(&cls,
@@ -113,12 +181,12 @@ func ListAllClasses() ([]Class, error) {
 // ──────────────────────────────────────────────────────────────────────────────
 func CreateAssignment(a *Assignment) error {
 	const q = `
-          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, template_path, class_id)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, manual_review, template_path, class_id)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
           RETURNING id, created_at, updated_at`
 	return DB.QueryRow(q,
 		a.Title, a.Description, a.CreatedBy, a.Deadline,
-		a.MaxPoints, a.GradingPolicy, a.Published, a.ShowTraceback, a.TemplatePath, a.ClassID,
+		a.MaxPoints, a.GradingPolicy, a.Published, a.ShowTraceback, a.ManualReview, a.TemplatePath, a.ClassID,
 	).Scan(&a.ID, &a.CreatedAt, &a.UpdatedAt)
 }
 
@@ -127,8 +195,15 @@ func ListAssignments(role string, userID int) ([]Assignment, error) {
 	list := []Assignment{}
 	query := `
     SELECT a.id, a.title, a.description, a.created_by, a.deadline,
-           a.max_points, a.grading_policy, a.published, a.show_traceback, a.template_path,
-           a.created_at, a.updated_at, a.class_id
+           a.max_points, a.grading_policy, a.published, a.show_traceback, a.manual_review, a.template_path,
+           a.created_at, a.updated_at, a.class_id,
+           COALESCE(a.llm_interactive,false) AS llm_interactive,
+           COALESCE(a.llm_feedback,false) AS llm_feedback,
+           COALESCE(a.llm_auto_award,true) AS llm_auto_award,
+           a.llm_scenarios_json,
+           COALESCE(a.llm_strictness,50) AS llm_strictness,
+           a.llm_rubric,
+           a.llm_teacher_baseline_json
       FROM assignments a`
 	var args []any
 	switch role {
@@ -152,7 +227,14 @@ func ListAssignments(role string, userID int) ([]Assignment, error) {
 func GetAssignment(id int) (*Assignment, error) {
 	var a Assignment
 	err := DB.Get(&a, `
-    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, template_path, created_at, updated_at, class_id
+    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, manual_review, template_path, created_at, updated_at, class_id,
+           COALESCE(llm_interactive,false) AS llm_interactive,
+           COALESCE(llm_feedback,false) AS llm_feedback,
+           COALESCE(llm_auto_award,true) AS llm_auto_award,
+           llm_scenarios_json,
+           COALESCE(llm_strictness,50) AS llm_strictness,
+           llm_rubric,
+           llm_teacher_baseline_json
       FROM assignments
      WHERE id = $1`, id)
 	if err != nil {
@@ -166,8 +248,15 @@ func GetAssignmentForSubmission(subID int) (*Assignment, error) {
 	var a Assignment
 	err := DB.Get(&a, `
         SELECT a.id, a.title, a.description, a.created_by, a.deadline,
-               a.max_points, a.grading_policy, a.published, a.show_traceback, a.template_path,
-               a.created_at, a.updated_at, a.class_id
+               a.max_points, a.grading_policy, a.published, a.show_traceback, a.manual_review, a.template_path,
+               a.created_at, a.updated_at, a.class_id,
+               COALESCE(a.llm_interactive,false) AS llm_interactive,
+               COALESCE(a.llm_feedback,false) AS llm_feedback,
+               COALESCE(a.llm_auto_award,true) AS llm_auto_award,
+               a.llm_scenarios_json,
+               COALESCE(a.llm_strictness,50) AS llm_strictness,
+               a.llm_rubric,
+               a.llm_teacher_baseline_json
           FROM assignments a
           JOIN submissions s ON s.assignment_id = a.id
          WHERE s.id=$1`, subID)
@@ -182,11 +271,15 @@ func UpdateAssignment(a *Assignment) error {
 	res, err := DB.Exec(`
     UPDATE assignments
        SET title=$1, description=$2, deadline=$3,
-           max_points=$4, grading_policy=$5, show_traceback=$6,
+           max_points=$4, grading_policy=$5, show_traceback=$6, manual_review=$7,
+           llm_interactive=$8, llm_feedback=$9, llm_auto_award=$10, llm_scenarios_json=$11,
+           llm_strictness=$12, llm_rubric=$13, llm_teacher_baseline_json=$14,
            updated_at=now()
-     WHERE id=$7`,
+     WHERE id=$15`,
 		a.Title, a.Description, a.Deadline,
-		a.MaxPoints, a.GradingPolicy, a.ShowTraceback,
+		a.MaxPoints, a.GradingPolicy, a.ShowTraceback, a.ManualReview,
+		a.LLMInteractive, a.LLMFeedback, a.LLMAutoAward, a.LLMScenariosRaw,
+		a.LLMStrictness, a.LLMRubric, a.LLMTeacherBaseline,
 		a.ID)
 	if err != nil {
 		return err
@@ -269,6 +362,9 @@ func createStudentWithID(email, hash string, name, bkClass, bkUID *string) (int,
 // EnsureStudentForBk ensures a student exists for the given Bakaláři UID
 // and returns the local user ID.
 func EnsureStudentForBk(uid, cls, name string) (int, error) {
+	if len(uid) > 3 {
+		uid = uid[len(uid)-3:]
+	}
 	u, err := FindUserByBkUID(uid)
 	if err == nil {
 		if cls != "" && (u.BkClass == nil || *u.BkClass != cls) {
@@ -432,7 +528,11 @@ func GetClassDetail(id int, role string, userID int) (*ClassDetail, error) {
 	query := `
                 SELECT id, title, description, created_by, deadline,
                        max_points, grading_policy, published, template_path,
-                       created_at, updated_at, class_id
+                       created_at, updated_at, class_id,
+                       COALESCE(llm_interactive,false) AS llm_interactive,
+                       COALESCE(llm_feedback,false) AS llm_feedback,
+                       COALESCE(llm_auto_award,true) AS llm_auto_award,
+                       llm_scenarios_json
                   FROM assignments
                  WHERE class_id = $1`
 	if role == "student" {
@@ -471,7 +571,7 @@ func DeleteUser(id int) error {
 func ListSubmissionsForStudent(studentID int) ([]Submission, error) {
 	subs := []Submission{}
 	err := DB.Select(&subs, `
-               SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, created_at, updated_at
+               SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at
                  FROM submissions
                 WHERE student_id = $1
                 ORDER BY created_at DESC`, studentID)
@@ -480,14 +580,14 @@ func ListSubmissionsForStudent(studentID int) ([]Submission, error) {
 
 func CreateSubmission(s *Submission) error {
 	const q = `
-          INSERT INTO submissions (assignment_id, student_id, code_path, code_content)
-          SELECT $1,$2,$3,$4
+          INSERT INTO submissions (assignment_id, student_id, code_path, code_content, is_teacher_run)
+          SELECT $1,$2,$3,$4,$5
             WHERE EXISTS (
                 SELECT 1 FROM assignments a
                 JOIN class_students cs ON cs.class_id = a.class_id
                WHERE a.id=$1 AND cs.student_id=$2)
           RETURNING id, status, created_at, updated_at`
-	return DB.QueryRow(q, s.AssignmentID, s.StudentID, s.CodePath, s.CodeContent).
+	return DB.QueryRow(q, s.AssignmentID, s.StudentID, s.CodePath, s.CodeContent, s.IsTeacherRun).
 		Scan(&s.ID, &s.Status, &s.CreatedAt, &s.UpdatedAt)
 }
 
@@ -507,7 +607,7 @@ type SubmissionWithStudent struct {
 func ListSubmissionsForAssignmentAndStudent(aid, sid int) ([]SubmissionWithReason, error) {
 	subs := []SubmissionWithReason{}
 	err := DB.Select(&subs, `
-               SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, created_at, updated_at,
+               SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at,
                       (SELECT r.status FROM results r
                          WHERE r.submission_id = submissions.id AND r.status <> 'passed'
                          ORDER BY r.id LIMIT 1) AS failure_reason
@@ -522,7 +622,7 @@ func ListSubmissionsForAssignmentAndStudent(aid, sid int) ([]SubmissionWithReaso
 func ListSubmissionsForAssignment(aid int) ([]SubmissionWithStudent, error) {
 	subs := []SubmissionWithStudent{}
 	err := DB.Select(&subs, `
-               SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.points, s.override_points, s.created_at, s.updated_at,
+               SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.points, s.override_points, s.is_teacher_run, s.manually_accepted, s.late, s.created_at, s.updated_at,
                      u.email, u.name,
                      (SELECT r.status FROM results r
                         WHERE r.submission_id = s.id AND r.status <> 'passed'
@@ -534,16 +634,32 @@ func ListSubmissionsForAssignment(aid int) ([]SubmissionWithStudent, error) {
 	return subs, err
 }
 
+// Teacher runs listing: include teacher email/name and is_teacher_run filter
+func ListTeacherRunsForAssignment(aid int) ([]SubmissionWithStudent, error) {
+	subs := []SubmissionWithStudent{}
+	err := DB.Select(&subs, `
+                SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.points, s.override_points, s.is_teacher_run, s.manually_accepted, s.late, s.created_at, s.updated_at,
+                       u.email, u.name,
+                       (SELECT r.status FROM results r
+                          WHERE r.submission_id = s.id AND r.status <> 'passed'
+                           ORDER BY r.id LIMIT 1) AS failure_reason
+                  FROM submissions s
+                  JOIN users u ON u.id = s.student_id
+                 WHERE s.assignment_id = $1 AND s.is_teacher_run = TRUE
+                 ORDER BY s.created_at DESC`, aid)
+	return subs, err
+}
+
 func CreateTestCase(tc *TestCase) error {
 	if tc.TimeLimitSec == 0 {
 		tc.TimeLimitSec = 1
 	}
 	const q = `
-          INSERT INTO test_cases (assignment_id, stdin, expected_stdout, weight, time_limit_sec)
-          VALUES ($1,$2,$3,$4,$5)
-          RETURNING id, weight, time_limit_sec, memory_limit_kb, created_at, updated_at`
-	return DB.QueryRow(q, tc.AssignmentID, tc.Stdin, tc.ExpectedStdout, tc.Weight, tc.TimeLimitSec).
-		Scan(&tc.ID, &tc.Weight, &tc.TimeLimitSec, &tc.MemoryLimitKB, &tc.CreatedAt, &tc.UpdatedAt)
+         INSERT INTO test_cases (assignment_id, stdin, expected_stdout, weight, time_limit_sec, unittest_code, unittest_name)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)
+         RETURNING id, weight, time_limit_sec, memory_limit_kb, unittest_code, unittest_name, created_at, updated_at`
+	return DB.QueryRow(q, tc.AssignmentID, tc.Stdin, tc.ExpectedStdout, tc.Weight, tc.TimeLimitSec, tc.UnittestCode, tc.UnittestName).
+		Scan(&tc.ID, &tc.Weight, &tc.TimeLimitSec, &tc.MemoryLimitKB, &tc.UnittestCode, &tc.UnittestName, &tc.CreatedAt, &tc.UpdatedAt)
 }
 
 // UpdateTestCase modifies stdin/stdout/time limit of an existing test case.
@@ -554,9 +670,10 @@ func UpdateTestCase(tc *TestCase) error {
 	res, err := DB.Exec(`
                 UPDATE test_cases
                    SET stdin=$1, expected_stdout=$2, weight=$3, time_limit_sec=$4,
+                       unittest_code=COALESCE($5, unittest_code), unittest_name=COALESCE($6, unittest_name),
                        updated_at=now()
-                 WHERE id=$5`,
-		tc.Stdin, tc.ExpectedStdout, tc.Weight, tc.TimeLimitSec, tc.ID)
+                 WHERE id=$7`,
+		tc.Stdin, tc.ExpectedStdout, tc.Weight, tc.TimeLimitSec, tc.UnittestCode, tc.UnittestName, tc.ID)
 	if err != nil {
 		return err
 	}
@@ -569,8 +686,8 @@ func UpdateTestCase(tc *TestCase) error {
 func ListTestCases(assignmentID int) ([]TestCase, error) {
 	list := []TestCase{}
 	err := DB.Select(&list, `
-                SELECT id, assignment_id, stdin, expected_stdout, weight, time_limit_sec, memory_limit_kb, created_at, updated_at
-                  FROM test_cases
+               SELECT id, assignment_id, stdin, expected_stdout, weight, time_limit_sec, memory_limit_kb, unittest_code, unittest_name, created_at, updated_at
+                 FROM test_cases
                  WHERE assignment_id = $1
                  ORDER BY id`, assignmentID)
 	return list, err
@@ -578,6 +695,12 @@ func ListTestCases(assignmentID int) ([]TestCase, error) {
 
 func DeleteTestCase(id int) error {
 	_, err := DB.Exec(`DELETE FROM test_cases WHERE id=$1`, id)
+	return err
+}
+
+// DeleteAllTestCasesForAssignment removes all test cases for a given assignment.
+func DeleteAllTestCasesForAssignment(assignmentID int) error {
+	_, err := DB.Exec(`DELETE FROM test_cases WHERE assignment_id=$1`, assignmentID)
 	return err
 }
 
@@ -598,10 +721,46 @@ type Result struct {
 	CreatedAt    time.Time `db:"created_at" json:"created_at"`
 }
 
+// LLMRun stores artifacts from an LLM-interactive testing run for a submission.
+type LLMRun struct {
+	ID              int       `db:"id" json:"id"`
+	SubmissionID    int       `db:"submission_id" json:"submission_id"`
+	SmokeOK         bool      `db:"smoke_ok" json:"smoke_ok"`
+	ReviewJSON      *string   `db:"review_json" json:"review_json,omitempty"`
+	InteractiveJSON *string   `db:"interactive_json" json:"interactive_json,omitempty"`
+	Transcript      *string   `db:"transcript" json:"transcript,omitempty"`
+	Verdict         *string   `db:"verdict" json:"verdict,omitempty"`
+	Reason          *string   `db:"reason" json:"reason,omitempty"`
+	ModelName       *string   `db:"model_name" json:"model_name,omitempty"`
+	ToolCalls       *int      `db:"tool_calls" json:"tool_calls,omitempty"`
+	WallTimeMS      *int      `db:"wall_time_ms" json:"wall_time_ms,omitempty"`
+	OutputSize      *int      `db:"output_size" json:"output_size,omitempty"`
+	CreatedAt       time.Time `db:"created_at" json:"created_at"`
+}
+
+func CreateLLMRun(r *LLMRun) error {
+	const q = `
+        INSERT INTO llm_runs (submission_id, smoke_ok, review_json, interactive_json, transcript, verdict, reason, model_name, tool_calls, wall_time_ms, output_size)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        RETURNING id, created_at`
+	return DB.QueryRow(q, r.SubmissionID, r.SmokeOK, r.ReviewJSON, r.InteractiveJSON, r.Transcript, r.Verdict, r.Reason, r.ModelName, r.ToolCalls, r.WallTimeMS, r.OutputSize).
+		Scan(&r.ID, &r.CreatedAt)
+}
+
+func GetLatestLLMRun(subID int) (*LLMRun, error) {
+	var r LLMRun
+	err := DB.Get(&r, `SELECT id, submission_id, smoke_ok, review_json, interactive_json, transcript, verdict, reason, model_name, tool_calls, wall_time_ms, output_size, created_at
+                         FROM llm_runs WHERE submission_id=$1 ORDER BY id DESC LIMIT 1`, subID)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
 func GetSubmission(id int) (*Submission, error) {
 	var s Submission
 	err := DB.Get(&s, `
-        SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, created_at, updated_at
+        SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at
           FROM submissions
          WHERE id=$1`, id)
 	if err != nil {
@@ -646,8 +805,18 @@ func SetSubmissionPoints(id int, pts float64) error {
 	return err
 }
 
+func SetSubmissionLate(id int, late bool) error {
+	_, err := DB.Exec(`UPDATE submissions SET late=$1 WHERE id=$2`, late, id)
+	return err
+}
+
 func SetSubmissionOverridePoints(id int, pts *float64) error {
 	_, err := DB.Exec(`UPDATE submissions SET override_points=$1 WHERE id=$2`, pts, id)
+	return err
+}
+
+func SetSubmissionManualAccept(id int, accepted bool) error {
+	_, err := DB.Exec(`UPDATE submissions SET manually_accepted=$1, updated_at=now() WHERE id=$2`, accepted, id)
 	return err
 }
 
@@ -679,7 +848,11 @@ func GetClassProgress(classID int) (*ClassProgress, error) {
 	if err := DB.Select(&asg, `
                 SELECT id, title, description, created_by, deadline,
                        max_points, grading_policy, published, template_path,
-                       created_at, updated_at, class_id
+                       created_at, updated_at, class_id,
+                       COALESCE(llm_interactive,false) AS llm_interactive,
+                       COALESCE(llm_feedback,false) AS llm_feedback,
+                       COALESCE(llm_auto_award,true) AS llm_auto_award,
+                       llm_scenarios_json
                   FROM assignments
                  WHERE class_id=$1
                  ORDER BY deadline ASC`, classID); err != nil {
@@ -865,4 +1038,224 @@ func IsStudentOfClass(cid, studentID int) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+// ──────────────────────────────────────────────────────
+// messaging
+// ──────────────────────────────────────────────────────
+
+type Message struct {
+	ID          int       `db:"id" json:"id"`
+	SenderID    int       `db:"sender_id" json:"sender_id"`
+	RecipientID int       `db:"recipient_id" json:"recipient_id"`
+	Text        string    `db:"content" json:"text"`
+	Image       *string   `db:"image" json:"image,omitempty"`
+	IsRead      bool      `db:"is_read" json:"is_read"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+}
+
+func CreateMessage(m *Message) error {
+	blocked, err := IsBlocked(m.SenderID, m.RecipientID)
+	if err != nil {
+		return err
+	}
+	if blocked {
+		return ErrBlocked
+	}
+	const q = `INSERT INTO messages (sender_id, recipient_id, content, image)
+                    VALUES ($1,$2,$3,$4)
+                    RETURNING id, created_at, is_read`
+	err = DB.QueryRow(q, m.SenderID, m.RecipientID, m.Text, m.Image).
+		Scan(&m.ID, &m.CreatedAt, &m.IsRead)
+	if err == nil {
+		broadcastMsg(sse.Event{Event: "message", Data: m})
+	}
+	return err
+}
+
+func ListMessages(userID, otherID, limit, offset int) ([]Message, error) {
+	msgs := []Message{}
+	err := DB.Select(&msgs, `SELECT id,sender_id,recipient_id,content,image,created_at,is_read
+                                 FROM messages
+                                WHERE (sender_id=$1 AND recipient_id=$2)
+                                   OR (sender_id=$2 AND recipient_id=$1)
+                                ORDER BY created_at DESC
+                                LIMIT $3 OFFSET $4`,
+		userID, otherID, limit, offset)
+	return msgs, err
+}
+
+func MarkMessagesRead(userID, otherID int) error {
+	res, err := DB.Exec(`UPDATE messages SET is_read=TRUE
+                           WHERE sender_id=$1 AND recipient_id=$2 AND is_read=FALSE`,
+		otherID, userID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		broadcastRead(otherID, userID)
+	}
+	return nil
+}
+
+type UserSearch struct {
+	ID     int     `db:"id" json:"id"`
+	Email  string  `db:"email" json:"email"`
+	Name   *string `db:"name" json:"name"`
+	Avatar *string `db:"avatar" json:"avatar"`
+}
+
+func SearchUsers(term string) ([]UserSearch, error) {
+	list := []UserSearch{}
+	like := "%" + term + "%"
+	err := DB.Select(&list,
+		`SELECT id,email,name,avatar FROM users
+                  WHERE LOWER(email) LIKE LOWER($1) OR LOWER(COALESCE(name,'')) LIKE LOWER($1)
+                  ORDER BY email LIMIT 20`, like)
+	return list, err
+}
+
+func BlockUser(blockerID, blockedID int) error {
+	_, err := DB.Exec(`INSERT INTO blocked_users (blocker_id, blocked_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, blockerID, blockedID)
+	return err
+}
+
+func UnblockUser(blockerID, blockedID int) error {
+	_, err := DB.Exec(`DELETE FROM blocked_users WHERE blocker_id=$1 AND blocked_id=$2`, blockerID, blockedID)
+	return err
+}
+
+func ListBlockedUsers(blockerID int) ([]UserSearch, error) {
+	list := []UserSearch{}
+	err := DB.Select(&list, `SELECT u.id, u.email, u.name, u.avatar
+                                   FROM blocked_users b
+                                   JOIN users u ON u.id = b.blocked_id
+                                  WHERE b.blocker_id=$1
+                                  ORDER BY u.email`, blockerID)
+	return list, err
+}
+
+func IsBlocked(a, b int) (bool, error) {
+	var x int
+	err := DB.Get(&x, `SELECT 1 FROM blocked_users WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)`, a, b)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+type Conversation struct {
+	OtherID     int     `db:"other_id" json:"other_id"`
+	Name        *string `db:"name" json:"name"`
+	Avatar      *string `db:"avatar" json:"avatar"`
+	Email       string  `db:"email" json:"email"`
+	UnreadCount int     `db:"unread_count" json:"unread_count"`
+	Starred     bool    `db:"starred" json:"starred"`
+	Archived    bool    `db:"archived" json:"archived"`
+	Message
+}
+
+func ListRecentConversations(userID, limit int) ([]Conversation, error) {
+	list := []Conversation{}
+	if limit <= 0 {
+		limit = 20
+	}
+	const q = `
+       WITH latest AS (
+               SELECT *,
+                      CASE WHEN sender_id=$1 THEN recipient_id ELSE sender_id END AS other_id,
+                      ROW_NUMBER() OVER (
+                              PARTITION BY CASE WHEN sender_id=$1 THEN recipient_id ELSE sender_id END
+                              ORDER BY created_at DESC
+                      ) AS rn
+                FROM messages
+               WHERE sender_id=$1 OR recipient_id=$1
+       ), unread AS (
+               SELECT sender_id AS other_id, COUNT(*) AS unread_count
+                 FROM messages
+                WHERE recipient_id=$1 AND is_read=FALSE
+                GROUP BY sender_id
+       )
+       SELECT l.other_id, u.name, u.avatar, u.email,
+              l.id, l.sender_id, l.recipient_id, l.content, l.image, l.created_at,
+              COALESCE(un.unread_count,0) AS unread_count,
+              (sc.other_id IS NOT NULL) AS starred,
+              (ac.other_id IS NOT NULL) AS archived
+        FROM latest l
+        JOIN users u ON u.id = l.other_id
+        LEFT JOIN unread un ON un.other_id=l.other_id
+       LEFT JOIN starred_conversations sc ON sc.user_id=$1 AND sc.other_id=l.other_id
+       LEFT JOIN archived_conversations ac ON ac.user_id=$1 AND ac.other_id=l.other_id
+        LEFT JOIN blocked_users b ON b.blocker_id=$1 AND b.blocked_id=l.other_id
+       WHERE l.rn = 1 AND b.blocked_id IS NULL
+       ORDER BY (COALESCE(un.unread_count,0) > 0) DESC, l.created_at DESC
+       LIMIT $2`
+	err := DB.Select(&list, q, userID, limit)
+	return list, err
+}
+
+func StarConversation(userID, otherID int) error {
+	_, err := DB.Exec(`INSERT INTO starred_conversations (user_id, other_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, userID, otherID)
+	return err
+}
+
+func UnstarConversation(userID, otherID int) error {
+	_, err := DB.Exec(`DELETE FROM starred_conversations WHERE user_id=$1 AND other_id=$2`, userID, otherID)
+	return err
+}
+
+func ArchiveConversation(userID, otherID int) error {
+	_, err := DB.Exec(`INSERT INTO archived_conversations (user_id, other_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, userID, otherID)
+	return err
+}
+
+func UnarchiveConversation(userID, otherID int) error {
+	_, err := DB.Exec(`DELETE FROM archived_conversations WHERE user_id=$1 AND other_id=$2`, userID, otherID)
+	return err
+}
+
+// ──────────────────────────────────────────────────────
+// class forum messaging
+// ──────────────────────────────────────────────────────
+
+type ForumMessage struct {
+	ID        int       `db:"id" json:"id"`
+	ClassID   int       `db:"class_id" json:"class_id"`
+	UserID    int       `db:"user_id" json:"user_id"`
+	Text      string    `db:"content" json:"text"`
+	Image     *string   `db:"image" json:"image,omitempty"`
+	FileName  *string   `db:"file_name" json:"file_name,omitempty"`
+	File      *string   `db:"file" json:"file,omitempty"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	Name      *string   `db:"name" json:"name"`
+	Email     string    `db:"email" json:"email"`
+	Avatar    *string   `db:"avatar" json:"avatar"`
+}
+
+func CreateForumMessage(m *ForumMessage) error {
+	const q = `INSERT INTO forum_messages (class_id, user_id, content, image, file_name, file)
+                   VALUES ($1,$2,$3,$4,$5,$6)
+                   RETURNING id, created_at`
+	if err := DB.QueryRow(q, m.ClassID, m.UserID, m.Text, m.Image, m.FileName, m.File).Scan(&m.ID, &m.CreatedAt); err != nil {
+		return err
+	}
+	_ = DB.QueryRow(`SELECT name, email, avatar FROM users WHERE id=$1`, m.UserID).Scan(&m.Name, &m.Email, &m.Avatar)
+	broadcastForumMsg(m)
+	return nil
+}
+
+func ListForumMessages(classID, limit, offset int) ([]ForumMessage, error) {
+	msgs := []ForumMessage{}
+	err := DB.Select(&msgs, `SELECT fm.id, fm.class_id, fm.user_id, fm.content, fm.image, fm.file_name, fm.file, fm.created_at,
+                                       u.name, u.email, u.avatar
+                                  FROM forum_messages fm
+                                  JOIN users u ON u.id=fm.user_id
+                                 WHERE fm.class_id=$1
+                               ORDER BY fm.created_at ASC
+                                  LIMIT $2 OFFSET $3`,
+		classID, limit, offset)
+	return msgs, err
 }

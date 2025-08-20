@@ -1,26 +1,45 @@
-import { writable } from 'svelte/store';
-import { apiFetch } from '$lib/api';
-import { browser } from '$app/environment';
+import { writable } from "svelte/store";
+import { apiFetch } from "$lib/api";
+import { browser } from "$app/environment";
 
-export type User = { id: number; role: string } | null;
+export type User = {
+  id: number;
+  role: string;
+  name?: string | null;
+  avatar?: string | null;
+  email?: string | null;
+  bk_uid?: string | null;
+  theme?: "light" | "dark" | null;
+} | null;
 
 function createAuth() {
   // Always start with null on both server and client…
   const { subscribe, set } = writable<User>(null);
 
   /** Called from Login.svelte after successful auth */
-  function login(id: number, role: string) {
-    set({ id, role });
+  function login(
+    id: number,
+    role: string,
+    name?: string | null,
+    avatar?: string | null,
+    bk_uid?: string | null,
+    email?: string | null,
+    theme?: "light" | "dark" | null,
+  ) {
+    set({ id, role, name, avatar, bk_uid, email, theme });
   }
 
   /** Log out everywhere */
   async function logout() {
     if (browser) {
       try {
-        await apiFetch('/api/logout', { method: 'POST' });
+        await apiFetch("/api/logout", { method: "POST" });
       } catch {
         // ignore errors
       }
+      try {
+        localStorage.removeItem("cg-msg-key");
+      } catch {}
     }
     set(null);
   }
@@ -29,10 +48,18 @@ function createAuth() {
   async function init() {
     if (!browser) return; // don’t do anything on server
 
-    const r = await apiFetch('/api/me');
+    const r = await apiFetch("/api/me");
     if (r.ok) {
       const me = await r.json();
-      login(me.id, me.role);
+      login(
+        me.id,
+        me.role,
+        me.name ?? null,
+        me.avatar ?? null,
+        me.bk_uid ?? null,
+        me.email ?? null,
+        me.theme ?? null,
+      );
     } else {
       logout();
     }

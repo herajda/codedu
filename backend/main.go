@@ -2,10 +2,16 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -36,12 +42,34 @@ func ensureAdmin() {
 	log.Printf("👑  Admin ensured → %s", email)
 }
 
+// Default avatar catalog served by frontend under /avatars
+var defaultAvatars = []string{
+	"/avatars/a1.svg",
+	"/avatars/a2.svg",
+	"/avatars/a3.svg",
+	"/avatars/a4.svg",
+	"/avatars/a5.svg",
+	"/avatars/a6.svg",
+	"/avatars/a7.svg",
+	"/avatars/a8.svg",
+	"/avatars/a9.svg",
+	"/avatars/a10.svg",
+	"/avatars/a11.svg",
+	"/avatars/a12.svg",
+}
+
 func main() {
 	// 1) Init DB and auth
 	InitDB()
 	InitAuth()
 	ensureAdmin()
 	StartWorker(2)
+	// seed RNG for avatar assignment
+	rand.Seed(time.Now().UnixNano())
+	// one-time ensure avatars for existing users
+	if err := AssignRandomAvatarsToUsersWithout(defaultAvatars); err != nil {
+		log.Printf("could not assign default avatars: %v", err)
+	}
 
 	// 2) Router
 	r := gin.Default()
@@ -57,17 +85,42 @@ func main() {
 	api := r.Group("/api")
 	api.Use(JWTAuth())
 	{
+		// LLM interactive session API
+		registerSessionRoutes(api)
 		// health-check
 		api.GET("/ping", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"msg": "pong"})
 		})
 		// who am I
 		api.GET("/me", func(c *gin.Context) {
+			u, err := GetUser(c.GetInt("userID"))
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+				return
+			}
+			if u.Avatar == nil {
+				pick := defaultAvatars[rand.Intn(len(defaultAvatars))]
+				// best-effort update; ignore error but reflect in response
+				_ = UpdateUserProfile(u.ID, nil, &pick, nil)
+				u.Avatar = &pick
+			}
 			c.JSON(http.StatusOK, gin.H{
-				"id":   c.GetInt("userID"),
-				"role": c.GetString("role"),
+				"id":     u.ID,
+				"role":   u.Role,
+				"name":   u.Name,
+				"avatar": u.Avatar,
+				"bk_uid": u.BkUID,
+				"email":  u.Email,
+				"theme":  u.Theme,
 			})
 		})
+		// expose default avatars catalog to the frontend
+		api.GET("/avatars", func(c *gin.Context) {
+			c.JSON(http.StatusOK, defaultAvatars)
+		})
+		api.PUT("/me", updateProfile)
+		api.PUT("/me/password", changePassword)
+		api.POST("/me/link-local", linkLocalAccount)
 
 		// Assignments
 		api.GET("/assignments", RoleGuard("student", "teacher", "admin"), listAssignments)
@@ -82,15 +135,19 @@ func main() {
 		api.GET("/assignments/:id/template", RoleGuard("student", "teacher", "admin"), getTemplate)
 		api.GET("/assignments/:id/template/", RoleGuard("student", "teacher", "admin"), getTemplate)
 		api.POST("/assignments/:id/tests", RoleGuard("teacher", "admin"), createTestCase)
+		api.POST("/assignments/:id/tests/upload", RoleGuard("teacher", "admin"), uploadUnitTests)
+		api.POST("/assignments/:id/tests/ai-generate", RoleGuard("teacher", "admin"), generateAITests)
+		api.DELETE("/assignments/:id/tests", RoleGuard("teacher", "admin"), deleteAllTestCases)
 		api.PUT("/tests/:id", RoleGuard("teacher", "admin"), updateTestCase)
 		api.DELETE("/tests/:id", RoleGuard("teacher", "admin"), deleteTestCase)
+		api.POST("/assignments/:id/solution-run", RoleGuard("teacher", "admin"), runTeacherSolution)
 		api.POST("/assignments/:id/submissions", RoleGuard("student"), createSubmission)
 		api.GET("/submissions/:id", RoleGuard("student", "teacher", "admin"), getSubmission)
 		api.PUT("/submissions/:id/points", RoleGuard("teacher", "admin"), overrideSubmissionPoints)
+		api.PUT("/submissions/:id/accept", RoleGuard("teacher", "admin"), acceptSubmission)
 		// TEACHER / STUDENT common
 		api.GET("/classes", RoleGuard("teacher", "student"), myClasses)
 		api.POST("/classes/:id/students", RoleGuard("teacher", "admin"), addStudents)
-		api.POST("/bakalari/atoms", RoleGuard("teacher"), bakalariAtoms)
 		api.POST("/classes/:id/import-bakalari", RoleGuard("teacher"), importBakalariStudents)
 		api.GET("/classes/all", RoleGuard("admin"), listAllClasses) // new
 
@@ -112,11 +169,90 @@ func main() {
 		// List my submissions (student)
 		api.GET("/my-submissions", RoleGuard("student"), listSubs)
 		api.GET("/events", RoleGuard("student", "teacher", "admin"), eventsHandler)
+		// Interactive terminal for manual review sessions (teacher/admin only)
+		api.GET("/submissions/:id/terminal", RoleGuard("teacher", "admin"), submissionTerminalWS)
+		// Simplified run session WS for manual review
+		api.GET("/submissions/:id/run", RoleGuard("teacher", "admin"), submissionRunWS)
+
+		// GUI proxy (noVNC static + WebSocket) when a Tkinter GUI is detected
+		api.GET("/submissions/:id/gui/*path", RoleGuard("teacher", "admin"), func(c *gin.Context) {
+			// Look up active run session and reverse proxy to local noVNC on 127.0.0.1:GuiHostPort
+			sidStr := c.Param("id")
+			var sid int
+			if _, err := fmt.Sscanf(sidStr, "%d", &sid); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+				return
+			}
+			sessionKey := fmt.Sprintf("sub-%d", sid)
+			runSessionsMu.Lock()
+			sess := runSessions[sessionKey]
+			runSessionsMu.Unlock()
+			if sess == nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "no active session"})
+				return
+			}
+			sess.Mu.Lock()
+			hostPort := sess.GuiHostPort
+			enabled := sess.GuiEnabled
+			sess.Mu.Unlock()
+			if !enabled || hostPort == 0 {
+				c.JSON(http.StatusNotFound, gin.H{"error": "gui not available"})
+				return
+			}
+			// Build a proxy that points to container noVNC and explicitly set the path from the *path param
+			target, _ := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", hostPort))
+			proxy := httputil.NewSingleHostReverseProxy(target)
+			proxy.Director = func(r *http.Request) {
+				p := c.Param("path")
+				if p == "" {
+					p = "/"
+				}
+				if !strings.HasPrefix(p, "/") {
+					p = "/" + p
+				}
+				r.URL.Scheme = "http"
+				r.URL.Host = target.Host
+				r.URL.Path = p
+				r.URL.RawPath = p
+				r.Host = target.Host
+			}
+			proxy.ErrorHandler = func(rw http.ResponseWriter, r *http.Request, e error) {
+				rw.WriteHeader(http.StatusBadGateway)
+				msg := "proxy error"
+				if e != nil {
+					msg += ": " + e.Error()
+				}
+				_, _ = rw.Write([]byte(msg))
+			}
+			proxy.ServeHTTP(c.Writer, c.Request)
+		})
 		api.DELETE("/classes/:id/students/:sid", RoleGuard("teacher", "admin"), removeStudent)
 
 		api.GET("/students", RoleGuard("teacher", "admin"), listStudents)
 		api.GET("/classes/:id/progress", RoleGuard("teacher", "admin"), getClassProgress)
 		api.GET("/classes/:id", RoleGuard("teacher", "student", "admin"), getClass)
+
+		api.GET("/users/:id", RoleGuard("student", "teacher", "admin"), getUserPublic)
+		api.POST("/users/:id/block", RoleGuard("student", "teacher", "admin"), blockUser)
+		api.DELETE("/users/:id/block", RoleGuard("student", "teacher", "admin"), unblockUser)
+		api.GET("/blocked-users", RoleGuard("student", "teacher", "admin"), listBlockedUsers)
+
+		// Messaging
+		api.GET("/user-search", RoleGuard("student", "teacher", "admin"), searchUsers)
+		api.GET("/messages", RoleGuard("student", "teacher", "admin"), listConversations)
+		api.POST("/messages", RoleGuard("student", "teacher", "admin"), createMessage)
+		api.GET("/messages/:id", RoleGuard("student", "teacher", "admin"), listMessages)
+		api.PUT("/messages/:id/read", RoleGuard("student", "teacher", "admin"), markMessagesReadHandler)
+		api.POST("/messages/:id/star", RoleGuard("student", "teacher", "admin"), starConversation)
+		api.DELETE("/messages/:id/star", RoleGuard("student", "teacher", "admin"), unstarConversation)
+		api.POST("/messages/:id/archive", RoleGuard("student", "teacher", "admin"), archiveConversation)
+		api.DELETE("/messages/:id/archive", RoleGuard("student", "teacher", "admin"), unarchiveConversation)
+		api.GET("/messages/events", RoleGuard("student", "teacher", "admin"), messageEventsHandler)
+
+		// Class forums
+		api.GET("/classes/:id/forum", RoleGuard("teacher", "student", "admin"), listForumMessagesHandler)
+		api.POST("/classes/:id/forum", RoleGuard("teacher", "student", "admin"), createForumMessageHandler)
+		api.GET("/classes/:id/forum/events", RoleGuard("teacher", "student", "admin"), forumEventsHandler)
 
 		// Class file system
 		api.GET("/classes/:id/files", RoleGuard("teacher", "student", "admin"), listClassFiles)
@@ -135,6 +271,8 @@ func main() {
 	// serve built assets without conflicting with /api routes
 	r.Static("/_app", filepath.Join(buildPath, "_app"))
 	r.StaticFile("/favicon.png", filepath.Join(buildPath, "favicon.png"))
+	// serve avatars catalog
+	r.Static("/avatars", filepath.Join(buildPath, "avatars"))
 
 	// send index.html for all other routes so SvelteKit can handle routing
 	r.NoRoute(func(c *gin.Context) {

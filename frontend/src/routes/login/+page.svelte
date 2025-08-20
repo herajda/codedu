@@ -3,6 +3,7 @@
     import { apiFetch } from '$lib/api'
     import { sha256 } from '$lib/hash'
     import { goto } from '$app/navigation'
+    import { login as bkLogin, hasBakalari } from '$lib/bakalari'
     let email = ''
     let password = ''
     let bkUser = ''
@@ -31,38 +32,45 @@
       const me = await meRes.json()
 
       // 3. Store & smart-redirect
-      auth.login(me.id, me.role)
+      auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null)
       goto('/dashboard')
     }
     async function submitBk() {
       error = ''
-      const res = await fetch('/api/login-bakalari', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ username: bkUser, password: bkPass })
-      })
-      if (!res.ok) {
-        error = (await res.json()).error
-        return
+      try {
+        const { info } = await bkLogin(bkUser, bkPass)
+        const res = await fetch('/api/login-bakalari', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ uid: info.UserUID, role: info.UserType, class: info.Class?.Abbrev ?? null })
+        })
+        if (!res.ok) {
+          error = (await res.json()).error
+          return
+        }
+        const meRes = await apiFetch('/api/me')
+        if (!meRes.ok) {
+          error = 'Couldn\u2019t fetch user info'
+          return
+        }
+        const me = await meRes.json()
+        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null)
+        goto('/dashboard')
+      } catch (e: any) {
+        error = e.message
       }
-      const meRes = await apiFetch('/api/me')
-      if (!meRes.ok) {
-        error = 'Couldn\u2019t fetch user info'
-        return
-      }
-      const me = await meRes.json()
-      auth.login(me.id, me.role)
-      goto('/dashboard')
     }
   </script>
   
   <h1 class="text-3xl font-bold text-center mb-6">Log In</h1>
-  <div role="tablist" class="tabs tabs-boxed justify-center mb-6">
+    <div role="tablist" class="tabs tabs-boxed justify-center mb-6">
     <a role="tab" class="tab {mode==='local' ? 'tab-active' : ''}" on:click={() => mode = 'local'}>Local</a>
-    <a role="tab" class="tab {mode==='bakalari' ? 'tab-active' : ''}" on:click={() => mode = 'bakalari'}>Bakalari</a>
+    {#if hasBakalari}
+      <a role="tab" class="tab {mode==='bakalari' ? 'tab-active' : ''}" on:click={() => mode = 'bakalari'}>Bakalari</a>
+    {/if}
   </div>
   <div class="flex justify-center">
-    {#if mode === 'local'}
+    {#if mode === 'local' || !hasBakalari}
       <form on:submit|preventDefault={submit} class="card w-full max-w-sm bg-base-100 shadow p-6 space-y-4">
         <input type="email" bind:value={email} placeholder="Email" required class="input input-bordered w-full" />
         <input type="password" bind:value={password} placeholder="Password" required class="input input-bordered w-full" />

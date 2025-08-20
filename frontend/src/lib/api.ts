@@ -20,3 +20,14 @@ export async function apiJSON<T = any>(input: RequestInfo, init: RequestInit = {
   if (!res.ok) throw new Error((await res.json()).error ?? res.statusText)
   return res.json() as Promise<T>
 }
+
+// Minimal helper for SSE subscriptions used by session stream demo/clients
+export function subscribeSSE(url: string, onMessage: (ev: MessageEvent) => void) {
+  const es = new EventSource(url, { withCredentials: true })
+  const handler = (ev: MessageEvent) => onMessage(ev)
+  es.addEventListener('message', handler)
+  return () => {
+    es.removeEventListener('message', handler)
+    es.close()
+  }
+}

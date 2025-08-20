@@ -24,6 +24,7 @@
   - Role-based dashboards and interfaces
   - Assignment browsing, submission upload, and result display
   - Teacher tools for class and assignment management
+  - Upload Python `unittest` files to generate test cases
 
 ### Backend
 - **Language**: Go
@@ -99,8 +100,8 @@ The backend expects several variables to be set (usually via a `.env` file):
 - `BAKALARI_BASE_URL` – base URL of the Bakaláři API v3 instance
 
 When this variable is configured, the frontend login page presents a
-"Bakalari" tab allowing students and teachers to authenticate using their
-school credentials.
+"Bakalari" tab that communicates with Bakaláři directly so credentials are
+never sent to the Code Grader server.
 
 You can copy `backend/.env.example` and adjust it for your environment.
 
@@ -155,6 +156,7 @@ The backend now exposes two additional endpoints:
   The endpoint stores the user's Bakaláři class abbreviation and short ID when available.
 - `POST /api/bakalari/atoms` – Teacher endpoint returning the teacher's class atoms from Bakaláři.
 - `POST /api/classes/:id/import-bakalari` – Import all students from a selected Bakaláři class into the local class.
+- `POST /api/assignments/:id/tests/upload` – Teacher/admin endpoint that parses a Python `unittest` file and creates individual test cases for each method.
 
 ---
 
