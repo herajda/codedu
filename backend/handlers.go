@@ -2201,8 +2201,13 @@ func myClasses(c *gin.Context) {
 	)
 	if role == "teacher" {
 		list, err = ListClassesForTeacher(uid)
-	} else {
+	} else if role == "student" {
 		list, err = ListClassesForStudent(uid)
+	} else if role == "admin" {
+		list, err = ListAllClasses()
+	} else {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
 	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
