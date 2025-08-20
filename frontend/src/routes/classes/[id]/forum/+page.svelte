@@ -18,6 +18,7 @@
 
   let msgs: any[] = [];
   let text = '';
+  let cls: any = null;
   let imageData: string | null = null;
   let fileData: string | null = null;
   let fileName: string | null = null;
@@ -89,6 +90,9 @@
     } catch (e: any) {
       err = e.message;
     }
+    try {
+      cls = await apiJSON(`/api/classes/${id}`);
+    } catch {}
   }
 
   function connect() {
@@ -221,7 +225,7 @@
     <div class="flex items-center gap-3 min-w-0">
       <div class="flex flex-col min-w-0">
         <h2 class="font-semibold text-lg truncate">Forum</h2>
-        <div class="text-sm text-base-content/60">Class discussion</div>
+        <div class="text-sm text-base-content/60 truncate">{cls?.name ?? 'Class discussion'}</div>
       </div>
     </div>
   </div>

@@ -3001,3 +3001,56 @@ func downloadMessageFile(c *gin.Context) {
 		c.Data(http.StatusOK, "application/octet-stream", fileData)
 	}
 }
+
+// ──────────────────────────────────────────────────────
+// Admin-only utilities
+// ──────────────────────────────────────────────────────
+
+// adminCreateClass: POST /api/admin/classes
+// Allows admins to create a class for a specified teacher.
+func adminCreateClass(c *gin.Context) {
+	if c.GetString("role") != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+	var req struct {
+		Name      string `json:"name" binding:"required"`
+		TeacherID int    `json:"teacher_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	cl := &Class{Name: req.Name, TeacherID: req.TeacherID}
+	if err := CreateClass(cl); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusCreated, cl)
+}
+
+// adminTransferClass: PUT /api/admin/classes/:id/transfer
+// Transfers class ownership to a new teacher.
+func adminTransferClass(c *gin.Context) {
+	if c.GetString("role") != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var req struct {
+		TeacherID int `json:"teacher_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := UpdateClassTeacher(id, req.TeacherID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}

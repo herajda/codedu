@@ -150,6 +150,9 @@ func main() {
 		api.POST("/classes/:id/students", RoleGuard("teacher", "admin"), addStudents)
 		api.POST("/classes/:id/import-bakalari", RoleGuard("teacher"), importBakalariStudents)
 		api.GET("/classes/all", RoleGuard("admin"), listAllClasses) // new
+		// Admin class utilities
+		api.POST("/admin/classes", RoleGuard("admin"), adminCreateClass)
+		api.PUT("/admin/classes/:id/transfer", RoleGuard("admin"), adminTransferClass)
 
 		// ADMIN → add teacher
 		api.POST("/teachers", RoleGuard("admin"), createTeacher)

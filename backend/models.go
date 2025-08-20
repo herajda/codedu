@@ -409,6 +409,27 @@ func UpdateClassName(id, teacherID int, name string) error {
 	return nil
 }
 
+// UpdateClassTeacher changes ownership of a class to a different teacher.
+// Admins may transfer any class. When teacherID is provided (non-zero), it is validated by the caller.
+func UpdateClassTeacher(id int, newTeacherID int) error {
+    // Ensure the target user exists and is a teacher
+    var role string
+    if err := DB.Get(&role, `SELECT role FROM users WHERE id=$1`, newTeacherID); err != nil {
+        return err
+    }
+    if role != "teacher" {
+        return fmt.Errorf("user is not a teacher")
+    }
+    res, err := DB.Exec(`UPDATE classes SET teacher_id=$1, updated_at=now() WHERE id=$2`, newTeacherID, id)
+    if err != nil {
+        return err
+    }
+    if cnt, _ := res.RowsAffected(); cnt == 0 {
+        return fmt.Errorf("no rows updated")
+    }
+    return nil
+}
+
 func DeleteClass(id, teacherID int) error {
 	if teacherID != 0 {
 		var x int
