@@ -222,6 +222,40 @@ $: id = $page.params.id
     }
   }
 
+  async function downloadFiles() {
+    try {
+      if (Array.isArray(files) && files.length) {
+        const zip = new JSZip()
+        for (const f of files) {
+          zip.file(f.name, f.content ?? '')
+        }
+        const blob = await zip.generateAsync({ type: 'blob' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        const safeTitle = (assignmentTitle || 'submission').replace(/[^a-z0-9_\-]+/gi, '_').slice(0, 60)
+        a.href = url
+        a.download = `${safeTitle}_${submission?.id ?? id}.zip`
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        URL.revokeObjectURL(url)
+      } else {
+        const textContent = submission?.code_content ?? ''
+        const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `submission_${submission?.id ?? id}.txt`
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        URL.revokeObjectURL(url)
+      }
+    } catch (e: any) {
+      err = e?.message ?? String(e)
+    }
+  }
+
   function goBack(){
     try {
       if (typeof window !== 'undefined' && window.history.length > 1) {
@@ -526,6 +560,10 @@ $: id = $page.params.id
 
 <dialog bind:this={fileDialog} class="modal">
   <div class="modal-box w-11/12 max-w-5xl">
+    <div class="flex items-center justify-between mb-2">
+      <div class="font-medium">Files</div>
+      <button class="btn btn-sm btn-primary" on:click={downloadFiles}>Download</button>
+    </div>
     {#if files.length}
       <div class="flex flex-col md:flex-row gap-4">
         <div class="md:w-60">

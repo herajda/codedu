@@ -45,6 +45,40 @@
     return assignments.reduce((sum, a) => sum + (a.max_points || 0), 0);
   }
 
+  function percent(studentId: number, assignmentId: number) {
+    const a = assignments.find((x: any) => x.id === assignmentId);
+    const max = a?.max_points ?? 0;
+    const pts = score(studentId, assignmentId) || 0;
+    return max > 0 ? Math.round((pts / max) * 100) : 0;
+  }
+
+  function completionRatio(studentId: number) {
+    if (!assignments.length) return 0;
+    const completed = assignments.filter((a: any) => score(studentId, a.id) >= (a.max_points ?? 0)).length;
+    return completed / assignments.length;
+  }
+
+  function classAverageCompletion() {
+    if (!visibleStudents.length) return 0;
+    const sum = visibleStudents.reduce((acc: number, s: any) => acc + completionRatio(s.id), 0);
+    return sum / visibleStudents.length;
+  }
+
+  function classAveragePointsPercent() {
+    const totalMax = totalPossible();
+    if (!visibleStudents.length || !totalMax) return 0;
+    const sum = visibleStudents.reduce((acc: number, s: any) => acc + (total(s.id) / totalMax), 0);
+    return (sum / visibleStudents.length) * 100;
+  }
+
+  function heatClass(pct: number) {
+    if (pct >= 95) return 'bg-success/20';
+    if (pct >= 80) return 'bg-success/10';
+    if (pct >= 60) return 'bg-warning/10';
+    if (pct > 0) return 'bg-error/10';
+    return '';
+  }
+
   $: filteredStudents = (students ?? [])
     .filter((s: any) => (s.name ?? s.email).toLowerCase().includes(search.toLowerCase()));
 
@@ -95,46 +129,72 @@
 {:else if err}
   <p class="text-error">{err}</p>
 {:else}
-  <div class="card-elevated p-4 pt-12 overflow-x-auto">
-    <table class="table table-zebra">
-      <thead class="bg-base-200">
-        <tr class="h-12">
-          <th class="min-w-40 sm:min-w-52 sticky left-0 z-10 bg-base-200">Student</th>
-          {#each assignments as a}
-            <th class="min-w-16 sm:min-w-20 text-center">
-              <div class="truncate" title={a.title}>{a.title}</div>
-              <div class="text-xs opacity-70">{a.max_points}</div>
-            </th>
-          {/each}
-          <th class="min-w-36 sm:min-w-48 text-right">Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each visibleStudents as s (s.id)}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <tr class="hover bg-base-100/10 cursor-pointer" on:click={() => openStudent(s.id)}>
-            <td class="sticky left-0 bg-base-200/60 backdrop-blur supports-[backdrop-filter]:bg-base-200/50">
-              <div class="font-medium truncate"><a class="link" href={`/classes/${id}/progress/${s.id}`}>{s.name ?? s.email}</a></div>
-            </td>
+  <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-4">
+    <div class="card-elevated p-4">
+      <div class="text-xs uppercase opacity-70">Avg completion</div>
+      <div class="text-xl font-semibold">{Math.round(classAverageCompletion()*100)}%</div>
+    </div>
+    <div class="card-elevated p-4">
+      <div class="text-xs uppercase opacity-70">Avg score</div>
+      <div class="text-xl font-semibold">{Math.round(classAveragePointsPercent())}%</div>
+      <div class="text-xs opacity-70">of total possible</div>
+    </div>
+    <div class="card-elevated p-4">
+      <div class="text-xs uppercase opacity-70">Total points</div>
+      <div class="text-xl font-semibold">{visibleStudents.reduce((acc: number, s: any) => acc + total(s.id), 0)}/{visibleStudents.length * totalPossible()}</div>
+    </div>
+  </section>
+
+  <div class="card-elevated p-0">
+    <div class="relative overflow-auto max-h-[70vh]">
+      <table class="table table-compact w-full">
+        <thead>
+          <tr>
+            <th class="min-w-28 w-28 sm:min-w-40 sm:w-40 sticky left-0 top-0 z-40 bg-base-200">Student</th>
             {#each assignments as a}
-              {#key `${s.id}-${a.id}`}
-                <td class="text-center">
-                  <span class="text-sm">{score(s.id, a.id)}</span>
-                </td>
-              {/key}
+              <th class="min-w-14 sm:min-w-16 text-center sticky top-0 z-20 bg-base-200">
+                <div class="font-medium whitespace-normal break-words leading-snug text-xs sm:text-sm" title={a.title}>{a.title}</div>
+                <div class="text-xs opacity-70">{a.max_points}</div>
+              </th>
             {/each}
-            <td class="text-right">
-              <div class="flex flex-col items-end gap-1">
-                <span class="font-semibold">{total(s.id)}/{totalPossible()}</span>
-                <progress class="progress progress-primary w-32" value={total(s.id)} max={totalPossible()}></progress>
-              </div>
-            </td>
+            <th class="min-w-28 sm:min-w-36 text-right sticky top-0 z-20 bg-base-200">Total</th>
           </tr>
-        {/each}
-        {#if !visibleStudents.length}
-          <tr><td colspan={assignments.length + 2}><i>No students</i></td></tr>
-        {/if}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {#each visibleStudents as s (s.id)}
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <tr class="hover bg-base-100/10 cursor-pointer" on:click={() => openStudent(s.id)}>
+              <td class="sticky left-0 z-30 min-w-28 w-28 sm:min-w-40 sm:w-40 bg-base-200">
+                <div class="font-medium truncate"><a class="link" href={`/classes/${id}/progress/${s.id}`}>{s.name ?? s.email}</a></div>
+                <div class="text-xs opacity-70">{Math.round(completionRatio(s.id)*100)}% complete</div>
+              </td>
+              {#each assignments as a}
+                {#key `${s.id}-${a.id}`}
+                  {#if a.max_points > 0}
+                    <td class={`text-center ${heatClass(percent(s.id, a.id))}`} title={`${percent(s.id, a.id)}%`}> 
+                      <div class="flex items-center justify-center gap-1">
+                        <span class="text-xs">{score(s.id, a.id)}</span>
+                        <span class="text-[10px] opacity-60">/{a.max_points}</span>
+                      </div>
+                    </td>
+                  {:else}
+                    <td class="text-center">—</td>
+                  {/if}
+                {/key}
+              {/each}
+              <td class="text-right">
+                <div class="flex flex-col items-end gap-1">
+                  <span class="font-semibold text-sm">{total(s.id)}/{totalPossible()}</span>
+                  <progress class="progress progress-primary w-24" value={total(s.id)} max={totalPossible()}></progress>
+                </div>
+              </td>
+            </tr>
+          {/each}
+          {#if !visibleStudents.length}
+            <tr><td colspan={assignments.length + 2}><i>No students</i></td></tr>
+          {/if}
+        </tbody>
+      </table>
+    </div>
   </div>
 {/if}

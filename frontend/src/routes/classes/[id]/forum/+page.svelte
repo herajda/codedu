@@ -4,7 +4,7 @@
   import { apiJSON, apiFetch } from '$lib/api';
   import { createEventSource } from '$lib/sse';
   import { auth } from '$lib/auth';
-  import { Paperclip, ImagePlus, Smile, Send, X, ChevronLeft, ChevronRight } from 'lucide-svelte';
+  import { Paperclip, ImagePlus, Smile, Send, X, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-svelte';
   import { compressImage } from '$lib/utils/compressImage';
   import { fade, scale } from 'svelte/transition';
   import { sidebarCollapsed } from '$lib/sidebar';
@@ -174,6 +174,13 @@
     });
   }
 
+  function isEmojiOnly(text: string): boolean {
+    const trimmed = text.trim();
+    if (!trimmed) return false;
+    const emojiOnly = /^(?:\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic})*)+$/u;
+    return emojiOnly.test(trimmed);
+  }
+
   function displayName(m: any) {
     return m.name ?? m.email?.split('@')[0] ?? 'Unknown';
   }
@@ -221,11 +228,14 @@
 </script>
 
 <div class={`chat-window fixed top-16 bottom-0 right-0 left-0 ${$sidebarCollapsed ? 'sm:left-0' : 'sm:left-60'} z-40 flex flex-col bg-gradient-to-br from-base-100/95 to-base-200/95 backdrop-blur-xl border-l border-base-300/30`}>
-  <div class="chat-header relative z-30 mx-2 sm:mx-4 mt-2 sm:mt-3 flex items-center justify-between p-2 sm:p-4 rounded-xl bg-base-100/80 backdrop-blur supports-[backdrop-filter]:bg-base-100/85 border border-base-300/30 shadow-md">
+  <div class="chat-header relative z-30 mx-2 sm:mx-4 mt-2 sm:mt-3 flex items-center justify-between p-2 sm:p-4 rounded-xl bg-base-100/80 backdrop-blur supports-[backdrop-filter]:bg-base-100/85 border border-base-300/30 shadow-lg">
     <div class="flex items-center gap-3 min-w-0">
-      <div class="flex flex-col min-w-0">
-        <h2 class="font-semibold text-lg truncate">Forum</h2>
-        <div class="text-sm text-base-content/60 truncate">{cls?.name ?? 'Class discussion'}</div>
+      <div class="p-2 bg-primary/10 rounded-lg">
+        <MessageSquare class="w-5 h-5 text-primary" />
+      </div>
+      <div class="min-w-0">
+        <h2 class="font-semibold text-lg leading-tight">Forum</h2>
+        <div class="text-sm text-base-content/60 truncate" title={(cls?.class?.name ?? cls?.name) ?? ''}>{cls?.class?.name ?? cls?.name ?? 'Class discussion'}</div>
       </div>
     </div>
   </div>
@@ -261,24 +271,41 @@
               {/if}
 
               {#if m.text}
-                <div
-                  class={`message-bubble relative rounded-2xl px-4 py-3 whitespace-pre-wrap break-words shadow-sm transition-all duration-200 ${
-                    m.user_id === $auth?.id
-                      ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-content rounded-br-md'
-                      : 'bg-base-200/80 backdrop-blur-sm border border-base-300/30 rounded-bl-md'
-                  }`}
-                  on:click={() => { m.showTime = !m.showTime; msgs = [...msgs]; }}
-                  role="button"
-                  tabindex="0"
-                  on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.showTime = !m.showTime; msgs = [...msgs]; } }}
-                >
-                  {hyphenateLongWords(m.text)}
-                  {#if m.showTime}
-                    <div class={`absolute -bottom-5 ${m.user_id === $auth?.id ? 'right-0' : 'left-0'} text-xs opacity-60`}>
-                      {formatTime(m.created_at)}
-                    </div>
-                  {/if}
-                </div>
+                {#if isEmojiOnly(m.text)}
+                  <div
+                    class="select-none text-5xl leading-none"
+                    on:click={() => { m.showTime = !m.showTime; msgs = [...msgs]; }}
+                    role="button"
+                    tabindex="0"
+                    on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.showTime = !m.showTime; msgs = [...msgs]; } }}
+                  >
+                    {m.text}
+                    {#if m.showTime}
+                      <div class={`mt-1 text-xs opacity-60 ${m.user_id === $auth?.id ? 'text-right' : 'text-left'}`}>
+                        <span class="text-base-content/60">{formatTime(m.created_at)}</span>
+                      </div>
+                    {/if}
+                  </div>
+                {:else}
+                  <div
+                    class={`message-bubble relative rounded-2xl px-4 py-3 whitespace-pre-wrap break-words shadow-sm transition-all duration-200 ${
+                      m.user_id === $auth?.id
+                        ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-content rounded-br-md'
+                        : 'bg-base-200/80 backdrop-blur-sm border border-base-300/30 rounded-bl-md'
+                    }`}
+                    on:click={() => { m.showTime = !m.showTime; msgs = [...msgs]; }}
+                    role="button"
+                    tabindex="0"
+                    on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.showTime = !m.showTime; msgs = [...msgs]; } }}
+                  >
+                    {hyphenateLongWords(m.text)}
+                    {#if m.showTime}
+                      <div class={`absolute -bottom-5 ${m.user_id === $auth?.id ? 'right-0' : 'left-0'} text-xs opacity-60`}>
+                        {formatTime(m.created_at)}
+                      </div>
+                    {/if}
+                  </div>
+                {/if}
               {/if}
             </div>
           </div>

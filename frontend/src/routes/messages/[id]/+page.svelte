@@ -175,6 +175,14 @@
     })
   }
 
+  function isEmojiOnly(text: string): boolean {
+    const trimmed = text.trim()
+    if (!trimmed) return false
+    // Match sequences composed purely of emoji graphemes, including ZWJ and VS16
+    const emojiOnly = /^(?:\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic})*)+$/u
+    return emojiOnly.test(trimmed)
+  }
+
   function sameDate(a: string | number | Date, b: string | number | Date) {
     return new Date(a).toDateString() === new Date(b).toDateString()
   }
@@ -519,37 +527,54 @@
               {/if}
               
               {#if m.text}
-                <div 
-                  class={`message-bubble relative rounded-2xl px-4 py-3 whitespace-pre-wrap break-words shadow-sm transition-all duration-200 ${
-                    m.sender_id === $auth?.id 
-                      ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-content rounded-br-md' 
-                      : 'bg-base-200/80 backdrop-blur-sm border border-base-300/30 rounded-bl-md'
-                  } ${m.recipient_id === $auth?.id && !m.is_read ? 'ring-2 ring-primary/50 shadow-lg' : ''}`}
-                  on:click={() => { m.showTime = !m.showTime; convo = [...convo]; }}
-                  role="button"
-                  tabindex="0"
-                  on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.showTime = !m.showTime; convo = [...convo]; } }}
-                >
-                  {hyphenateLongWords(m.text)}
-                  
-                  <!-- Message Status -->
-                  {#if m.sender_id === $auth?.id}
-                    <div class="absolute -bottom-5 right-0 flex items-center gap-1 text-xs opacity-60">
-                      {#if m.showTime}<span class="text-base-content/60">{formatTime(m.created_at)}</span>{/if}
-                      {#if m.is_read}
-                        <CheckCheck class="w-3 h-3 text-primary" />
-                      {:else}
-                        <Check class="w-3 h-3 text-base-content/40" />
-                      {/if}
-                    </div>
-                  {:else}
+                {#if isEmojiOnly(m.text)}
+                  <div
+                    class="select-none text-5xl leading-none"
+                    on:click={() => { m.showTime = !m.showTime; convo = [...convo]; }}
+                    role="button"
+                    tabindex="0"
+                    on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.showTime = !m.showTime; convo = [...convo]; } }}
+                  >
+                    {m.text}
                     {#if m.showTime}
-                      <div class="absolute -bottom-5 left-0 text-xs opacity-60">
+                      <div class={`mt-1 text-xs opacity-60 ${m.sender_id === $auth?.id ? 'text-right' : 'text-left'}`}>
                         <span class="text-base-content/60">{formatTime(m.created_at)}</span>
                       </div>
                     {/if}
-                  {/if}
-                </div>
+                  </div>
+                {:else}
+                  <div 
+                    class={`message-bubble relative rounded-2xl px-4 py-3 whitespace-pre-wrap break-words shadow-sm transition-all duration-200 ${
+                      m.sender_id === $auth?.id 
+                        ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-content rounded-br-md' 
+                        : 'bg-base-200/80 backdrop-blur-sm border border-base-300/30 rounded-bl-md'
+                    } ${m.recipient_id === $auth?.id && !m.is_read ? 'ring-2 ring-primary/50 shadow-lg' : ''}`}
+                    on:click={() => { m.showTime = !m.showTime; convo = [...convo]; }}
+                    role="button"
+                    tabindex="0"
+                    on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.showTime = !m.showTime; convo = [...convo]; } }}
+                  >
+                    {hyphenateLongWords(m.text)}
+                    
+                    <!-- Message Status -->
+                    {#if m.sender_id === $auth?.id}
+                      <div class="absolute -bottom-5 right-0 flex items-center gap-1 text-xs opacity-60">
+                        {#if m.showTime}<span class="text-base-content/60">{formatTime(m.created_at)}</span>{/if}
+                        {#if m.is_read}
+                          <CheckCheck class="w-3 h-3 text-primary" />
+                        {:else}
+                          <Check class="w-3 h-3 text-base-content/40" />
+                        {/if}
+                      </div>
+                    {:else}
+                      {#if m.showTime}
+                        <div class="absolute -bottom-5 left-0 text-xs opacity-60">
+                          <span class="text-base-content/60">{formatTime(m.created_at)}</span>
+                        </div>
+                      {/if}
+                    {/if}
+                  </div>
+                {/if}
               {/if}
             </div>
           </div>

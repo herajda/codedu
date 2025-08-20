@@ -36,7 +36,7 @@
 
   function countdown(deadline: string, completed?: boolean) {
     const diff = new Date(deadline).getTime() - now;
-    if (diff <= 0) return completed ? 'deadline passed' : 'late';
+    if (diff <= 0) return completed ? 'deadline passed' : 'Overdue';
     const d = Math.floor(diff / 86400000);
     if (d >= 1) return `${d}d`;
     const h = Math.floor(diff / 3600000);
@@ -135,7 +135,7 @@
           <div class="join hidden sm:flex">
             <button class={`btn btn-sm join-item ${filterMode==='all' ? 'btn-active' : 'btn-ghost'}`} type="button" on:click={() => filterMode='all'}><Filter class="w-4 h-4" aria-hidden="true" /> All</button>
             <button class={`btn btn-sm join-item ${filterMode==='upcoming' ? 'btn-active' : 'btn-ghost'}`} type="button" on:click={() => filterMode='upcoming'}><Clock class="w-4 h-4" aria-hidden="true" /> Upcoming</button>
-            <button class={`btn btn-sm join-item ${filterMode==='late' ? 'btn-active' : 'btn-ghost'}`} type="button" on:click={() => filterMode='late'}><AlertTriangle class="w-4 h-4" aria-hidden="true" /> Late</button>
+            <button class={`btn btn-sm join-item ${filterMode==='late' ? 'btn-active' : 'btn-ghost'}`} type="button" on:click={() => filterMode='late'}><AlertTriangle class="w-4 h-4" aria-hidden="true" /> Overdue</button>
           </div>
           <label class="input input-bordered input-sm flex items-center gap-2">
             <Search class="w-4 h-4" aria-hidden="true" />
