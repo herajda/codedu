@@ -144,6 +144,7 @@ func main() {
 		api.POST("/assignments/:id/submissions", RoleGuard("student"), createSubmission)
 		api.GET("/submissions/:id", RoleGuard("student", "teacher", "admin"), getSubmission)
 		api.PUT("/submissions/:id/points", RoleGuard("teacher", "admin"), overrideSubmissionPoints)
+		api.PUT("/submissions/:id/accept", RoleGuard("teacher", "admin"), acceptSubmission)
 		// TEACHER / STUDENT common
 		api.GET("/classes", RoleGuard("teacher", "student"), myClasses)
 		api.POST("/classes/:id/students", RoleGuard("teacher", "admin"), addStudents)

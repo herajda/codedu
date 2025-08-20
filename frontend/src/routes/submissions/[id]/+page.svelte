@@ -33,8 +33,7 @@ $: id = $page.params.id
   let fileDialog: HTMLDialogElement
 
   let llm: any = null
-  type TabKey = 'auto' | 'llm' | 'files'
-  let tab: TabKey = 'auto'
+  // Derived visibility flags
 
   // Inline teacher points override component
   // This is a tiny Svelte component defined in-file using a function that returns markup via a slot approach
@@ -53,7 +52,6 @@ $: id = $page.params.id
         body: JSON.stringify({ points: v })
       })
       await load()
-      overrideValue = ''
     }catch(e:any){ err = e.message }
     finally{ savingOverride = false }
   }
@@ -96,6 +94,12 @@ $: id = $page.params.id
       submission = data.submission
       results = data.results
       llm = data.llm ?? null
+
+      // Prefill override input with the currently assigned points (teacher sees what's set)
+      try {
+        const cur = (submission?.override_points ?? submission?.points)
+        overrideValue = (cur ?? '') as any
+      } catch {}
 
       files = await parseFiles(submission.code_content)
       tree = buildTree(files)
@@ -165,8 +169,14 @@ $: id = $page.params.id
     return ''
   }
 
+  // Show LLM block when assignment uses LLM-interactive
+  $: showLLM = assignmentLLMInteractive
+  // Allow detailed LLM artifacts for students only if teacher enabled feedback
+  $: allowLLMDetails = (role !== 'student') || assignmentLLMFeedback
+  // Show Auto-tests only when NOT LLM mode and there are tests configured
+  $: showAutoUI = (!assignmentLLMInteractive) && (assignmentTestsCount > 0)
+  // Keep legacy meaning of hideAutoUI: specifically, when no auto tests exist
   $: hideAutoUI = assignmentTestsCount === 0
-  $: showLLMTab = assignmentLLMInteractive && (role !== 'student' || assignmentLLMFeedback)
 
   function bgFromBadge(badgeClass: string){
     return badgeClass.replace('badge','bg')
@@ -176,6 +186,34 @@ $: id = $page.params.id
   $: passedCount = results.filter((r)=> r.status==='passed').length
   $: failedCount = results.filter((r)=> ['wrong_output','runtime_error','failed'].includes(r.status)).length
   $: warnedCount = results.filter((r)=> ['time_limit_exceeded','memory_limit_exceeded'].includes(r.status)).length
+
+  // ----- LLM UI helpers -----
+  function safeParseJSON(raw: any): any {
+    try {
+      if (!raw || typeof raw !== 'string') return null
+      return JSON.parse(raw)
+    } catch {
+      return null
+    }
+  }
+
+  // Parsed review JSON (typed in backend as Review)
+  $: review = safeParseJSON(llm?.review_json)
+
+  // Transcript lines styled as chat bubbles
+  type TranscriptMsg = { role: 'AI' | 'Program' | 'Other'; text: string }
+  $: transcriptMsgs = (() => {
+    const t = llm?.transcript
+    if (!t || typeof t !== 'string') return [] as TranscriptMsg[]
+    return t.split('\n')
+      .map((s: string) => s.trim())
+      .filter((s: string) => s.length > 0)
+      .map((line: string): TranscriptMsg => {
+        if (line.startsWith('AI> ')) return { role: 'AI', text: line.slice(4) }
+        if (line.startsWith('PROGRAM> ')) return { role: 'Program', text: line.slice(9) }
+        return { role: 'Other', text: line }
+      })
+  })()
 
   function openFiles() {
     if (files.length) {
@@ -262,30 +300,29 @@ $: id = $page.params.id
           </div>
           <div class="flex items-center gap-2">
             <span class={`badge badge-lg ${statusColor(submission.status)}`}>{submission.status}</span>
+            {#if submission.manually_accepted}
+              <span class="badge badge-outline badge-success" title="Accepted by teacher">Manually accepted</span>
+            {/if}
             <button class="btn btn-ghost" on:click={goBack}>Back</button>
             <button class="btn btn-primary" on:click={openFiles}>View files</button>
           </div>
         </div>
 
-        {#if showLLMTab}
-          <div class="tabs tabs-boxed">
-            <button class={`tab ${tab==='auto' ? 'tab-active':''}`} on:click={()=>tab='auto'}>Auto tests</button>
-            <button class={`tab ${tab==='llm' ? 'tab-active':''}`} on:click={()=>tab='llm'}>LLM</button>
-          </div>
-        {/if}
+        <!-- Tabs removed: show only the relevant block based on assignment settings -->
 
-        {#if assignmentManual && (role==='teacher' || role==='admin')}
+        {#if (role==='teacher' || role==='admin')}
           <div class="rounded-box bg-base-200 p-4 mt-2">
-            <div class="font-medium mb-2">Teacher override points</div>
+            <div class="font-medium mb-2">Teacher actions</div>
             <div class="flex items-center gap-3">
-              <input type="number" step="1" min="0" inputmode="numeric" pattern="[0-9]*" on:keydown={(e) => { if (['e','E','+','-','.',','].includes(e.key)) e.preventDefault() }} class="input input-bordered input-sm w-28 sm:w-32" bind:value={overrideValue} placeholder="e.g. 10" aria-label="Override points">
-              <button class={`btn btn-primary btn-sm ${savingOverride ? 'loading' : ''}`} on:click={saveOverride} disabled={savingOverride}>Save</button>
+              <input type="number" step="1" min="0" inputmode="numeric" pattern="[0-9]*" on:keydown={(e) => { if (['e','E','+','-','.',','].includes(e.key)) e.preventDefault() }} class="input input-bordered input-sm w-28 sm:w-32" bind:value={overrideValue} placeholder="points (optional)" aria-label="Override points">
+              <button class={`btn btn-primary btn-sm ${savingOverride ? 'loading' : ''}`} on:click={saveOverride} disabled={savingOverride}>Save points</button>
+              <button class="btn btn-success btn-sm" on:click={async()=>{ try{ const raw:any=overrideValue; const str = raw==null? '' : (typeof raw==='string'? raw : String(raw)); const v = str.trim()===''? null : parseInt(str,10); await apiFetch(`/api/submissions/${submission.id}/accept`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ points: v })}); await load(); }catch(e:any){ err=e.message } }}>Accept submission</button>
             </div>
-            <div class="text-xs opacity-70 mt-2">Leave empty to clear override. Saving will also mark submission completed.</div>
+            <div class="text-xs opacity-70 mt-2">Leave points empty to accept without overriding. Acceptance marks the submission completed and visible to the student as manually accepted.</div>
           </div>
         {/if}
 
-        {#if (!hideAutoUI) && (tab==='auto' || !showLLMTab)}
+        {#if showAutoUI}
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div class="stat bg-base-200 rounded-box">
             <div class="stat-title">Tests</div>
@@ -316,7 +353,7 @@ $: id = $page.params.id
       </div>
     </div>
 
-    {#if (!hideAutoUI) && (tab==='auto' || !showLLMTab)}
+    {#if showAutoUI}
       <div class="card bg-base-100 shadow">
         <div class="card-body">
           <h3 class="card-title">Results</h3>
@@ -364,9 +401,9 @@ $: id = $page.params.id
       </div>
     {/if}
 
-    {#if showLLMTab && tab==='llm'}
+    {#if showLLM}
       <div class="card bg-base-100 shadow">
-        <div class="card-body space-y-3">
+        <div class="card-body space-y-4">
           <h3 class="card-title">LLM-Interactive</h3>
           {#if llm}
             <div class="grid md:grid-cols-3 gap-3">
@@ -383,29 +420,90 @@ $: id = $page.params.id
                 <div class="text-sm break-words">{llm.reason ?? '-'}</div>
               </div>
             </div>
-            {#if llm.review_json}
-              <details class="collapse collapse-arrow bg-base-200">
-                <summary class="collapse-title">LLM Review</summary>
-                <div class="collapse-content">
-                  <pre class="whitespace-pre-wrap">{llm.review_json}</pre>
-                </div>
-              </details>
+
+            {#if review && allowLLMDetails}
+              <div class="rounded-box bg-base-200 p-4 space-y-3">
+                <div class="font-semibold flex items-center gap-2">LLM Review</div>
+                {#if review.summary}
+                  <p class="text-sm leading-relaxed">{review.summary}</p>
+                {/if}
+
+                {#if Array.isArray(review.issues) && review.issues.length}
+                  <div class="space-y-2">
+                    <div class="font-medium">Issues</div>
+                    <div class="space-y-2">
+                      {#each review.issues as issue}
+                        <div class="rounded bg-base-300 p-3 space-y-1">
+                          <div class="flex items-center justify-between">
+                            <div class="font-medium">{issue.title}</div>
+                            <span class={`badge ${issue.severity==='critical' ? 'badge-error' : issue.severity==='high' ? 'badge-warning' : 'badge-info'}`}>{issue.severity}</span>
+                          </div>
+                          {#if issue.rationale}
+                            <div class="text-sm opacity-80">{issue.rationale}</div>
+                          {/if}
+                          {#if issue.reproduction}
+                            <div class="text-sm">
+                              <div class="opacity-70">Reproduction</div>
+                              {#if Array.isArray(issue.reproduction.inputs) && issue.reproduction.inputs.length}
+                                <ul class="list-disc list-inside">
+                                  {#each issue.reproduction.inputs as inp}
+                                    <li class="font-mono">{inp}</li>
+                                  {/each}
+                                </ul>
+                              {/if}
+                              {#if issue.reproduction.expect_regex}
+                                <div class="mt-1">Expect: <span class="font-mono">/{issue.reproduction.expect_regex}/</span></div>
+                              {/if}
+                              {#if issue.reproduction.notes}
+                                <div class="mt-1 opacity-80">{issue.reproduction.notes}</div>
+                              {/if}
+                            </div>
+                          {/if}
+                        </div>
+                      {/each}
+                    </div>
+                  </div>
+                {/if}
+
+                {#if Array.isArray(review.suggestions) && review.suggestions.length}
+                  <div class="space-y-1">
+                    <div class="font-medium">Suggestions</div>
+                    <ul class="list-disc list-inside">
+                      {#each review.suggestions as s}
+                        <li>{s}</li>
+                      {/each}
+                    </ul>
+                  </div>
+                {/if}
+
+                <!-- Risk-based tests plan removed per requirements -->
+
+                {#if review.acceptance}
+                  <div class="pt-1">
+                    <div class="font-medium">Acceptance</div>
+                    <div class="flex items-center gap-2 text-sm">
+                      <span class={`badge ${review.acceptance.ok ? 'badge-success' : 'badge-error'}`}>{review.acceptance.ok ? 'Accepted' : 'Rejected'}</span>
+                      {#if review.acceptance.reason}
+                        <span class="opacity-80">{review.acceptance.reason}</span>
+                      {/if}
+                    </div>
+                  </div>
+                {/if}
+              </div>
             {/if}
-            {#if llm.interactive_json}
-              <details class="collapse collapse-arrow bg-base-200">
-                <summary class="collapse-title">Scenarios</summary>
-                <div class="collapse-content">
-                  <pre class="whitespace-pre-wrap">{llm.interactive_json}</pre>
+
+            {#if transcriptMsgs.length && allowLLMDetails}
+              <div class="rounded-box bg-base-200 p-4 space-y-2">
+                <div class="font-semibold">Interactive transcript</div>
+                <div class="space-y-2">
+                  {#each transcriptMsgs as m}
+                    <div class={`chat ${m.role==='AI' ? 'chat-end' : 'chat-start'}`}>
+                      <div class="chat-header opacity-70">{m.role}</div>
+                      <div class={`chat-bubble ${m.role==='AI' ? 'chat-bubble-primary' : 'chat-bubble-neutral'}`}>{m.text}</div>
+                    </div>
+                  {/each}
                 </div>
-              </details>
-            {/if}
-            {#if llm.transcript}
-              <details class="collapse collapse-arrow bg-base-200">
-                <summary class="collapse-title">Interactive transcript</summary>
-                <div class="collapse-content">
-                  <pre class="whitespace-pre-wrap">{llm.transcript}</pre>
-                </div>
-              </details>
+              </div>
             {/if}
           {:else}
             <div class="text-sm opacity-70">No LLM data yet.</div>

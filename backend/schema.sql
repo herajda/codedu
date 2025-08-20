@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS submissions (
   code_path TEXT NOT NULL,
   code_content TEXT,
   status submission_status NOT NULL DEFAULT 'pending',
+  late BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -92,6 +93,8 @@ CREATE TABLE IF NOT EXISTS submissions (
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS points NUMERIC;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS override_points NUMERIC;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS is_teacher_run BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS late BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS manually_accepted BOOLEAN NOT NULL DEFAULT FALSE;
 
 DO $$ BEGIN
     CREATE TYPE result_status AS ENUM ('passed','time_limit_exceeded','memory_limit_exceeded','wrong_output','runtime_error');
