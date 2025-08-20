@@ -291,7 +291,7 @@ $: id = $page.params.id
           <div class="space-y-2">
             <h1 class="card-title text-2xl">{assignmentTitle || 'Assignment'}</h1>
             <div class="flex flex-wrap gap-2 text-xs sm:text-sm opacity-80">
-              <span class="inline-flex items-center gap-2 px-3 py-1 rounded bg-base-200">Submission #{submission.id}</span>
+              <span class="inline-flex items-center gap-2 px-3 py-1 rounded bg-base-200">Attempt #{submission.attempt_number ?? submission.id}</span>
               <span class="inline-flex items-center gap-2 px-3 py-1 rounded bg-base-200">Submitted {formatDateTime(submission.created_at)}</span>
               {#if assignmentManual}
                 <span class="inline-flex items-center gap-2 px-3 py-1 rounded bg-info/20 text-info">Manual review</span>

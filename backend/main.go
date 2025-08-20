@@ -248,6 +248,7 @@ func main() {
 		api.POST("/messages/:id/archive", RoleGuard("student", "teacher", "admin"), archiveConversation)
 		api.DELETE("/messages/:id/archive", RoleGuard("student", "teacher", "admin"), unarchiveConversation)
 		api.GET("/messages/events", RoleGuard("student", "teacher", "admin"), messageEventsHandler)
+		api.GET("/messages/file/:id", RoleGuard("student", "teacher", "admin"), downloadMessageFile)
 
 		// Class forums
 		api.GET("/classes/:id/forum", RoleGuard("teacher", "student", "admin"), listForumMessagesHandler)

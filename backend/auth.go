@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -180,6 +181,7 @@ func LoginBakalari(c *gin.Context) {
 		UID   string  `json:"uid" binding:"required"`
 		Role  string  `json:"role" binding:"required"`
 		Class *string `json:"class"`
+		Name  *string `json:"name"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -215,16 +217,32 @@ func LoginBakalari(c *gin.Context) {
 		if role == "teacher" {
 			err = CreateTeacher(email, string(hash), &bkUID)
 		} else {
-			err = CreateStudent(email, string(hash), nil, bkClass, &bkUID)
+			// Set name if provided
+			var nm *string
+			if req.Name != nil && strings.TrimSpace(*req.Name) != "" {
+				t := strings.TrimSpace(*req.Name)
+				nm = &t
+			}
+			err = CreateStudent(email, string(hash), nm, bkClass, &bkUID)
 		}
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create user"})
 			return
 		}
 		user, _ = FindUserByBkUID(bkUID)
-	} else if role == "student" && bkClass != nil && (user.BkClass == nil || *user.BkClass != *bkClass) {
-		_, _ = DB.Exec(`UPDATE users SET bk_class=$1 WHERE id=$2`, *bkClass, user.ID)
-		user.BkClass = bkClass
+	} else if role == "student" {
+		if bkClass != nil && (user.BkClass == nil || *user.BkClass != *bkClass) {
+			_, _ = DB.Exec(`UPDATE users SET bk_class=$1 WHERE id=$2`, *bkClass, user.ID)
+			user.BkClass = bkClass
+		}
+		// If name missing, update from Bakaláři
+		if req.Name != nil {
+			n := strings.TrimSpace(*req.Name)
+			if n != "" && (user.Name == nil || *user.Name == "") {
+				_, _ = DB.Exec(`UPDATE users SET name=$1 WHERE id=$2`, n, user.ID)
+				user.Name = &n
+			}
+		}
 	}
 
 	access, refresh, err := issueTokens(user.ID, user.Role)

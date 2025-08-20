@@ -6,6 +6,8 @@
   import { auth } from '$lib/auth';
   import { Paperclip, ImagePlus, Smile, Send, X, ChevronLeft, ChevronRight } from 'lucide-svelte';
   import { compressImage } from '$lib/utils/compressImage';
+  import { fade, scale } from 'svelte/transition';
+  import { sidebarCollapsed } from '$lib/sidebar';
 
   let id = $page.params.id;
   $: if ($page.params.id !== id) {
@@ -149,6 +151,13 @@
     if (e.key === 'ArrowRight') showNextImage();
   }
 
+  // Attach keyboard navigation only while lightbox is open
+  $: if (lightboxOpen) {
+    document.addEventListener('keydown', handleLightboxKeydown);
+  } else {
+    document.removeEventListener('keydown', handleLightboxKeydown);
+  }
+
   function formatTime(d: string | number | Date) {
     return new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
@@ -207,67 +216,74 @@
   }
 </script>
 
-{#if err}
-  <p class="text-error">{err}</p>
-{/if}
-
-<div class="flex flex-col h-[70vh] max-h-[70vh]">
-  <div class="flex-1 overflow-y-auto p-4 space-y-6" bind:this={chatBox}>
-    {#each msgs as m, i (m.id)}
-      <div class={`flex ${m.user_id === $auth?.id ? 'justify-end' : 'justify-start'}`}>
-        <div class="flex gap-3 max-w-[85%] sm:max-w-[75%] items-end">
-          {#if m.user_id !== $auth?.id}
-            <div class="avatar flex-shrink-0">
-              <div class="w-8 h-8 rounded-full overflow-hidden ring-1 ring-base-300/50 shrink-0">
-                <img src={m.avatar ?? '/avatars/a1.svg'} alt="" class="w-full h-full object-cover" />
-              </div>
-            </div>
-          {/if}
-
-          <div class="relative flex flex-col">
-            <div class="text-xs opacity-70 mb-1">
-              {m.user_id === $auth?.id ? 'You' : displayName(m)}
-            </div>
-
-            {#if m.image}
-              <div class="mb-2">
-                <button type="button" class="block p-0 m-0 bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-primary/50 rounded-2xl" on:click={() => openImage(m.image)} aria-label="Open attachment">
-                  <img src={m.image} alt="attachment" class="max-w-[70vw] sm:max-w-xs w-full rounded-2xl shadow-lg" />
-                </button>
-              </div>
-            {/if}
-
-            {#if m.file_name && m.file}
-              <a class="block p-2 mb-2 rounded-2xl bg-base-200/80 backdrop-blur-sm border border-base-300/30" href={m.file} download={m.file_name}>{m.file_name}</a>
-            {/if}
-
-            {#if m.text}
-              <div
-                class={`message-bubble relative rounded-2xl px-4 py-3 whitespace-pre-wrap break-words shadow-sm transition-all duration-200 ${
-                  m.user_id === $auth?.id
-                    ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-content rounded-br-md'
-                    : 'bg-base-200/80 backdrop-blur-sm border border-base-300/30 rounded-bl-md'
-                }`}
-                on:click={() => { m.showTime = !m.showTime; msgs = [...msgs]; }}
-                role="button"
-                tabindex="0"
-                on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.showTime = !m.showTime; msgs = [...msgs]; } }}
-              >
-                {hyphenateLongWords(m.text)}
-                {#if m.showTime}
-                  <div class={`absolute -bottom-5 ${m.user_id === $auth?.id ? 'right-0' : 'left-0'} text-xs opacity-60`}>
-                    {formatTime(m.created_at)}
-                  </div>
-                {/if}
-              </div>
-            {/if}
-          </div>
-        </div>
+<div class={`chat-window fixed top-16 bottom-0 right-0 left-0 ${$sidebarCollapsed ? 'sm:left-0' : 'sm:left-60'} z-40 flex flex-col bg-gradient-to-br from-base-100/95 to-base-200/95 backdrop-blur-xl border-l border-base-300/30`}>
+  <div class="chat-header relative z-30 mx-2 sm:mx-4 mt-2 sm:mt-3 flex items-center justify-between p-2 sm:p-4 rounded-xl bg-base-100/80 backdrop-blur supports-[backdrop-filter]:bg-base-100/85 border border-base-300/30 shadow-md">
+    <div class="flex items-center gap-3 min-w-0">
+      <div class="flex flex-col min-w-0">
+        <h2 class="font-semibold text-lg truncate">Forum</h2>
+        <div class="text-sm text-base-content/60">Class discussion</div>
       </div>
-    {/each}
+    </div>
   </div>
 
-  <div class="chat-input-area p-4 border-t border-base-300/30 bg-base-100/80 backdrop-blur-sm">
+  <div class="flex-1 overflow-hidden relative z-0">
+    <div class="h-full overflow-y-auto p-6 space-y-6" bind:this={chatBox}>
+      {#each msgs as m, i (m.id)}
+        <div class={`flex ${m.user_id === $auth?.id ? 'justify-end' : 'justify-start'}`}>
+          <div class="flex gap-3 max-w-[85%] sm:max-w-[75%] items-end">
+            {#if m.user_id !== $auth?.id}
+              <div class="avatar flex-shrink-0">
+                <div class="w-8 h-8 rounded-full overflow-hidden ring-1 ring-base-300/50 shrink-0">
+                  <img src={m.avatar ?? '/avatars/a1.svg'} alt="" class="w-full h-full object-cover" />
+                </div>
+              </div>
+            {/if}
+
+            <div class="relative flex flex-col">
+              <div class="text-xs opacity-70 mb-1">
+                {m.user_id === $auth?.id ? 'You' : displayName(m)}
+              </div>
+
+              {#if m.image}
+                <div class="mb-2">
+                  <button type="button" class="block p-0 m-0 bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-primary/50 rounded-2xl" on:click={() => openImage(m.image)} aria-label="Open attachment">
+                    <img src={m.image} alt="attachment" class="max-w-[70vw] sm:max-w-xs w-full max-h-96 object-contain rounded-2xl shadow-lg" />
+                  </button>
+                </div>
+              {/if}
+
+              {#if m.file_name && m.file}
+                <a class="block p-2 mb-2 rounded-2xl bg-base-200/80 backdrop-blur-sm border border-base-300/30" href={m.file} download={m.file_name}>{m.file_name}</a>
+              {/if}
+
+              {#if m.text}
+                <div
+                  class={`message-bubble relative rounded-2xl px-4 py-3 whitespace-pre-wrap break-words shadow-sm transition-all duration-200 ${
+                    m.user_id === $auth?.id
+                      ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-content rounded-br-md'
+                      : 'bg-base-200/80 backdrop-blur-sm border border-base-300/30 rounded-bl-md'
+                  }`}
+                  on:click={() => { m.showTime = !m.showTime; msgs = [...msgs]; }}
+                  role="button"
+                  tabindex="0"
+                  on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.showTime = !m.showTime; msgs = [...msgs]; } }}
+                >
+                  {hyphenateLongWords(m.text)}
+                  {#if m.showTime}
+                    <div class={`absolute -bottom-5 ${m.user_id === $auth?.id ? 'right-0' : 'left-0'} text-xs opacity-60`}>
+                      {formatTime(m.created_at)}
+                    </div>
+                  {/if}
+                </div>
+              {/if}
+            </div>
+          </div>
+        </div>
+      {/each}
+    </div>
+  </div>
+
+  <div class="chat-input-area mx-2 sm:mx-4 mb-2 sm:mb-3 p-4 rounded-xl bg-base-100/80 backdrop-blur supports-[backdrop-filter]:bg-base-100/85 border border-base-300/30 shadow-md">
     {#if imageData}
       <div class="relative mb-3">
         <img src={imageData} alt="preview" class="max-h-32 rounded-lg shadow-sm" />
@@ -361,18 +377,12 @@
         <Send class="w-4 h-4" />
       </button>
     </div>
-
-    {#if err}
-      <div class="mt-2 p-2 bg-error/10 border border-error/20 rounded-lg">
-        <p class="text-error text-sm">{err}</p>
-      </div>
-    {/if}
   </div>
 </div>
 
 <!-- Image Lightbox Overlay -->
 {#if lightboxOpen && modalImage}
-  <div class="fixed top-0 bottom-0 right-0 left-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center" on:click|self={closeLightbox} in:fade={{ duration: 150 }} out:fade={{ duration: 150 }} role="dialog" aria-modal="true" aria-label="Image viewer" tabindex="-1" on:keydown={handleLightboxKeydown}>
+  <div class={`fixed top-0 bottom-0 right-0 left-0 ${$sidebarCollapsed ? 'sm:left-0' : 'sm:left-60'} z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center`} on:click|self={closeLightbox} in:fade={{ duration: 150 }} out:fade={{ duration: 150 }} role="dialog" aria-modal="true" aria-label="Image viewer">
     <!-- Controls -->
     <div class="absolute top-0 left-0 right-0 p-4 flex items-center justify-end gap-2">
       <a class="btn btn-sm md:btn-md no-animation bg-white/20 hover:bg-white/30 text-white border-0" href={modalImage} download on:click|stopPropagation aria-label="Download image">Download</a>
@@ -407,5 +417,13 @@
   .message-bubble:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .chat-window {
+    background: linear-gradient(135deg, hsl(var(--b1) / 0.95) 0%, hsl(var(--b2) / 0.95) 100%);
+  }
+
+  .chat-input-area {
+    background: linear-gradient(180deg, hsl(var(--b1) / 0.8) 0%, hsl(var(--b1) / 0.95) 100%);
   }
 </style>

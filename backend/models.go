@@ -74,6 +74,7 @@ type Submission struct {
 	Late             bool      `db:"late" json:"late"`
 	CreatedAt        time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
+	AttemptNumber    *int      `db:"attempt_number" json:"attempt_number,omitempty"`
 }
 
 type TestCase struct {
@@ -571,7 +572,8 @@ func DeleteUser(id int) error {
 func ListSubmissionsForStudent(studentID int) ([]Submission, error) {
 	subs := []Submission{}
 	err := DB.Select(&subs, `
-               SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at
+               SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at,
+                      ROW_NUMBER() OVER (PARTITION BY assignment_id, student_id ORDER BY created_at ASC, id ASC) AS attempt_number
                  FROM submissions
                 WHERE student_id = $1
                 ORDER BY created_at DESC`, studentID)
@@ -608,6 +610,7 @@ func ListSubmissionsForAssignmentAndStudent(aid, sid int) ([]SubmissionWithReaso
 	subs := []SubmissionWithReason{}
 	err := DB.Select(&subs, `
                SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at,
+                      ROW_NUMBER() OVER (PARTITION BY assignment_id, student_id ORDER BY created_at ASC, id ASC) AS attempt_number,
                       (SELECT r.status FROM results r
                          WHERE r.submission_id = submissions.id AND r.status <> 'passed'
                          ORDER BY r.id LIMIT 1) AS failure_reason
@@ -623,6 +626,7 @@ func ListSubmissionsForAssignment(aid int) ([]SubmissionWithStudent, error) {
 	subs := []SubmissionWithStudent{}
 	err := DB.Select(&subs, `
                SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.points, s.override_points, s.is_teacher_run, s.manually_accepted, s.late, s.created_at, s.updated_at,
+                     ROW_NUMBER() OVER (PARTITION BY s.assignment_id, s.student_id ORDER BY s.created_at ASC, s.id ASC) AS attempt_number,
                      u.email, u.name,
                      (SELECT r.status FROM results r
                         WHERE r.submission_id = s.id AND r.status <> 'passed'
@@ -639,6 +643,7 @@ func ListTeacherRunsForAssignment(aid int) ([]SubmissionWithStudent, error) {
 	subs := []SubmissionWithStudent{}
 	err := DB.Select(&subs, `
                 SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.points, s.override_points, s.is_teacher_run, s.manually_accepted, s.late, s.created_at, s.updated_at,
+                       ROW_NUMBER() OVER (PARTITION BY s.assignment_id, s.student_id ORDER BY s.created_at ASC, s.id ASC) AS attempt_number,
                        u.email, u.name,
                        (SELECT r.status FROM results r
                           WHERE r.submission_id = s.id AND r.status <> 'passed'
@@ -760,8 +765,13 @@ func GetLatestLLMRun(subID int) (*LLMRun, error) {
 func GetSubmission(id int) (*Submission, error) {
 	var s Submission
 	err := DB.Get(&s, `
-        SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at
-          FROM submissions
+        SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at,
+               attempt_number
+          FROM (
+            SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at,
+                   ROW_NUMBER() OVER (PARTITION BY assignment_id, student_id ORDER BY created_at ASC, id ASC) AS attempt_number
+              FROM submissions
+          ) s
          WHERE id=$1`, id)
 	if err != nil {
 		return nil, err
@@ -1050,6 +1060,8 @@ type Message struct {
 	RecipientID int       `db:"recipient_id" json:"recipient_id"`
 	Text        string    `db:"content" json:"text"`
 	Image       *string   `db:"image" json:"image,omitempty"`
+	FileName    *string   `db:"file_name" json:"file_name,omitempty"`
+	File        *string   `db:"file" json:"file,omitempty"`
 	IsRead      bool      `db:"is_read" json:"is_read"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 }
@@ -1062,10 +1074,10 @@ func CreateMessage(m *Message) error {
 	if blocked {
 		return ErrBlocked
 	}
-	const q = `INSERT INTO messages (sender_id, recipient_id, content, image)
-                    VALUES ($1,$2,$3,$4)
+	const q = `INSERT INTO messages (sender_id, recipient_id, content, image, file_name, file)
+                    VALUES ($1,$2,$3,$4,$5,$6)
                     RETURNING id, created_at, is_read`
-	err = DB.QueryRow(q, m.SenderID, m.RecipientID, m.Text, m.Image).
+	err = DB.QueryRow(q, m.SenderID, m.RecipientID, m.Text, m.Image, m.FileName, m.File).
 		Scan(&m.ID, &m.CreatedAt, &m.IsRead)
 	if err == nil {
 		broadcastMsg(sse.Event{Event: "message", Data: m})
@@ -1075,7 +1087,7 @@ func CreateMessage(m *Message) error {
 
 func ListMessages(userID, otherID, limit, offset int) ([]Message, error) {
 	msgs := []Message{}
-	err := DB.Select(&msgs, `SELECT id,sender_id,recipient_id,content,image,created_at,is_read
+	err := DB.Select(&msgs, `SELECT id,sender_id,recipient_id,content,image,file_name,file,created_at,is_read
                                  FROM messages
                                 WHERE (sender_id=$1 AND recipient_id=$2)
                                    OR (sender_id=$2 AND recipient_id=$1)
@@ -1180,7 +1192,7 @@ func ListRecentConversations(userID, limit int) ([]Conversation, error) {
                 GROUP BY sender_id
        )
        SELECT l.other_id, u.name, u.avatar, u.email,
-              l.id, l.sender_id, l.recipient_id, l.content, l.image, l.created_at,
+              l.id, l.sender_id, l.recipient_id, l.content, l.image, l.file_name, l.file, l.created_at,
               COALESCE(un.unread_count,0) AS unread_count,
               (sc.other_id IS NOT NULL) AS starred,
               (ac.other_id IS NOT NULL) AS archived

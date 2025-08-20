@@ -550,7 +550,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             <div class="grid sm:grid-cols-3 gap-3">
               <div class="stat bg-base-100 rounded-xl border border-base-300/60">
                 <div class="stat-title">Deadline</div>
-                <div class="stat-value text-lg">{formatDateTime(assignment.deadline)}</div>
+                <div class="stat-value text-lg whitespace-normal break-anywhere">{formatDateTime(assignment.deadline)}</div>
                 <div class="stat-desc">{relativeToDeadline(assignment.deadline)}</div>
               </div>
               <div class="stat bg-base-100 rounded-xl border border-base-300/60">
@@ -579,6 +579,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
               <table class="table table-zebra">
                 <thead>
                   <tr>
+                    <th>Attempt</th>
                     <th>Date</th>
                     <th>Status</th>
                     {#if testsCount>0}
@@ -591,6 +592,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                 <tbody>
                   {#each submissions as s}
                     <tr>
+                      <td>#{s.attempt_number ?? '?'}</td>
                       <td>{formatDateTime(s.created_at)}</td>
                       <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span></td>
                       {#if testsCount>0}
@@ -601,7 +603,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                     </tr>
                   {/each}
                   {#if !submissions.length}
-                    <tr><td colspan="{testsCount>0?5:3}"><i>No submissions yet</i></td></tr>
+                    <tr><td colspan="{testsCount>0?6:4}"><i>No submissions yet</i></td></tr>
                   {/if}
                 </tbody>
               </table>
@@ -615,6 +617,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             {#if latestSub}
               <div class="flex items-center gap-2">
                 <span>Submission:</span>
+                <span class="text-xs opacity-70">Attempt #{latestSub.attempt_number ?? '?'}</span>
                 <a class="link" href={`/submissions/${latestSub.id}?fromTab=${activeTab}`} on:click={saveState}>{formatDateTime(latestSub.created_at)}</a>
                 <span class={`badge ${statusColor(latestSub.status)}`}>{latestSub.status}</span>
               </div>
@@ -688,6 +691,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                                       {/if}
                                     </div>
                                     <div class="timeline-end timeline-box flex items-center m-0">
+                                      <span class="mr-2 text-xs opacity-70">Attempt #{s.attempt_number ?? '?'}</span>
                                       <a class="link" href={`/submissions/${s.id}?fromTab=${activeTab}`} on:click={saveState}>{formatDateTime(s.created_at)}</a>
                                       {#if s.manually_accepted}
                                         <span class="badge badge-xs badge-outline badge-success ml-2" title="Accepted by teacher">accepted</span>
@@ -761,6 +765,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
               <h3 class="font-semibold">Latest submission</h3>
               <div class="flex items-center gap-2">
                 <span class={`badge ${statusColor(latestSub.status)}`}>{latestSub.status}</span>
+                <span class="text-xs opacity-70">Attempt #{latestSub.attempt_number ?? '?'}</span>
                 <a class="link" href={`/submissions/${latestSub.id}?fromTab=${activeTab}`} on:click={saveState}>{formatDateTime(latestSub.created_at)}</a>
               </div>
             </div>

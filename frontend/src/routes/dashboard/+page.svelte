@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onMount, tick, onDestroy } from 'svelte';
   import { apiJSON, apiFetch } from '$lib/api';
   import AdminPanel from '$lib/AdminPanel.svelte';
   import { formatDateTime } from "$lib/date";
+  import { page } from '$app/stores';
   import { BookOpen, CalendarClock, Trophy, Inbox, Users, LayoutGrid, MessageSquare, FolderOpen } from 'lucide-svelte';
 
   let role = '';
@@ -19,8 +20,10 @@
     return total ? Math.round((done/total)*100) : 0;
   }
 
-  onMount(async () => {
+  async function refreshData() {
     try {
+      loading = true;
+      err = '';
       const me = await apiJSON('/api/me');
       role = me.role;
       if (role === 'admin') {
@@ -38,7 +41,7 @@
         const detail = await apiJSON(`/api/classes/${c.id}`);
         c.assignments = detail.assignments ?? [];
         c.students = detail.students ?? [];
-        c.pointsTotal = c.assignments.reduce((s:any,a:any)=>s+a.max_points,0);
+        c.pointsTotal = (c.assignments ?? []).reduce((s:any,a:any)=>s+a.max_points,0);
         if (role === 'student') {
           c.assignmentProgress = c.assignments.map((a:any)=>{
             const best = submissions
@@ -50,7 +53,7 @@
             return { id:a.id, title:a.title, done: best >= a.max_points };
           });
           c.completed = c.assignmentProgress.filter((p:any)=>p.done).length;
-          c.pointsEarned = c.assignments.reduce((tot:any,a:any)=>{
+          c.pointsEarned = (c.assignments ?? []).reduce((tot:any,a:any)=>{
             const best = submissions
               .filter((s:any)=>s.assignment_id===a.id)
               .reduce((m:number,s:any)=>{
@@ -83,10 +86,31 @@
           .filter(a=>new Date(a.deadline)>now && new Date(a.deadline)<=soon)
           .sort((a,b)=>new Date(a.deadline).getTime()-new Date(b.deadline).getTime());
       }
+      // Force Svelte reactivity after enriching class objects
+      classes = [...classes];
     } catch(e:any){
       err = e.message;
     }
     loading = false;
+  }
+
+  onMount(async () => {
+    await refreshData();
+  });
+
+  // Subscribe to page changes to refresh data when navigating to dashboard
+  let previousPathname = '';
+  const unsubscribe = page.subscribe(($page) => {
+    const currentPathname = $page.url.pathname;
+    // Only refresh if we're navigating TO the dashboard and it wasn't the previous path
+    if (currentPathname === '/dashboard' && previousPathname !== '/dashboard' && previousPathname !== '') {
+      refreshData();
+    }
+    previousPathname = currentPathname;
+  });
+
+  onDestroy(() => {
+    unsubscribe();
   });
 
   async function createClass(){
@@ -99,6 +123,8 @@
       classes = [...classes, { ...cl, assignments: [], students: [] }];
       newClassName='';
       showNewClassInput = false;
+      // Refresh data to get updated statistics
+      await refreshData();
     }catch(e:any){ err = e.message; }
   }
 
@@ -111,7 +137,7 @@
   // Derived small stats for nicer UI
   $: totalClasses = classes.length;
   $: studentStats = role === 'student' ? (() => {
-    const totalAssignments = classes.reduce((sum: number, c: any) => sum + c.assignments.length, 0);
+    const totalAssignments = classes.reduce((sum: number, c: any) => sum + (c.assignments ?? []).length, 0);
     const completedAssignments = classes.reduce((sum: number, c: any) => sum + (c.completed ?? 0), 0);
     const pointsEarned = classes.reduce((sum: number, c: any) => sum + (c.pointsEarned ?? 0), 0);
     const pointsTotal = classes.reduce((sum: number, c: any) => sum + (c.pointsTotal ?? 0), 0);
@@ -119,8 +145,15 @@
   })() : null;
 
   $: teacherStats = role === 'teacher' ? (() => {
-    const studentsTotal = classes.reduce((sum: number, c: any) => sum + (c.students?.length ?? 0), 0);
-    const activeAssignments = classes.reduce((sum: number, c: any) => sum + c.assignments.length, 0);
+    // Deduplicate students across classes in case some are enrolled in multiple classes
+    const uniqueStudentIds = new Set<number>();
+    for (const c of classes) {
+      for (const s of (c.students ?? [])) {
+        if (typeof s.id === 'number') uniqueStudentIds.add(s.id);
+      }
+    }
+    const studentsTotal = uniqueStudentIds.size;
+    const activeAssignments = classes.reduce((sum: number, c: any) => sum + (c.assignments ?? []).length, 0);
     return { studentsTotal, activeAssignments };
   })() : null;
 </script>
@@ -168,23 +201,23 @@
             <div class="flex items-center justify-between mb-3">
               <h2 class="font-semibold text-lg truncate">{c.name}</h2>
               <span class="badge badge-outline">
-                {c.assignments.length} assignments
+                {(c.assignments ?? []).length} assignments
               </span>
             </div>
             <div class="flex items-center gap-3 mb-3">
               <div class="flex-1 h-2 rounded-full bg-base-300/60 overflow-hidden">
-                <div class="h-full bg-gradient-to-r from-cyan-400 via-sky-400 to-teal-400" style={`width: ${percent(c.completed, c.assignments.length)}%`}></div>
+                <div class="h-full bg-gradient-to-r from-cyan-400 via-sky-400 to-teal-400" style={`width: ${percent(c.completed, (c.assignments ?? []).length)}%`}></div>
               </div>
-              <span class="text-sm whitespace-nowrap">{c.completed}/{c.assignments.length}</span>
+              <span class="text-sm whitespace-nowrap">{c.completed}/{(c.assignments ?? []).length}</span>
             </div>
             <ul class="space-y-2">
-              {#each c.assignmentProgress.slice(0, 3) as a}
+              {#each (c.assignmentProgress ?? []).slice(0, 3) as a}
                 <li class="flex items-center gap-2 text-sm">
                   <span class={`w-2 h-2 rounded-full ${a.done ? 'bg-teal-400' : 'bg-base-300'}`}></span>
                   <span class="truncate">{a.title}</span>
                 </li>
               {/each}
-              {#if c.assignmentProgress.length === 0}
+              {#if (c.assignmentProgress ?? []).length === 0}
                 <li class="text-sm opacity-70">No assignments</li>
               {/if}
             </ul>
@@ -251,17 +284,17 @@
               <span class="badge badge-ghost">{c.students.length} students</span>
             </div>
             <ul class="space-y-2">
-              {#each c.assignments.slice(0,5) as a}
+              {#each (c.assignments ?? []).slice(0,5) as a}
                 <li class="flex items-center gap-3">
                   <span class="truncate flex-1">{a.title}</span>
                   <progress class="progress progress-primary flex-1" value={c.progress.find((x:any)=>x.id===a.id)?.done || 0} max={c.students.length}></progress>
                   <span class="text-sm whitespace-nowrap">{c.progress.find((x:any)=>x.id===a.id)?.done || 0}/{c.students.length}</span>
                 </li>
               {/each}
-              {#if !c.assignments.length}
+              {#if !(c.assignments ?? []).length}
                 <li class="text-sm opacity-70">No assignments</li>
               {/if}
-              {#if c.assignments.length > 5}
+              {#if (c.assignments ?? []).length > 5}
                 <li class="text-xs opacity-70">{c.notFinished} assignments not finished by all students</li>
               {/if}
             </ul>

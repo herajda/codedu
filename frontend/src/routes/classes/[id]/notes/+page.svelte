@@ -154,7 +154,7 @@
   {#if viewMode === 'grid'}
     <div class="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
       {#each displayedNotes as n (n.id)}
-        <div role="button" tabindex="0" class="relative border rounded-box p-3 hover:shadow-lg transition cursor-pointer group text-left" on:click={() => open(n)} on:keydown={(e)=> (e.key==='Enter'||e.key===' ') && open(n)} aria-label={`Open ${n.name}`}> 
+        <div role="button" tabindex="0" class="relative border rounded-box p-3 flex flex-col items-center group hover:shadow-lg hover:-translate-y-0.5 transition cursor-pointer" on:click={() => open(n)} on:keydown={(e)=> (e.key==='Enter'||e.key===' ') && open(n)} aria-label={`Open ${n.name}`}> 
           <div class="text-4xl mb-2 text-secondary"><i class="fa-solid fa-book"></i></div>
           <div class="text-sm font-medium break-all text-center">{n.name}</div>
           <div class="mt-1 text-xs text-gray-500 text-center">

@@ -2786,15 +2786,17 @@ func getUserPublic(c *gin.Context) {
 
 func createMessage(c *gin.Context) {
 	var req struct {
-		To    int     `json:"to" binding:"required"`
-		Text  string  `json:"text"`
-		Image *string `json:"image"`
+		To       int     `json:"to" binding:"required"`
+		Text     string  `json:"text"`
+		Image    *string `json:"image"`
+		FileName *string `json:"file_name"`
+		File     *string `json:"file"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if strings.TrimSpace(req.Text) == "" && (req.Image == nil || *req.Image == "") {
+	if strings.TrimSpace(req.Text) == "" && (req.Image == nil || *req.Image == "") && (req.File == nil || *req.File == "") {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "empty message"})
 		return
 	}
@@ -2802,7 +2804,11 @@ func createMessage(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "image too large"})
 		return
 	}
-	msg := &Message{SenderID: c.GetInt("userID"), RecipientID: req.To, Text: req.Text, Image: req.Image}
+	if req.File != nil && len(*req.File) > maxFileSize {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file too large"})
+		return
+	}
+	msg := &Message{SenderID: c.GetInt("userID"), RecipientID: req.To, Text: req.Text, Image: req.Image, FileName: req.FileName, File: req.File}
 	if err := CreateMessage(msg); err != nil {
 		if errors.Is(err, ErrBlocked) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "blocked"})
@@ -2940,4 +2946,58 @@ func listBlockedUsers(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, list)
+}
+
+// downloadMessageFile: GET /api/messages/file/:id
+func downloadMessageFile(c *gin.Context) {
+	fileID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	// Get the message to check permissions and get file data
+	var msg Message
+	err = DB.Get(&msg, `SELECT id, sender_id, recipient_id, file_name, file FROM messages WHERE id=$1`, fileID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "message not found"})
+		return
+	}
+
+	// Check if user has permission to download this file (must be sender or recipient)
+	userID := c.GetInt("userID")
+	if msg.SenderID != userID && msg.RecipientID != userID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+
+	if msg.File == nil || *msg.File == "" {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no file attached"})
+		return
+	}
+
+	// Decode base64 file data
+	fileData, err := base64.StdEncoding.DecodeString(*msg.File)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid file data"})
+		return
+	}
+
+	// Set appropriate headers
+	filename := "file"
+	if msg.FileName != nil && *msg.FileName != "" {
+		filename = *msg.FileName
+	}
+
+	c.Writer.Header().Set("Content-Disposition", "attachment; filename="+strconv.Quote(filename))
+	c.Writer.Header().Set("Content-Length", strconv.Itoa(len(fileData)))
+
+	// Determine content type based on file extension
+	ext := strings.ToLower(filepath.Ext(filename))
+	switch ext {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg":
+		c.Data(http.StatusOK, mime.TypeByExtension(ext), fileData)
+	default:
+		c.Data(http.StatusOK, "application/octet-stream", fileData)
+	}
 }

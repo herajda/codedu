@@ -41,6 +41,9 @@
   let err = '';
   let imageData: string | null = null;
   let fileInput: HTMLInputElement | null = null;
+  let fileData: string | null = null;
+  let fileName: string | null = null;
+  let generalFileInput: HTMLInputElement | null = null;
   let modalImage: string | null = null;
   let lightboxOpen = false;
   let currentImageIndex: number = -1;
@@ -217,12 +220,12 @@
 
   async function send() {
     err = '';
-    if (!msg.trim() && !imageData) return;
+    if (!msg.trim() && !imageData && !fileData) return;
     const res = await apiFetch('/api/messages', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ to: parseInt(id), text: msg, image: imageData })
+      body: JSON.stringify({ to: parseInt(id), text: msg, image: imageData, file_name: fileName, file: fileData })
     });
-    if (res.ok) { msg=''; imageData=null; offset=0; await load(); }
+    if (res.ok) { msg=''; imageData=null; fileData=null; fileName=null; offset=0; await load(); }
     else { err = (await res.json()).error; }
   }
 
@@ -277,6 +280,8 @@
   function back() { goto('/messages'); }
 
   function chooseFile() { fileInput?.click(); }
+  function chooseGeneralFile() { generalFileInput?.click(); }
+
   async function fileChanged(e: Event) {
     const f = (e.target as HTMLInputElement).files?.[0];
     if (!f) return;
@@ -284,6 +289,22 @@
     const r = new FileReader();
     r.onload = () => { imageData = r.result as string; };
     r.readAsDataURL(compressed);
+  }
+
+  function generalFileChanged(e: Event) {
+    const f = (e.target as HTMLInputElement).files?.[0];
+    if (!f) return;
+
+    // Check file size (20MB limit)
+    if (f.size > 20 * 1024 * 1024) {
+      alert("File size must be less than 20MB");
+      return;
+    }
+
+    fileName = f.name;
+    const r = new FileReader();
+    r.onload = () => { fileData = r.result as string; };
+    r.readAsDataURL(f);
   }
 
   function openProfile() {
@@ -344,7 +365,7 @@
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (msg.trim() || imageData) {
+      if (msg.trim() || imageData || fileData) {
         send();
       }
     }
@@ -468,9 +489,32 @@
                     <img
                       src={m.image}
                       alt="Attachment"
-                      class="max-w-[70vw] sm:max-w-xs w-full rounded-2xl shadow-lg"
+                      class="max-w-[70vw] sm:max-w-xs w-full max-h-96 object-contain rounded-2xl shadow-lg"
                     />
                   </button>
+                </div>
+              {/if}
+
+              {#if m.file}
+                <div class="mb-2">
+                  <a
+                    href={`/api/messages/file/${m.id}`}
+                    download={m.file_name || 'file'}
+                    class="flex items-center gap-3 p-3 bg-base-200/50 rounded-2xl border border-base-300/30 hover:bg-base-200/70 transition-colors"
+                  >
+                    <div class="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <Paperclip class="w-6 h-6 text-primary" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-medium truncate">{m.file_name || 'File'}</p>
+                      <p class="text-xs text-base-content/60">Click to download</p>
+                    </div>
+                    <div class="flex-shrink-0">
+                      <svg class="w-5 h-5 text-base-content/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                      </svg>
+                    </div>
+                  </a>
                 </div>
               {/if}
               
@@ -519,18 +563,39 @@
     {#if imageData}
       <div class="relative mb-3">
         <img src={imageData} alt="preview" class="max-h-32 rounded-lg shadow-sm" />
-        <button 
-          class="btn btn-circle btn-sm btn-ghost absolute top-2 right-2 bg-base-100/80 backdrop-blur-sm hover:bg-base-200/80" 
+        <button
+          class="btn btn-circle btn-sm btn-ghost absolute top-2 right-2 bg-base-100/80 backdrop-blur-sm hover:bg-base-200/80"
           on:click={() => imageData = null}
         >
           <X class="w-4 h-4" />
         </button>
       </div>
     {/if}
+
+    {#if fileData}
+      <div class="relative mb-3">
+        <div class="flex items-center gap-3 p-3 bg-base-200/50 rounded-lg border border-base-300/50">
+          <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+            <Paperclip class="w-5 h-5 text-primary" />
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium truncate">{fileName}</p>
+            <p class="text-xs text-base-content/60">{(fileData.length * 0.75 / 1024).toFixed(1)} KB</p>
+          </div>
+          <button
+            class="btn btn-circle btn-sm btn-ghost hover:bg-base-200/80"
+            on:click={() => { fileData = null; fileName = null; }}
+          >
+            <X class="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    {/if}
     
     <div class="flex items-end gap-3">
-      <!-- Hidden file input -->
+      <!-- Hidden file inputs -->
       <input type="file" accept="image/*" class="hidden" bind:this={fileInput} on:change={fileChanged} />
+      <input type="file" class="hidden" bind:this={generalFileInput} on:change={generalFileChanged} />
       
       <!-- Attachment Menu -->
       <div class="relative attachment-menu">
@@ -546,7 +611,7 @@
               <ImagePlus class="w-4 h-4" />
               Photo
             </button>
-            <button class="btn btn-ghost btn-sm gap-2 w-full justify-start">
+            <button class="btn btn-ghost btn-sm gap-2 w-full justify-start" on:click={chooseGeneralFile}>
               <Paperclip class="w-4 h-4" />
               File
             </button>
@@ -593,10 +658,10 @@
       </div>
       
       <!-- Send Button -->
-      <button 
-        class="btn btn-circle btn-primary shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" 
-        on:click={send} 
-        disabled={!msg.trim() && !imageData} 
+      <button
+        class="btn btn-circle btn-primary shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+        on:click={send}
+        disabled={!msg.trim() && !imageData && !fileData}
         aria-label="Send message"
       >
         <Send class="w-4 h-4" />

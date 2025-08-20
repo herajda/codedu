@@ -170,6 +170,8 @@ CREATE INDEX IF NOT EXISTS idx_messages_sender_recipient_created
 -- add image column if upgrading from an older schema
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS image TEXT;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_name TEXT;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS file TEXT;
 
 -- Blocked users table
 CREATE TABLE IF NOT EXISTS blocked_users (
