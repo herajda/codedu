@@ -215,10 +215,12 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
   })
 
 
-  onDestroy(()=>{
-    esCtrl?.close()
-    window.removeEventListener('beforeunload', saveState)
-  })
+  onDestroy(() => {
+    esCtrl?.close();
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('beforeunload', saveState);
+    }
+  });
 
   async function uploadTemplate(){
     if(!templateFile) return
