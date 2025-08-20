@@ -278,13 +278,15 @@
     );
     adjustHeight();
     
-    // Add click outside handler
+    // Add click outside handler and global keydown listener
     document.addEventListener('click', handleClickOutside);
+    document.addEventListener('keydown', handleLightboxKeydown);
   });
 
-  onDestroy(() => { 
-    esCtrl?.close(); 
+  onDestroy(() => {
+    esCtrl?.close();
     document.removeEventListener('click', handleClickOutside);
+    document.removeEventListener('keydown', handleLightboxKeydown);
   });
   function back() { goto('/messages'); }
 
@@ -364,12 +366,7 @@
     if (e.key === 'ArrowRight') showNextImage();
   }
 
-  // Attach keyboard navigation only while lightbox is open
-  $: if (lightboxOpen) {
-    document.addEventListener('keydown', handleLightboxKeydown);
-  } else {
-    document.removeEventListener('keydown', handleLightboxKeydown);
-  }
+  // Keyboard navigation is handled globally; handler checks lightboxOpen
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {
