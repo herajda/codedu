@@ -13,6 +13,7 @@ import { oneDark } from '@codemirror/theme-one-dark';
   export let readOnly: boolean = false;
 
   function isDark(): boolean {
+    if (typeof document === 'undefined') return false;
     return document.documentElement.getAttribute('data-theme') === 'dark';
   }
 
@@ -57,7 +58,9 @@ import { oneDark } from '@codemirror/theme-one-dark';
       const wantsDark = isDark();
       view.dispatch({ effects: themeCompartment.reconfigure(wantsDark ? oneDark : []) });
     });
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    if (typeof document !== 'undefined') {
+      obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    }
     // store observer for cleanup
     (view as any)._themeObserver = obs;
   });

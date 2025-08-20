@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy, afterUpdate } from 'svelte';
+  import { browser } from '$app/environment';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { apiFetch, apiJSON } from '$lib/api';
@@ -24,6 +25,7 @@
   import { fade, scale } from 'svelte/transition';
   import { sidebarCollapsed } from '$lib/sidebar';
   import UserProfileModal from '$lib/components/UserProfileModal.svelte';
+  import { onlineUsers } from '$lib/stores/onlineUsers';
 
   let id = $page.params.id;
   $: if ($page.params.id !== id) {
@@ -363,11 +365,13 @@
     if (e.key === 'ArrowRight') showNextImage();
   }
 
-  // Attach keyboard navigation only while lightbox is open
-  $: if (lightboxOpen) {
-    document.addEventListener('keydown', handleLightboxKeydown);
-  } else {
-    document.removeEventListener('keydown', handleLightboxKeydown);
+  // Attach keyboard navigation only while lightbox is open (guarded for SSR)
+  $: if (browser) {
+    if (lightboxOpen) {
+      document.addEventListener('keydown', handleLightboxKeydown);
+    } else {
+      document.removeEventListener('keydown', handleLightboxKeydown);
+    }
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -407,14 +411,23 @@
           </div>
         </div>
         <!-- Online indicator -->
-        <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-success rounded-full border-2 border-base-100 shadow-sm"></div>
+        {#if $onlineUsers.some(u => u.id === parseInt(id))}
+          <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-success rounded-full border-2 border-base-100 shadow-sm animate-pulse"></div>
+        {:else}
+          <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-base-300 rounded-full border-2 border-base-100 shadow-sm"></div>
+        {/if}
       </div>
       
       <div class="flex flex-col min-w-0">
         <h2 class="font-semibold text-lg truncate">{name}</h2>
         <div class="text-sm text-base-content/60 flex items-center gap-1">
-          <div class="w-2 h-2 bg-success rounded-full animate-pulse"></div>
-          Online
+          {#if $onlineUsers.some(u => u.id === parseInt(id))}
+            <div class="w-2 h-2 bg-success rounded-full animate-pulse"></div>
+            <span class="text-success">Online</span>
+          {:else}
+            <div class="w-2 h-2 bg-base-300 rounded-full"></div>
+            <span class="text-base-content/40">Offline</span>
+          {/if}
         </div>
       </div>
     </div>

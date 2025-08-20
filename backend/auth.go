@@ -170,6 +170,12 @@ func Login(c *gin.Context) {
 		return
 	}
 	setAuthCookies(c, access, refresh)
+
+	// Mark user as online
+	if err := MarkUserOnline(user.ID); err != nil {
+		log.Printf("[Login] failed to mark user online: %v", err)
+	}
+
 	c.Status(http.StatusNoContent)
 }
 
@@ -251,6 +257,12 @@ func LoginBakalari(c *gin.Context) {
 		return
 	}
 	setAuthCookies(c, access, refresh)
+
+	// Mark user as online
+	if err := MarkUserOnline(user.ID); err != nil {
+		log.Printf("[LoginBakalari] failed to mark user online: %v", err)
+	}
+
 	c.Status(http.StatusNoContent)
 }
 
@@ -283,6 +295,17 @@ func Refresh(c *gin.Context) {
 }
 
 func Logout(c *gin.Context) {
+	// Get user ID from context before clearing cookies
+	userID := c.GetInt("userID")
+
 	clearAuthCookies(c)
+
+	// Mark user as offline
+	if userID > 0 {
+		if err := MarkUserOffline(userID); err != nil {
+			log.Printf("[Logout] failed to mark user offline: %v", err)
+		}
+	}
+
 	c.Status(http.StatusNoContent)
 }

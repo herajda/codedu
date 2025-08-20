@@ -211,3 +211,16 @@ ALTER TABLE forum_messages ADD COLUMN IF NOT EXISTS image TEXT;
 ALTER TABLE forum_messages ADD COLUMN IF NOT EXISTS file_name TEXT;
 ALTER TABLE forum_messages ADD COLUMN IF NOT EXISTS file TEXT;
 
+-- User online status tracking
+CREATE TABLE IF NOT EXISTS user_presence (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  is_online BOOLEAN NOT NULL DEFAULT FALSE,
+  last_seen TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Index for efficient queries
+CREATE INDEX IF NOT EXISTS idx_user_presence_online ON user_presence(is_online);
+CREATE INDEX IF NOT EXISTS idx_user_presence_last_seen ON user_presence(last_seen);
+

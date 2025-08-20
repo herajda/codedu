@@ -3059,3 +3059,77 @@ func adminTransferClass(c *gin.Context) {
 	}
 	c.Status(http.StatusNoContent)
 }
+
+// User presence endpoints
+func presenceHandler(c *gin.Context) {
+	uid := c.GetInt("userID")
+
+	switch c.Request.Method {
+	case "POST":
+		// Mark user as online
+		if err := MarkUserOnline(uid); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update presence"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "online"})
+
+	case "PUT":
+		// Update last seen
+		if err := UpdateUserLastSeen(uid); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update presence"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "updated"})
+
+	case "DELETE":
+		// Mark user as offline
+		if err := MarkUserOffline(uid); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update presence"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "offline"})
+
+	default:
+		c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "Method not allowed"})
+	}
+}
+
+func onlineUsersHandler(c *gin.Context) {
+	users, err := GetOnlineUsers()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get online users"})
+		return
+	}
+
+	// Get user details for online users
+	type OnlineUser struct {
+		ID     int    `json:"id"`
+		Name   string `json:"name"`
+		Avatar string `json:"avatar"`
+		Email  string `json:"email"`
+	}
+
+	var onlineUsers []OnlineUser
+	for _, presence := range users {
+		user, err := GetUser(presence.UserID)
+		if err != nil {
+			continue // Skip users that can't be found
+		}
+		name := ""
+		if user.Name != nil {
+			name = *user.Name
+		}
+		avatar := ""
+		if user.Avatar != nil {
+			avatar = *user.Avatar
+		}
+		onlineUsers = append(onlineUsers, OnlineUser{
+			ID:     user.ID,
+			Name:   name,
+			Avatar: avatar,
+			Email:  user.Email,
+		})
+	}
+
+	c.JSON(http.StatusOK, onlineUsers)
+}

@@ -253,6 +253,12 @@ func main() {
 		api.GET("/messages/events", RoleGuard("student", "teacher", "admin"), messageEventsHandler)
 		api.GET("/messages/file/:id", RoleGuard("student", "teacher", "admin"), downloadMessageFile)
 
+		// User presence
+		api.POST("/presence", RoleGuard("student", "teacher", "admin"), presenceHandler)
+		api.PUT("/presence", RoleGuard("student", "teacher", "admin"), presenceHandler)
+		api.DELETE("/presence", RoleGuard("student", "teacher", "admin"), presenceHandler)
+		api.GET("/online-users", RoleGuard("student", "teacher", "admin"), onlineUsersHandler)
+
 		// Class forums
 		api.GET("/classes/:id/forum", RoleGuard("teacher", "student", "admin"), listForumMessagesHandler)
 		api.POST("/classes/:id/forum", RoleGuard("teacher", "student", "admin"), createForumMessageHandler)

@@ -415,6 +415,9 @@ func StartWorker(n int) {
 	for i := 0; i < n; i++ {
 		go workerLoop()
 	}
+
+	// Start presence cleanup task
+	go presenceCleanupTask()
 }
 
 // EnqueueJob enqueues a submission for grading.
@@ -1594,4 +1597,16 @@ if __name__ == '__main__':
 	}
 
 	return out, strings.TrimSpace(stderrBuf.String()), exitCode, timedOut, runtime
+}
+
+// presenceCleanupTask periodically cleans up inactive users
+func presenceCleanupTask() {
+	ticker := time.NewTicker(2 * time.Minute) // Run every 2 minutes
+	defer ticker.Stop()
+
+	for range ticker.C {
+		if err := CleanupInactiveUsers(); err != nil {
+			fmt.Printf("[presence] cleanup error: %v\n", err)
+		}
+	}
 }

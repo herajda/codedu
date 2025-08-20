@@ -6,13 +6,15 @@
   import Sidebar from '$lib/Sidebar.svelte';
   import Background from '$lib/components/Background.svelte';
   import { sidebarOpen, sidebarCollapsed } from '$lib/sidebar';
-  import { apiFetch } from '$lib/api';
+  import { apiFetch, apiJSON } from '$lib/api';
   import { sha256 } from '$lib/hash';
 import { compressImage } from '$lib/utils/compressImage';
   import { onDestroy } from 'svelte';
   import { page } from '$app/stores';
   import { createEventSource } from '$lib/sse';
-  import { incrementUnreadMessages, resetUnreadMessages } from '$lib/stores/messages';
+  import { incrementUnreadMessages, resetUnreadMessages, setUnreadMessages } from '$lib/stores/messages';
+  import { onlineUsers } from '$lib/stores/onlineUsers';
+  import { browser } from '$app/environment';
 
   let settingsDialog: HTMLDialogElement;
   let passwordDialog: HTMLDialogElement;
@@ -154,6 +156,60 @@ import { compressImage } from '$lib/utils/compressImage';
     auth.init();
   });
   
+  // Initialize online users and set up periodic updates
+  let presenceInterval: NodeJS.Timeout | null = null;
+  $: if (user) {
+    // Load online users when user logs in
+    onlineUsers.loadOnlineUsers();
+    
+    // Set up periodic updates for user presence
+    if (presenceInterval) {
+      clearInterval(presenceInterval);
+    }
+    presenceInterval = setInterval(() => {
+      onlineUsers.updateLastSeen();
+      onlineUsers.loadOnlineUsers();
+    }, 10000); // Update every 10 seconds
+  } else {
+    // Clear interval when user logs out
+    if (presenceInterval) {
+      clearInterval(presenceInterval);
+      presenceInterval = null;
+    }
+  }
+  
+  onDestroy(() => {
+    if (presenceInterval) {
+      clearInterval(presenceInterval);
+    }
+  });
+  
+  // Handle browser close/refresh to mark user as offline
+  if (browser) {
+    window.addEventListener('beforeunload', () => {
+      if (user) {
+        try {
+          // Use keepalive fetch with DELETE so backend sets is_online = FALSE
+          fetch('/api/presence', { method: 'DELETE', keepalive: true });
+        } catch {}
+      }
+    });
+  }
+  
+  let unreadInitUserId: number | null = null;
+  async function initUnreadCount() {
+    try {
+      const list: any[] = await apiJSON('/api/messages');
+      const total = Array.isArray(list) ? list.reduce((sum, c) => sum + (c.unread_count || 0), 0) : 0;
+      setUnreadMessages(total);
+    } catch {}
+  }
+  
+  $: if (user && user.id !== unreadInitUserId) {
+    unreadInitUserId = user.id;
+    initUnreadCount();
+  }
+  
   let msgES: { close: () => void } | null = null;
   $: if (user && !msgES) {
     msgES = createEventSource(
@@ -184,6 +240,7 @@ import { compressImage } from '$lib/utils/compressImage';
   let prefersDark = false;
   let media: MediaQueryList;
   function applyThemeFromPreference() {
+    if (!browser) return;
     document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
   }
   

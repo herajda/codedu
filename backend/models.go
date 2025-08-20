@@ -412,22 +412,22 @@ func UpdateClassName(id, teacherID int, name string) error {
 // UpdateClassTeacher changes ownership of a class to a different teacher.
 // Admins may transfer any class. When teacherID is provided (non-zero), it is validated by the caller.
 func UpdateClassTeacher(id int, newTeacherID int) error {
-    // Ensure the target user exists and is a teacher
-    var role string
-    if err := DB.Get(&role, `SELECT role FROM users WHERE id=$1`, newTeacherID); err != nil {
-        return err
-    }
-    if role != "teacher" {
-        return fmt.Errorf("user is not a teacher")
-    }
-    res, err := DB.Exec(`UPDATE classes SET teacher_id=$1, updated_at=now() WHERE id=$2`, newTeacherID, id)
-    if err != nil {
-        return err
-    }
-    if cnt, _ := res.RowsAffected(); cnt == 0 {
-        return fmt.Errorf("no rows updated")
-    }
-    return nil
+	// Ensure the target user exists and is a teacher
+	var role string
+	if err := DB.Get(&role, `SELECT role FROM users WHERE id=$1`, newTeacherID); err != nil {
+		return err
+	}
+	if role != "teacher" {
+		return fmt.Errorf("user is not a teacher")
+	}
+	res, err := DB.Exec(`UPDATE classes SET teacher_id=$1, updated_at=now() WHERE id=$2`, newTeacherID, id)
+	if err != nil {
+		return err
+	}
+	if cnt, _ := res.RowsAffected(); cnt == 0 {
+		return fmt.Errorf("no rows updated")
+	}
+	return nil
 }
 
 func DeleteClass(id, teacherID int) error {
@@ -1291,4 +1291,77 @@ func ListForumMessages(classID, limit, offset int) ([]ForumMessage, error) {
                                   LIMIT $2 OFFSET $3`,
 		classID, limit, offset)
 	return msgs, err
+}
+
+type UserPresence struct {
+	UserID    int       `db:"user_id" json:"user_id"`
+	IsOnline  bool      `db:"is_online" json:"is_online"`
+	LastSeen  time.Time `db:"last_seen" json:"last_seen"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// UserPresence functions
+func MarkUserOnline(userID int) error {
+	_, err := DB.Exec(`
+		INSERT INTO user_presence (user_id, is_online, last_seen, updated_at) 
+		VALUES ($1, TRUE, now(), now())
+		ON CONFLICT (user_id) 
+		DO UPDATE SET is_online = TRUE, last_seen = now(), updated_at = now()
+	`, userID)
+	return err
+}
+
+func MarkUserOffline(userID int) error {
+	_, err := DB.Exec(`
+		UPDATE user_presence 
+		SET is_online = FALSE, updated_at = now() 
+		WHERE user_id = $1
+	`, userID)
+	return err
+}
+
+func UpdateUserLastSeen(userID int) error {
+	_, err := DB.Exec(`
+		INSERT INTO user_presence (user_id, is_online, last_seen, updated_at) 
+		VALUES ($1, TRUE, now(), now())
+		ON CONFLICT (user_id) 
+		DO UPDATE SET last_seen = now(), updated_at = now()
+	`, userID)
+	return err
+}
+
+func GetOnlineUsers() ([]UserPresence, error) {
+	var users []UserPresence
+	err := DB.Select(&users, `
+		SELECT user_id, is_online, last_seen, created_at, updated_at
+		FROM user_presence 
+		WHERE is_online = TRUE 
+		ORDER BY last_seen DESC
+	`)
+	return users, err
+}
+
+func IsUserOnline(userID int) (bool, error) {
+	var isOnline bool
+	err := DB.Get(&isOnline, `
+		SELECT is_online 
+		FROM user_presence 
+		WHERE user_id = $1
+	`, userID)
+	if err != nil {
+		// If no record exists, user is considered offline
+		return false, nil
+	}
+	return isOnline, nil
+}
+
+func CleanupInactiveUsers() error {
+	// Mark users as offline if they haven't been seen in the last 5 minutes
+	_, err := DB.Exec(`
+		UPDATE user_presence 
+		SET is_online = FALSE, updated_at = now() 
+		WHERE last_seen < now() - INTERVAL '5 minutes' AND is_online = TRUE
+	`)
+	return err
 }

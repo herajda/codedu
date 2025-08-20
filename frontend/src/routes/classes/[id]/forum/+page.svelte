@@ -8,6 +8,7 @@
   import { compressImage } from '$lib/utils/compressImage';
   import { fade, scale } from 'svelte/transition';
   import { sidebarCollapsed } from '$lib/sidebar';
+  import { browser } from '$app/environment';
 
   let id = $page.params.id;
   $: if ($page.params.id !== id) {
@@ -155,11 +156,13 @@
     if (e.key === 'ArrowRight') showNextImage();
   }
 
-  // Attach keyboard navigation only while lightbox is open
-  $: if (lightboxOpen) {
-    document.addEventListener('keydown', handleLightboxKeydown);
-  } else {
-    document.removeEventListener('keydown', handleLightboxKeydown);
+  // Attach keyboard navigation only while lightbox is open (guarded for SSR)
+  $: if (browser) {
+    if (lightboxOpen) {
+      document.addEventListener('keydown', handleLightboxKeydown);
+    } else {
+      document.removeEventListener('keydown', handleLightboxKeydown);
+    }
   }
 
   function formatTime(d: string | number | Date) {
