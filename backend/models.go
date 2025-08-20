@@ -37,10 +37,20 @@ type Assignment struct {
 	GradingPolicy string    `db:"grading_policy" json:"grading_policy"`
 	Published     bool      `db:"published" json:"published"`
 	ShowTraceback bool      `db:"show_traceback" json:"show_traceback"`
+	ManualReview  bool      `db:"manual_review" json:"manual_review"`
 	TemplatePath  *string   `db:"template_path" json:"template_path"`
 	CreatedAt     time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
 	ClassID       int       `db:"class_id" json:"class_id"`
+
+	// LLM-interactive testing configuration
+	LLMInteractive     bool    `db:"llm_interactive" json:"llm_interactive"`
+	LLMFeedback        bool    `db:"llm_feedback" json:"llm_feedback"`
+	LLMAutoAward       bool    `db:"llm_auto_award" json:"llm_auto_award"`
+	LLMScenariosRaw    *string `db:"llm_scenarios_json" json:"llm_scenarios_json"`
+	LLMStrictness      int     `db:"llm_strictness" json:"llm_strictness"`
+	LLMRubric          *string `db:"llm_rubric" json:"llm_rubric"`
+	LLMTeacherBaseline *string `db:"llm_teacher_baseline_json" json:"llm_teacher_baseline_json"`
 }
 type Class struct {
 	ID        int       `db:"id"        json:"id"`
@@ -51,16 +61,19 @@ type Class struct {
 }
 
 type Submission struct {
-	ID           int       `db:"id" json:"id"`
-	AssignmentID int       `db:"assignment_id" json:"assignment_id"`
-	StudentID    int       `db:"student_id" json:"student_id"`
-	CodePath     string    `db:"code_path" json:"code_path"`
-	CodeContent  string    `db:"code_content" json:"code_content"`
-	Status       string    `db:"status" json:"status"`
-	Points       *float64  `db:"points" json:"points"`
-	OverridePts  *float64  `db:"override_points" json:"override_points"`
-	CreatedAt    time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
+	ID               int       `db:"id" json:"id"`
+	AssignmentID     int       `db:"assignment_id" json:"assignment_id"`
+	StudentID        int       `db:"student_id" json:"student_id"`
+	CodePath         string    `db:"code_path" json:"code_path"`
+	CodeContent      string    `db:"code_content" json:"code_content"`
+	Status           string    `db:"status" json:"status"`
+	Points           *float64  `db:"points" json:"points"`
+	OverridePts      *float64  `db:"override_points" json:"override_points"`
+	IsTeacherRun     bool      `db:"is_teacher_run" json:"is_teacher_run"`
+	ManuallyAccepted bool      `db:"manually_accepted" json:"manually_accepted"`
+	Late             bool      `db:"late" json:"late"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
 }
 
 type TestCase struct {
@@ -168,12 +181,12 @@ func ListAllClasses() ([]Class, error) {
 // ──────────────────────────────────────────────────────────────────────────────
 func CreateAssignment(a *Assignment) error {
 	const q = `
-          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, template_path, class_id)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, manual_review, template_path, class_id)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
           RETURNING id, created_at, updated_at`
 	return DB.QueryRow(q,
 		a.Title, a.Description, a.CreatedBy, a.Deadline,
-		a.MaxPoints, a.GradingPolicy, a.Published, a.ShowTraceback, a.TemplatePath, a.ClassID,
+		a.MaxPoints, a.GradingPolicy, a.Published, a.ShowTraceback, a.ManualReview, a.TemplatePath, a.ClassID,
 	).Scan(&a.ID, &a.CreatedAt, &a.UpdatedAt)
 }
 
@@ -182,8 +195,15 @@ func ListAssignments(role string, userID int) ([]Assignment, error) {
 	list := []Assignment{}
 	query := `
     SELECT a.id, a.title, a.description, a.created_by, a.deadline,
-           a.max_points, a.grading_policy, a.published, a.show_traceback, a.template_path,
-           a.created_at, a.updated_at, a.class_id
+           a.max_points, a.grading_policy, a.published, a.show_traceback, a.manual_review, a.template_path,
+           a.created_at, a.updated_at, a.class_id,
+           COALESCE(a.llm_interactive,false) AS llm_interactive,
+           COALESCE(a.llm_feedback,false) AS llm_feedback,
+           COALESCE(a.llm_auto_award,true) AS llm_auto_award,
+           a.llm_scenarios_json,
+           COALESCE(a.llm_strictness,50) AS llm_strictness,
+           a.llm_rubric,
+           a.llm_teacher_baseline_json
       FROM assignments a`
 	var args []any
 	switch role {
@@ -207,7 +227,14 @@ func ListAssignments(role string, userID int) ([]Assignment, error) {
 func GetAssignment(id int) (*Assignment, error) {
 	var a Assignment
 	err := DB.Get(&a, `
-    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, template_path, created_at, updated_at, class_id
+    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, manual_review, template_path, created_at, updated_at, class_id,
+           COALESCE(llm_interactive,false) AS llm_interactive,
+           COALESCE(llm_feedback,false) AS llm_feedback,
+           COALESCE(llm_auto_award,true) AS llm_auto_award,
+           llm_scenarios_json,
+           COALESCE(llm_strictness,50) AS llm_strictness,
+           llm_rubric,
+           llm_teacher_baseline_json
       FROM assignments
      WHERE id = $1`, id)
 	if err != nil {
@@ -221,8 +248,15 @@ func GetAssignmentForSubmission(subID int) (*Assignment, error) {
 	var a Assignment
 	err := DB.Get(&a, `
         SELECT a.id, a.title, a.description, a.created_by, a.deadline,
-               a.max_points, a.grading_policy, a.published, a.show_traceback, a.template_path,
-               a.created_at, a.updated_at, a.class_id
+               a.max_points, a.grading_policy, a.published, a.show_traceback, a.manual_review, a.template_path,
+               a.created_at, a.updated_at, a.class_id,
+               COALESCE(a.llm_interactive,false) AS llm_interactive,
+               COALESCE(a.llm_feedback,false) AS llm_feedback,
+               COALESCE(a.llm_auto_award,true) AS llm_auto_award,
+               a.llm_scenarios_json,
+               COALESCE(a.llm_strictness,50) AS llm_strictness,
+               a.llm_rubric,
+               a.llm_teacher_baseline_json
           FROM assignments a
           JOIN submissions s ON s.assignment_id = a.id
          WHERE s.id=$1`, subID)
@@ -237,11 +271,15 @@ func UpdateAssignment(a *Assignment) error {
 	res, err := DB.Exec(`
     UPDATE assignments
        SET title=$1, description=$2, deadline=$3,
-           max_points=$4, grading_policy=$5, show_traceback=$6,
+           max_points=$4, grading_policy=$5, show_traceback=$6, manual_review=$7,
+           llm_interactive=$8, llm_feedback=$9, llm_auto_award=$10, llm_scenarios_json=$11,
+           llm_strictness=$12, llm_rubric=$13, llm_teacher_baseline_json=$14,
            updated_at=now()
-     WHERE id=$7`,
+     WHERE id=$15`,
 		a.Title, a.Description, a.Deadline,
-		a.MaxPoints, a.GradingPolicy, a.ShowTraceback,
+		a.MaxPoints, a.GradingPolicy, a.ShowTraceback, a.ManualReview,
+		a.LLMInteractive, a.LLMFeedback, a.LLMAutoAward, a.LLMScenariosRaw,
+		a.LLMStrictness, a.LLMRubric, a.LLMTeacherBaseline,
 		a.ID)
 	if err != nil {
 		return err
@@ -490,7 +528,11 @@ func GetClassDetail(id int, role string, userID int) (*ClassDetail, error) {
 	query := `
                 SELECT id, title, description, created_by, deadline,
                        max_points, grading_policy, published, template_path,
-                       created_at, updated_at, class_id
+                       created_at, updated_at, class_id,
+                       COALESCE(llm_interactive,false) AS llm_interactive,
+                       COALESCE(llm_feedback,false) AS llm_feedback,
+                       COALESCE(llm_auto_award,true) AS llm_auto_award,
+                       llm_scenarios_json
                   FROM assignments
                  WHERE class_id = $1`
 	if role == "student" {
@@ -529,7 +571,7 @@ func DeleteUser(id int) error {
 func ListSubmissionsForStudent(studentID int) ([]Submission, error) {
 	subs := []Submission{}
 	err := DB.Select(&subs, `
-               SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, created_at, updated_at
+               SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at
                  FROM submissions
                 WHERE student_id = $1
                 ORDER BY created_at DESC`, studentID)
@@ -538,14 +580,14 @@ func ListSubmissionsForStudent(studentID int) ([]Submission, error) {
 
 func CreateSubmission(s *Submission) error {
 	const q = `
-          INSERT INTO submissions (assignment_id, student_id, code_path, code_content)
-          SELECT $1,$2,$3,$4
+          INSERT INTO submissions (assignment_id, student_id, code_path, code_content, is_teacher_run)
+          SELECT $1,$2,$3,$4,$5
             WHERE EXISTS (
                 SELECT 1 FROM assignments a
                 JOIN class_students cs ON cs.class_id = a.class_id
                WHERE a.id=$1 AND cs.student_id=$2)
           RETURNING id, status, created_at, updated_at`
-	return DB.QueryRow(q, s.AssignmentID, s.StudentID, s.CodePath, s.CodeContent).
+	return DB.QueryRow(q, s.AssignmentID, s.StudentID, s.CodePath, s.CodeContent, s.IsTeacherRun).
 		Scan(&s.ID, &s.Status, &s.CreatedAt, &s.UpdatedAt)
 }
 
@@ -565,7 +607,7 @@ type SubmissionWithStudent struct {
 func ListSubmissionsForAssignmentAndStudent(aid, sid int) ([]SubmissionWithReason, error) {
 	subs := []SubmissionWithReason{}
 	err := DB.Select(&subs, `
-               SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, created_at, updated_at,
+               SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at,
                       (SELECT r.status FROM results r
                          WHERE r.submission_id = submissions.id AND r.status <> 'passed'
                          ORDER BY r.id LIMIT 1) AS failure_reason
@@ -580,7 +622,7 @@ func ListSubmissionsForAssignmentAndStudent(aid, sid int) ([]SubmissionWithReaso
 func ListSubmissionsForAssignment(aid int) ([]SubmissionWithStudent, error) {
 	subs := []SubmissionWithStudent{}
 	err := DB.Select(&subs, `
-               SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.points, s.override_points, s.created_at, s.updated_at,
+               SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.points, s.override_points, s.is_teacher_run, s.manually_accepted, s.late, s.created_at, s.updated_at,
                      u.email, u.name,
                      (SELECT r.status FROM results r
                         WHERE r.submission_id = s.id AND r.status <> 'passed'
@@ -589,6 +631,22 @@ func ListSubmissionsForAssignment(aid int) ([]SubmissionWithStudent, error) {
                  JOIN users u ON u.id = s.student_id
                 WHERE s.assignment_id = $1
                 ORDER BY s.created_at DESC`, aid)
+	return subs, err
+}
+
+// Teacher runs listing: include teacher email/name and is_teacher_run filter
+func ListTeacherRunsForAssignment(aid int) ([]SubmissionWithStudent, error) {
+	subs := []SubmissionWithStudent{}
+	err := DB.Select(&subs, `
+                SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.points, s.override_points, s.is_teacher_run, s.manually_accepted, s.late, s.created_at, s.updated_at,
+                       u.email, u.name,
+                       (SELECT r.status FROM results r
+                          WHERE r.submission_id = s.id AND r.status <> 'passed'
+                           ORDER BY r.id LIMIT 1) AS failure_reason
+                  FROM submissions s
+                  JOIN users u ON u.id = s.student_id
+                 WHERE s.assignment_id = $1 AND s.is_teacher_run = TRUE
+                 ORDER BY s.created_at DESC`, aid)
 	return subs, err
 }
 
@@ -612,7 +670,7 @@ func UpdateTestCase(tc *TestCase) error {
 	res, err := DB.Exec(`
                 UPDATE test_cases
                    SET stdin=$1, expected_stdout=$2, weight=$3, time_limit_sec=$4,
-                       unittest_code=$5, unittest_name=$6,
+                       unittest_code=COALESCE($5, unittest_code), unittest_name=COALESCE($6, unittest_name),
                        updated_at=now()
                  WHERE id=$7`,
 		tc.Stdin, tc.ExpectedStdout, tc.Weight, tc.TimeLimitSec, tc.UnittestCode, tc.UnittestName, tc.ID)
@@ -640,6 +698,12 @@ func DeleteTestCase(id int) error {
 	return err
 }
 
+// DeleteAllTestCasesForAssignment removes all test cases for a given assignment.
+func DeleteAllTestCasesForAssignment(assignmentID int) error {
+	_, err := DB.Exec(`DELETE FROM test_cases WHERE assignment_id=$1`, assignmentID)
+	return err
+}
+
 // ──────────────────────────────────────────────────────
 // submissions – helpers for grading
 // ──────────────────────────────────────────────────────
@@ -657,10 +721,46 @@ type Result struct {
 	CreatedAt    time.Time `db:"created_at" json:"created_at"`
 }
 
+// LLMRun stores artifacts from an LLM-interactive testing run for a submission.
+type LLMRun struct {
+	ID              int       `db:"id" json:"id"`
+	SubmissionID    int       `db:"submission_id" json:"submission_id"`
+	SmokeOK         bool      `db:"smoke_ok" json:"smoke_ok"`
+	ReviewJSON      *string   `db:"review_json" json:"review_json,omitempty"`
+	InteractiveJSON *string   `db:"interactive_json" json:"interactive_json,omitempty"`
+	Transcript      *string   `db:"transcript" json:"transcript,omitempty"`
+	Verdict         *string   `db:"verdict" json:"verdict,omitempty"`
+	Reason          *string   `db:"reason" json:"reason,omitempty"`
+	ModelName       *string   `db:"model_name" json:"model_name,omitempty"`
+	ToolCalls       *int      `db:"tool_calls" json:"tool_calls,omitempty"`
+	WallTimeMS      *int      `db:"wall_time_ms" json:"wall_time_ms,omitempty"`
+	OutputSize      *int      `db:"output_size" json:"output_size,omitempty"`
+	CreatedAt       time.Time `db:"created_at" json:"created_at"`
+}
+
+func CreateLLMRun(r *LLMRun) error {
+	const q = `
+        INSERT INTO llm_runs (submission_id, smoke_ok, review_json, interactive_json, transcript, verdict, reason, model_name, tool_calls, wall_time_ms, output_size)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        RETURNING id, created_at`
+	return DB.QueryRow(q, r.SubmissionID, r.SmokeOK, r.ReviewJSON, r.InteractiveJSON, r.Transcript, r.Verdict, r.Reason, r.ModelName, r.ToolCalls, r.WallTimeMS, r.OutputSize).
+		Scan(&r.ID, &r.CreatedAt)
+}
+
+func GetLatestLLMRun(subID int) (*LLMRun, error) {
+	var r LLMRun
+	err := DB.Get(&r, `SELECT id, submission_id, smoke_ok, review_json, interactive_json, transcript, verdict, reason, model_name, tool_calls, wall_time_ms, output_size, created_at
+                         FROM llm_runs WHERE submission_id=$1 ORDER BY id DESC LIMIT 1`, subID)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
 func GetSubmission(id int) (*Submission, error) {
 	var s Submission
 	err := DB.Get(&s, `
-        SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, created_at, updated_at
+        SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at
           FROM submissions
          WHERE id=$1`, id)
 	if err != nil {
@@ -705,8 +805,18 @@ func SetSubmissionPoints(id int, pts float64) error {
 	return err
 }
 
+func SetSubmissionLate(id int, late bool) error {
+	_, err := DB.Exec(`UPDATE submissions SET late=$1 WHERE id=$2`, late, id)
+	return err
+}
+
 func SetSubmissionOverridePoints(id int, pts *float64) error {
 	_, err := DB.Exec(`UPDATE submissions SET override_points=$1 WHERE id=$2`, pts, id)
+	return err
+}
+
+func SetSubmissionManualAccept(id int, accepted bool) error {
+	_, err := DB.Exec(`UPDATE submissions SET manually_accepted=$1, updated_at=now() WHERE id=$2`, accepted, id)
 	return err
 }
 
@@ -738,7 +848,11 @@ func GetClassProgress(classID int) (*ClassProgress, error) {
 	if err := DB.Select(&asg, `
                 SELECT id, title, description, created_by, deadline,
                        max_points, grading_policy, published, template_path,
-                       created_at, updated_at, class_id
+                       created_at, updated_at, class_id,
+                       COALESCE(llm_interactive,false) AS llm_interactive,
+                       COALESCE(llm_feedback,false) AS llm_feedback,
+                       COALESCE(llm_auto_award,true) AS llm_auto_award,
+                       llm_scenarios_json
                   FROM assignments
                  WHERE class_id=$1
                  ORDER BY deadline ASC`, classID); err != nil {

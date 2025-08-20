@@ -354,7 +354,7 @@
 <!-- Enhanced Chat Window -->
 <div class={`chat-window fixed top-16 bottom-0 right-0 left-0 ${$sidebarCollapsed ? 'sm:left-0' : 'sm:left-60'} z-40 flex flex-col bg-gradient-to-br from-base-100/95 to-base-200/95 backdrop-blur-xl border-l border-base-300/30`}>
   <!-- Enhanced Header -->
-  <div class="chat-header relative z-30 flex items-center justify-between p-2 sm:p-4 border-b border-base-300/30 bg-base-100/80 backdrop-blur-sm">
+  <div class="chat-header relative z-30 mx-2 sm:mx-4 mt-2 sm:mt-3 flex items-center justify-between p-2 sm:p-4 rounded-xl bg-base-100/80 backdrop-blur supports-[backdrop-filter]:bg-base-100/85 border border-base-300/30 shadow-md">
     <div class="flex items-center gap-3 min-w-0">
       <button 
         class="btn btn-ghost btn-circle hover:bg-base-200/80 transition-all duration-200" 
@@ -408,7 +408,7 @@
   </div>
 
   {#if showSearch}
-    <div class="p-2 border-b border-base-300 bg-base-100 flex items-center gap-2" in:fade out:fade>
+    <div class="mx-2 sm:mx-4 mt-2 sm:mt-3 p-2 rounded-lg bg-base-100/80 backdrop-blur supports-[backdrop-filter]:bg-base-100/85 border border-base-300/30 flex items-center gap-2 shadow-sm" in:fade out:fade>
       <input class="input input-sm input-bordered flex-1" placeholder="Search messages" bind:value={searchQuery} bind:this={searchInput} />
       <button class="btn btn-sm" on:click={prevResult}>
         <ChevronUp class="w-4 h-4" />
@@ -515,7 +515,7 @@
   </div>
 
   <!-- Enhanced Input Area -->
-  <div class="chat-input-area p-4 border-t border-base-300/30 bg-base-100/80 backdrop-blur-sm">
+  <div class="chat-input-area mx-2 sm:mx-4 mb-2 sm:mb-3 p-4 rounded-xl bg-base-100/80 backdrop-blur supports-[backdrop-filter]:bg-base-100/85 border border-base-300/30 shadow-md">
     {#if imageData}
       <div class="relative mb-3">
         <img src={imageData} alt="preview" class="max-h-32 rounded-lg shadow-sm" />

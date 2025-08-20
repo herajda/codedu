@@ -25,7 +25,8 @@ func TestGetAssignmentStudentForbidden(t *testing.T) {
 	now := time.Now()
 	rows := sqlmock.NewRows([]string{"id", "title", "description", "created_by", "deadline", "max_points", "grading_policy", "published", "show_traceback", "template_path", "created_at", "updated_at", "class_id"}).
 		AddRow(4, "A", "d", 1, now, 100, "all_or_nothing", true, false, nil, now, now, 2)
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, template_path, created_at, updated_at, class_id FROM assignments WHERE id = $1`)).
+	// Accept a superset of columns now returned by GetAssignment
+	mock.ExpectQuery(`SELECT\s+.*\s+FROM assignments\s+WHERE id = \$1`).
 		WithArgs(4).WillReturnRows(rows)
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT 1 FROM assignments a JOIN class_students cs ON cs.class_id=a.class_id WHERE a.id=$1 AND cs.student_id=$2`)).

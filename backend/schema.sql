@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS assignments (
   grading_policy TEXT NOT NULL DEFAULT 'all_or_nothing' CHECK (grading_policy IN ('all_or_nothing','weighted')),
   published BOOLEAN NOT NULL DEFAULT FALSE,
   show_traceback BOOLEAN NOT NULL DEFAULT FALSE,
+  manual_review BOOLEAN NOT NULL DEFAULT FALSE,
   template_path TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -43,6 +44,16 @@ CREATE TABLE IF NOT EXISTS assignments (
 
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS template_path TEXT;
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS show_traceback BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS manual_review BOOLEAN NOT NULL DEFAULT FALSE;
+-- LLM interactive testing configuration
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_interactive BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_feedback BOOLEAN NOT NULL DEFAULT FALSE; -- show LLM feedback to students
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_auto_award BOOLEAN NOT NULL DEFAULT TRUE; -- auto-award max points if all scenarios pass
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_scenarios_json TEXT; -- JSON describing interactive scenarios
+-- Strictness slider (0-100) and teacher rubric for OK/Wrong definitions
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_strictness INTEGER NOT NULL DEFAULT 50; -- 0=Beginner (lenient), 100=Pro (strict)
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_rubric TEXT; -- freeform teacher guidance on what is OK vs WRONG
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_teacher_baseline_json TEXT; -- plan+results JSON from teacher standard solution (defines accepted behavior)
 
 CREATE TABLE IF NOT EXISTS test_cases (
   id SERIAL PRIMARY KEY,
@@ -74,12 +85,16 @@ CREATE TABLE IF NOT EXISTS submissions (
   code_path TEXT NOT NULL,
   code_content TEXT,
   status submission_status NOT NULL DEFAULT 'pending',
+  late BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS points NUMERIC;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS override_points NUMERIC;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS is_teacher_run BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS late BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS manually_accepted BOOLEAN NOT NULL DEFAULT FALSE;
 
 DO $$ BEGIN
     CREATE TYPE result_status AS ENUM ('passed','time_limit_exceeded','memory_limit_exceeded','wrong_output','runtime_error');
@@ -100,6 +115,23 @@ CREATE TABLE IF NOT EXISTS results (
 );
 ALTER TABLE results ADD COLUMN IF NOT EXISTS stderr TEXT;
 ALTER TABLE results ADD COLUMN IF NOT EXISTS exit_code INTEGER;
+
+-- LLM run artifacts per submission attempt
+CREATE TABLE IF NOT EXISTS llm_runs (
+  id SERIAL PRIMARY KEY,
+  submission_id INTEGER NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+  smoke_ok BOOLEAN NOT NULL DEFAULT FALSE,
+  review_json TEXT,
+  interactive_json TEXT,
+  transcript TEXT,
+  verdict TEXT,      -- PASS or failure category (SMOKE_FAIL, INTERACTIVE_TIMEOUT, OUTPUT_TRUNCATED, SCENARIO_FAIL, RUNTIME_ERROR, etc.)
+  reason TEXT,       -- short human-readable explanation
+  model_name TEXT,
+  tool_calls INTEGER,
+  wall_time_ms INTEGER,
+  output_size INTEGER,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
 CREATE TABLE IF NOT EXISTS class_students (
   class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,

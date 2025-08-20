@@ -1,4 +1,5 @@
 <script lang="ts">
+  // @ts-nocheck
 import { onMount, onDestroy, tick } from 'svelte'
   import { auth } from '$lib/auth'
 import { apiFetch, apiJSON } from '$lib/api'
@@ -16,12 +17,13 @@ let role = '';
 $: role = $auth?.role ?? '';
 
   let assignment:any=null
-  let tests:any[]=[] // teacher/admin only
+  // tests moved to standalone page
   let submissions:any[]=[] // student submissions
   let latestSub:any=null
   let results:any[]=[]
   let esCtrl:{close:()=>void}|null=null
   let allSubs:any[]=[]     // teacher view
+  let teacherRuns:any[]=[] // persisted teacher submissions
   let students:any[]=[]    // class roster for teacher
   let progress:any[]=[]    // computed progress per student
   let expanded:number|null=null
@@ -30,25 +32,50 @@ $: role = $auth?.role ?? '';
   let percent=0
   let testsPassed=0
   let testsPercent=0
+  let testsCount=0
   let err=''
-  let tStdin='', tStdout='', tLimit='', tWeight='1'
+  let subStats: Record<number, {passed:number, total:number}> = {}
+  // removed test creation inputs (moved to tests page)
   let files: File[] = []
   let templateFile:File|null=null
-  let unittestFile:File|null=null
+  // removed unittest file input (moved to tests page)
   let submitDialog: HTMLDialogElement;
-  let testsDialog: HTMLDialogElement;
+  // removed tests dialog (moved to tests page)
 $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100) : 0;
 $: testsPassed = results.filter((r:any) => r.status === 'passed').length;
 $: testsPercent = results.length ? Math.round(testsPassed / results.length * 100) : 0;
   let editing=false
   let eTitle='', eDesc='', eDeadline='', ePoints=0, ePolicy='all_or_nothing', eShowTraceback=false
+  let eManualReview=false
+  let eLLMInteractive=false
+  let eLLMFeedback=false
+  let eLLMAutoAward=true
+  let eLLMScenarios=''
+  let eLLMStrictness:number=50
+  let eLLMRubric=''
+  const exampleScenario = '[{"name":"calc","steps":[{"send":"2 + 2","expect_after":"4"}]}]'
   let safeDesc=''
 $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.description) as string) : ''
 
+  // Testing model selector (automatic | manual | ai)
+  type TestMode = 'automatic' | 'manual' | 'ai'
+  let testMode: TestMode = 'automatic'
+  $: {
+    if (testMode === 'manual') { eManualReview = true; eLLMInteractive = false }
+    else if (testMode === 'ai') { eManualReview = false; eLLMInteractive = true }
+    else { eManualReview = false; eLLMInteractive = false }
+  }
+
   // Enhanced UX state
-  type TabKey = 'overview' | 'submissions' | 'results' | 'instructor'
+  type TabKey = 'overview' | 'submissions' | 'results' | 'instructor' | 'teacher-runs'
   let activeTab: TabKey = 'overview'
   let isDragging = false
+
+  // Teacher solution test-run state (modal in Teacher runs tab)
+  let solFiles: File[] = []
+  let isSolDragging = false
+  let solLoading = false
+  let teacherRunDialog: HTMLDialogElement
 
   function policyLabel(policy:string){
     if(policy==='all_or_nothing') return 'All or nothing'
@@ -101,6 +128,8 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         submissions = data.submissions ?? []
         latestSub = submissions[0] ?? null
         results = []
+        // test count comes from tests_count for students
+        testsCount = (typeof data.tests_count === 'number' ? data.tests_count : (Array.isArray((data as any).tests) ? (data as any).tests.length : 0)) || 0
         if(latestSub){
           const subData = await apiJSON(`/api/submissions/${latestSub.id}`)
           results = subData.results ?? []
@@ -111,23 +140,54 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         },0)
         pointsEarned = best
         done = best >= assignment.max_points
+        await loadSubmissionStats()
       } else {
-        tests = data.tests ?? []
         allSubs = data.submissions ?? []
+        teacherRuns = data.teacher_runs ?? []
+        // for non-students, tests array is present
+        try { testsCount = Array.isArray((data as any).tests) ? (data as any).tests.length : 0 } catch { testsCount = 0 }
         const cls = await apiJSON(`/api/classes/${assignment.class_id}`)
         students = cls.students ?? []
         progress = students.map((s:any)=>{
           const subs = allSubs.filter((x:any)=>x.student_id===s.id)
           const latest = subs[0]
-          return {student:s, latest, all: subs}
+          const hasCompleted = subs.some((x:any)=>x.status==='completed' || x.status==='passed')
+          const displayStatus = hasCompleted ? 'completed' : (latest ? latest.status : 'none')
+          return {student:s, latest, all: subs, displayStatus}
         })
       }
     }catch(e:any){ err=e.message }
   }
 
+  async function loadSubmissionStats(){
+    subStats = {}
+    try{
+      if(testsCount>0 && Array.isArray(submissions) && submissions.length){
+        const pairs = await Promise.all(submissions.map(async (s:any)=>{
+          try{
+            const subData = await apiJSON(`/api/submissions/${s.id}`)
+            const res = subData.results ?? []
+            const passed = Array.isArray(res) ? res.filter((r:any)=>r.status==='passed').length : 0
+            return [s.id, {passed, total: res.length}] as const
+          }catch{
+            return [s.id, {passed: 0, total: 0}] as const
+          }
+        }))
+        const map: Record<number, {passed:number, total:number}> = {}
+        for(const [sid, st] of pairs){ map[sid]=st }
+        subStats = map
+      }
+    }catch{}
+  }
+
 
   onMount(async () => {
     await load()
+    // restore tab from URL
+    try{
+      const t = $page?.url?.searchParams?.get('tab') || ''
+      if (t && isValidTab(t)) activeTab = t as TabKey
+    }catch{}
     if(typeof sessionStorage!=='undefined'){
       const saved = sessionStorage.getItem(`assign-${id}-expanded`)
       if(saved) expanded = parseInt(saved)
@@ -160,19 +220,6 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     window.removeEventListener('beforeunload', saveState)
   })
 
-  async function addTest(){
-    try{
-      await apiFetch(`/api/assignments/${id}/tests`,{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({stdin:tStdin, expected_stdout:tStdout, weight: parseFloat(tWeight) || 1, time_limit_sec: parseFloat(tLimit) || undefined})
-      })
-      tStdin=tStdout=tLimit=''
-      tWeight='1'
-      await load()
-    }catch(e:any){ err=e.message }
-  }
-
   async function uploadTemplate(){
     if(!templateFile) return
     const fd = new FormData()
@@ -180,17 +227,6 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     try{
       await apiFetch(`/api/assignments/${id}/template`,{method:'POST', body:fd})
       templateFile=null
-      await load()
-    }catch(e:any){ err=e.message }
-  }
-
-  async function uploadUnitTests(){
-    if(!unittestFile) return
-    const fd = new FormData()
-    fd.append('file', unittestFile)
-    try{
-      await apiFetch(`/api/assignments/${id}/tests/upload`,{method:'POST', body:fd})
-      unittestFile=null
       await load()
     }catch(e:any){ err=e.message }
   }
@@ -219,6 +255,16 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     ePoints=assignment.max_points
     ePolicy=assignment.grading_policy
     eShowTraceback=assignment.show_traceback
+    eManualReview=assignment.manual_review
+    eLLMInteractive=!!assignment.llm_interactive
+    eLLMFeedback=!!assignment.llm_feedback
+    eLLMAutoAward=assignment.llm_auto_award ?? true
+    eLLMScenarios=assignment.llm_scenarios_json ?? ''
+    eLLMStrictness = typeof assignment.llm_strictness === 'number' ? assignment.llm_strictness : 50
+    eLLMRubric = assignment.llm_rubric ?? ''
+    if (assignment.manual_review) testMode = 'manual'
+    else if (assignment.llm_interactive) testMode = 'ai'
+    else testMode = 'automatic'
   }
 
   async function saveEdit(){
@@ -233,7 +279,14 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           deadline:new Date(eDeadline).toISOString(),
           max_points:Number(ePoints),
           grading_policy:ePolicy,
-          show_traceback:eShowTraceback
+          show_traceback:eShowTraceback,
+          manual_review:eManualReview,
+          llm_interactive:eLLMInteractive,
+          llm_feedback:eLLMFeedback,
+          llm_auto_award:eLLMAutoAward,
+          llm_scenarios_json:eLLMScenarios.trim() ? eLLMScenarios : null,
+          llm_strictness: Number.isFinite(eLLMStrictness) ? Math.min(100, Math.max(0, Number(eLLMStrictness))) : 50,
+          llm_rubric: eLLMRubric.trim() ? eLLMRubric : null
         })
       })
       editing=false
@@ -246,14 +299,6 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     try{
       await apiFetch(`/api/assignments/${id}`,{method:'DELETE'})
       goto(`/classes/${assignment.class_id}`)
-    }catch(e:any){ err=e.message }
-  }
-
-  async function delTest(tid:number){
-    if(!confirm('Delete this test?')) return
-    try{
-      await apiFetch(`/api/tests/${tid}`,{method:'DELETE'})
-      await load()
     }catch(e:any){ err=e.message }
   }
 
@@ -279,6 +324,28 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     return '';
   }
 
+  function openTeacherRunModal(){
+    teacherRunDialog.showModal()
+  }
+
+  async function runTeacherSolution(){
+    if (!solFiles.length) return
+    const fd = new FormData()
+    for (const f of solFiles) fd.append('files', f)
+    try{
+      solLoading = true
+      await apiJSON(`/api/assignments/${id}/solution-run`, { method: 'POST', body: fd })
+      solFiles = []
+      teacherRunDialog.close()
+      await load()
+      activeTab = 'teacher-runs'
+    }catch(e:any){
+      err = e.message
+    }finally{
+      solLoading = false
+    }
+  }
+
   async function submit(){
     if(files.length === 0) return
     const fd = new FormData()
@@ -298,19 +365,38 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     submitDialog.showModal()
   }
 
-  function openTestsModal(){
-    testsDialog.showModal()
+  function openTestsModal(){ goto(`/assignments/${id}/tests`) }
+
+  // removed updateTest (moved to tests page)
+
+  // Persist and restore selected tab via URL so back/forward keeps state
+  function isValidTab(key: string): key is TabKey {
+    const allowed: TabKey[] = ['overview']
+    if (role==='student') {
+      allowed.push('submissions')
+      if (!assignment?.manual_review) allowed.push('results')
+    }
+    if (role==='teacher' || role==='admin') {
+      allowed.push('instructor','teacher-runs')
+    }
+    return allowed.includes(key as TabKey)
   }
 
-  async function updateTest(t:any){
+  // initialize activeTab from URL once on mount (do not keep overwriting on every reactive cycle)
+
+  function saveTabToUrl(){
     try{
-      await apiFetch(`/api/tests/${t.id}`,{
-        method:'PUT',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({stdin:t.stdin, expected_stdout:t.expected_stdout, weight: parseFloat(t.weight) || 1, time_limit_sec: parseFloat(t.time_limit_sec) || undefined})
-      })
-      await load()
-    }catch(e:any){ err=e.message }
+      if(typeof location!=='undefined' && typeof history!=='undefined'){
+        const url = new URL(location.href)
+        url.searchParams.set('tab', activeTab)
+        history.replaceState(history.state, '', url)
+      }
+    }catch{}
+  }
+
+  function setTab(tab: TabKey){
+    activeTab = tab
+    saveTabToUrl()
   }
 </script>
 
@@ -340,6 +426,17 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             <input type="checkbox" class="checkbox" bind:checked={eShowTraceback}>
             <span class="label-text">Show traceback to students</span>
           </label>
+          <div class="divider sm:col-span-2">Testing model</div>
+          <label class="form-control sm:col-span-2 w-full max-w-xs">
+            <select class="select select-bordered select-sm" bind:value={testMode}>
+              <option value="automatic">Automatic tests</option>
+              <option value="manual">Manual teacher review</option>
+              <option value="ai">AI testing (LLM-Interactive)</option>
+            </select>
+          </label>
+          <p class="text-xs opacity-70 sm:col-span-2">
+            {testMode === 'automatic' ? 'Use IO/unittest tests (including AI-generated tests) to grade automatically.' : testMode === 'manual' ? 'Teacher reviews submissions and assigns points. No automated tests run.' : 'Grade using LLM-driven interactive scenarios. Configure details under Manage tests.'}
+          </p>
         </div>
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2">
@@ -363,7 +460,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         <div class="flex-1 p-6">
           <div class="flex items-center justify-between gap-3">
             <h1 class="text-2xl sm:text-3xl font-semibold tracking-tight">{assignment.title}</h1>
-            {#if role==='student'}
+            {#if role==='student' && !assignment.manual_review && testsCount > 0}
               <div class="hidden sm:flex items-center gap-3">
                 <div class="radial-progress text-primary" style="--value:{testsPercent};" aria-valuenow={testsPercent} role="progressbar">{testsPercent}%</div>
                 <span class="font-semibold">{testsPassed} / {results.length} tests</span>
@@ -374,6 +471,9 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             <span class={`badge ${deadlineBadgeClass}`}>{deadlineLabel}</span>
             <span class="badge badge-ghost">Max {assignment.max_points} pts</span>
             <span class="badge badge-ghost">{policyLabel(assignment.grading_policy)}</span>
+            {#if assignment.manual_review}
+              <span class="badge badge-info">Manual review</span>
+            {/if}
             {#if role!=='student'}
               {#if assignment.published}
                 <span class="badge badge-success">Published</span>
@@ -393,7 +493,9 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
               {#if !assignment.published}
                 <button class="btn btn-sm btn-secondary" on:click={publish}>Publish</button>
               {/if}
-              <button class="btn btn-sm" on:click={openTestsModal}>Manage tests</button>
+              {#if !assignment.manual_review}
+                <button class="btn btn-sm" on:click={openTestsModal}>Manage tests</button>
+              {/if}
               <button class="btn btn-sm" on:click={startEdit}>Edit</button>
               <button class="btn btn-sm btn-error" on:click={delAssignment}>Delete</button>
             {:else}
@@ -414,6 +516,11 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         {/if}
       </div>
     </section>
+    {#if role==='student' && assignment.manual_review}
+      <div class="alert alert-info mb-4">
+        <span>This assignment is graded by teacher review. Automatic tests will not run; points will appear after review.</span>
+      </div>
+    {/if}
     {#if deadlineSoon}
       <div class="alert alert-warning mb-4">
         <span>The deadline is near!</span>
@@ -424,13 +531,16 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
       <div class="lg:col-span-8">
         <div class="tabs tabs-boxed w-full mb-4">
-          <button class={`tab ${activeTab==='overview' ? 'tab-active' : ''}`} on:click={() => activeTab='overview'}>Overview</button>
+          <button class={`tab ${activeTab==='overview' ? 'tab-active' : ''}`} on:click={() => setTab('overview')}>Overview</button>
           {#if role==='student'}
-            <button class={`tab ${activeTab==='submissions' ? 'tab-active' : ''}`} on:click={() => activeTab='submissions'}>Submissions</button>
-            <button class={`tab ${activeTab==='results' ? 'tab-active' : ''}`} on:click={() => activeTab='results'}>Results</button>
+            <button class={`tab ${activeTab==='submissions' ? 'tab-active' : ''}`} on:click={() => setTab('submissions')}>Submissions</button>
+            {#if !assignment.manual_review}
+              <button class={`tab ${activeTab==='results' ? 'tab-active' : ''}`} on:click={() => setTab('results')}>Results</button>
+            {/if}
           {/if}
           {#if role==='teacher' || role==='admin'}
-            <button class={`tab ${activeTab==='instructor' ? 'tab-active' : ''}`} on:click={() => activeTab='instructor'}>Instructor</button>
+          <button class={`tab ${activeTab==='instructor' ? 'tab-active' : ''}`} on:click={() => setTab('instructor')}>Instructor</button>
+          <button class={`tab ${activeTab==='teacher-runs' ? 'tab-active' : ''}`} on:click={() => setTab('teacher-runs')}>Teacher runs</button>
           {/if}
         </div>
 
@@ -468,18 +578,30 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             <div class="overflow-x-auto">
               <table class="table table-zebra">
                 <thead>
-                  <tr><th>Date</th><th>Status</th><th></th></tr>
+                  <tr>
+                    <th>Date</th>
+                    <th>Status</th>
+                    {#if testsCount>0}
+                      <th>Passed</th>
+                      <th>Points</th>
+                    {/if}
+                    <th></th>
+                  </tr>
                 </thead>
                 <tbody>
                   {#each submissions as s}
                     <tr>
                       <td>{formatDateTime(s.created_at)}</td>
                       <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span></td>
-                      <td><a href={`/submissions/${s.id}`} class="btn btn-sm btn-outline">View</a></td>
+                      {#if testsCount>0}
+                        <td>{#if subStats[s.id]}{subStats[s.id].passed} / {testsCount}{:else}-{/if}</td>
+                        <td>{(s.override_points ?? s.points ?? 0)} {#if s.manually_accepted}<span class="badge badge-xs badge-outline badge-success ml-2" title="Accepted by teacher">accepted</span>{/if}</td>
+                      {/if}
+                      <td><a href={`/submissions/${s.id}?fromTab=${activeTab}`} class="btn btn-sm btn-outline" on:click={saveState}>View</a></td>
                     </tr>
                   {/each}
                   {#if !submissions.length}
-                    <tr><td colspan="3"><i>No submissions yet</i></td></tr>
+                    <tr><td colspan="{testsCount>0?5:3}"><i>No submissions yet</i></td></tr>
                   {/if}
                 </tbody>
               </table>
@@ -493,7 +615,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             {#if latestSub}
               <div class="flex items-center gap-2">
                 <span>Submission:</span>
-                <a class="link" href={`/submissions/${latestSub.id}`}>{formatDateTime(latestSub.created_at)}</a>
+                <a class="link" href={`/submissions/${latestSub.id}?fromTab=${activeTab}`} on:click={saveState}>{formatDateTime(latestSub.created_at)}</a>
                 <span class={`badge ${statusColor(latestSub.status)}`}>{latestSub.status}</span>
               </div>
               <div class="overflow-x-auto mt-2">
@@ -530,7 +652,9 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             <div class="card-elevated p-6">
               <div class="flex items-center justify-between">
                 <h3 class="font-semibold text-lg">Student progress</h3>
-                <button class="btn btn-sm" on:click={openTestsModal}>Manage tests</button>
+                {#if !assignment.manual_review}
+                  <button class="btn btn-sm" on:click={openTestsModal}>Manage tests</button>
+                {/if}
               </div>
               <div class="overflow-x-auto mt-3">
                 <table class="table table-zebra">
@@ -541,7 +665,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                     {#each progress as p (p.student.id)}
                       <tr class="cursor-pointer" on:click={() => toggleStudent(p.student.id)}>
                         <td>{p.student.name ?? p.student.email}</td>
-                        <td><span class={`badge ${statusColor(p.latest ? p.latest.status : 'none')}`}>{p.latest ? p.latest.status : 'none'}</span></td>
+                        <td><span class={`badge ${statusColor(p.displayStatus)}`}>{p.displayStatus}</span></td>
                         <td>{p.latest ? formatDateTime(p.latest.created_at) : '-'}</td>
                       </tr>
                       {#if expanded === p.student.id}
@@ -564,7 +688,10 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                                       {/if}
                                     </div>
                                     <div class="timeline-end timeline-box flex items-center m-0">
-                                      <a class="link" href={`/submissions/${s.id}`} on:click={saveState}>{formatDateTime(s.created_at)}</a>
+                                      <a class="link" href={`/submissions/${s.id}?fromTab=${activeTab}`} on:click={saveState}>{formatDateTime(s.created_at)}</a>
+                                      {#if s.manually_accepted}
+                                        <span class="badge badge-xs badge-outline badge-success ml-2" title="Accepted by teacher">accepted</span>
+                                      {/if}
                                     </div>
                                     {#if i !== p.all.length - 1}<hr />{/if}
                                   </li>
@@ -583,6 +710,36 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                   </tbody>
                 </table>
               </div>
+            </div>
+
+          </section>
+        {/if}
+
+        {#if activeTab==='teacher-runs' && (role==='teacher' || role==='admin')}
+          <section class="card-elevated p-6 space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="font-semibold text-lg">Your runs</h3>
+              <button class="btn btn-sm" on:click={openTeacherRunModal}>New run</button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="table table-zebra">
+                <thead>
+                  <tr><th>Date</th><th>Status</th><th>First failure</th><th></th></tr>
+                </thead>
+                <tbody>
+                  {#each teacherRuns as s}
+                    <tr>
+                      <td>{formatDateTime(s.created_at)}</td>
+                      <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span></td>
+                      <td>{s.failure_reason ?? '-'}</td>
+                      <td><a class="btn btn-sm btn-outline" href={`/submissions/${s.id}?fromTab=${activeTab}`} on:click={saveState}>View</a></td>
+                    </tr>
+                  {/each}
+                  {#if !teacherRuns.length}
+                    <tr><td colspan="4"><i>No runs yet</i></td></tr>
+                  {/if}
+                </tbody>
+              </table>
             </div>
           </section>
         {/if}
@@ -604,7 +761,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
               <h3 class="font-semibold">Latest submission</h3>
               <div class="flex items-center gap-2">
                 <span class={`badge ${statusColor(latestSub.status)}`}>{latestSub.status}</span>
-                <a class="link" href={`/submissions/${latestSub.id}`}>{formatDateTime(latestSub.created_at)}</a>
+                <a class="link" href={`/submissions/${latestSub.id}?fromTab=${activeTab}`} on:click={saveState}>{formatDateTime(latestSub.created_at)}</a>
               </div>
             </div>
           {/if}
@@ -641,82 +798,34 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
   </dialog>
 
-  <dialog bind:this={testsDialog} class="modal">
-    <div class="modal-box w-11/12 max-w-2xl space-y-4">
-      <h3 class="font-bold text-lg mb-2">Manage tests</h3>
-      <p class="text-sm opacity-70">Specify stdin, expected stdout, time limit and weight. You can also upload a unittest file.</p>
-      <div class="grid gap-3 max-h-64 overflow-y-auto">
-        {#each tests as t, i}
-          <div class="rounded-xl border border-base-300/60 p-3 space-y-2">
-            <div class="flex items-center justify-between">
-              <div class="font-semibold">Test {i+1}
-                {#if t.unittest_name}
-                  <span class="badge badge-outline ml-2">{t.unittest_name}</span>
-                {/if}
-              </div>
-              <div class="flex gap-2">
-                <button class="btn btn-xs" on:click={()=>updateTest(t)}>Save</button>
-                <button class="btn btn-xs btn-error" on:click={()=>delTest(t.id)}>Delete</button>
-              </div>
-            </div>
-            {#if !t.unittest_name}
-              <div class="grid sm:grid-cols-2 gap-2">
-                <label class="form-control w-full space-y-1">
-                  <span class="label-text">Input</span>
-                  <input class="input input-bordered w-full" placeholder="stdin" bind:value={t.stdin}>
-                </label>
-                <label class="form-control w-full space-y-1">
-                  <span class="label-text">Expected output</span>
-                  <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={t.expected_stdout}>
-                </label>
-              </div>
-            {/if}
-            <div class="grid sm:grid-cols-2 gap-2">
-              <label class="form-control w-full space-y-1">
-                <span class="label-text">Time limit (s)</span>
-                <input class="input input-bordered w-full" placeholder="seconds" bind:value={t.time_limit_sec}>
-              </label>
-              <label class="form-control w-full space-y-1">
-                <span class="label-text">Weight</span>
-                <input class="input input-bordered w-full" placeholder="points" bind:value={t.weight}>
-              </label>
-            </div>
-          </div>
-        {/each}
-        {#if !(tests && tests.length)}<p><i>No tests</i></p>{/if}
+  <!-- Teacher run upload modal -->
+  <dialog bind:this={teacherRunDialog} class="modal">
+    <div class="modal-box w-11/12 max-w-lg space-y-4">
+      <h3 class="font-bold text-lg">New teacher run</h3>
+      <div
+        role="region"
+        aria-label="Teacher solution dropzone"
+        class={`border-2 border-dashed rounded-xl p-6 text-center transition ${isSolDragging ? 'bg-base-200' : 'bg-base-100'}`}
+        on:dragover|preventDefault={() => isSolDragging = true}
+        on:dragleave={() => isSolDragging = false}
+        on:drop|preventDefault={(e)=>{ isSolDragging=false; const dt=(e as DragEvent).dataTransfer; if(dt){ solFiles=[...solFiles, ...Array.from(dt.files)].filter(f=>f.name.endsWith('.py')) } }}
+      >
+        <div class="text-sm opacity-70 mb-2">Drag and drop reference .py files here</div>
+        <div class="mb-3">or</div>
+        <input type="file" accept=".py" multiple class="file-input file-input-bordered w-full"
+          on:change={e=>solFiles=Array.from((e.target as HTMLInputElement).files||[])}>
       </div>
-      <div class="border-t pt-3 space-y-2">
-        <h4 class="font-semibold">Add test</h4>
-        <div class="grid sm:grid-cols-2 gap-2">
-          <label class="form-control w-full space-y-1">
-            <span class="label-text">Input</span>
-            <input class="input input-bordered w-full" placeholder="stdin" bind:value={tStdin}>
-          </label>
-          <label class="form-control w-full space-y-1">
-            <span class="label-text">Expected output</span>
-            <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={tStdout}>
-          </label>
-          <label class="form-control w-full space-y-1">
-            <span class="label-text">Time limit (s)</span>
-            <input class="input input-bordered w-full" placeholder="seconds" bind:value={tLimit}>
-          </label>
-          <label class="form-control w-full space-y-1">
-            <span class="label-text">Weight</span>
-            <input class="input input-bordered w-full" placeholder="points" bind:value={tWeight}>
-          </label>
-        </div>
-        <div class="modal-action">
-          <button class="btn btn-primary" on:click={addTest} disabled={!tStdin || !tStdout}>Add</button>
-        </div>
-        <h4 class="font-semibold mt-2">Upload unittest file</h4>
-        <input type="file" accept=".py" class="file-input file-input-bordered w-full" on:change={e=>unittestFile=(e.target as HTMLInputElement).files?.[0] || null}>
-        <div class="modal-action">
-          <button class="btn" on:click={uploadUnitTests} disabled={!unittestFile}>Upload</button>
-        </div>
+      {#if solFiles.length}
+        <div class="text-sm opacity-70">{solFiles.length} file{solFiles.length===1?'':'s'} selected</div>
+      {/if}
+      <div class="modal-action">
+        <button class={`btn btn-primary ${solLoading ? 'loading' : ''}`} on:click={runTeacherSolution} disabled={!solFiles.length || solLoading}>Run</button>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
   </dialog>
+
+  
 
   {#if err}
     <div class="alert alert-error mt-4"><span>{err}</span></div>
