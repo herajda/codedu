@@ -112,9 +112,11 @@
     connect();
     adjustHeight();
     document.addEventListener('click', handleClickOutside);
+    document.addEventListener('keydown', handleLightboxKeydown);
     return () => {
       esCtrl?.close();
       document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('keydown', handleLightboxKeydown);
     };
   });
 
@@ -155,12 +157,7 @@
     if (e.key === 'ArrowRight') showNextImage();
   }
 
-  // Attach keyboard navigation only while lightbox is open
-  $: if (lightboxOpen) {
-    document.addEventListener('keydown', handleLightboxKeydown);
-  } else {
-    document.removeEventListener('keydown', handleLightboxKeydown);
-  }
+  // Keyboard navigation is handled globally; handler checks lightboxOpen
 
   function formatTime(d: string | number | Date) {
     return new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });

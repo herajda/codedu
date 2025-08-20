@@ -238,13 +238,15 @@
     else { err = (await res.json()).error; }
   }
 
-  onMount(async () => {
+  onMount(() => {
     load();
-    try {
-      const info = await apiJSON(`/api/users/${id}`);
-      contactAvatar = info.avatar ?? null;
-      if (!name) name = info.name ?? info.email ?? id;
-    } catch {}
+    (async () => {
+      try {
+        const info = await apiJSON(`/api/users/${id}`);
+        contactAvatar = info.avatar ?? null;
+        if (!name) name = info.name ?? info.email ?? id;
+      } catch {}
+    })();
     esCtrl = createEventSource(
       '/api/messages/events',
       (src) => {
@@ -278,13 +280,14 @@
     );
     adjustHeight();
     
-    // Add click outside handler
+    // Add click outside handler and global keydown listener
     document.addEventListener('click', handleClickOutside);
-  });
-
-  onDestroy(() => { 
-    esCtrl?.close(); 
-    document.removeEventListener('click', handleClickOutside);
+    document.addEventListener('keydown', handleLightboxKeydown);
+    return () => {
+      esCtrl?.close();
+      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('keydown', handleLightboxKeydown);
+    };
   });
   function back() { goto('/messages'); }
 
@@ -364,12 +367,7 @@
     if (e.key === 'ArrowRight') showNextImage();
   }
 
-  // Attach keyboard navigation only while lightbox is open
-  $: if (lightboxOpen) {
-    document.addEventListener('keydown', handleLightboxKeydown);
-  } else {
-    document.removeEventListener('keydown', handleLightboxKeydown);
-  }
+  // Keyboard navigation is handled globally; handler checks lightboxOpen
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {
