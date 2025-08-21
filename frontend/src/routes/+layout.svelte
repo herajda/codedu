@@ -332,11 +332,14 @@ import { compressImage } from '$lib/utils/compressImage';
             </svg>
           </button>
         {/if}
-        <a href="/dashboard" class="appbar-title flex items-center gap-2 min-w-0">
-          <span class="brand-dot"></span>
-          <span class="truncate font-semibold tracking-tight">CodeGrader</span>
-        </a>
       </div>
+      <a href="/dashboard" class="appbar-center min-w-0">
+        <span class="logo truncate font-semibold tracking-tight text-3xl sm:text-4xl">
+          <span class="logo-bracket">&lt;</span>
+          <span class="logo-text">CodEdu</span>
+          <span class="logo-bracket">&gt;</span>
+        </span>
+      </a>
       <div class="flex-1"></div>
       <div class="flex items-center gap-2 shrink-0">
         {#if user}
@@ -395,12 +398,14 @@ import { compressImage } from '$lib/utils/compressImage';
                   <h4 class="font-semibold">Choose a default avatar</h4>
                   <span class="text-sm text-base-content/60">or upload your own</span>
                 </div>
-                <div class="grid grid-cols-6 gap-2">
-                  {#each avatarChoices as a}
-                    <button type="button" class={`avatar w-12 h-12 rounded-full ring-2 ${selectedAvatarFromCatalog === a ? 'ring-primary' : 'ring-base-200'}`} on:click={() => { selectedAvatarFromCatalog = a; avatarFile = null; }}>
-                      <img src={a} alt="avatar" class="w-full h-full object-cover rounded-full" />
-                    </button>
-                  {/each}
+                <div class="max-h-64 overflow-y-auto">
+                  <div class="grid grid-cols-8 gap-2">
+                    {#each avatarChoices as a}
+                      <button type="button" class={`avatar w-12 h-12 rounded-full ring-2 ${selectedAvatarFromCatalog === a ? 'ring-primary' : 'ring-base-200'}`} on:click={() => { selectedAvatarFromCatalog = a; avatarFile = null; }}>
+                        <img src={a} alt="avatar" class="w-full h-full object-cover rounded-full" />
+                      </button>
+                    {/each}
+                  </div>
                 </div>
               </div>
               {/if}

@@ -1264,6 +1264,39 @@ func acceptSubmission(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// undoManualAccept: PUT /api/submissions/:id/undo-accept
+// Allows a teacher/admin to undo manual acceptance of a submission.
+func undoManualAccept(c *gin.Context) {
+	sid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	a, err := GetAssignmentForSubmission(sid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if role := c.GetString("role"); role == "teacher" {
+		if ok, err := IsTeacherOfAssignment(a.ID, c.GetInt("userID")); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+
+	// Mark as not manually accepted
+	_ = SetSubmissionManualAccept(sid, false)
+
+	// Reset status to failed if it was manually accepted
+	// This will allow the worker to re-grade the submission
+	if err := UpdateSubmissionStatus(sid, "failed"); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
 // submissionTerminalWS: GET /api/submissions/:id/terminal (WS)
 // Upgrades to a websocket and bridges an interactive shell inside a Docker
 // container seeded with the submission's files. Teacher/admin only; also

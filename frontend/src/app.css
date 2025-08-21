@@ -1,6 +1,24 @@
 @import "tailwindcss";
 @plugin "daisyui";
 
+/* Brand font: CodEdu */
+@font-face {
+  font-family: "CodEdu";
+  src: url("/fonts/CodEdu/codedu-font.woff2") format("woff2"),
+       url("/fonts/CodEdu/codedu-font.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "CodEdu";
+  src: url("/fonts/CodEdu/codedu-font.woff2") format("woff2"),
+       url("/fonts/CodEdu/codedu-font.woff") format("woff");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --rounded-box: 0.75rem;
   --rounded-btn: 0.6rem;
@@ -327,3 +345,27 @@ body.hide-navbar .navbar {
   border-radius: 0.5rem;
   background: hsl(var(--b1) / 0.95);
 }
+
+/* Centered brand placement within appbar */
+.appbar-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  text-decoration: none;
+}
+
+/* Monospaced branded logo <CodEdu> */
+.logo {
+  font-family: "CodEdu", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.125rem;
+}
+.logo-bracket {
+  font-family: "CodEdu", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-weight: 400; /* lighter than the main logo text */
+  color: hsl(var(--bc) / 0.6); /* lighter, semi-transparent content color */
+}
+.logo-text { color: hsl(var(--bc)); }

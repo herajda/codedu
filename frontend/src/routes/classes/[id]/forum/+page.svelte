@@ -245,7 +245,7 @@
             {#if m.user_id !== $auth?.id}
               <div class="avatar flex-shrink-0">
                 <div class="w-8 h-8 rounded-full overflow-hidden ring-1 ring-base-300/50 shrink-0">
-                  <img src={m.avatar ?? '/avatars/a1.svg'} alt="" class="w-full h-full object-cover" />
+                  <img src={m.avatar ?? `/avatars/a${Math.floor(Math.random() * 50) + 1}.svg`} alt="" class="w-full h-full object-cover" />
                 </div>
               </div>
             {/if}

@@ -347,12 +347,52 @@ $: id = $page.params.id
         {#if (role==='teacher' || role==='admin')}
           <div class="rounded-box bg-base-200 p-4 mt-2">
             <div class="font-medium mb-2">Teacher actions</div>
-            <div class="flex items-center gap-3">
-              <input type="number" step="1" min="0" inputmode="numeric" pattern="[0-9]*" on:keydown={(e) => { if (['e','E','+','-','.',','].includes(e.key)) e.preventDefault() }} class="input input-bordered input-sm w-28 sm:w-32" bind:value={overrideValue} placeholder="points (optional)" aria-label="Override points">
-              <button class={`btn btn-primary btn-sm ${savingOverride ? 'loading' : ''}`} on:click={saveOverride} disabled={savingOverride}>Save points</button>
-              <button class="btn btn-success btn-sm" on:click={async()=>{ try{ const raw:any=overrideValue; const str = raw==null? '' : (typeof raw==='string'? raw : String(raw)); const v = str.trim()===''? null : parseInt(str,10); await apiFetch(`/api/submissions/${submission.id}/accept`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ points: v })}); await load(); }catch(e:any){ err=e.message } }}>Accept submission</button>
-            </div>
-            <div class="text-xs opacity-70 mt-2">Leave points empty to accept without overriding. Acceptance marks the submission completed and visible to the student as manually accepted.</div>
+            
+            {#if submission?.manually_accepted}
+              <!-- Show undo button for manually accepted submissions -->
+              <div class="flex items-center gap-3">
+                <button class="btn btn-warning btn-sm" on:click={async()=>{ 
+                  try{ 
+                    await apiFetch(`/api/submissions/${submission.id}/undo-accept`, { 
+                      method:'PUT', 
+                      headers:{'Content-Type':'application/json'}, 
+                      body: JSON.stringify({}) 
+                    }); 
+                    await load(); 
+                  }catch(e:any){ 
+                    err=e.message 
+                  } 
+                }}>Undo manual acceptance</button>
+              </div>
+              <div class="text-xs opacity-70 mt-2">This submission was manually accepted. Click undo to allow re-grading.</div>
+            {:else}
+              <!-- Show accept/give points options for non-manually accepted submissions -->
+              {#if submission?.status === 'failed' || submission?.status === 'pending'}
+                <!-- Show expandable section for failed/pending submissions -->
+                <div class="collapse collapse-arrow bg-base-100">
+                  <input type="checkbox" />
+                  <div class="collapse-title font-medium">
+                    Accept submission and give points
+                  </div>
+                  <div class="collapse-content">
+                    <div class="flex items-center gap-3 mt-3">
+                      <input type="number" step="1" min="0" inputmode="numeric" pattern="[0-9]*" on:keydown={(e) => { if (['e','E','+','-','.',','].includes(e.key)) e.preventDefault() }} class="input input-bordered input-sm w-28 sm:w-32" bind:value={overrideValue} placeholder="points (optional)" aria-label="Override points">
+                      <button class={`btn btn-primary btn-sm ${savingOverride ? 'loading' : ''}`} on:click={saveOverride} disabled={savingOverride}>Save points</button>
+                      <button class="btn btn-success btn-sm" on:click={async()=>{ try{ const raw:any=overrideValue; const str = raw==null? '' : (typeof raw==='string'? raw : String(raw)); const v = str.trim()===''? null : parseInt(str,10); await apiFetch(`/api/submissions/${submission.id}/accept`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ points: v })}); await load(); }catch(e:any){ err=e.message } }}>Accept submission</button>
+                    </div>
+                    <div class="text-xs opacity-70 mt-2">Leave points empty to accept without overriding. Acceptance marks the submission completed and visible to the student as manually accepted.</div>
+                  </div>
+                </div>
+              {:else}
+                <!-- Show regular accept/give points for other statuses -->
+                <div class="flex items-center gap-3">
+                  <input type="number" step="1" min="0" inputmode="numeric" pattern="[0-9]*" on:keydown={(e) => { if (['e','E','+','-','.',','].includes(e.key)) e.preventDefault() }} class="input input-bordered input-sm w-28 sm:w-32" bind:value={overrideValue} placeholder="points (optional)" aria-label="Override points">
+                  <button class={`btn btn-primary btn-sm ${savingOverride ? 'loading' : ''}`} on:click={saveOverride} disabled={savingOverride}>Save points</button>
+                  <button class="btn btn-success btn-sm" on:click={async()=>{ try{ const raw:any=overrideValue; const str = raw==null? '' : (typeof raw==='string'? raw : String(raw)); const v = str.trim()===''? null : parseInt(str,10); await apiFetch(`/api/submissions/${submission.id}/accept`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ points: v })}); await load(); }catch(e:any){ err=e.message } }}>Accept submission</button>
+                </div>
+                <div class="text-xs opacity-70 mt-2">Leave points empty to accept without overriding. Acceptance marks the submission completed and visible to the student as manually accepted.</div>
+              {/if}
+            {/if}
           </div>
         {/if}
 
