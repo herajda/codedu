@@ -1,6 +1,6 @@
-# Code-Grader
+# CodeEdu
 
-**Code-Grader** is a containerized, self-hostable web application designed for the automatic evaluation and grading of programming assignments. Inspired by ReCodEx, it provides a modern interface and a scalable backend to streamline the process of submitting, evaluating, and grading code in educational or training environments.
+**CodeEdu** is a containerized, self-hostable web application designed for the automatic evaluation and grading of programming assignments. Inspired by ReCodEx, it provides a modern interface and a scalable backend to streamline the process of submitting, evaluating, and grading code in educational or training environments.
 
 ---
 
@@ -101,7 +101,7 @@ The backend expects several variables to be set (usually via a `.env` file):
 
 When this variable is configured, the frontend login page presents a
 "Bakalari" tab that communicates with Bakaláři directly so credentials are
-never sent to the Code Grader server.
+never sent to the CodeEdu server.
 
 You can copy `backend/.env.example` and adjust it for your environment.
 

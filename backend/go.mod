@@ -1,4 +1,4 @@
-module github.com/herajda/code-grader/backend
+module github.com/herajda/code-edu/backend
 
 go 1.23.8
 
