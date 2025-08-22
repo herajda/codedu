@@ -277,12 +277,14 @@
                     on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.showTime = !m.showTime; msgs = [...msgs]; } }}
                   >
                     {m.text}
-                    {#if m.showTime}
-                      <div class={`mt-1 text-xs opacity-60 ${m.user_id === $auth?.id ? 'text-right' : 'text-left'}`}>
-                        <span class="text-base-content/60">{formatTime(m.created_at)}</span>
-                      </div>
-                    {/if}
                   </div>
+                  
+                  <!-- Time display below emoji -->
+                  {#if m.showTime}
+                    <div class={`text-xs opacity-60 mt-1 ${m.user_id === $auth?.id ? 'text-right' : 'text-left'}`}>
+                      <span class="text-base-content/60">{formatTime(m.created_at)}</span>
+                    </div>
+                  {/if}
                 {:else}
                   <div
                     class={`message-bubble relative rounded-2xl px-4 py-3 whitespace-pre-wrap break-words shadow-sm transition-all duration-200 ${
@@ -296,12 +298,14 @@
                     on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.showTime = !m.showTime; msgs = [...msgs]; } }}
                   >
                     {hyphenateLongWords(m.text)}
-                    {#if m.showTime}
-                      <div class={`absolute -bottom-5 ${m.user_id === $auth?.id ? 'right-0' : 'left-0'} text-xs opacity-60`}>
-                        {formatTime(m.created_at)}
-                      </div>
-                    {/if}
                   </div>
+                  
+                  <!-- Time display below message -->
+                  {#if m.showTime}
+                    <div class={`text-xs opacity-60 mt-1 ${m.user_id === $auth?.id ? 'text-right' : 'text-left'}`}>
+                      <span class="text-base-content/60">{formatTime(m.created_at)}</span>
+                    </div>
+                  {/if}
                 {/if}
               {/if}
             </div>

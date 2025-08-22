@@ -544,12 +544,14 @@
                     on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.showTime = !m.showTime; convo = [...convo]; } }}
                   >
                     {m.text}
-                    {#if m.showTime}
-                      <div class={`mt-1 text-xs opacity-60 ${m.sender_id === $auth?.id ? 'text-right' : 'text-left'}`}>
-                        <span class="text-base-content/60">{formatTime(m.created_at)}</span>
-                      </div>
-                    {/if}
                   </div>
+                  
+                  <!-- Time display below emoji -->
+                  {#if m.showTime}
+                    <div class={`text-xs opacity-60 mt-1 ${m.sender_id === $auth?.id ? 'text-right' : 'text-left'}`}>
+                      <span class="text-base-content/60">{formatTime(m.created_at)}</span>
+                    </div>
+                  {/if}
                 {:else}
                   <div 
                     class={`message-bubble relative rounded-2xl px-4 py-3 whitespace-pre-wrap break-words shadow-sm transition-all duration-200 ${
@@ -566,22 +568,22 @@
                     
                     <!-- Message Status -->
                     {#if m.sender_id === $auth?.id}
-                      <div class="absolute -bottom-5 right-0 flex items-center gap-1 text-xs opacity-60">
-                        {#if m.showTime}<span class="text-base-content/60">{formatTime(m.created_at)}</span>{/if}
+                      <div class="flex items-center gap-1 text-xs opacity-60 mt-2 justify-end">
                         {#if m.is_read}
                           <CheckCheck class="w-3 h-3 text-primary" />
                         {:else}
                           <Check class="w-3 h-3 text-base-content/40" />
                         {/if}
                       </div>
-                    {:else}
-                      {#if m.showTime}
-                        <div class="absolute -bottom-5 left-0 text-xs opacity-60">
-                          <span class="text-base-content/60">{formatTime(m.created_at)}</span>
-                        </div>
-                      {/if}
                     {/if}
                   </div>
+                  
+                  <!-- Time display below message -->
+                  {#if m.showTime}
+                    <div class={`text-xs opacity-60 mt-1 ${m.sender_id === $auth?.id ? 'text-right' : 'text-left'}`}>
+                      <span class="text-base-content/60">{formatTime(m.created_at)}</span>
+                    </div>
+                  {/if}
                 {/if}
               {/if}
             </div>
