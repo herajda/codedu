@@ -312,7 +312,7 @@ $: id = $page.params.id
     )
   })
   onDestroy(() => { esCtrl?.close() })
-  $: sid = submission?.id ?? Number(id)
+  $: sid = submission?.id ?? id
 </script>
 
 {#if !submission}

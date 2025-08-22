@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
 )
 
 func JWTAuth() gin.HandlerFunc {
@@ -28,10 +29,26 @@ func JWTAuth() gin.HandlerFunc {
 			return
 		}
 		claims := token.Claims.(jwt.MapClaims)
-		c.Set("userID", int(claims["sub"].(float64)))
+		userIDStr := claims["sub"].(string)
+		userID, err := uuid.Parse(userIDStr)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid user id"})
+			return
+		}
+		c.Set("userID", userID)
 		c.Set("role", claims["role"].(string))
 		c.Next()
 	}
+}
+
+// getUserID extracts the UUID from the gin context
+func getUserID(c *gin.Context) uuid.UUID {
+	userID, exists := c.Get("userID")
+	if !exists {
+		// This should never happen if middleware is working correctly
+		return uuid.Nil
+	}
+	return userID.(uuid.UUID)
 }
 
 func RoleGuard(allowed ...string) gin.HandlerFunc {

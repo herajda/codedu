@@ -6,10 +6,11 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
-func ensureClassMember(c *gin.Context, classID int) bool {
-	uid := c.GetInt("userID")
+func ensureClassMember(c *gin.Context, classID uuid.UUID) bool {
+	uid := getUserID(c)
 	role := c.GetString("role")
 	if role == "admin" {
 		return true
@@ -29,7 +30,7 @@ func ensureClassMember(c *gin.Context, classID int) bool {
 }
 
 func createForumMessageHandler(c *gin.Context) {
-	cid, err := strconv.Atoi(c.Param("id"))
+	cid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -59,7 +60,7 @@ func createForumMessageHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "file too large"})
 		return
 	}
-	m := &ForumMessage{ClassID: cid, UserID: c.GetInt("userID"), Text: req.Text, Image: req.Image, FileName: req.FileName, File: req.File}
+	m := &ForumMessage{ClassID: cid, UserID: getUserID(c), Text: req.Text, Image: req.Image, FileName: req.FileName, File: req.File}
 	if err := CreateForumMessage(m); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
@@ -68,7 +69,7 @@ func createForumMessageHandler(c *gin.Context) {
 }
 
 func listForumMessagesHandler(c *gin.Context) {
-	cid, err := strconv.Atoi(c.Param("id"))
+	cid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return

@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -42,9 +43,9 @@ func clientHash(pw string) string {
 
 // issueTokens creates a short lived access token and a long lived refresh token
 // for the given user ID and role.
-func issueTokens(uid int, role string) (string, string, error) {
+func issueTokens(uid uuid.UUID, role string) (string, string, error) {
 	access := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub":  uid,
+		"sub":  uid.String(),
 		"role": role,
 		"exp":  time.Now().Add(accessTokenTTL).Unix(),
 	})
@@ -54,7 +55,7 @@ func issueTokens(uid int, role string) (string, string, error) {
 	}
 
 	refresh := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub":     uid,
+		"sub":     uid.String(),
 		"role":    role,
 		"exp":     time.Now().Add(refreshTokenTTL).Unix(),
 		"refresh": true,
@@ -283,7 +284,11 @@ func Refresh(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 		return
 	}
-	uid := int(claims["sub"].(float64))
+	uid, err := uuid.Parse(claims["sub"].(string))
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user id"})
+		return
+	}
 	role := claims["role"].(string)
 	access, refresh, err := issueTokens(uid, role)
 	if err != nil {
@@ -296,12 +301,12 @@ func Refresh(c *gin.Context) {
 
 func Logout(c *gin.Context) {
 	// Get user ID from context before clearing cookies
-	userID := c.GetInt("userID")
+	userID := getUserID(c)
 
 	clearAuthCookies(c)
 
 	// Mark user as offline
-	if userID > 0 {
+	if userID != uuid.Nil {
 		if err := MarkUserOffline(userID); err != nil {
 			log.Printf("[Logout] failed to mark user offline: %v", err)
 		}

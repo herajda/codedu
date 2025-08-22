@@ -20,7 +20,7 @@
   let assignments: any[] = [];
   let mySubs: any[] = [];
   let students: any[] = [];
-  let progressCounts: Record<number, number> = {};
+  let progressCounts: Record<string, number> = {};
   let err = '';
   let now = Date.now();
   let search = '';

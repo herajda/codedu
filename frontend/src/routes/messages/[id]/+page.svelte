@@ -232,7 +232,7 @@
     if (!msg.trim() && !imageData && !fileData) return;
     const res = await apiFetch('/api/messages', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ to: parseInt(id), text: msg, image: imageData, file_name: fileName, file: fileData })
+      body: JSON.stringify({ to: id, text: msg, image: imageData, file_name: fileName, file: fileData })
     });
     if (res.ok) { msg=''; imageData=null; fileData=null; fileName=null; offset=0; await load(); }
     else { err = (await res.json()).error; }
@@ -252,10 +252,10 @@
       (src) => {
         src.addEventListener('message', async (ev) => {
           const d = JSON.parse((ev as MessageEvent).data);
-          if (d.sender_id === parseInt(id) || d.recipient_id === parseInt(id)) {
+          if (d.sender_id === id || d.recipient_id === id) {
             d.showTime = false;
             convo = [...convo, d];
-            if (d.sender_id === parseInt(id)) {
+            if (d.sender_id === id) {
               await apiFetch(`/api/messages/${id}/read`, { method: 'PUT' });
               d.is_read = true;
             }
@@ -263,9 +263,9 @@
         });
         src.addEventListener('read', (ev) => {
           const d = JSON.parse((ev as MessageEvent).data);
-          if (d.reader_id === parseInt(id)) {
+          if (d.reader_id === id) {
             for (const m of convo) {
-              if (m.sender_id === $auth?.id && m.recipient_id === parseInt(id)) {
+              if (m.sender_id === $auth?.id && m.recipient_id === id) {
                 m.is_read = true;
               }
             }
@@ -406,7 +406,7 @@
           </div>
         </div>
         <!-- Online indicator -->
-        {#if $onlineUsers.some(u => u.id === parseInt(id))}
+        {#if $onlineUsers.some(u => u.id === id)}
           <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-success rounded-full border-2 border-base-100 shadow-sm animate-pulse"></div>
         {:else}
           <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-base-300 rounded-full border-2 border-base-100 shadow-sm"></div>
@@ -416,7 +416,7 @@
       <div class="flex flex-col min-w-0">
         <h2 class="font-semibold text-lg truncate">{name}</h2>
         <div class="text-sm text-base-content/60 flex items-center gap-1">
-          {#if $onlineUsers.some(u => u.id === parseInt(id))}
+          {#if $onlineUsers.some(u => u.id === id)}
             <div class="w-2 h-2 bg-success rounded-full animate-pulse"></div>
             <span class="text-success">Online</span>
           {:else}
@@ -738,7 +738,7 @@
 {/if}
 
 {#if showProfile}
-  <UserProfileModal userId={parseInt(id)} on:close={() => (showProfile = false)} />
+  <UserProfileModal userId={id} on:close={() => (showProfile = false)} />
 {/if}
 
 <style>

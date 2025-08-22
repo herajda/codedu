@@ -137,7 +137,7 @@ func main() {
 		})
 		// who am I
 		api.GET("/me", func(c *gin.Context) {
-			u, err := GetUser(c.GetInt("userID"))
+			u, err := GetUser(getUserID(c))
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 				return

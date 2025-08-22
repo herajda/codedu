@@ -4,7 +4,7 @@ import { browser } from "$app/environment";
 import { onlineUsers } from "./stores/onlineUsers";
 
 export type User = {
-  id: number;
+  id: string;
   role: string;
   name?: string | null;
   avatar?: string | null;

@@ -5,6 +5,7 @@
   import { login as bkLogin, getAtoms, getStudents, hasBakalari } from '$lib/bakalari';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
+  import { classesStore } from '$lib/stores/classes';
   import { BookOpen, Pencil, Trash2, UserPlus, UserMinus, Search as SearchIcon, Loader2, Check, X, Users, Download } from 'lucide-svelte';
 
   let id = $page.params.id;
@@ -69,12 +70,16 @@
       await apiFetch(`/api/classes/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName }) });
       cls.name = newName;
       renaming = false;
+      // Update the store
+      classesStore.updateClass(id, { name: newName });
     } catch (e: any) { err = e.message }
   }
 
   async function deleteClass() {
     try {
       await apiFetch(`/api/classes/${id}`, { method: 'DELETE' });
+      // Remove from store before navigating away
+      classesStore.removeClass(id);
       goto('/my-classes');
     } catch (e: any) { err = e.message }
   }

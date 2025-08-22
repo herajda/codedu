@@ -2,15 +2,15 @@ package main
 
 import (
 	"io"
-	"strconv"
 	"sync"
 
 	"github.com/gin-contrib/sse"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type forumSubscriber struct {
-	classID int
+	classID uuid.UUID
 	ch      chan sse.Event
 }
 
@@ -19,7 +19,7 @@ var (
 	forumSubs   = map[*forumSubscriber]bool{}
 )
 
-func addForumSubscriber(cid int) *forumSubscriber {
+func addForumSubscriber(cid uuid.UUID) *forumSubscriber {
 	sub := &forumSubscriber{classID: cid, ch: make(chan sse.Event, 10)}
 	forumSubsMu.Lock()
 	forumSubs[sub] = true
@@ -48,7 +48,7 @@ func broadcastForumMsg(m *ForumMessage) {
 }
 
 func forumEventsHandler(c *gin.Context) {
-	cid, err := strconv.Atoi(c.Param("id"))
+	cid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(400, gin.H{"error": "invalid id"})
 		return

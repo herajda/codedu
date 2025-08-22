@@ -2,7 +2,7 @@ import { writable } from 'svelte/store';
 import { apiFetch } from '$lib/api';
 
 export type OnlineUser = {
-	id: number;
+	id: string;
 	name: string;
 	avatar: string;
 	email: string;

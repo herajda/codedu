@@ -3,6 +3,7 @@
   import { apiFetch, apiJSON } from '$lib/api';
   import { sha256 } from '$lib/hash';
   import { formatDate, formatDateTime } from "$lib/date";
+  import { classesStore } from '$lib/stores/classes';
   import {
     Users2, GraduationCap, School, BookOpen, Plus, Trash2, RefreshCw,
     Shield, Search, Edit, ArrowRightLeft, Check
@@ -13,10 +14,10 @@
   let tab: Tab = 'overview';
 
   // Data models
-  type User = { id: number; email: string; name?: string | null; role: string; created_at: string };
-  type Class = { id: number; name: string; teacher_id: number; created_at: string };
+  type User = { id: string; email: string; name?: string | null; role: string; created_at: string };
+  type Class = { id: string; name: string; teacher_id: string; created_at: string };
   type Assignment = {
-    id: number; title: string; description: string; class_id: number;
+    id: string; title: string; description: string; class_id: string;
     deadline: string; max_points: number; grading_policy: string; published: boolean;
     show_traceback: boolean; manual_review: boolean; created_at: string
   };
@@ -36,7 +37,7 @@
   $: teachers = users.filter(u => u.role === 'teacher');
   $: admins = users.filter(u => u.role === 'admin');
   $: students = users.filter(u => u.role === 'student');
-  $: teacherIdToClassCount = classes.reduce<Record<number, number>>((m, c) => { m[c.teacher_id] = (m[c.teacher_id] || 0) + 1; return m; }, {});
+  $: teacherIdToClassCount = classes.reduce<Record<string, number>>((m, c) => { m[c.teacher_id] = (m[c.teacher_id] || 0) + 1; return m; }, {});
   $: filteredUsers = users.filter(u => (u.email + ' ' + (u.name ?? '')).toLowerCase().includes(userQuery.toLowerCase()));
   $: filteredClasses = classes.filter(c => (c.name + ' ' + c.id).toLowerCase().includes(classQuery.toLowerCase()))
   $: filteredAssignments = assignments
@@ -54,7 +55,11 @@
   }
   async function loadClasses() {
     loadingClasses = true; err = '';
-    try { classes = await apiJSON('/api/classes/all'); } catch (e: any) { err = e.message; }
+    try { 
+      classes = await apiJSON('/api/classes/all'); 
+      // Update the store with all classes for admin view
+      classesStore.setClasses(classes);
+    } catch (e: any) { err = e.message; }
     loadingClasses = false;
   }
   async function loadAssignments() {
@@ -89,7 +94,7 @@
   // User management
   // ───────────────────────────
   const roles = ['student', 'teacher', 'admin'];
-  async function changeRole(id: number, role: string) {
+  async function changeRole(id: string, role: string) {
     try {
       await apiFetch(`/api/users/${id}/role`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role })
@@ -98,7 +103,7 @@
       await loadUsers();
     } catch (e: any) { err = e.message; }
   }
-  async function deleteUser(id: number) {
+  async function deleteUser(id: string) {
     if (!confirm('Delete this user? This cannot be undone.')) return;
     try { await apiFetch(`/api/users/${id}`, { method: 'DELETE' }); ok = 'User deleted'; await loadUsers(); } catch (e: any) { err = e.message; }
   }
@@ -116,7 +121,7 @@
   // ───────────────────────────
   let showCreateClass = false;
   let newClassName = '';
-  let newClassTeacherId: number | null = null;
+  let newClassTeacherId: string | null = null;
   async function createClass() {
     if (!newClassName.trim() || !newClassTeacherId) return;
     try {
@@ -126,38 +131,56 @@
       });
       ok = `Class created (#${created.id})`;
       showCreateClass = false; newClassName = ''; newClassTeacherId = null;
+      // Update both local state and the store
       await loadClasses();
+      classesStore.addClass(created);
     } catch (e: any) { err = e.message; }
   }
-  async function renameClass(id: number) {
+  async function renameClass(id: string) {
     const name = prompt('New class name:');
     if (!name) return;
-    try { await apiFetch(`/api/classes/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }); ok = 'Class renamed'; await loadClasses(); } catch (e: any) { err = e.message; }
+    try { 
+      await apiFetch(`/api/classes/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }); 
+      ok = 'Class renamed'; 
+      await loadClasses();
+      // Update the store
+      classesStore.updateClass(id, { name });
+    } catch (e: any) { err = e.message; }
   }
-  async function deleteClassAction(id: number) {
+  async function deleteClassAction(id: string) {
     if (!confirm('Delete this class and its data?')) return;
-    try { await apiFetch(`/api/classes/${id}`, { method: 'DELETE' }); ok = 'Class deleted'; await loadClasses(); } catch (e: any) { err = e.message; }
+    try { 
+      await apiFetch(`/api/classes/${id}`, { method: 'DELETE' }); 
+      ok = 'Class deleted'; 
+      await loadClasses();
+      // Update the store
+      classesStore.removeClass(id);
+    } catch (e: any) { err = e.message; }
   }
-  let transferTarget: { id: number, to: number | null } | null = null;
+  let transferTarget: { id: string, to: string | null } | null = null;
   async function transferClass() {
     if (!transferTarget || !transferTarget.to) return;
     try {
-      await apiFetch(`/api/admin/classes/${transferTarget.id}/transfer`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ teacher_id: transferTarget.to })
+      const classId = transferTarget.id;
+      const teacherId = transferTarget.to;
+      await apiFetch(`/api/admin/classes/${classId}/transfer`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ teacher_id: teacherId })
       });
       ok = 'Class ownership transferred';
       transferTarget = null;
       await loadClasses();
+      // Update the store
+      classesStore.updateClass(classId, { teacher_id: teacherId });
     } catch (e: any) { err = e.message; }
   }
 
   // ───────────────────────────
   // Assignment management
   // ───────────────────────────
-  async function publishAssignment(aid: number) {
+  async function publishAssignment(aid: string) {
     try { await apiFetch(`/api/assignments/${aid}/publish`, { method: 'PUT' }); ok = 'Assignment published'; await loadAssignments(); } catch (e: any) { err = e.message; }
   }
-  async function deleteAssignment(aid: number) {
+  async function deleteAssignment(aid: string) {
     if (!confirm('Delete this assignment?')) return;
     try { await apiFetch(`/api/assignments/${aid}`, { method: 'DELETE' }); ok = 'Assignment deleted'; await loadAssignments(); } catch (e: any) { err = e.message; }
   }

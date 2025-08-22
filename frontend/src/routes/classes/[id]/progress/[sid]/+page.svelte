@@ -15,10 +15,10 @@
   let progress: any = null;
   let loading = true;
   let err = '';
-  let recent: { assignment_id: number; title: string; created_at: string; status?: string; points?: number; }[] = [];
+  let recent: { assignment_id: string; title: string; created_at: string; status?: string; points?: number; }[] = [];
 
-  function bestFor(assignmentId: number) {
-    const cell = (progress?.scores ?? []).find((c: any) => c.student_id === Number(studentId) && c.assignment_id === assignmentId);
+  function bestFor(assignmentId: string) {
+    const cell = (progress?.scores ?? []).find((c: any) => c.student_id === studentId && c.assignment_id === assignmentId);
     return cell?.points ?? 0;
   }
 
@@ -62,7 +62,7 @@
       for (let i = 0; i < assignments.length; i++) {
         const a = assignments[i];
         const d = details[i];
-        const subs = (d?.submissions ?? []).filter((s: any) => s.student_id === Number(studentId));
+        const subs = (d?.submissions ?? []).filter((s: any) => s.student_id === studentId);
         if (subs.length) {
           const latest = [...subs].sort((x: any, y: any) => new Date(y.created_at).getTime() - new Date(x.created_at).getTime())[0];
           rec.push({ assignment_id: a.id, title: a.title, created_at: latest.created_at, status: latest.status, points: latest.override_points ?? latest.points });

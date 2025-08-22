@@ -4,6 +4,7 @@
   import AdminPanel from '$lib/AdminPanel.svelte';
   import { formatDateTime } from "$lib/date";
   import { page } from '$app/stores';
+  import { classesStore } from '$lib/stores/classes';
   import { BookOpen, CalendarClock, Trophy, Inbox, Users, LayoutGrid, MessageSquare, FolderOpen } from 'lucide-svelte';
 
   let role = '';
@@ -120,7 +121,9 @@
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({name:newClassName})
       });
+      // Add the new class to both local state and the store
       classes = [...classes, { ...cl, assignments: [], students: [] }];
+      classesStore.addClass(cl);
       newClassName='';
       showNewClassInput = false;
       // Refresh data to get updated statistics

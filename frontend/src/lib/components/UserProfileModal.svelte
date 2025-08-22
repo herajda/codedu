@@ -3,7 +3,7 @@
   import { apiJSON } from '$lib/api';
   import { X } from 'lucide-svelte';
 
-  export let userId: number;
+  export let userId: string;
   const dispatch = createEventDispatcher();
   let user: any = null;
 

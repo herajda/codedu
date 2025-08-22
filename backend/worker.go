@@ -20,10 +20,12 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // Job represents a grading task for one submission.
-type Job struct{ SubmissionID int }
+type Job struct{ SubmissionID uuid.UUID }
 
 var taskQueue chan Job
 
@@ -439,7 +441,7 @@ func ensureDockerImage(img string) error {
 	return nil
 }
 
-func runSubmission(id int) {
+func runSubmission(id uuid.UUID) {
 	sub, err := GetSubmission(id)
 	if err != nil {
 		return

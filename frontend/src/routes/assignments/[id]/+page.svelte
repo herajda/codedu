@@ -34,7 +34,7 @@ $: role = $auth?.role ?? '';
   let testsPercent=0
   let testsCount=0
   let err=''
-  let subStats: Record<number, {passed:number, total:number}> = {}
+  let subStats: Record<string, {passed:number, total:number}> = {}
   // removed test creation inputs (moved to tests page)
   let files: File[] = []
   let templateFile:File|null=null
@@ -195,7 +195,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             return [s.id, {passed: 0, total: 0}] as const
           }
         }))
-        const map: Record<number, {passed:number, total:number}> = {}
+        const map: Record<string, {passed:number, total:number}> = {}
         for(const [sid, st] of pairs){ map[sid]=st }
         subStats = map
       }
