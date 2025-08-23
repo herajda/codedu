@@ -1052,6 +1052,13 @@ type Message struct {
 	Image       *string   `db:"image" json:"image,omitempty"`
 	IsRead      bool      `db:"is_read" json:"is_read"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	Reactions   []Reaction `db:"-" json:"reactions,omitempty"`
+}
+
+type Reaction struct {
+	Emoji   string `db:"emoji" json:"emoji"`
+	Count   int    `db:"count" json:"count"`
+	Mine    bool   `db:"mine" json:"mine"`
 }
 
 func CreateMessage(m *Message) error {
@@ -1082,7 +1089,37 @@ func ListMessages(userID, otherID, limit, offset int) ([]Message, error) {
                                 ORDER BY created_at DESC
                                 LIMIT $3 OFFSET $4`,
 		userID, otherID, limit, offset)
-	return msgs, err
+	if err != nil { return nil, err }
+	// Attach reactions per message
+	for i := range msgs {
+		rs, _ := ListMessageReactions(msgs[i].ID, userID)
+		msgs[i].Reactions = rs
+	}
+	return msgs, nil
+}
+
+func ListMessageReactions(messageID, viewerID int) ([]Reaction, error) {
+	type row struct { Emoji string `db:"emoji"`; Count int `db:"count"`; Mine bool `db:"mine"` }
+	rows := []row{}
+	err := DB.Select(&rows, `SELECT emoji, COUNT(*) AS count,
+       BOOL_OR(user_id = $2) AS mine
+  FROM message_reactions
+ WHERE message_id=$1
+ GROUP BY emoji
+ ORDER BY count DESC, emoji ASC`, messageID, viewerID)
+	if err != nil { return nil, err }
+	out := make([]Reaction, 0, len(rows))
+	for _, r := range rows { out = append(out, Reaction{Emoji: r.Emoji, Count: r.Count, Mine: r.Mine}) }
+	return out, nil
+}
+
+func ToggleMessageReaction(messageID, userID int, emoji string) (added bool, err error) {
+	res, err := DB.Exec(`DELETE FROM message_reactions WHERE message_id=$1 AND user_id=$2 AND emoji=$3`, messageID, userID, emoji)
+	if err != nil { return false, err }
+	if n, _ := res.RowsAffected(); n > 0 { return false, nil }
+	_, err = DB.Exec(`INSERT INTO message_reactions (message_id, user_id, emoji) VALUES ($1,$2,$3)`, messageID, userID, emoji)
+	if err != nil { return false, err }
+	return true, nil
 }
 
 func MarkMessagesRead(userID, otherID int) error {
@@ -1233,6 +1270,7 @@ type ForumMessage struct {
 	Name      *string   `db:"name" json:"name"`
 	Email     string    `db:"email" json:"email"`
 	Avatar    *string   `db:"avatar" json:"avatar"`
+	Reactions []Reaction `db:"-" json:"reactions,omitempty"`
 }
 
 func CreateForumMessage(m *ForumMessage) error {
@@ -1257,5 +1295,34 @@ func ListForumMessages(classID, limit, offset int) ([]ForumMessage, error) {
                                ORDER BY fm.created_at ASC
                                   LIMIT $2 OFFSET $3`,
 		classID, limit, offset)
-	return msgs, err
+	if err != nil { return nil, err }
+	for i := range msgs {
+		rs, _ := ListForumMessageReactions(msgs[i].ID, 0)
+		msgs[i].Reactions = rs
+	}
+	return msgs, nil
+}
+
+func ListForumMessageReactions(messageID, viewerID int) ([]Reaction, error) {
+	type row struct { Emoji string `db:"emoji"`; Count int `db:"count"`; Mine bool `db:"mine"` }
+	rows := []row{}
+	err := DB.Select(&rows, `SELECT emoji, COUNT(*) AS count,
+       BOOL_OR(user_id = $2) AS mine
+  FROM forum_message_reactions
+ WHERE forum_message_id=$1
+ GROUP BY emoji
+ ORDER BY count DESC, emoji ASC`, messageID, viewerID)
+	if err != nil { return nil, err }
+	out := make([]Reaction, 0, len(rows))
+	for _, r := range rows { out = append(out, Reaction{Emoji: r.Emoji, Count: r.Count, Mine: r.Mine}) }
+	return out, nil
+}
+
+func ToggleForumMessageReaction(messageID, userID int, emoji string) (added bool, err error) {
+	res, err := DB.Exec(`DELETE FROM forum_message_reactions WHERE forum_message_id=$1 AND user_id=$2 AND emoji=$3`, messageID, userID, emoji)
+	if err != nil { return false, err }
+	if n, _ := res.RowsAffected(); n > 0 { return false, nil }
+	_, err = DB.Exec(`INSERT INTO forum_message_reactions (forum_message_id, user_id, emoji) VALUES ($1,$2,$3)`, messageID, userID, emoji)
+	if err != nil { return false, err }
+	return true, nil
 }

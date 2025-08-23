@@ -47,6 +47,19 @@
     '👺','👻','👽','👾','🤖','😺','😸','😹','😻','😼'
   ];
 
+  const quickReactions = ['👍','❤️','😂','😮','😢','👏'];
+
+  async function toggleForumReaction(mid: number, emoji: string) {
+    try {
+      const res = await apiJSON(`/api/classes/${id}/forum/messages/${mid}/reactions`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emoji })
+      });
+      const m = msgs.find(x => x.id === mid);
+      if (m) m.reactions = res.reactions;
+      msgs = [...msgs];
+    } catch {}
+  }
+
   function insertEmoji(emoji: string) {
     const cursor = msgInput?.selectionStart || text.length;
     text = text.slice(0, cursor) + emoji + text.slice(cursor);
@@ -96,6 +109,13 @@
         try {
           const m = JSON.parse((e as MessageEvent).data);
           msgs = [...msgs, m];
+        } catch {}
+      });
+      es.addEventListener('reaction', e => {
+        try {
+          const d = JSON.parse((e as MessageEvent).data);
+          const m = msgs.find(x => x.id === d.message_id);
+          if (m) { m.reactions = d.reactions; msgs = [...msgs]; }
         } catch {}
       });
     });
@@ -254,6 +274,21 @@
                 on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.showTime = !m.showTime; msgs = [...msgs]; } }}
               >
                 {hyphenateLongWords(m.text)}
+
+                {#if m.reactions && m.reactions.length}
+                  <div class="mt-2 flex flex-wrap gap-1">
+                    {#each m.reactions as r}
+                      <button class={`px-2 py-0.5 rounded-full text-sm border ${r.mine ? 'bg-primary/20 border-primary/30' : 'bg-base-100/60 border-base-300/50'} hover:scale-105 transition`} on:click={() => toggleForumReaction(m.id, r.emoji)}>{r.emoji} {r.count}</button>
+                    {/each}
+                  </div>
+                {/if}
+
+                <div class="absolute -top-7 left-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                  {#each quickReactions as e}
+                    <button class="btn btn-ghost btn-xs" on:click|stopPropagation={() => toggleForumReaction(m.id, e)}>{e}</button>
+                  {/each}
+                </div>
+
                 {#if m.showTime}
                   <div class={`absolute -bottom-5 ${m.user_id === $auth?.id ? 'right-0' : 'left-0'} text-xs opacity-60`}>
                     {formatTime(m.created_at)}

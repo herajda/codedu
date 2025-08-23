@@ -29,6 +29,7 @@ import (
 
 	"github.com/creack/pty"
 	"github.com/disintegration/imaging"
+	"github.com/gin-contrib/sse"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/bcrypt"
@@ -2940,4 +2941,49 @@ func listBlockedUsers(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, list)
+}
+
+// Toggle a quick reaction on a direct message
+func toggleMessageReactionHandler(c *gin.Context) {
+	mid, err := strconv.Atoi(c.Param("mid"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var req struct{ Emoji string `json:"emoji" binding:"required"` }
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	added, err := ToggleMessageReaction(mid, c.GetInt("userID"), req.Emoji)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	// load aggregate to return and broadcast
+	rs, _ := ListMessageReactions(mid, c.GetInt("userID"))
+	c.JSON(http.StatusOK, gin.H{"added": added, "reactions": rs})
+	broadcastMsg(sse.Event{Event: "reaction", Data: map[string]any{"message_id": mid, "reactions": rs}})
+}
+
+// Toggle a quick reaction on a forum message
+func toggleForumReactionHandler(c *gin.Context) {
+	fid, err := strconv.Atoi(c.Param("mid"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var req struct{ Emoji string `json:"emoji" binding:"required"` }
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	added, err := ToggleForumMessageReaction(fid, c.GetInt("userID"), req.Emoji)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	rs, _ := ListForumMessageReactions(fid, c.GetInt("userID"))
+	c.JSON(http.StatusOK, gin.H{"added": added, "reactions": rs})
+	broadcastForumReaction(c, fid, rs)
 }

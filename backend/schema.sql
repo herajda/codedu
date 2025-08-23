@@ -209,3 +209,25 @@ ALTER TABLE forum_messages ADD COLUMN IF NOT EXISTS image TEXT;
 ALTER TABLE forum_messages ADD COLUMN IF NOT EXISTS file_name TEXT;
 ALTER TABLE forum_messages ADD COLUMN IF NOT EXISTS file TEXT;
 
+-- Message reactions (quick responses)
+CREATE TABLE IF NOT EXISTS message_reactions (
+  message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  emoji TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (message_id, user_id, emoji)
+);
+CREATE INDEX IF NOT EXISTS idx_message_reactions_message ON message_reactions(message_id);
+CREATE INDEX IF NOT EXISTS idx_message_reactions_user ON message_reactions(user_id);
+
+-- Forum message reactions (quick responses)
+CREATE TABLE IF NOT EXISTS forum_message_reactions (
+  forum_message_id INTEGER NOT NULL REFERENCES forum_messages(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  emoji TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (forum_message_id, user_id, emoji)
+);
+CREATE INDEX IF NOT EXISTS idx_forum_message_reactions_message ON forum_message_reactions(forum_message_id);
+CREATE INDEX IF NOT EXISTS idx_forum_message_reactions_user ON forum_message_reactions(user_id);
+

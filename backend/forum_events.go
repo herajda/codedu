@@ -47,6 +47,22 @@ func broadcastForumMsg(m *ForumMessage) {
 	forumSubsMu.Unlock()
 }
 
+func broadcastForumReaction(c *gin.Context, forumMessageID int, reactions []Reaction) {
+	// determine class_id of the forum message
+	var classID int
+	_ = DB.QueryRow(`SELECT class_id FROM forum_messages WHERE id=$1`, forumMessageID).Scan(&classID)
+	forumSubsMu.Lock()
+	for sub := range forumSubs {
+		if sub.classID == classID {
+			select {
+			case sub.ch <- sse.Event{Event: "reaction", Data: map[string]any{"message_id": forumMessageID, "reactions": reactions}}:
+			default:
+			}
+		}
+	}
+	forumSubsMu.Unlock()
+}
+
 func forumEventsHandler(c *gin.Context) {
 	cid, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
