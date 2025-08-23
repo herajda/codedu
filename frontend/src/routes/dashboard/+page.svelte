@@ -149,10 +149,10 @@
 
   $: teacherStats = role === 'teacher' ? (() => {
     // Deduplicate students across classes in case some are enrolled in multiple classes
-    const uniqueStudentIds = new Set<number>();
+    const uniqueStudentIds = new Set<string>();
     for (const c of classes) {
       for (const s of (c.students ?? [])) {
-        if (typeof s.id === 'number') uniqueStudentIds.add(s.id);
+        if (s.id) uniqueStudentIds.add(s.id);
       }
     }
     const studentsTotal = uniqueStudentIds.size;
