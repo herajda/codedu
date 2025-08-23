@@ -38,6 +38,16 @@ func broadcastMsg(evt sse.Event) {
 	if m, ok := evt.Data.(*Message); ok {
 		uid1 = m.RecipientID
 		uid2 = m.SenderID
+	} else if evt.Event == "reaction" {
+		if m, ok := evt.Data.(map[string]any); ok {
+			// best effort: deliver to both ends of the conversation by looking up message
+			if mid, ok := m["message_id"].(int); ok {
+				var sID, rID int
+				_ = DB.QueryRow(`SELECT sender_id, recipient_id FROM messages WHERE id=$1`, mid).Scan(&sID, &rID)
+				uid1 = rID
+				uid2 = sID
+			}
+		}
 	}
 	msgSubsMu.Lock()
 	for sub := range msgSubs {

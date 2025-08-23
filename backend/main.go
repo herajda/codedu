@@ -248,11 +248,15 @@ func main() {
 		api.POST("/messages/:id/archive", RoleGuard("student", "teacher", "admin"), archiveConversation)
 		api.DELETE("/messages/:id/archive", RoleGuard("student", "teacher", "admin"), unarchiveConversation)
 		api.GET("/messages/events", RoleGuard("student", "teacher", "admin"), messageEventsHandler)
+		// toggle reaction on a message: /api/messages/:id/reactions (body: {message_id, emoji})
+		api.POST("/messages/:id/messages/:mid/reactions", RoleGuard("student", "teacher", "admin"), toggleMessageReactionHandler)
 
 		// Class forums
 		api.GET("/classes/:id/forum", RoleGuard("teacher", "student", "admin"), listForumMessagesHandler)
 		api.POST("/classes/:id/forum", RoleGuard("teacher", "student", "admin"), createForumMessageHandler)
 		api.GET("/classes/:id/forum/events", RoleGuard("teacher", "student", "admin"), forumEventsHandler)
+		// toggle reaction on forum message
+		api.POST("/classes/:id/forum/messages/:mid/reactions", RoleGuard("teacher", "student", "admin"), toggleForumReactionHandler)
 
 		// Class file system
 		api.GET("/classes/:id/files", RoleGuard("teacher", "student", "admin"), listClassFiles)

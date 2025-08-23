@@ -226,6 +226,20 @@
     else { err = (await res.json()).error; }
   }
 
+  const quickReactions = ['👍','❤️','😂','😮','😢','👏'];
+
+  async function toggleReaction(mid: number, emoji: string) {
+    try {
+      const res = await apiJSON(`/api/messages/${id}/messages/${mid}/reactions`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emoji })
+      });
+      const m = convo.find(x => x.id === mid);
+      if (m) m.reactions = res.reactions;
+      convo = [...convo];
+    } catch (e) {}
+  }
+
   onMount(async () => {
     load();
     try {
@@ -257,6 +271,11 @@
             }
             convo = [...convo];
           }
+        });
+        src.addEventListener('reaction', (ev) => {
+          const d = JSON.parse((ev as MessageEvent).data);
+          const m = convo.find(x => x.id === d.message_id);
+          if (m) { m.reactions = d.reactions; convo = [...convo]; }
         });
       },
       {
@@ -487,6 +506,20 @@
                   on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.showTime = !m.showTime; convo = [...convo]; } }}
                 >
                   {hyphenateLongWords(m.text)}
+
+                  {#if m.reactions && m.reactions.length}
+                    <div class="mt-2 flex flex-wrap gap-1">
+                      {#each m.reactions as r}
+                        <button class={`px-2 py-0.5 rounded-full text-sm border ${r.mine ? 'bg-primary/20 border-primary/30' : 'bg-base-100/60 border-base-300/50'} hover:scale-105 transition`} on:click={() => toggleReaction(m.id, r.emoji)}>{r.emoji} {r.count}</button>
+                      {/each}
+                    </div>
+                  {/if}
+
+                  <div class="absolute -top-7 left-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                    {#each quickReactions as e}
+                      <button class="btn btn-ghost btn-xs" on:click|stopPropagation={() => toggleReaction(m.id, e)}>{e}</button>
+                    {/each}
+                  </div>
                   
                   <!-- Message Status -->
                   {#if m.sender_id === $auth?.id}
