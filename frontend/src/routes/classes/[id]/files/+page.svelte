@@ -347,7 +347,7 @@ onMount(() => {
 });
 </script>
 
-<nav class="mb-4 sticky top-16 z-30 bg-base-200 rounded-box shadow px-4 py-2 flex items-center flex-wrap gap-2">
+<nav class="mb-4 sticky top-16 z-30 bg-base-200 rounded-box shadow px-4 py-2 flex items-center flex-wrap gap-2 w-full overflow-x-auto sm:overflow-visible">
   <ul class="flex flex-wrap gap-1 text-sm items-center flex-grow">
     {#each breadcrumbs as b,i}
       <li class="after:mx-1 after:content-['/'] last:after:hidden">
