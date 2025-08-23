@@ -475,7 +475,7 @@ onMount(() => {
         {/if}
 
         {#if role === 'teacher' || role === 'admin'}
-          <div class="absolute top-1 right-1 hidden group-hover:flex gap-1">
+          <div class="absolute top-1 right-1 flex gap-1 sm:hidden sm:group-hover:flex">
             <button class="btn btn-xs btn-circle" title="Rename" aria-label="Rename"
                     on:click|stopPropagation={() => rename(it)}>
               <i class="fa-solid fa-pen"></i>
@@ -527,11 +527,11 @@ onMount(() => {
 
             {#if role === 'teacher' || role === 'admin'}
               <td class="text-right whitespace-nowrap w-16">
-                <button class="btn btn-xs btn-circle invisible group-hover:visible" title="Rename" aria-label="Rename"
+                <button class="btn btn-xs btn-circle sm:invisible sm:group-hover:visible" title="Rename" aria-label="Rename"
                         on:click|stopPropagation={() => rename(it)}>
                   <i class="fa-solid fa-pen"></i>
                 </button>
-                <button class="btn btn-xs btn-circle btn-error invisible group-hover:visible" title="Delete" aria-label="Delete"
+                <button class="btn btn-xs btn-circle btn-error sm:invisible sm:group-hover:visible" title="Delete" aria-label="Delete"
                         on:click|stopPropagation={() => del(it)}>
                   <i class="fa-solid fa-trash"></i>
                 </button>
