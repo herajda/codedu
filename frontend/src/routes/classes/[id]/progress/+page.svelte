@@ -146,25 +146,25 @@
   </section>
 
   <div class="card-elevated p-0">
-    <div class="relative overflow-auto max-h-[70vh]">
+    <div class="relative overflow-x-auto sm:overflow-auto sm:max-h-[70vh]">
       <table class="table table-compact w-full">
         <thead>
           <tr>
-            <th class="min-w-28 w-28 sm:min-w-40 sm:w-40 sticky left-0 top-0 z-40 bg-base-200">Student</th>
+            <th class="min-w-28 w-28 sm:min-w-40 sm:w-40 sm:sticky sm:left-0 sm:top-0 sm:z-40 bg-base-200">Student</th>
             {#each assignments as a}
-              <th class="min-w-14 sm:min-w-16 text-center sticky top-0 z-20 bg-base-200">
+              <th class="min-w-14 sm:min-w-16 text-center sm:sticky sm:top-0 sm:z-20 bg-base-200">
                 <div class="font-medium whitespace-normal break-words leading-snug text-xs sm:text-sm" title={a.title}>{a.title}</div>
                 <div class="text-xs opacity-70">{a.max_points}</div>
               </th>
             {/each}
-            <th class="min-w-28 sm:min-w-36 text-right sticky top-0 z-20 bg-base-200">Total</th>
+            <th class="min-w-28 sm:min-w-36 text-right sm:sticky sm:top-0 sm:z-20 bg-base-200">Total</th>
           </tr>
         </thead>
         <tbody>
           {#each visibleStudents as s (s.id)}
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <tr class="hover bg-base-100/10 cursor-pointer" on:click={() => openStudent(s.id)}>
-              <td class="sticky left-0 z-30 min-w-28 w-28 sm:min-w-40 sm:w-40 bg-base-200">
+              <td class="sm:sticky sm:left-0 sm:z-30 min-w-28 w-28 sm:min-w-40 sm:w-40 bg-base-200">
                 <div class="font-medium truncate"><a class="link" href={`/classes/${id}/progress/${s.id}`}>{s.name ?? s.email}</a></div>
                 <div class="text-xs opacity-70">{Math.round(completionRatio(s.id)*100)}% complete</div>
               </td>
