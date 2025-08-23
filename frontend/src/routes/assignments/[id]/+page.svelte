@@ -34,7 +34,7 @@ $: role = $auth?.role ?? '';
   let testsPercent=0
   let testsCount=0
   let err=''
-  let subStats: Record<number, {passed:number, total:number}> = {}
+  let subStats: Record<string, {passed:number, total:number}> = {}
   // removed test creation inputs (moved to tests page)
   let files: File[] = []
   let templateFile:File|null=null
@@ -53,6 +53,11 @@ $: testsPercent = results.length ? Math.round(testsPassed / results.length * 100
   let eLLMScenarios=''
   let eLLMStrictness:number=50
   let eLLMRubric=''
+  let eSecondDeadline=''
+  let eLatePenaltyRatio:number=0.5
+  let showAdvancedOptions=false
+  let showAiOptions=false
+  let showRubric=false
   const exampleScenario = '[{"name":"calc","steps":[{"send":"2 + 2","expect_after":"4"}]}]'
   let safeDesc=''
 $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.description) as string) : ''
@@ -64,6 +69,15 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     if (testMode === 'manual') { eManualReview = true; eLLMInteractive = false }
     else if (testMode === 'ai') { eManualReview = false; eLLMInteractive = true }
     else { eManualReview = false; eLLMInteractive = false }
+  }
+  
+  // Auto-switch to automatic testing when weighted policy is selected
+  $: {
+    if (ePolicy === 'weighted' && testMode !== 'automatic') {
+      testMode = 'automatic'
+      eManualReview = false
+      eLLMInteractive = false
+    }
   }
 
   // Enhanced UX state
@@ -95,8 +109,11 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     return `${diffMs>=0 ? 'in' : ''} ${days} day${days===1?'':'s'}${diffMs<0 ? ' ago' : ''}`
   }
   $: isOverdue = assignment ? new Date(assignment.deadline) < new Date() : false
+  $: isSecondDeadlineActive = assignment?.second_deadline ? new Date(assignment.second_deadline) > new Date() : false
   $: timeUntilDeadline = assignment ? new Date(assignment.deadline).getTime() - Date.now() : 0
+  $: timeUntilSecondDeadline = assignment?.second_deadline ? new Date(assignment.second_deadline).getTime() - Date.now() : 0
   $: deadlineSoon = timeUntilDeadline > 0 && timeUntilDeadline <= 24 * 60 * 60 * 1000
+  $: secondDeadlineSoon = timeUntilSecondDeadline > 0 && timeUntilSecondDeadline <= 24 * 60 * 60 * 1000
   $: deadlineBadgeClass = isOverdue && !(role==='student' && done) ? 'badge-error' : 'badge-ghost'
   $: deadlineLabel = assignment ? (
       isOverdue
@@ -105,6 +122,11 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             : `Due ${relativeToDeadline(assignment.deadline)}`
           )
         : `Due ${relativeToDeadline(assignment.deadline)}`
+    ) : ''
+  $: secondDeadlineLabel = assignment?.second_deadline ? (
+      new Date(assignment.second_deadline) < new Date()
+        ? `Second deadline passed ${relativeToDeadline(assignment.second_deadline)}`
+        : `Second deadline: ${relativeToDeadline(assignment.second_deadline)}`
     ) : ''
 
   async function publish(){
@@ -173,7 +195,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             return [s.id, {passed: 0, total: 0}] as const
           }
         }))
-        const map: Record<number, {passed:number, total:number}> = {}
+        const map: Record<string, {passed:number, total:number}> = {}
         for(const [sid, st] of pairs){ map[sid]=st }
         subStats = map
       }
@@ -215,10 +237,12 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
   })
 
 
-  onDestroy(()=>{
-    esCtrl?.close()
-    window.removeEventListener('beforeunload', saveState)
-  })
+  onDestroy(() => {
+    esCtrl?.close();
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('beforeunload', saveState);
+    }
+  });
 
   async function uploadTemplate(){
     if(!templateFile) return
@@ -262,6 +286,9 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     eLLMScenarios=assignment.llm_scenarios_json ?? ''
     eLLMStrictness = typeof assignment.llm_strictness === 'number' ? assignment.llm_strictness : 50
     eLLMRubric = assignment.llm_rubric ?? ''
+    eSecondDeadline = assignment.second_deadline ? assignment.second_deadline.slice(0,16) : ''
+    eLatePenaltyRatio = assignment.late_penalty_ratio ?? 0.5
+    showAdvancedOptions = !!assignment.second_deadline
     if (assignment.manual_review) testMode = 'manual'
     else if (assignment.llm_interactive) testMode = 'ai'
     else testMode = 'automatic'
@@ -270,6 +297,10 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
   async function saveEdit(){
     try{
       if(new Date(eDeadline)<new Date() && !confirm('The deadline is in the past. Continue?')) return
+      if(eSecondDeadline && new Date(eSecondDeadline)<=new Date(eDeadline) && !confirm('The second deadline must be after the first deadline. Continue?')) return
+      // For weighted assignments, max_points is calculated from test weights
+      const maxPoints = ePolicy === 'weighted' ? (assignment.max_points || 100) : Number(ePoints)
+      
       await apiFetch(`/api/assignments/${id}`,{
         method:'PUT',
         headers:{'Content-Type':'application/json'},
@@ -277,7 +308,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           title:eTitle,
           description:eDesc,
           deadline:new Date(eDeadline).toISOString(),
-          max_points:Number(ePoints),
+          max_points:maxPoints,
           grading_policy:ePolicy,
           show_traceback:eShowTraceback,
           manual_review:eManualReview,
@@ -286,7 +317,9 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           llm_auto_award:eLLMAutoAward,
           llm_scenarios_json:eLLMScenarios.trim() ? eLLMScenarios : null,
           llm_strictness: Number.isFinite(eLLMStrictness) ? Math.min(100, Math.max(0, Number(eLLMStrictness))) : 50,
-          llm_rubric: eLLMRubric.trim() ? eLLMRubric : null
+          llm_rubric: eLLMRubric.trim() ? eLLMRubric : null,
+          second_deadline: eSecondDeadline.trim() ? new Date(eSecondDeadline).toISOString() : null,
+          late_penalty_ratio: Number.isFinite(eLatePenaltyRatio) ? Math.min(1, Math.max(0, Number(eLatePenaltyRatio))) : 0.5
         })
       })
       editing=false
@@ -408,48 +441,187 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
 {:else}
   {#if editing}
     <div class="card-elevated mb-6">
-      <div class="card-body space-y-4 p-6">
-        <div class="flex items-center justify-between">
+      <div class="card-body p-6">
+        <div class="flex items-center justify-between mb-2">
           <h1 class="card-title text-2xl">Edit assignment</h1>
           <div class="badge badge-outline">ID #{assignment.id}</div>
         </div>
-        <input class="input input-bordered w-full" bind:value={eTitle} placeholder="Title" required>
-        <MarkdownEditor bind:value={eDesc} placeholder="Description" />
-        <div class="grid sm:grid-cols-2 gap-3">
-          <input type="number" min="1" class="input input-bordered w-full" bind:value={ePoints} placeholder="Max points" required>
-          <select class="select select-bordered w-full" bind:value={ePolicy}>
-            <option value="all_or_nothing">All or nothing</option>
-            <option value="weighted">Weighted</option>
-          </select>
-          <input type="datetime-local" class="input input-bordered w-full sm:col-span-2" bind:value={eDeadline} required>
-          <label class="flex items-center gap-2 sm:col-span-2">
-            <input type="checkbox" class="checkbox" bind:checked={eShowTraceback}>
-            <span class="label-text">Show traceback to students</span>
-          </label>
-          <div class="divider sm:col-span-2">Testing model</div>
-          <label class="form-control sm:col-span-2 w-full max-w-xs">
-            <select class="select select-bordered select-sm" bind:value={testMode}>
-              <option value="automatic">Automatic tests</option>
-              <option value="manual">Manual teacher review</option>
-              <option value="ai">AI testing (LLM-Interactive)</option>
-            </select>
-          </label>
-          <p class="text-xs opacity-70 sm:col-span-2">
-            {testMode === 'automatic' ? 'Use IO/unittest tests (including AI-generated tests) to grade automatically.' : testMode === 'manual' ? 'Teacher reviews submissions and assigns points. No automated tests run.' : 'Grade using LLM-driven interactive scenarios. Configure details under Manage tests.'}
-          </p>
-        </div>
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <div class="flex items-center gap-2">
-            <input type="file" class="file-input file-input-bordered" on:change={e=>templateFile=(e.target as HTMLInputElement).files?.[0] || null}>
-            <button class="btn" on:click={uploadTemplate} disabled={!templateFile}>Upload template</button>
-            {#if assignment.template_path}
-              <button class="btn btn-ghost" on:click|preventDefault={downloadTemplate}>Download current</button>
-            {/if}
+
+        <div class="grid lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-2 space-y-4">
+            <!-- Basic info -->
+            <section class="rounded-xl border border-base-300/60 bg-base-100 p-5 space-y-3">
+              <h3 class="font-semibold">Basic info</h3>
+              <input class="input input-bordered w-full" bind:value={eTitle} placeholder="Title" required>
+              <MarkdownEditor bind:value={eDesc} placeholder="Description" />
+              <div class="grid gap-3" class:sm:grid-cols-2={ePolicy === 'all_or_nothing'}>
+                <div class="form-control">
+                  <label class="label" for="grading-policy-select"><span class="label-text">Grading policy</span></label>
+                  <select id="grading-policy-select" class="select select-bordered w-full" bind:value={ePolicy}>
+                    <option value="all_or_nothing">All or nothing</option>
+                    <option value="weighted" disabled={testMode === 'manual' || testMode === 'ai'}>Weighted</option>
+                  </select>
+                  {#if testMode === 'manual' || testMode === 'ai'}
+                    <div class="label-text-alt text-warning">Switch to automatic testing to use weighted grading</div>
+                  {/if}
+                </div>
+                {#if ePolicy === 'all_or_nothing'}
+                  <div class="form-control">
+                    <label class="label" for="max-points-input"><span class="label-text">Max points</span></label>
+                    <input id="max-points-input" type="number" min="1" class="input input-bordered w-full" bind:value={ePoints} placeholder="Max points" required>
+                  </div>
+                {/if}
+              </div>
+              <div class="text-xs opacity-70 mt-2">
+                <strong>All or nothing:</strong> Students get full points only if all tests pass. <strong>Weighted:</strong> Points are calculated from individual test weights set in the Tests section.
+              </div>
+            </section>
+
+            <!-- Deadlines -->
+            <section class="rounded-xl border border-base-300/60 bg-base-100 p-5 space-y-3">
+              <div class="flex items-center justify-between">
+                <h3 class="font-semibold">Deadlines</h3>
+                <label class="flex items-center gap-2">
+                  <input type="checkbox" class="toggle" bind:checked={showAdvancedOptions}>
+                  <span class="text-sm">Enable second deadline</span>
+                </label>
+              </div>
+              <div class="grid sm:grid-cols-2 gap-3">
+                <div class="form-control">
+                  <label class="label" for="deadline-input"><span class="label-text">Main deadline</span></label>
+                  <input id="deadline-input" type="datetime-local" class="input input-bordered w-full" bind:value={eDeadline} required>
+                </div>
+                {#if showAdvancedOptions}
+                  <div class="form-control">
+                    <label class="label" for="second-deadline-input"><span class="label-text">Second deadline</span></label>
+                    <input id="second-deadline-input" type="datetime-local" class="input input-bordered w-full" bind:value={eSecondDeadline} placeholder="Leave empty to disable">
+                  </div>
+                {/if}
+              </div>
+              {#if showAdvancedOptions}
+                <div class="form-control">
+                  <label class="label" for="late-penalty-range">
+                    <span class="label-text">Late penalty ratio</span>
+                    <span class="label-text-alt">{Math.round(eLatePenaltyRatio * 100)}%</span>
+                  </label>
+                  <input id="late-penalty-range" type="range" min="0" max="1" step="0.1" class="range range-primary" bind:value={eLatePenaltyRatio} />
+                  <div class="w-full flex justify-between text-xs px-2 mt-1">
+                    <span>0%</span>
+                    <span>100%</span>
+                  </div>
+                </div>
+              {/if}
+            </section>
+
+            <!-- Testing and grading -->
+            <section class="rounded-xl border border-base-300/60 bg-base-100 p-5 space-y-3">
+              <h3 class="font-semibold">Testing and grading</h3>
+              <div class="flex flex-wrap items-center gap-3">
+                <label class="form-control w-full max-w-xs">
+                  <select class="select select-bordered select-sm" bind:value={testMode} disabled={ePolicy === 'weighted'}>
+                    <option value="automatic">Automatic tests</option>
+                    <option value="manual" disabled={ePolicy === 'weighted'}>Manual teacher review</option>
+                    <option value="ai" disabled={ePolicy === 'weighted'}>AI testing (LLM-Interactive)</option>
+                  </select>
+                </label>
+                {#if testMode === 'automatic'}
+                  <label class="flex items-center gap-2">
+                    <input type="checkbox" class="checkbox" bind:checked={eShowTraceback}>
+                    <span class="label-text">Show traceback to students</span>
+                  </label>
+                {/if}
+              </div>
+              <p class="text-xs opacity-70">
+                {#if ePolicy === 'weighted'}
+                  Weighted assignments require automatic testing to calculate points from test weights.
+                {:else if testMode === 'automatic'}
+                  Use IO/unittest tests (including AI-generated tests) to grade automatically.
+                {:else if testMode === 'manual'}
+                  Teacher reviews submissions and assigns points. No automated tests run.
+                {:else}
+                  Grade using LLM-driven interactive scenarios.
+                {/if}
+              </p>
+
+              {#if testMode==='ai'}
+                <div class="divider my-2"></div>
+                <button type="button" class="btn btn-ghost btn-sm" on:click={() => showAiOptions = !showAiOptions}>
+                  {showAiOptions ? 'Hide' : 'Show'} AI options
+                </button>
+                {#if showAiOptions}
+                  <div class="mt-2 space-y-3">
+                    <div class="grid sm:grid-cols-2 gap-3">
+                      <label class="flex items-center gap-2">
+                        <input type="checkbox" class="checkbox checkbox-sm" bind:checked={eLLMFeedback}>
+                        <span class="label-text">Give AI feedback to students</span>
+                      </label>
+                      <label class="flex items-center gap-2">
+                        <input type="checkbox" class="checkbox checkbox-sm" bind:checked={eLLMAutoAward}>
+                        <span class="label-text">Auto-award points from AI</span>
+                      </label>
+                    </div>
+                    <div class="form-control">
+                      <label class="label" for="ai-strictness-range">
+                        <span class="label-text">Strictness</span>
+                        <span class="label-text-alt">{eLLMStrictness}%</span>
+                      </label>
+                      <input id="ai-strictness-range" type="range" min="0" max="100" step="5" class="range range-primary" bind:value={eLLMStrictness}>
+                    </div>
+
+                    <div class="form-control">
+                      <button type="button" class="btn btn-ghost btn-sm w-fit" on:click={() => showRubric = !showRubric}>
+                        {showRubric ? 'Hide rubric' : 'Add rubric'}
+                      </button>
+                      {#if showRubric}
+                        <textarea class="textarea textarea-bordered min-h-[6rem]" bind:value={eLLMRubric} placeholder="Optional rubric to guide AI scoring"></textarea>
+                      {/if}
+                    </div>
+                  </div>
+                {/if}
+              {/if}
+            </section>
+
+            <!-- Template (collapsible) -->
+            <details class="collapse collapse-arrow bg-base-100 border border-base-300/60 rounded-xl">
+              <summary class="collapse-title text-base font-medium">Assignment template</summary>
+              <div class="collapse-content">
+                <div class="flex flex-wrap items-center gap-2">
+                  <input type="file" class="file-input file-input-bordered" on:change={e=>templateFile=(e.target as HTMLInputElement).files?.[0] || null}>
+                  <button class="btn" on:click={uploadTemplate} disabled={!templateFile}>Upload template</button>
+                  {#if assignment.template_path}
+                    <button class="btn btn-ghost" on:click|preventDefault={downloadTemplate}>Download current</button>
+                  {/if}
+                </div>
+              </div>
+            </details>
           </div>
-          <div class="card-actions">
-            <button class="btn" on:click={()=>editing=false}>Cancel</button>
-            <button class="btn btn-primary" on:click={saveEdit}>Save changes</button>
-          </div>
+
+          <!-- Sticky actions / summary -->
+          <aside class="lg:col-span-1">
+            <div class="rounded-xl border border-base-300/60 bg-base-100 p-5 lg:sticky lg:top-24 space-y-4">
+              <h3 class="font-semibold">Actions</h3>
+              <div class="space-y-2 text-sm opacity-70">
+                <div>Policy: <span class="font-semibold">{policyLabel(ePolicy)}</span></div>
+                {#if ePolicy === 'all_or_nothing'}
+                  <div>Max points: <span class="font-semibold">{ePoints}</span></div>
+                {:else}
+                  <div>Max points: <span class="font-semibold text-base-content/50">From test weights</span></div>
+                {/if}
+                <div>Deadline: <span class="font-semibold">{eDeadline || '-'}</span></div>
+                {#if showAdvancedOptions}
+                  <div>2nd deadline: <span class="font-semibold">{eSecondDeadline || '-'}</span></div>
+                  <div>Late penalty: <span class="font-semibold">{Math.round(eLatePenaltyRatio * 100)}%</span></div>
+                {/if}
+                {#if testMode==='ai'}
+                  <div>AI strictness: <span class="font-semibold">{eLLMStrictness}%</span></div>
+                {/if}
+              </div>
+              <div class="card-actions">
+                <button class="btn w-full" on:click={()=>editing=false}>Cancel</button>
+                <button class="btn btn-primary w-full" on:click={saveEdit}>Save changes</button>
+              </div>
+            </div>
+          </aside>
         </div>
       </div>
     </div>
@@ -469,6 +641,9 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           </div>
           <div class="mt-3 flex flex-wrap items-center gap-2">
             <span class={`badge ${deadlineBadgeClass}`}>{deadlineLabel}</span>
+            {#if assignment.second_deadline}
+              <span class="badge badge-warning">{secondDeadlineLabel}</span>
+            {/if}
             <span class="badge badge-ghost">Max {assignment.max_points} pts</span>
             <span class="badge badge-ghost">{policyLabel(assignment.grading_policy)}</span>
             {#if assignment.manual_review}
@@ -499,7 +674,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
               <button class="btn btn-sm" on:click={startEdit}>Edit</button>
               <button class="btn btn-sm btn-error" on:click={delAssignment}>Delete</button>
             {:else}
-              <button class="btn btn-sm btn-primary" on:click={openSubmitModal}>Submit solution</button>
+              <button class="btn btn-sm btn-primary" on:click={openSubmitModal} disabled={assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}>Submit solution</button>
             {/if}
           </div>
         </div>
@@ -526,6 +701,11 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         <span>The deadline is near!</span>
       </div>
     {/if}
+    {#if secondDeadlineSoon}
+      <div class="alert alert-warning mb-4">
+        <span>The second deadline is near! Submissions after the first deadline will receive {Math.round(assignment.late_penalty_ratio * 100)}% of points.</span>
+      </div>
+    {/if}
 
     <!-- Content with tabs and optional sidebar for students -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -547,12 +727,33 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         {#if activeTab==='overview'}
           <article class="card-elevated p-6 space-y-4">
             <div class="markdown">{@html safeDesc}</div>
+            {#if role==='student' && assignment.second_deadline && new Date() > assignment.deadline && new Date() <= assignment.second_deadline}
+              <div class="alert alert-warning">
+                <span>
+                  <strong>Second deadline active!</strong> You can still submit your solution, but you will receive {Math.round(assignment.late_penalty_ratio * 100)}% of the maximum points.
+                  <br>Second deadline: {formatDateTime(assignment.second_deadline)}
+                </span>
+              </div>
+            {:else if role==='student' && assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}
+              <div class="alert alert-error">
+                <span>
+                  <strong>All deadlines have passed:</strong> No more submissions are accepted for this assignment.
+                </span>
+              </div>
+            {/if}
             <div class="grid sm:grid-cols-3 gap-3">
               <div class="stat bg-base-100 rounded-xl border border-base-300/60">
                 <div class="stat-title">Deadline</div>
-                <div class="stat-value text-lg">{formatDateTime(assignment.deadline)}</div>
+                <div class="stat-value text-lg whitespace-normal break-anywhere">{formatDateTime(assignment.deadline)}</div>
                 <div class="stat-desc">{relativeToDeadline(assignment.deadline)}</div>
               </div>
+              {#if assignment.second_deadline}
+                <div class="stat bg-base-100 rounded-xl border border-base-300/60">
+                  <div class="stat-title">Second deadline</div>
+                  <div class="stat-value text-lg whitespace-normal break-anywhere">{formatDateTime(assignment.second_deadline)}</div>
+                  <div class="stat-desc">{relativeToDeadline(assignment.second_deadline)} • {Math.round(assignment.late_penalty_ratio * 100)}% points</div>
+                </div>
+              {/if}
               <div class="stat bg-base-100 rounded-xl border border-base-300/60">
                 <div class="stat-title">Max points</div>
                 <div class="stat-value text-lg">{assignment.max_points}</div>
@@ -573,13 +774,28 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           <section class="card-elevated p-6 space-y-3">
             <div class="flex items-center justify-between">
               <h3 class="font-semibold text-lg">Your submissions</h3>
-              <button class="btn btn-sm" on:click={openSubmitModal}>New submission</button>
+              <button class="btn btn-sm" on:click={openSubmitModal} disabled={assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}>New submission</button>
             </div>
+            {#if assignment.second_deadline && new Date() > assignment.deadline && new Date() <= assignment.second_deadline}
+              <div class="alert alert-info">
+                <span>
+                  <strong>Second deadline period:</strong> You can still submit, but submissions made after the first deadline will receive {Math.round(assignment.late_penalty_ratio * 100)}% of points.
+                </span>
+              </div>
+            {:else if assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}
+              <div class="alert alert-error">
+                <span>
+                  <strong>Both deadlines have passed:</strong> No more submissions are accepted for this assignment.
+                </span>
+              </div>
+            {/if}
             <div class="overflow-x-auto">
               <table class="table table-zebra">
                 <thead>
                   <tr>
+                    <th>Attempt</th>
                     <th>Date</th>
+                    <th>Deadline</th>
                     <th>Status</th>
                     {#if testsCount>0}
                       <th>Passed</th>
@@ -591,7 +807,19 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                 <tbody>
                   {#each submissions as s}
                     <tr>
+                      <td>#{s.attempt_number ?? '?'}</td>
                       <td>{formatDateTime(s.created_at)}</td>
+                      <td>
+                        {#if s.created_at > assignment.deadline}
+                          {#if assignment.second_deadline && s.created_at <= assignment.second_deadline}
+                            <span class="badge badge-warning badge-sm">Second deadline ({Math.round(assignment.late_penalty_ratio * 100)}%)</span>
+                          {:else}
+                            <span class="badge badge-error badge-sm">Late (no points)</span>
+                          {/if}
+                        {:else}
+                          <span class="badge badge-success badge-sm">On time</span>
+                        {/if}
+                      </td>
                       <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span></td>
                       {#if testsCount>0}
                         <td>{#if subStats[s.id]}{subStats[s.id].passed} / {testsCount}{:else}-{/if}</td>
@@ -601,7 +829,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                     </tr>
                   {/each}
                   {#if !submissions.length}
-                    <tr><td colspan="{testsCount>0?5:3}"><i>No submissions yet</i></td></tr>
+                    <tr><td colspan="{testsCount>0?7:5}"><i>No submissions yet</i></td></tr>
                   {/if}
                 </tbody>
               </table>
@@ -615,6 +843,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             {#if latestSub}
               <div class="flex items-center gap-2">
                 <span>Submission:</span>
+                <span class="text-xs opacity-70">Attempt #{latestSub.attempt_number ?? '?'}</span>
                 <a class="link" href={`/submissions/${latestSub.id}?fromTab=${activeTab}`} on:click={saveState}>{formatDateTime(latestSub.created_at)}</a>
                 <span class={`badge ${statusColor(latestSub.status)}`}>{latestSub.status}</span>
               </div>
@@ -659,18 +888,33 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
               <div class="overflow-x-auto mt-3">
                 <table class="table table-zebra">
                   <thead>
-                    <tr><th>Student</th><th>Status</th><th>Last submission</th></tr>
+                    <tr><th>Student</th><th>Status</th><th>Deadline</th><th>Last submission</th></tr>
                   </thead>
                   <tbody>
                     {#each progress as p (p.student.id)}
                       <tr class="cursor-pointer" on:click={() => toggleStudent(p.student.id)}>
                         <td>{p.student.name ?? p.student.email}</td>
                         <td><span class={`badge ${statusColor(p.displayStatus)}`}>{p.displayStatus}</span></td>
+                        <td>
+                          {#if p.latest}
+                            {#if p.latest.created_at > assignment.deadline}
+                              {#if assignment.second_deadline && p.latest.created_at <= assignment.second_deadline}
+                                <span class="badge badge-warning badge-sm">Second deadline ({Math.round(assignment.late_penalty_ratio * 100)}%)</span>
+                              {:else}
+                                <span class="badge badge-error badge-sm">Late (no points)</span>
+                              {/if}
+                            {:else}
+                              <span class="badge badge-success badge-sm">On time</span>
+                            {/if}
+                          {:else}
+                            <span class="badge badge-ghost badge-sm">No submission</span>
+                          {/if}
+                        </td>
                         <td>{p.latest ? formatDateTime(p.latest.created_at) : '-'}</td>
                       </tr>
                       {#if expanded === p.student.id}
                         <tr>
-                          <td colspan="3">
+                          <td colspan="4">
                             {#if p.all && p.all.length}
                               <ul class="timeline timeline-vertical timeline-compact m-0 p-0">
                                 {#each p.all as s, i}
@@ -688,7 +932,15 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                                       {/if}
                                     </div>
                                     <div class="timeline-end timeline-box flex items-center m-0">
+                                      <span class="mr-2 text-xs opacity-70">Attempt #{s.attempt_number ?? '?'}</span>
                                       <a class="link" href={`/submissions/${s.id}?fromTab=${activeTab}`} on:click={saveState}>{formatDateTime(s.created_at)}</a>
+                                      {#if s.created_at > assignment.deadline}
+                                        {#if assignment.second_deadline && s.created_at <= assignment.second_deadline}
+                                          <span class="badge badge-xs badge-warning ml-2" title="Second deadline submission">2nd ({Math.round(assignment.late_penalty_ratio * 100)}%)</span>
+                                        {:else}
+                                          <span class="badge badge-xs badge-error ml-2" title="Late submission">Late</span>
+                                        {/if}
+                                      {/if}
                                       {#if s.manually_accepted}
                                         <span class="badge badge-xs badge-outline badge-success ml-2" title="Accepted by teacher">accepted</span>
                                       {/if}
@@ -705,7 +957,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                       {/if}
                     {/each}
                     {#if !progress.length}
-                      <tr><td colspan="3"><i>No students</i></td></tr>
+                      <tr><td colspan="4"><i>No students</i></td></tr>
                     {/if}
                   </tbody>
                 </table>
@@ -749,7 +1001,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         <aside class="lg:col-span-4 lg:sticky lg:top-24 h-fit space-y-4">
           <div class="card-elevated p-5 space-y-3">
             <h3 class="font-semibold">Quick actions</h3>
-            <button class="btn btn-primary w-full" on:click={openSubmitModal}>Submit solution</button>
+            <button class="btn btn-primary w-full" on:click={openSubmitModal} disabled={assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}>Submit solution</button>
             {#if assignment.template_path}
               <div class="divider my-1"></div>
               <div class="text-sm opacity-70">Need a starting point?</div>
@@ -761,8 +1013,28 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
               <h3 class="font-semibold">Latest submission</h3>
               <div class="flex items-center gap-2">
                 <span class={`badge ${statusColor(latestSub.status)}`}>{latestSub.status}</span>
+                <span class="text-xs opacity-70">Attempt #{latestSub.attempt_number ?? '?'}</span>
                 <a class="link" href={`/submissions/${latestSub.id}?fromTab=${activeTab}`} on:click={saveState}>{formatDateTime(latestSub.created_at)}</a>
               </div>
+              {#if assignment.second_deadline && latestSub.created_at > assignment.deadline && latestSub.created_at <= assignment.second_deadline}
+                <div class="alert alert-warning alert-sm">
+                  <span>This submission was made after the first deadline but before the second deadline. You will receive {Math.round(assignment.late_penalty_ratio * 100)}% of points.</span>
+                </div>
+              {/if}
+            </div>
+          {/if}
+          {#if assignment.second_deadline && new Date() > assignment.deadline && new Date() <= assignment.second_deadline}
+            <div class="card-elevated p-5 space-y-2">
+              <h3 class="font-semibold text-warning">Second deadline active</h3>
+              <p class="text-sm">You can still submit, but you will receive {Math.round(assignment.late_penalty_ratio * 100)}% of points.</p>
+              <div class="text-xs opacity-70">
+                Second deadline: {formatDateTime(assignment.second_deadline)}
+              </div>
+            </div>
+          {:else if assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}
+            <div class="card-elevated p-5 space-y-2">
+              <h3 class="font-semibold text-error">All deadlines passed</h3>
+              <p class="text-sm">No more submissions are accepted for this assignment.</p>
             </div>
           {/if}
         </aside>
@@ -775,6 +1047,19 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
   <dialog bind:this={submitDialog} class="modal">
     <div class="modal-box w-11/12 max-w-lg space-y-4">
       <h3 class="font-bold text-lg">Submit solution</h3>
+      {#if assignment.second_deadline && new Date() > assignment.deadline && new Date() <= assignment.second_deadline}
+        <div class="alert alert-warning">
+          <span>
+            <strong>Second deadline period:</strong> This submission will receive {Math.round(assignment.late_penalty_ratio * 100)}% of the maximum points.
+          </span>
+        </div>
+      {:else if assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}
+        <div class="alert alert-error">
+          <span>
+            <strong>All deadlines have passed:</strong> No more submissions are accepted for this assignment.
+          </span>
+        </div>
+      {/if}
       <div
         role="group"
         aria-label="Upload dropzone"
@@ -792,7 +1077,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         <div class="text-sm opacity-70">{files.length} file{files.length===1?'':'s'} selected</div>
       {/if}
       <div class="modal-action">
-        <button class="btn" on:click={submit} disabled={!files.length}>Upload</button>
+        <button class="btn" on:click={submit} disabled={!files.length || (assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline)}>Upload</button>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>

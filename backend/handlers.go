@@ -30,6 +30,7 @@ import (
 	"github.com/creack/pty"
 	"github.com/disintegration/imaging"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -79,12 +80,12 @@ var runSessions = map[string]*RunSession{}
 // ──────────────────────────────────────────────────────────────────────────────
 
 func getClass(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	detail, err := GetClassDetail(id, c.GetString("role"), c.GetInt("userID"))
+	detail, err := GetClassDetail(id, c.GetString("role"), getUserID(c))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
@@ -93,14 +94,14 @@ func getClass(c *gin.Context) {
 }
 
 func getClassProgress(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 	if c.GetString("role") == "teacher" {
 		var x int
-		if err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, id, c.GetInt("userID")); err != nil {
+		if err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, id, getUserID(c)); err != nil {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
@@ -150,7 +151,7 @@ func listStudents(c *gin.Context) {
 }
 
 func deleteUser(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -163,7 +164,7 @@ func deleteUser(c *gin.Context) {
 }
 
 func listSubs(c *gin.Context) {
-	uid := c.GetInt("userID")
+	uid := getUserID(c)
 	list, err := ListSubmissionsForStudent(uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
@@ -175,14 +176,14 @@ func listSubs(c *gin.Context) {
 // createAssignment: POST /api/classes/:id/assignments
 func createAssignment(c *gin.Context) {
 	// NEW: pull the class id from the URL and validate it
-	classID, err := strconv.Atoi(c.Param("id"))
+	classID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid class id"})
 		return
 	}
 	if c.GetString("role") == "teacher" {
 		var x int
-		if err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, classID, c.GetInt("userID")); err != nil {
+		if err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, classID, getUserID(c)); err != nil {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
@@ -200,16 +201,18 @@ func createAssignment(c *gin.Context) {
 	}
 
 	a := &Assignment{
-		ClassID:       classID,
-		Title:         req.Title,
-		Description:   req.Description,
-		Deadline:      time.Now().Add(24 * time.Hour),
-		MaxPoints:     100,
-		GradingPolicy: "all_or_nothing",
-		Published:     false,
-		ShowTraceback: req.ShowTraceback,
-		ManualReview:  req.ManualReview,
-		CreatedBy:     c.GetInt("userID"),
+		ClassID:          classID,
+		Title:            req.Title,
+		Description:      req.Description,
+		Deadline:         time.Now().Add(24 * time.Hour),
+		MaxPoints:        100,
+		GradingPolicy:    "all_or_nothing",
+		Published:        false,
+		ShowTraceback:    req.ShowTraceback,
+		ManualReview:     req.ManualReview,
+		CreatedBy:        getUserID(c),
+		SecondDeadline:   nil,
+		LatePenaltyRatio: 0.5,
 	}
 	if err := CreateAssignment(a); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create assignment"})
@@ -220,7 +223,7 @@ func createAssignment(c *gin.Context) {
 
 // listAssignments: GET /api/assignments
 func listAssignments(c *gin.Context) {
-	list, err := ListAssignments(c.GetString("role"), c.GetInt("userID"))
+	list, err := ListAssignments(c.GetString("role"), getUserID(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not list"})
 		return
@@ -230,7 +233,7 @@ func listAssignments(c *gin.Context) {
 
 // getAssignment: GET /api/assignments/:id
 func getAssignment(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -242,7 +245,7 @@ func getAssignment(c *gin.Context) {
 	}
 	role := c.GetString("role")
 	if role == "student" {
-		if ok, err := IsStudentOfAssignment(id, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsStudentOfAssignment(id, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
@@ -250,12 +253,12 @@ func getAssignment(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 			return
 		}
-		subs, _ := ListSubmissionsForAssignmentAndStudent(id, c.GetInt("userID"))
+		subs, _ := ListSubmissionsForAssignmentAndStudent(id, getUserID(c))
 		tests, _ := ListTestCases(id)
 		c.JSON(http.StatusOK, gin.H{"assignment": a, "submissions": subs, "tests_count": len(tests)})
 		return
 	} else if role == "teacher" {
-		if ok, err := IsTeacherOfAssignment(id, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsTeacherOfAssignment(id, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
@@ -280,13 +283,13 @@ func getAssignment(c *gin.Context) {
 
 // updateAssignment: PUT /api/assignments/:id
 func updateAssignment(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 	if c.GetString("role") == "teacher" {
-		if ok, err := IsTeacherOfAssignment(id, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsTeacherOfAssignment(id, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
@@ -299,20 +302,22 @@ func updateAssignment(c *gin.Context) {
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	var req struct {
-		Title              string  `json:"title" binding:"required"`
-		Description        string  `json:"description"`
-		Deadline           string  `json:"deadline" binding:"required"`
-		MaxPoints          int     `json:"max_points" binding:"required"`
-		GradingPolicy      string  `json:"grading_policy" binding:"required"`
-		ShowTraceback      bool    `json:"show_traceback"`
-		ManualReview       bool    `json:"manual_review"`
-		LLMInteractive     bool    `json:"llm_interactive"`
-		LLMFeedback        bool    `json:"llm_feedback"`
-		LLMAutoAward       bool    `json:"llm_auto_award"`
-		LLMScenariosRaw    *string `json:"llm_scenarios_json"`
-		LLMStrictness      *int    `json:"llm_strictness"`
-		LLMRubric          *string `json:"llm_rubric"`
-		LLMTeacherBaseline *string `json:"llm_teacher_baseline_json"`
+		Title              string   `json:"title" binding:"required"`
+		Description        string   `json:"description"`
+		Deadline           string   `json:"deadline" binding:"required"`
+		MaxPoints          int      `json:"max_points" binding:"required"`
+		GradingPolicy      string   `json:"grading_policy" binding:"required"`
+		ShowTraceback      bool     `json:"show_traceback"`
+		ManualReview       bool     `json:"manual_review"`
+		LLMInteractive     bool     `json:"llm_interactive"`
+		LLMFeedback        bool     `json:"llm_feedback"`
+		LLMAutoAward       bool     `json:"llm_auto_award"`
+		LLMScenariosRaw    *string  `json:"llm_scenarios_json"`
+		LLMStrictness      *int     `json:"llm_strictness"`
+		LLMRubric          *string  `json:"llm_rubric"`
+		LLMTeacherBaseline *string  `json:"llm_teacher_baseline_json"`
+		SecondDeadline     *string  `json:"second_deadline"`
+		LatePenaltyRatio   *float64 `json:"late_penalty_ratio"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -349,6 +354,17 @@ func updateAssignment(c *gin.Context) {
 	if req.LLMTeacherBaseline != nil {
 		a.LLMTeacherBaseline = req.LLMTeacherBaseline
 	}
+	if req.SecondDeadline != nil {
+		dl, err := time.Parse(time.RFC3339Nano, *req.SecondDeadline)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid second deadline"})
+			return
+		}
+		a.SecondDeadline = &dl
+	}
+	if req.LatePenaltyRatio != nil {
+		a.LatePenaltyRatio = *req.LatePenaltyRatio
+	}
 	if err := UpdateAssignment(a); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not update"})
 		return
@@ -358,13 +374,13 @@ func updateAssignment(c *gin.Context) {
 
 // deleteAssignment: DELETE /api/assignments/:id
 func deleteAssignment(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 	if c.GetString("role") == "teacher" {
-		if ok, err := IsTeacherOfAssignment(id, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsTeacherOfAssignment(id, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
@@ -378,13 +394,13 @@ func deleteAssignment(c *gin.Context) {
 
 // publishAssignment: PUT /api/assignments/:id/publish
 func publishAssignment(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 	if c.GetString("role") == "teacher" {
-		if ok, err := IsTeacherOfAssignment(id, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsTeacherOfAssignment(id, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
@@ -398,13 +414,13 @@ func publishAssignment(c *gin.Context) {
 
 // uploadTemplate: POST /api/assignments/:id/template
 func uploadTemplate(c *gin.Context) {
-	aid, err := strconv.Atoi(c.Param("id"))
+	aid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 	if c.GetString("role") == "teacher" {
-		if ok, err := IsTeacherOfAssignment(aid, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsTeacherOfAssignment(aid, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
@@ -432,13 +448,13 @@ func uploadTemplate(c *gin.Context) {
 
 // uploadUnitTests: POST /api/assignments/:id/tests/upload
 func uploadUnitTests(c *gin.Context) {
-	aid, err := strconv.Atoi(c.Param("id"))
+	aid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 	if c.GetString("role") == "teacher" {
-		if ok, err := IsTeacherOfAssignment(aid, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsTeacherOfAssignment(aid, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
@@ -502,14 +518,14 @@ func parseUnittestMethods(src string) []string {
 // Calls an LLM (default: GPT-5 via OpenAI API) to generate a Python unittest file
 // and a corresponding builder-friendly JSON plan from the assignment title/description.
 func generateAITests(c *gin.Context) {
-	aid, err := strconv.Atoi(c.Param("id"))
+	aid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 	// Only teachers/admins and must own the assignment if teacher
 	if role := c.GetString("role"); role == "teacher" {
-		if ok, err := IsTeacherOfAssignment(aid, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsTeacherOfAssignment(aid, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
@@ -669,7 +685,7 @@ Additional guidance (optional): %s
 
 // getTemplate: GET /api/assignments/:id/template
 func getTemplate(c *gin.Context) {
-	aid, err := strconv.Atoi(c.Param("id"))
+	aid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -681,12 +697,12 @@ func getTemplate(c *gin.Context) {
 	}
 	role := c.GetString("role")
 	if role == "student" {
-		if ok, err := IsStudentOfAssignment(aid, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsStudentOfAssignment(aid, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
 	} else if role == "teacher" {
-		if ok, err := IsTeacherOfAssignment(aid, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsTeacherOfAssignment(aid, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
@@ -696,7 +712,7 @@ func getTemplate(c *gin.Context) {
 
 // createTestCase: POST /api/assignments/:id/tests
 func createTestCase(c *gin.Context) {
-	aid, err := strconv.Atoi(c.Param("id"))
+	aid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -730,7 +746,7 @@ func createTestCase(c *gin.Context) {
 
 // updateTestCase: PUT /api/tests/:id
 func updateTestCase(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -760,7 +776,7 @@ func updateTestCase(c *gin.Context) {
 
 // deleteTestCase: DELETE /api/tests/:id
 func deleteTestCase(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -774,13 +790,13 @@ func deleteTestCase(c *gin.Context) {
 
 // deleteAllTestCases: DELETE /api/assignments/:id/tests
 func deleteAllTestCases(c *gin.Context) {
-	aid, err := strconv.Atoi(c.Param("id"))
+	aid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 	if c.GetString("role") == "teacher" {
-		if ok, err := IsTeacherOfAssignment(aid, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsTeacherOfAssignment(aid, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
@@ -794,13 +810,13 @@ func deleteAllTestCases(c *gin.Context) {
 
 // createSubmission: POST /api/assignments/:id/submissions
 func createSubmission(c *gin.Context) {
-	aid, err := strconv.Atoi(c.Param("id"))
+	aid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 	var tmp int
-	if err := DB.Get(&tmp, `SELECT 1 FROM assignments a JOIN class_students cs ON cs.class_id=a.class_id WHERE a.id=$1 AND cs.student_id=$2`, aid, c.GetInt("userID")); err != nil {
+	if err := DB.Get(&tmp, `SELECT 1 FROM assignments a JOIN class_students cs ON cs.class_id=a.class_id WHERE a.id=$1 AND cs.student_id=$2`, aid, getUserID(c)); err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 		return
 	}
@@ -886,7 +902,7 @@ func createSubmission(c *gin.Context) {
 		return
 	}
 
-	name := fmt.Sprintf("%d_%d_%d.zip", aid, c.GetInt("userID"), time.Now().UnixNano())
+	name := fmt.Sprintf("%d_%d_%d.zip", aid, getUserID(c), time.Now().UnixNano())
 	path := filepath.Join("uploads", name)
 	if err := os.WriteFile(path, buf.Bytes(), 0644); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot save"})
@@ -895,7 +911,7 @@ func createSubmission(c *gin.Context) {
 
 	sub := &Submission{
 		AssignmentID: aid,
-		StudentID:    c.GetInt("userID"),
+		StudentID:    getUserID(c),
 		CodePath:     path,
 		CodeContent:  base64.StdEncoding.EncodeToString(buf.Bytes()),
 	}
@@ -916,14 +932,14 @@ func createSubmission(c *gin.Context) {
 // Allows a teacher/admin to upload a reference solution and run all tests.
 // Does not persist a submission or results; returns a summary JSON immediately.
 func runTeacherSolution(c *gin.Context) {
-	aid, err := strconv.Atoi(c.Param("id"))
+	aid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 	// only teachers/admins and must own the assignment if teacher
 	if role := c.GetString("role"); role == "teacher" {
-		if ok, err := IsTeacherOfAssignment(aid, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsTeacherOfAssignment(aid, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
@@ -1076,10 +1092,10 @@ func runTeacherSolution(c *gin.Context) {
 	})
 	_ = zw.Close()
 	_ = os.MkdirAll("uploads", 0755)
-	name := fmt.Sprintf("%d_%d_%d_teacher.zip", aid, c.GetInt("userID"), time.Now().UnixNano())
+	name := fmt.Sprintf("%d_%d_%d_teacher.zip", aid, getUserID(c), time.Now().UnixNano())
 	path := filepath.Join("uploads", name)
 	_ = os.WriteFile(path, buf.Bytes(), 0644)
-	sub := &Submission{AssignmentID: aid, StudentID: c.GetInt("userID"), CodePath: path, CodeContent: base64.StdEncoding.EncodeToString(buf.Bytes()), IsTeacherRun: true}
+	sub := &Submission{AssignmentID: aid, StudentID: getUserID(c), CodePath: path, CodeContent: base64.StdEncoding.EncodeToString(buf.Bytes()), IsTeacherRun: true}
 	// Insert without enrollment requirement by bypassing CreateSubmission if teacher
 	if c.GetString("role") == "teacher" || c.GetString("role") == "admin" {
 		// direct insert
@@ -1111,10 +1127,21 @@ func runTeacherSolution(c *gin.Context) {
 				score = earnedWeight * (float64(a.MaxPoints) / totalWeight)
 			}
 		}
+
+		// Handle late submission logic with second deadline
 		if sub.CreatedAt.After(a.Deadline) {
 			_ = SetSubmissionLate(sub.ID, true)
-			score *= 0.8
+
+			// Check if there's a second deadline and submission is within it
+			if a.SecondDeadline != nil && sub.CreatedAt.Before(*a.SecondDeadline) {
+				// Apply penalty ratio for second deadline submissions
+				score = score * a.LatePenaltyRatio
+			} else {
+				// No second deadline or submission is after second deadline - no points
+				score = 0.0
+			}
 		}
+
 		_ = SetSubmissionPoints(sub.ID, score)
 	}
 	if allPass {
@@ -1148,7 +1175,7 @@ func runTeacherSolution(c *gin.Context) {
 
 // getSubmission: GET /api/submissions/:id
 func getSubmission(c *gin.Context) {
-	sid, err := strconv.Atoi(c.Param("id"))
+	sid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -1158,7 +1185,7 @@ func getSubmission(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-	if c.GetString("role") == "student" && c.GetInt("userID") != sub.StudentID {
+	if c.GetString("role") == "student" && getUserID(c) != sub.StudentID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 		return
 	}
@@ -1191,7 +1218,7 @@ func getSubmission(c *gin.Context) {
 // acceptSubmission: PUT /api/submissions/:id/accept
 // Allows a teacher/admin to manually accept a submission and optionally set points (capped to assignment max).
 func acceptSubmission(c *gin.Context) {
-	sid, err := strconv.Atoi(c.Param("id"))
+	sid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -1202,7 +1229,7 @@ func acceptSubmission(c *gin.Context) {
 		return
 	}
 	if role := c.GetString("role"); role == "teacher" {
-		if ok, err := IsTeacherOfAssignment(a.ID, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsTeacherOfAssignment(a.ID, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
@@ -1238,12 +1265,45 @@ func acceptSubmission(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// undoManualAccept: PUT /api/submissions/:id/undo-accept
+// Allows a teacher/admin to undo manual acceptance of a submission.
+func undoManualAccept(c *gin.Context) {
+	sid, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	a, err := GetAssignmentForSubmission(sid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if role := c.GetString("role"); role == "teacher" {
+		if ok, err := IsTeacherOfAssignment(a.ID, getUserID(c)); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+
+	// Mark as not manually accepted
+	_ = SetSubmissionManualAccept(sid, false)
+
+	// Reset status to failed if it was manually accepted
+	// This will allow the worker to re-grade the submission
+	if err := UpdateSubmissionStatus(sid, "failed"); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
 // submissionTerminalWS: GET /api/submissions/:id/terminal (WS)
 // Upgrades to a websocket and bridges an interactive shell inside a Docker
 // container seeded with the submission's files. Teacher/admin only; also
 // validates teacher owns the assignment's class if teacher role.
 func submissionTerminalWS(c *gin.Context) {
-	sid, err := strconv.Atoi(c.Param("id"))
+	sid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -1259,7 +1319,7 @@ func submissionTerminalWS(c *gin.Context) {
 		return
 	}
 	if c.GetString("role") == "teacher" {
-		if ok, err := IsTeacherOfAssignment(a.ID, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsTeacherOfAssignment(a.ID, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
@@ -1422,7 +1482,7 @@ func submissionTerminalWS(c *gin.Context) {
 // back to the client. The client can send "input" messages to forward stdin and
 // "stop" to terminate the current run. Errors are sent as JSON messages.
 func submissionRunWS(c *gin.Context) {
-	sid, err := strconv.Atoi(c.Param("id"))
+	sid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -1438,7 +1498,7 @@ func submissionRunWS(c *gin.Context) {
 		return
 	}
 	if c.GetString("role") == "teacher" {
-		if ok, err := IsTeacherOfAssignment(a.ID, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsTeacherOfAssignment(a.ID, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
@@ -1780,7 +1840,7 @@ func submissionRunWS(c *gin.Context) {
 
 				// Announce start, then probe noVNC HTTP before telling client to load GUI to avoid early 502s
 				broadcast(map[string]any{"type": "started"})
-				go func(port int, subID int) {
+				go func(port int, subID uuid.UUID) {
 					url := fmt.Sprintf("http://127.0.0.1:%d/vnc.html", port)
 					// give the container ample time to install GUI packages and start noVNC
 					deadline := time.Now().Add(60 * time.Second)
@@ -1791,7 +1851,7 @@ func submissionRunWS(c *gin.Context) {
 							_ = resp.Body.Close()
 							if resp.StatusCode < 500 {
 								// only announce GUI once the web interface is reachable
-								broadcast(map[string]any{"type": "gui", "base": fmt.Sprintf("/api/submissions/%d/gui/", subID)})
+								broadcast(map[string]any{"type": "gui", "base": fmt.Sprintf("/api/submissions/%s/gui/", subID)})
 								return
 							}
 						}
@@ -2096,7 +2156,7 @@ func createClass(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	cl := &Class{Name: req.Name, TeacherID: c.GetInt("userID")}
+	cl := &Class{Name: req.Name, TeacherID: getUserID(c)}
 	if err := CreateClass(cl); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
@@ -2106,7 +2166,7 @@ func createClass(c *gin.Context) {
 
 // ---- TEACHER renames a class ----
 func updateClass(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
+	id, _ := uuid.Parse(c.Param("id"))
 	var req struct {
 		Name string `json:"name" binding:"required"`
 	}
@@ -2114,9 +2174,9 @@ func updateClass(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	teacherID := 0
+	teacherID := uuid.Nil
 	if c.GetString("role") == "teacher" {
-		teacherID = c.GetInt("userID")
+		teacherID = getUserID(c)
 	}
 	if err := UpdateClassName(id, teacherID, req.Name); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
@@ -2127,10 +2187,10 @@ func updateClass(c *gin.Context) {
 
 // ---- TEACHER deletes a class ----
 func deleteClass(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
-	teacherID := 0
+	id, _ := uuid.Parse(c.Param("id"))
+	teacherID := uuid.Nil
 	if c.GetString("role") == "teacher" {
-		teacherID = c.GetInt("userID")
+		teacherID = getUserID(c)
 	}
 	if err := DeleteClass(id, teacherID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
@@ -2141,17 +2201,17 @@ func deleteClass(c *gin.Context) {
 
 // ---- TEACHER adds students to an existing class ----
 func addStudents(c *gin.Context) {
-	classID, _ := strconv.Atoi(c.Param("id"))
+	classID, _ := uuid.Parse(c.Param("id"))
 	var req struct {
-		StudentIDs []int `json:"student_ids" binding:"required,min=1"`
+		StudentIDs []uuid.UUID `json:"student_ids" binding:"required,min=1"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	teacherID := 0
+	teacherID := uuid.Nil
 	if c.GetString("role") == "teacher" {
-		teacherID = c.GetInt("userID")
+		teacherID = getUserID(c)
 	}
 	if err := AddStudentsToClass(classID, teacherID, req.StudentIDs); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
@@ -2162,7 +2222,7 @@ func addStudents(c *gin.Context) {
 
 // importBakalariStudents imports students provided by the frontend from a Bakaláři class atom and adds them to a local class.
 func importBakalariStudents(c *gin.Context) {
-	localID, _ := strconv.Atoi(c.Param("id"))
+	localID, _ := uuid.Parse(c.Param("id"))
 	var req struct {
 		Students []struct {
 			Id         string `json:"Id"`
@@ -2176,7 +2236,7 @@ func importBakalariStudents(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	var ids []int
+	var ids []uuid.UUID
 	for _, s := range req.Students {
 		full := strings.TrimSpace(strings.Join([]string{s.FirstName, s.MiddleName, s.LastName}, " "))
 		id, err := EnsureStudentForBk(s.Id, s.ClassId, full)
@@ -2184,7 +2244,7 @@ func importBakalariStudents(c *gin.Context) {
 			ids = append(ids, id)
 		}
 	}
-	if err := AddStudentsToClass(localID, c.GetInt("userID"), ids); err != nil {
+	if err := AddStudentsToClass(localID, getUserID(c), ids); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
@@ -2193,7 +2253,7 @@ func importBakalariStudents(c *gin.Context) {
 
 // ---- STUDENT / TEACHER common list ----
 func myClasses(c *gin.Context) {
-	uid := c.GetInt("userID")
+	uid := getUserID(c)
 	role := c.GetString("role")
 	var (
 		list []Class
@@ -2201,8 +2261,13 @@ func myClasses(c *gin.Context) {
 	)
 	if role == "teacher" {
 		list, err = ListClassesForTeacher(uid)
-	} else {
+	} else if role == "student" {
 		list, err = ListClassesForStudent(uid)
+	} else if role == "admin" {
+		list, err = ListAllClasses()
+	} else {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
 	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
@@ -2225,7 +2290,7 @@ func listUsers(c *gin.Context) {
 }
 
 func updateUserRole(c *gin.Context) {
-	uid, err := strconv.Atoi(c.Param("id"))
+	uid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -2253,11 +2318,11 @@ func listAllClasses(c *gin.Context) {
 	c.JSON(http.StatusOK, list)
 }
 func removeStudent(c *gin.Context) {
-	classID, _ := strconv.Atoi(c.Param("id"))
-	studentID, _ := strconv.Atoi(c.Param("sid"))
-	teacherID := 0
+	classID, _ := uuid.Parse(c.Param("id"))
+	studentID, _ := uuid.Parse(c.Param("sid"))
+	teacherID := uuid.Nil
 	if c.GetString("role") == "teacher" {
-		teacherID = c.GetInt("userID")
+		teacherID = getUserID(c)
 	}
 	if err := RemoveStudentFromClass(classID, teacherID, studentID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
@@ -2268,7 +2333,7 @@ func removeStudent(c *gin.Context) {
 
 // overrideSubmissionPoints allows a teacher or admin to set custom points for a submission.
 func overrideSubmissionPoints(c *gin.Context) {
-	sid, err := strconv.Atoi(c.Param("id"))
+	sid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -2286,7 +2351,7 @@ func overrideSubmissionPoints(c *gin.Context) {
 		return
 	}
 	if c.GetString("role") == "teacher" {
-		if ok, err := IsTeacherOfAssignment(a.ID, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsTeacherOfAssignment(a.ID, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
@@ -2307,19 +2372,19 @@ func overrideSubmissionPoints(c *gin.Context) {
 // ──────────────────────────────────────────
 
 func listClassFiles(c *gin.Context) {
-	cid, err := strconv.Atoi(c.Param("id"))
+	cid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 	role := c.GetString("role")
 	if role == "teacher" {
-		if ok, err := IsTeacherOfClass(cid, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsTeacherOfClass(cid, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
 	} else if role == "student" {
-		if ok, err := IsStudentOfClass(cid, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsStudentOfClass(cid, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
@@ -2335,9 +2400,9 @@ func listClassFiles(c *gin.Context) {
 		return
 	}
 
-	var parentID *int
+	var parentID *uuid.UUID
 	if pidStr := c.Query("parent"); pidStr != "" {
-		if pid, err := strconv.Atoi(pidStr); err == nil {
+		if pid, err := uuid.Parse(pidStr); err == nil {
 			parentID = &pid
 		}
 	}
@@ -2350,19 +2415,19 @@ func listClassFiles(c *gin.Context) {
 }
 
 func listClassNotebooks(c *gin.Context) {
-	cid, err := strconv.Atoi(c.Param("id"))
+	cid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 	role := c.GetString("role")
 	if role == "teacher" {
-		if ok, err := IsTeacherOfClass(cid, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsTeacherOfClass(cid, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
 	} else if role == "student" {
-		if ok, err := IsStudentOfClass(cid, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsStudentOfClass(cid, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
@@ -2376,21 +2441,21 @@ func listClassNotebooks(c *gin.Context) {
 }
 
 func uploadClassFile(c *gin.Context) {
-	cid, err := strconv.Atoi(c.Param("id"))
+	cid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
 	if c.GetString("role") == "teacher" {
-		if ok, err := IsTeacherOfClass(cid, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsTeacherOfClass(cid, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
 	}
-	var parentID *int
+	var parentID *uuid.UUID
 	pidStr := c.Request.FormValue("parent_id")
 	if pidStr != "" {
-		if pid, err := strconv.Atoi(pidStr); err == nil {
+		if pid, err := uuid.Parse(pidStr); err == nil {
 			parentID = &pid
 		}
 	}
@@ -2424,9 +2489,9 @@ func uploadClassFile(c *gin.Context) {
 		return
 	}
 	var req struct {
-		Name     string `json:"name" binding:"required"`
-		ParentID *int   `json:"parent_id"`
-		IsDir    bool   `json:"is_dir"`
+		Name     string     `json:"name" binding:"required"`
+		ParentID *uuid.UUID `json:"parent_id"`
+		IsDir    bool       `json:"is_dir"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -2441,7 +2506,7 @@ func uploadClassFile(c *gin.Context) {
 }
 
 func downloadClassFile(c *gin.Context) {
-	fid, err := strconv.Atoi(c.Param("id"))
+	fid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -2453,12 +2518,12 @@ func downloadClassFile(c *gin.Context) {
 	}
 	role := c.GetString("role")
 	if role == "teacher" {
-		if ok, err := IsTeacherOfClass(f.ClassID, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsTeacherOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
 	} else if role == "student" {
-		if ok, err := IsStudentOfClass(f.ClassID, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsStudentOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
@@ -2478,7 +2543,7 @@ func downloadClassFile(c *gin.Context) {
 }
 
 func renameClassFile(c *gin.Context) {
-	fid, err := strconv.Atoi(c.Param("id"))
+	fid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -2496,7 +2561,7 @@ func renameClassFile(c *gin.Context) {
 		return
 	}
 	if c.GetString("role") == "teacher" {
-		if ok, err := IsTeacherOfClass(f.ClassID, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsTeacherOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
@@ -2509,7 +2574,7 @@ func renameClassFile(c *gin.Context) {
 }
 
 func deleteClassFile(c *gin.Context) {
-	fid, err := strconv.Atoi(c.Param("id"))
+	fid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -2520,7 +2585,7 @@ func deleteClassFile(c *gin.Context) {
 		return
 	}
 	if c.GetString("role") == "teacher" {
-		if ok, err := IsTeacherOfClass(f.ClassID, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsTeacherOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
@@ -2533,7 +2598,7 @@ func deleteClassFile(c *gin.Context) {
 }
 
 func updateFileContent(c *gin.Context) {
-	fid, err := strconv.Atoi(c.Param("id"))
+	fid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -2553,7 +2618,7 @@ func updateFileContent(c *gin.Context) {
 		return
 	}
 	if c.GetString("role") == "teacher" {
-		if ok, err := IsTeacherOfClass(f.ClassID, c.GetInt("userID")); err != nil || !ok {
+		if ok, err := IsTeacherOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
@@ -2609,7 +2674,7 @@ func resizeAvatar(data string) (string, error) {
 }
 
 func updateProfile(c *gin.Context) {
-	uid := c.GetInt("userID")
+	uid := getUserID(c)
 	var req struct {
 		Name   *string `json:"name"`
 		Avatar *string `json:"avatar"`
@@ -2668,7 +2733,7 @@ func updateProfile(c *gin.Context) {
 }
 
 func changePassword(c *gin.Context) {
-	uid := c.GetInt("userID")
+	uid := getUserID(c)
 	var req struct {
 		Old string `json:"old_password" binding:"required"`
 		New string `json:"new_password" binding:"required,min=6"`
@@ -2699,7 +2764,7 @@ func changePassword(c *gin.Context) {
 }
 
 func linkLocalAccount(c *gin.Context) {
-	uid := c.GetInt("userID")
+	uid := getUserID(c)
 	var req struct {
 		Email    string `json:"email" binding:"required,email"`
 		Password string `json:"password" binding:"required,min=6"`
@@ -2757,7 +2822,7 @@ func listConversations(c *gin.Context) {
 			limit = v
 		}
 	}
-	list, err := ListRecentConversations(c.GetInt("userID"), limit)
+	list, err := ListRecentConversations(getUserID(c), limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
@@ -2766,7 +2831,7 @@ func listConversations(c *gin.Context) {
 }
 
 func getUserPublic(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -2786,15 +2851,17 @@ func getUserPublic(c *gin.Context) {
 
 func createMessage(c *gin.Context) {
 	var req struct {
-		To    int     `json:"to" binding:"required"`
-		Text  string  `json:"text"`
-		Image *string `json:"image"`
+		To       uuid.UUID `json:"to" binding:"required"`
+		Text     string    `json:"text"`
+		Image    *string   `json:"image"`
+		FileName *string   `json:"file_name"`
+		File     *string   `json:"file"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if strings.TrimSpace(req.Text) == "" && (req.Image == nil || *req.Image == "") {
+	if strings.TrimSpace(req.Text) == "" && (req.Image == nil || *req.Image == "") && (req.File == nil || *req.File == "") {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "empty message"})
 		return
 	}
@@ -2802,7 +2869,11 @@ func createMessage(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "image too large"})
 		return
 	}
-	msg := &Message{SenderID: c.GetInt("userID"), RecipientID: req.To, Text: req.Text, Image: req.Image}
+	if req.File != nil && len(*req.File) > maxFileSize {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file too large"})
+		return
+	}
+	msg := &Message{SenderID: getUserID(c), RecipientID: req.To, Text: req.Text, Image: req.Image, FileName: req.FileName, File: req.File}
 	if err := CreateMessage(msg); err != nil {
 		if errors.Is(err, ErrBlocked) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "blocked"})
@@ -2815,7 +2886,7 @@ func createMessage(c *gin.Context) {
 }
 
 func listMessages(c *gin.Context) {
-	otherID, err := strconv.Atoi(c.Param("id"))
+	otherID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -2832,7 +2903,7 @@ func listMessages(c *gin.Context) {
 			offset = v
 		}
 	}
-	uid := c.GetInt("userID")
+	uid := getUserID(c)
 	msgs, err := ListMessages(uid, otherID, limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
@@ -2843,12 +2914,12 @@ func listMessages(c *gin.Context) {
 }
 
 func markMessagesReadHandler(c *gin.Context) {
-	otherID, err := strconv.Atoi(c.Param("id"))
+	otherID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	if err := MarkMessagesRead(c.GetInt("userID"), otherID); err != nil {
+	if err := MarkMessagesRead(getUserID(c), otherID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
@@ -2856,12 +2927,12 @@ func markMessagesReadHandler(c *gin.Context) {
 }
 
 func starConversation(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	if err := StarConversation(c.GetInt("userID"), id); err != nil {
+	if err := StarConversation(getUserID(c), id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
@@ -2869,12 +2940,12 @@ func starConversation(c *gin.Context) {
 }
 
 func unstarConversation(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	if err := UnstarConversation(c.GetInt("userID"), id); err != nil {
+	if err := UnstarConversation(getUserID(c), id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
@@ -2882,12 +2953,12 @@ func unstarConversation(c *gin.Context) {
 }
 
 func archiveConversation(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	if err := ArchiveConversation(c.GetInt("userID"), id); err != nil {
+	if err := ArchiveConversation(getUserID(c), id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
@@ -2895,12 +2966,12 @@ func archiveConversation(c *gin.Context) {
 }
 
 func unarchiveConversation(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	if err := UnarchiveConversation(c.GetInt("userID"), id); err != nil {
+	if err := UnarchiveConversation(getUserID(c), id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
@@ -2908,12 +2979,12 @@ func unarchiveConversation(c *gin.Context) {
 }
 
 func blockUser(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	if err := BlockUser(c.GetInt("userID"), id); err != nil {
+	if err := BlockUser(getUserID(c), id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
@@ -2921,12 +2992,12 @@ func blockUser(c *gin.Context) {
 }
 
 func unblockUser(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	if err := UnblockUser(c.GetInt("userID"), id); err != nil {
+	if err := UnblockUser(getUserID(c), id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
@@ -2934,10 +3005,191 @@ func unblockUser(c *gin.Context) {
 }
 
 func listBlockedUsers(c *gin.Context) {
-	list, err := ListBlockedUsers(c.GetInt("userID"))
+	list, err := ListBlockedUsers(getUserID(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
 	c.JSON(http.StatusOK, list)
+}
+
+// downloadMessageFile: GET /api/messages/file/:id
+func downloadMessageFile(c *gin.Context) {
+	fileID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	// Get the message to check permissions and get file data
+	var msg Message
+	err = DB.Get(&msg, `SELECT id, sender_id, recipient_id, file_name, file FROM messages WHERE id=$1`, fileID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "message not found"})
+		return
+	}
+
+	// Check if user has permission to download this file (must be sender or recipient)
+	userID := getUserID(c)
+	if msg.SenderID != userID && msg.RecipientID != userID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+
+	if msg.File == nil || *msg.File == "" {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no file attached"})
+		return
+	}
+
+	// Decode base64 file data
+	fileData, err := base64.StdEncoding.DecodeString(*msg.File)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid file data"})
+		return
+	}
+
+	// Set appropriate headers
+	filename := "file"
+	if msg.FileName != nil && *msg.FileName != "" {
+		filename = *msg.FileName
+	}
+
+	c.Writer.Header().Set("Content-Disposition", "attachment; filename="+strconv.Quote(filename))
+	c.Writer.Header().Set("Content-Length", strconv.Itoa(len(fileData)))
+
+	// Determine content type based on file extension
+	ext := strings.ToLower(filepath.Ext(filename))
+	switch ext {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg":
+		c.Data(http.StatusOK, mime.TypeByExtension(ext), fileData)
+	default:
+		c.Data(http.StatusOK, "application/octet-stream", fileData)
+	}
+}
+
+// ──────────────────────────────────────────────────────
+// Admin-only utilities
+// ──────────────────────────────────────────────────────
+
+// adminCreateClass: POST /api/admin/classes
+// Allows admins to create a class for a specified teacher.
+func adminCreateClass(c *gin.Context) {
+	if c.GetString("role") != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+	var req struct {
+		Name      string    `json:"name" binding:"required"`
+		TeacherID uuid.UUID `json:"teacher_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	cl := &Class{Name: req.Name, TeacherID: req.TeacherID}
+	if err := CreateClass(cl); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusCreated, cl)
+}
+
+// adminTransferClass: PUT /api/admin/classes/:id/transfer
+// Transfers class ownership to a new teacher.
+func adminTransferClass(c *gin.Context) {
+	if c.GetString("role") != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var req struct {
+		TeacherID uuid.UUID `json:"teacher_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := UpdateClassTeacher(id, req.TeacherID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// User presence endpoints
+func presenceHandler(c *gin.Context) {
+	uid := getUserID(c)
+
+	switch c.Request.Method {
+	case "POST":
+		// Mark user as online
+		if err := MarkUserOnline(uid); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update presence"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "online"})
+
+	case "PUT":
+		// Update last seen
+		if err := UpdateUserLastSeen(uid); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update presence"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "updated"})
+
+	case "DELETE":
+		// Mark user as offline
+		if err := MarkUserOffline(uid); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update presence"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "offline"})
+
+	default:
+		c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "Method not allowed"})
+	}
+}
+
+func onlineUsersHandler(c *gin.Context) {
+	users, err := GetOnlineUsers()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get online users"})
+		return
+	}
+
+	// Get user details for online users
+	type OnlineUser struct {
+		ID     uuid.UUID `json:"id"`
+		Name   string    `json:"name"`
+		Avatar string    `json:"avatar"`
+		Email  string    `json:"email"`
+	}
+
+	var onlineUsers []OnlineUser
+	for _, presence := range users {
+		user, err := GetUser(presence.UserID)
+		if err != nil {
+			continue // Skip users that can't be found
+		}
+		name := ""
+		if user.Name != nil {
+			name = *user.Name
+		}
+		avatar := ""
+		if user.Avatar != nil {
+			avatar = *user.Avatar
+		}
+		onlineUsers = append(onlineUsers, OnlineUser{
+			ID:     user.ID,
+			Name:   name,
+			Avatar: avatar,
+			Email:  user.Email,
+		})
+	}
+
+	c.JSON(http.StatusOK, onlineUsers)
 }

@@ -74,4 +74,4 @@ import { oneDark } from '@codemirror/theme-one-dark';
   }
 </script>
 
-<div bind:this={host} class="card-elevated" style="overflow: visible"></div>
+<div bind:this={host} class="rounded-lg" style="overflow: hidden"></div>

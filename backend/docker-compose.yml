@@ -4,9 +4,9 @@ services:
     image: postgres:16
     restart: always
     environment:
-      POSTGRES_USER: codegrader_user
+      POSTGRES_USER: codedu_user
       POSTGRES_PASSWORD: supersecret
-      POSTGRES_DB: codegrader_db
+      POSTGRES_DB: codedu_db
     ports:
       - "48812:5432"
     volumes:

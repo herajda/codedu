@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { apiJSON, apiFetch } from '$lib/api';
-  import { goto } from '$app/navigation';
-  import { Search, MessageCircle, Plus, MoreVertical, Archive, Trash2, Star, StarOff, RefreshCw, X } from 'lucide-svelte';
+import { apiJSON, apiFetch } from '$lib/api';
+import { goto } from '$app/navigation';
+import { Search, MessageCircle, Plus, MoreVertical, Archive, Trash2, Star, StarOff, RefreshCw, X } from 'lucide-svelte';
 import NewChatModal from '$lib/components/NewChatModal.svelte';
+import { onlineUsers } from '$lib/stores/onlineUsers';
 
   let convos: any[] = [];
   let filteredConvos: any[] = [];
@@ -360,7 +361,11 @@ import NewChatModal from '$lib/components/NewChatModal.svelte';
                   </div>
                 </div>
                 <!-- Online indicator -->
-                <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-success rounded-full border-2 border-base-100"></div>
+                {#if $onlineUsers.some(u => u.id === convo.other_id)}
+                  <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-success rounded-full border-2 border-base-100 animate-pulse"></div>
+                {:else}
+                  <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-base-300 rounded-full border-2 border-base-100"></div>
+                {/if}
               </div>
 
               <!-- Content -->

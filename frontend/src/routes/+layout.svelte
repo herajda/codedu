@@ -6,13 +6,15 @@
   import Sidebar from '$lib/Sidebar.svelte';
   import Background from '$lib/components/Background.svelte';
   import { sidebarOpen, sidebarCollapsed } from '$lib/sidebar';
-  import { apiFetch } from '$lib/api';
+  import { apiFetch, apiJSON } from '$lib/api';
   import { sha256 } from '$lib/hash';
 import { compressImage } from '$lib/utils/compressImage';
   import { onDestroy } from 'svelte';
   import { page } from '$app/stores';
   import { createEventSource } from '$lib/sse';
-  import { incrementUnreadMessages, resetUnreadMessages } from '$lib/stores/messages';
+  import { incrementUnreadMessages, resetUnreadMessages, setUnreadMessages } from '$lib/stores/messages';
+  import { onlineUsers } from '$lib/stores/onlineUsers';
+  import { browser } from '$app/environment';
 
   let settingsDialog: HTMLDialogElement;
   let passwordDialog: HTMLDialogElement;
@@ -29,6 +31,9 @@ import { compressImage } from '$lib/utils/compressImage';
   let linkPassword = '';
   let linkPassword2 = '';
   let linkError = '';
+
+  // Determine if current route is an auth page (login or register)
+  $: isAuthPage = $page.url.pathname.startsWith('/login') || $page.url.pathname.startsWith('/register');
 
   function isValidEmail(email: string | null | undefined): boolean {
     return !!email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -154,6 +159,60 @@ import { compressImage } from '$lib/utils/compressImage';
     auth.init();
   });
   
+  // Initialize online users and set up periodic updates
+  let presenceInterval: NodeJS.Timeout | null = null;
+  $: if (user) {
+    // Load online users when user logs in
+    onlineUsers.loadOnlineUsers();
+    
+    // Set up periodic updates for user presence
+    if (presenceInterval) {
+      clearInterval(presenceInterval);
+    }
+    presenceInterval = setInterval(() => {
+      onlineUsers.updateLastSeen();
+      onlineUsers.loadOnlineUsers();
+    }, 10000); // Update every 10 seconds
+  } else {
+    // Clear interval when user logs out
+    if (presenceInterval) {
+      clearInterval(presenceInterval);
+      presenceInterval = null;
+    }
+  }
+  
+  onDestroy(() => {
+    if (presenceInterval) {
+      clearInterval(presenceInterval);
+    }
+  });
+  
+  // Handle browser close/refresh to mark user as offline
+  if (browser) {
+    window.addEventListener('beforeunload', () => {
+      if (user) {
+        try {
+          // Use keepalive fetch with DELETE so backend sets is_online = FALSE
+          fetch('/api/presence', { method: 'DELETE', keepalive: true });
+        } catch {}
+      }
+    });
+  }
+  
+  let unreadInitUserId: number | null = null;
+  async function initUnreadCount() {
+    try {
+      const list: any[] = await apiJSON('/api/messages');
+      const total = Array.isArray(list) ? list.reduce((sum, c) => sum + (c.unread_count || 0), 0) : 0;
+      setUnreadMessages(total);
+    } catch {}
+  }
+  
+  $: if (user && user.id !== unreadInitUserId) {
+    unreadInitUserId = user.id;
+    initUnreadCount();
+  }
+  
   let msgES: { close: () => void } | null = null;
   $: if (user && !msgES) {
     msgES = createEventSource(
@@ -226,7 +285,7 @@ import { compressImage } from '$lib/utils/compressImage';
     <Sidebar />
   {/if}
 
-  <div class={`relative z-10 min-h-screen flex flex-col ${user && !$sidebarCollapsed ? 'sm:ml-64' : ''}`}>
+  <div class={`relative z-10 min-h-screen flex flex-col ${user && !$sidebarCollapsed ? 'sm:ml-64' : ''}`} class:auth-page={isAuthPage}>
     <div class="sticky top-0 z-50 px-3 py-1">
       <div class="appbar w-full h-14 px-3 flex items-center" class:appbar--scrolled={isScrolled}>
         <div class="flex items-center gap-2 min-w-0">
@@ -276,11 +335,14 @@ import { compressImage } from '$lib/utils/compressImage';
             </svg>
           </button>
         {/if}
-        <a href="/dashboard" class="appbar-title flex items-center gap-2 min-w-0">
-          <span class="brand-dot"></span>
-          <span class="truncate font-semibold tracking-tight">CodeGrader</span>
-        </a>
       </div>
+      <a href="/dashboard" class="appbar-center min-w-0">
+        <span class="logo truncate font-semibold tracking-tight text-3xl sm:text-4xl">
+          <span class="logo-bracket">&lt;</span>
+          <span class="logo-text">CodEdu</span>
+          <span class="logo-bracket">&gt;</span>
+        </span>
+      </a>
       <div class="flex-1"></div>
       <div class="flex items-center gap-2 shrink-0">
         {#if user}
@@ -339,12 +401,14 @@ import { compressImage } from '$lib/utils/compressImage';
                   <h4 class="font-semibold">Choose a default avatar</h4>
                   <span class="text-sm text-base-content/60">or upload your own</span>
                 </div>
-                <div class="grid grid-cols-6 gap-2">
-                  {#each avatarChoices as a}
-                    <button type="button" class={`avatar w-12 h-12 rounded-full ring-2 ${selectedAvatarFromCatalog === a ? 'ring-primary' : 'ring-base-200'}`} on:click={() => { selectedAvatarFromCatalog = a; avatarFile = null; }}>
-                      <img src={a} alt="avatar" class="w-full h-full object-cover rounded-full" />
-                    </button>
-                  {/each}
+                <div class="max-h-64 overflow-y-auto">
+                  <div class="grid grid-cols-8 gap-2">
+                    {#each avatarChoices as a}
+                      <button type="button" class={`avatar w-12 h-12 rounded-full ring-2 ${selectedAvatarFromCatalog === a ? 'ring-primary' : 'ring-base-200'}`} on:click={() => { selectedAvatarFromCatalog = a; avatarFile = null; }}>
+                        <img src={a} alt="avatar" class="w-full h-full object-cover rounded-full" />
+                      </button>
+                    {/each}
+                  </div>
                 </div>
               </div>
               {/if}

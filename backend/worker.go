@@ -20,10 +20,12 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // Job represents a grading task for one submission.
-type Job struct{ SubmissionID int }
+type Job struct{ SubmissionID uuid.UUID }
 
 var taskQueue chan Job
 
@@ -415,6 +417,9 @@ func StartWorker(n int) {
 	for i := 0; i < n; i++ {
 		go workerLoop()
 	}
+
+	// Start presence cleanup task
+	go presenceCleanupTask()
 }
 
 // EnqueueJob enqueues a submission for grading.
@@ -436,7 +441,7 @@ func ensureDockerImage(img string) error {
 	return nil
 }
 
-func runSubmission(id int) {
+func runSubmission(id uuid.UUID) {
 	sub, err := GetSubmission(id)
 	if err != nil {
 		return
@@ -614,10 +619,21 @@ func runSubmission(id int) {
 				score = earnedWeight * (float64(a.MaxPoints) / totalWeight)
 			}
 		}
+
+		// Handle late submission logic with second deadline
 		if sub.CreatedAt.After(a.Deadline) {
 			_ = SetSubmissionLate(id, true)
-			score *= 0.8
+
+			// Check if there's a second deadline and submission is within it
+			if a.SecondDeadline != nil && sub.CreatedAt.Before(*a.SecondDeadline) {
+				// Apply penalty ratio for second deadline submissions
+				score = score * a.LatePenaltyRatio
+			} else {
+				// No second deadline or submission is after second deadline - no points
+				score = 0.0
+			}
 		}
+
 		SetSubmissionPoints(id, score)
 	}
 
@@ -808,7 +824,23 @@ func runLLMInteractive(sub *Submission, a *Assignment) {
 
 	if pass {
 		if a.LLMAutoAward {
-			_ = SetSubmissionPoints(sub.ID, float64(a.MaxPoints))
+			score := float64(a.MaxPoints)
+
+			// Handle late submission logic with second deadline
+			if sub.CreatedAt.After(a.Deadline) {
+				_ = SetSubmissionLate(sub.ID, true)
+
+				// Check if there's a second deadline and submission is within it
+				if a.SecondDeadline != nil && sub.CreatedAt.Before(*a.SecondDeadline) {
+					// Apply penalty ratio for second deadline submissions
+					score = score * a.LatePenaltyRatio
+				} else {
+					// No second deadline or submission is after second deadline - no points
+					score = 0.0
+				}
+			}
+
+			_ = SetSubmissionPoints(sub.ID, score)
 		}
 		UpdateSubmissionStatus(sub.ID, "completed")
 	} else {
@@ -1594,4 +1626,16 @@ if __name__ == '__main__':
 	}
 
 	return out, strings.TrimSpace(stderrBuf.String()), exitCode, timedOut, runtime
+}
+
+// presenceCleanupTask periodically cleans up inactive users
+func presenceCleanupTask() {
+	ticker := time.NewTicker(2 * time.Minute) // Run every 2 minutes
+	defer ticker.Stop()
+
+	for range ticker.C {
+		if err := CleanupInactiveUsers(); err != nil {
+			fmt.Printf("[presence] cleanup error: %v\n", err)
+		}
+	}
 }

@@ -14,7 +14,7 @@
   }
 
   let subs: Submission[] = [];
-  let titles: Record<number,string> = {};
+  let titles: Record<string,string> = {};
   let loading = true;
   let err = '';
   let esCtrl: { close: () => void } | null = null;

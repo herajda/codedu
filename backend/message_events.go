@@ -6,10 +6,11 @@ import (
 
 	"github.com/gin-contrib/sse"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type msgSubscriber struct {
-	userID int
+	userID uuid.UUID
 	ch     chan sse.Event
 }
 
@@ -18,7 +19,7 @@ var (
 	msgSubs   = map[*msgSubscriber]bool{}
 )
 
-func addMsgSubscriber(uid int) *msgSubscriber {
+func addMsgSubscriber(uid uuid.UUID) *msgSubscriber {
 	sub := &msgSubscriber{userID: uid, ch: make(chan sse.Event, 10)}
 	msgSubsMu.Lock()
 	msgSubs[sub] = true
@@ -34,7 +35,7 @@ func removeMsgSubscriber(sub *msgSubscriber) {
 }
 
 func broadcastMsg(evt sse.Event) {
-	var uid1, uid2 int
+	var uid1, uid2 uuid.UUID
 	if m, ok := evt.Data.(*Message); ok {
 		uid1 = m.RecipientID
 		uid2 = m.SenderID
@@ -51,12 +52,12 @@ func broadcastMsg(evt sse.Event) {
 	msgSubsMu.Unlock()
 }
 
-func broadcastRead(senderID, readerID int) {
+func broadcastRead(senderID, readerID uuid.UUID) {
 	msgSubsMu.Lock()
 	for sub := range msgSubs {
 		if sub.userID == senderID {
 			select {
-			case sub.ch <- sse.Event{Event: "read", Data: map[string]int{"reader_id": readerID}}:
+			case sub.ch <- sse.Event{Event: "read", Data: map[string]string{"reader_id": readerID.String()}}:
 			default:
 			}
 		}
@@ -65,7 +66,7 @@ func broadcastRead(senderID, readerID int) {
 }
 
 func messageEventsHandler(c *gin.Context) {
-	uid := c.GetInt("userID")
+	uid := getUserID(c)
 	sub := addMsgSubscriber(uid)
 	defer removeMsgSubscriber(sub)
 	c.Stream(func(w io.Writer) bool {

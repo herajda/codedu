@@ -1,6 +1,24 @@
 @import "tailwindcss";
 @plugin "daisyui";
 
+/* Brand font: CodEdu */
+@font-face {
+  font-family: "CodEdu";
+  src: url("/fonts/CodEdu/codedu-font.woff2") format("woff2"),
+       url("/fonts/CodEdu/codedu-font.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "CodEdu";
+  src: url("/fonts/CodEdu/codedu-font.woff2") format("woff2"),
+       url("/fonts/CodEdu/codedu-font.woff") format("woff");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --rounded-box: 0.75rem;
   --rounded-btn: 0.6rem;
@@ -73,6 +91,25 @@ img { max-width: 100%; height: auto; }
 }
 .markdown, .editor-preview, .editor-preview-side {
   line-height: 1.5;
+  color: #000; /* Ensure markdown text is black in both viewer and EasyMDE preview */
+}
+.markdown p,
+.editor-preview p,
+.editor-preview-side p {
+  /* Normalize paragraph spacing inside markdown blocks */
+  margin: 0.25rem 0;
+}
+.markdown > :first-child,
+.editor-preview > :first-child,
+.editor-preview-side > :first-child {
+  /* Remove extra space at the top of the cell */
+  margin-top: 0;
+}
+.markdown > :last-child,
+.editor-preview > :last-child,
+.editor-preview-side > :last-child {
+  /* Remove extra space at the bottom of the cell */
+  margin-bottom: 0;
 }
 .markdown h1, .editor-preview h1, .editor-preview-side h1 {
   font-size: 1.5rem;
@@ -120,6 +157,41 @@ body.hide-navbar .navbar {
   .editor-preview-side code {
     background: rgba(255,255,255,0.06);
   }
+}
+
+/* EasyMDE toolbar: ensure high-contrast black controls */
+.editor-toolbar a,
+.editor-toolbar button,
+.editor-toolbar i,
+.editor-toolbar .fa,
+.editor-toolbar .fas,
+.editor-toolbar .far,
+.editor-toolbar .fal,
+.editor-toolbar .fab {
+  color: #000 !important;
+}
+.editor-toolbar a:hover,
+.editor-toolbar button:hover {
+  color: #000 !important;
+}
+
+/* Keep EasyMDE fullscreen below the sticky top appbar */
+:root { --appbar-offset: 4rem; }
+.EasyMDEContainer .editor-toolbar.fullscreen { top: var(--appbar-offset) !important; }
+.EasyMDEContainer .CodeMirror-fullscreen { top: calc(var(--appbar-offset) + 50px) !important; }
+.EasyMDEContainer .editor-preview-side { top: calc(var(--appbar-offset) + 50px) !important; }
+
+/* Hide textual separator character, keep graphical separator styling */
+.editor-toolbar a.separator,
+.editor-toolbar .separator {
+  color: transparent !important;
+  font-size: 0; /* suppress any '|' text node */
+}
+
+/* In side-by-side or preview-only, also enforce black text for content */
+.editor-preview,
+.editor-preview-side {
+  color: #000 !important;
 }
 
 /* Accent rings and focus states */
@@ -273,3 +345,37 @@ body.hide-navbar .navbar {
   border-radius: 0.5rem;
   background: hsl(var(--b1) / 0.95);
 }
+
+/* Centered brand placement within appbar */
+.appbar-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  text-decoration: none;
+}
+
+/* On auth pages (login/register) in mobile view, align logo to the left */
+@media (max-width: 640px) {
+  .auth-page .appbar-center {
+    position: relative;
+    left: 0;
+    top: 0;
+    transform: none;
+  }
+}
+
+/* Monospaced branded logo <CodEdu> */
+.logo {
+  font-family: "CodEdu", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.125rem;
+}
+.logo-bracket {
+  font-family: "CodEdu", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-weight: 400; /* lighter than the main logo text */
+  color: hsl(var(--bc) / 0.6); /* lighter, semi-transparent content color */
+}
+.logo-text { color: hsl(var(--bc)); }

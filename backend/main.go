@@ -56,6 +56,50 @@ var defaultAvatars = []string{
 	"/avatars/a10.svg",
 	"/avatars/a11.svg",
 	"/avatars/a12.svg",
+	"/avatars/a13.svg",
+	"/avatars/a14.svg",
+	"/avatars/a15.svg",
+	"/avatars/a16.svg",
+	"/avatars/a17.svg",
+	"/avatars/a18.svg",
+	"/avatars/a19.svg",
+	"/avatars/a20.svg",
+	"/avatars/a21.svg",
+	"/avatars/a22.svg",
+	"/avatars/a23.svg",
+	"/avatars/a24.svg",
+	"/avatars/a25.svg",
+	"/avatars/a26.svg",
+	"/avatars/a27.svg",
+	"/avatars/a28.svg",
+	"/avatars/a29.svg",
+	"/avatars/a30.svg",
+	"/avatars/a31.svg",
+	"/avatars/a32.svg",
+	"/avatars/a33.svg",
+	"/avatars/a34.svg",
+	"/avatars/a35.svg",
+	"/avatars/a36.svg",
+	"/avatars/a37.svg",
+	"/avatars/a38.svg",
+	"/avatars/a39.svg",
+	"/avatars/a40.svg",
+	"/avatars/a41.svg",
+	"/avatars/a42.svg",
+	"/avatars/a43.svg",
+	"/avatars/a44.svg",
+	"/avatars/a45.svg",
+	"/avatars/a46.svg",
+	"/avatars/a47.svg",
+	"/avatars/a48.svg",
+	"/avatars/a49.svg",
+	"/avatars/a50.svg",
+	"/avatars/a51.svg",
+	"/avatars/a52.svg",
+	"/avatars/a53.svg",
+	"/avatars/a54.svg",
+	"/avatars/a55.svg",
+	"/avatars/a56.svg",
 }
 
 func main() {
@@ -93,7 +137,7 @@ func main() {
 		})
 		// who am I
 		api.GET("/me", func(c *gin.Context) {
-			u, err := GetUser(c.GetInt("userID"))
+			u, err := GetUser(getUserID(c))
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 				return
@@ -145,11 +189,15 @@ func main() {
 		api.GET("/submissions/:id", RoleGuard("student", "teacher", "admin"), getSubmission)
 		api.PUT("/submissions/:id/points", RoleGuard("teacher", "admin"), overrideSubmissionPoints)
 		api.PUT("/submissions/:id/accept", RoleGuard("teacher", "admin"), acceptSubmission)
-		// TEACHER / STUDENT common
-		api.GET("/classes", RoleGuard("teacher", "student"), myClasses)
+		api.PUT("/submissions/:id/undo-accept", RoleGuard("teacher", "admin"), undoManualAccept)
+		// TEACHER / STUDENT / ADMIN common
+		api.GET("/classes", RoleGuard("teacher", "student", "admin"), myClasses)
 		api.POST("/classes/:id/students", RoleGuard("teacher", "admin"), addStudents)
 		api.POST("/classes/:id/import-bakalari", RoleGuard("teacher"), importBakalariStudents)
 		api.GET("/classes/all", RoleGuard("admin"), listAllClasses) // new
+		// Admin class utilities
+		api.POST("/admin/classes", RoleGuard("admin"), adminCreateClass)
+		api.PUT("/admin/classes/:id/transfer", RoleGuard("admin"), adminTransferClass)
 
 		// ADMIN → add teacher
 		api.POST("/teachers", RoleGuard("admin"), createTeacher)
@@ -248,6 +296,13 @@ func main() {
 		api.POST("/messages/:id/archive", RoleGuard("student", "teacher", "admin"), archiveConversation)
 		api.DELETE("/messages/:id/archive", RoleGuard("student", "teacher", "admin"), unarchiveConversation)
 		api.GET("/messages/events", RoleGuard("student", "teacher", "admin"), messageEventsHandler)
+		api.GET("/messages/file/:id", RoleGuard("student", "teacher", "admin"), downloadMessageFile)
+
+		// User presence
+		api.POST("/presence", RoleGuard("student", "teacher", "admin"), presenceHandler)
+		api.PUT("/presence", RoleGuard("student", "teacher", "admin"), presenceHandler)
+		api.DELETE("/presence", RoleGuard("student", "teacher", "admin"), presenceHandler)
+		api.GET("/online-users", RoleGuard("student", "teacher", "admin"), onlineUsersHandler)
 
 		// Class forums
 		api.GET("/classes/:id/forum", RoleGuard("teacher", "student", "admin"), listForumMessagesHandler)

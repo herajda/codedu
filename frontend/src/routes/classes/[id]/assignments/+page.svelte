@@ -20,7 +20,7 @@
   let assignments: any[] = [];
   let mySubs: any[] = [];
   let students: any[] = [];
-  let progressCounts: Record<number, number> = {};
+  let progressCounts: Record<string, number> = {};
   let err = '';
   let now = Date.now();
   let search = '';
@@ -36,7 +36,7 @@
 
   function countdown(deadline: string, completed?: boolean) {
     const diff = new Date(deadline).getTime() - now;
-    if (diff <= 0) return completed ? 'deadline passed' : 'late';
+    if (diff <= 0) return completed ? 'deadline passed' : 'Overdue';
     const d = Math.floor(diff / 86400000);
     if (d >= 1) return `${d}d`;
     const h = Math.floor(diff / 3600000);
@@ -135,7 +135,7 @@
           <div class="join hidden sm:flex">
             <button class={`btn btn-sm join-item ${filterMode==='all' ? 'btn-active' : 'btn-ghost'}`} type="button" on:click={() => filterMode='all'}><Filter class="w-4 h-4" aria-hidden="true" /> All</button>
             <button class={`btn btn-sm join-item ${filterMode==='upcoming' ? 'btn-active' : 'btn-ghost'}`} type="button" on:click={() => filterMode='upcoming'}><Clock class="w-4 h-4" aria-hidden="true" /> Upcoming</button>
-            <button class={`btn btn-sm join-item ${filterMode==='late' ? 'btn-active' : 'btn-ghost'}`} type="button" on:click={() => filterMode='late'}><AlertTriangle class="w-4 h-4" aria-hidden="true" /> Late</button>
+            <button class={`btn btn-sm join-item ${filterMode==='late' ? 'btn-active' : 'btn-ghost'}`} type="button" on:click={() => filterMode='late'}><AlertTriangle class="w-4 h-4" aria-hidden="true" /> Overdue</button>
           </div>
           <label class="input input-bordered input-sm flex items-center gap-2">
             <Search class="w-4 h-4" aria-hidden="true" />
@@ -163,6 +163,10 @@
                       <span class={new Date(a.deadline) < new Date() && !a.completed ? 'text-error' : ''}>{formatDateTime(a.deadline)}</span>
                       <span>·</span>
                       <span>{countdown(a.deadline, a.completed)}</span>
+                      {#if a.second_deadline}
+                        <span>·</span>
+                        <span class="text-warning">2nd: {formatDateTime(a.second_deadline)} ({Math.round(a.late_penalty_ratio * 100)}%)</span>
+                      {/if}
                     </div>
                   </div>
                   <div class="flex items-center gap-3 shrink-0">

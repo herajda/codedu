@@ -74,7 +74,7 @@ import { preloadPyodide } from '$lib/pyodide';
 </script>
 
 {#if nb}
-  <div class="space-y-4" bind:this={container}>
+  <div class="space-y-3" bind:this={container}>
     <div class="flex justify-end">
       <button
         on:click={runAllCells}

@@ -24,6 +24,7 @@
   import { fade, scale } from 'svelte/transition';
   import { sidebarCollapsed } from '$lib/sidebar';
   import UserProfileModal from '$lib/components/UserProfileModal.svelte';
+  import { onlineUsers } from '$lib/stores/onlineUsers';
 
   let id = $page.params.id;
   $: if ($page.params.id !== id) {
@@ -41,6 +42,9 @@
   let err = '';
   let imageData: string | null = null;
   let fileInput: HTMLInputElement | null = null;
+  let fileData: string | null = null;
+  let fileName: string | null = null;
+  let generalFileInput: HTMLInputElement | null = null;
   let modalImage: string | null = null;
   let lightboxOpen = false;
   let currentImageIndex: number = -1;
@@ -172,6 +176,14 @@
     })
   }
 
+  function isEmojiOnly(text: string): boolean {
+    const trimmed = text.trim()
+    if (!trimmed) return false
+    // Match sequences composed purely of emoji graphemes, including ZWJ and VS16
+    const emojiOnly = /^(?:\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic})*)+$/u
+    return emojiOnly.test(trimmed)
+  }
+
   function sameDate(a: string | number | Date, b: string | number | Date) {
     return new Date(a).toDateString() === new Date(b).toDateString()
   }
@@ -217,31 +229,33 @@
 
   async function send() {
     err = '';
-    if (!msg.trim() && !imageData) return;
+    if (!msg.trim() && !imageData && !fileData) return;
     const res = await apiFetch('/api/messages', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ to: parseInt(id), text: msg, image: imageData })
+      body: JSON.stringify({ to: id, text: msg, image: imageData, file_name: fileName, file: fileData })
     });
-    if (res.ok) { msg=''; imageData=null; offset=0; await load(); }
+    if (res.ok) { msg=''; imageData=null; fileData=null; fileName=null; offset=0; await load(); }
     else { err = (await res.json()).error; }
   }
 
-  onMount(async () => {
+  onMount(() => {
     load();
-    try {
-      const info = await apiJSON(`/api/users/${id}`);
-      contactAvatar = info.avatar ?? null;
-      if (!name) name = info.name ?? info.email ?? id;
-    } catch {}
+    (async () => {
+      try {
+        const info = await apiJSON(`/api/users/${id}`);
+        contactAvatar = info.avatar ?? null;
+        if (!name) name = info.name ?? info.email ?? id;
+      } catch {}
+    })();
     esCtrl = createEventSource(
       '/api/messages/events',
       (src) => {
         src.addEventListener('message', async (ev) => {
           const d = JSON.parse((ev as MessageEvent).data);
-          if (d.sender_id === parseInt(id) || d.recipient_id === parseInt(id)) {
+          if (d.sender_id === id || d.recipient_id === id) {
             d.showTime = false;
             convo = [...convo, d];
-            if (d.sender_id === parseInt(id)) {
+            if (d.sender_id === id) {
               await apiFetch(`/api/messages/${id}/read`, { method: 'PUT' });
               d.is_read = true;
             }
@@ -249,9 +263,9 @@
         });
         src.addEventListener('read', (ev) => {
           const d = JSON.parse((ev as MessageEvent).data);
-          if (d.reader_id === parseInt(id)) {
+          if (d.reader_id === id) {
             for (const m of convo) {
-              if (m.sender_id === $auth?.id && m.recipient_id === parseInt(id)) {
+              if (m.sender_id === $auth?.id && m.recipient_id === id) {
                 m.is_read = true;
               }
             }
@@ -266,17 +280,20 @@
     );
     adjustHeight();
     
-    // Add click outside handler
+    // Add click outside handler and global keydown listener
     document.addEventListener('click', handleClickOutside);
-  });
-
-  onDestroy(() => { 
-    esCtrl?.close(); 
-    document.removeEventListener('click', handleClickOutside);
+    document.addEventListener('keydown', handleLightboxKeydown);
+    return () => {
+      esCtrl?.close();
+      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('keydown', handleLightboxKeydown);
+    };
   });
   function back() { goto('/messages'); }
 
   function chooseFile() { fileInput?.click(); }
+  function chooseGeneralFile() { generalFileInput?.click(); }
+
   async function fileChanged(e: Event) {
     const f = (e.target as HTMLInputElement).files?.[0];
     if (!f) return;
@@ -284,6 +301,22 @@
     const r = new FileReader();
     r.onload = () => { imageData = r.result as string; };
     r.readAsDataURL(compressed);
+  }
+
+  function generalFileChanged(e: Event) {
+    const f = (e.target as HTMLInputElement).files?.[0];
+    if (!f) return;
+
+    // Check file size (20MB limit)
+    if (f.size > 20 * 1024 * 1024) {
+      alert("File size must be less than 20MB");
+      return;
+    }
+
+    fileName = f.name;
+    const r = new FileReader();
+    r.onload = () => { fileData = r.result as string; };
+    r.readAsDataURL(f);
   }
 
   function openProfile() {
@@ -334,17 +367,12 @@
     if (e.key === 'ArrowRight') showNextImage();
   }
 
-  // Attach keyboard navigation only while lightbox is open
-  $: if (lightboxOpen) {
-    document.addEventListener('keydown', handleLightboxKeydown);
-  } else {
-    document.removeEventListener('keydown', handleLightboxKeydown);
-  }
+  // Keyboard navigation is handled globally; handler checks lightboxOpen
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (msg.trim() || imageData) {
+      if (msg.trim() || imageData || fileData) {
         send();
       }
     }
@@ -378,14 +406,23 @@
           </div>
         </div>
         <!-- Online indicator -->
-        <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-success rounded-full border-2 border-base-100 shadow-sm"></div>
+        {#if $onlineUsers.some(u => u.id === id)}
+          <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-success rounded-full border-2 border-base-100 shadow-sm animate-pulse"></div>
+        {:else}
+          <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-base-300 rounded-full border-2 border-base-100 shadow-sm"></div>
+        {/if}
       </div>
       
       <div class="flex flex-col min-w-0">
         <h2 class="font-semibold text-lg truncate">{name}</h2>
         <div class="text-sm text-base-content/60 flex items-center gap-1">
-          <div class="w-2 h-2 bg-success rounded-full animate-pulse"></div>
-          Online
+          {#if $onlineUsers.some(u => u.id === id)}
+            <div class="w-2 h-2 bg-success rounded-full animate-pulse"></div>
+            <span class="text-success">Online</span>
+          {:else}
+            <div class="w-2 h-2 bg-base-300 rounded-full"></div>
+            <span class="text-base-content/40">Offline</span>
+          {/if}
         </div>
       </div>
     </div>
@@ -468,44 +505,86 @@
                     <img
                       src={m.image}
                       alt="Attachment"
-                      class="max-w-[70vw] sm:max-w-xs w-full rounded-2xl shadow-lg"
+                      class="max-w-[70vw] sm:max-w-xs w-full max-h-96 object-contain rounded-2xl shadow-lg"
                     />
                   </button>
                 </div>
               {/if}
+
+              {#if m.file}
+                <div class="mb-2">
+                  <a
+                    href={`/api/messages/file/${m.id}`}
+                    download={m.file_name || 'file'}
+                    class="flex items-center gap-3 p-3 bg-base-200/50 rounded-2xl border border-base-300/30 hover:bg-base-200/70 transition-colors"
+                  >
+                    <div class="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <Paperclip class="w-6 h-6 text-primary" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-medium truncate">{m.file_name || 'File'}</p>
+                      <p class="text-xs text-base-content/60">Click to download</p>
+                    </div>
+                    <div class="flex-shrink-0">
+                      <svg class="w-5 h-5 text-base-content/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                      </svg>
+                    </div>
+                  </a>
+                </div>
+              {/if}
               
               {#if m.text}
-                <div 
-                  class={`message-bubble relative rounded-2xl px-4 py-3 whitespace-pre-wrap break-words shadow-sm transition-all duration-200 ${
-                    m.sender_id === $auth?.id 
-                      ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-content rounded-br-md' 
-                      : 'bg-base-200/80 backdrop-blur-sm border border-base-300/30 rounded-bl-md'
-                  } ${m.recipient_id === $auth?.id && !m.is_read ? 'ring-2 ring-primary/50 shadow-lg' : ''}`}
-                  on:click={() => { m.showTime = !m.showTime; convo = [...convo]; }}
-                  role="button"
-                  tabindex="0"
-                  on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.showTime = !m.showTime; convo = [...convo]; } }}
-                >
-                  {hyphenateLongWords(m.text)}
+                {#if isEmojiOnly(m.text)}
+                  <div
+                    class="select-none text-5xl leading-none"
+                    on:click={() => { m.showTime = !m.showTime; convo = [...convo]; }}
+                    role="button"
+                    tabindex="0"
+                    on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.showTime = !m.showTime; convo = [...convo]; } }}
+                  >
+                    {m.text}
+                  </div>
                   
-                  <!-- Message Status -->
-                  {#if m.sender_id === $auth?.id}
-                    <div class="absolute -bottom-5 right-0 flex items-center gap-1 text-xs opacity-60">
-                      {#if m.showTime}<span class="text-base-content/60">{formatTime(m.created_at)}</span>{/if}
-                      {#if m.is_read}
-                        <CheckCheck class="w-3 h-3 text-primary" />
-                      {:else}
-                        <Check class="w-3 h-3 text-base-content/40" />
-                      {/if}
+                  <!-- Time display below emoji -->
+                  {#if m.showTime}
+                    <div class={`text-xs opacity-60 mt-1 ${m.sender_id === $auth?.id ? 'text-right' : 'text-left'}`}>
+                      <span class="text-base-content/60">{formatTime(m.created_at)}</span>
                     </div>
-                  {:else}
-                    {#if m.showTime}
-                      <div class="absolute -bottom-5 left-0 text-xs opacity-60">
-                        <span class="text-base-content/60">{formatTime(m.created_at)}</span>
+                  {/if}
+                {:else}
+                  <div 
+                    class={`message-bubble relative rounded-2xl px-4 py-3 whitespace-pre-wrap break-words shadow-sm transition-all duration-200 ${
+                      m.sender_id === $auth?.id 
+                        ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-content rounded-br-md' 
+                        : 'bg-base-200/80 backdrop-blur-sm border border-base-300/30 rounded-bl-md'
+                    } ${m.recipient_id === $auth?.id && !m.is_read ? 'ring-2 ring-primary/50 shadow-lg' : ''}`}
+                    on:click={() => { m.showTime = !m.showTime; convo = [...convo]; }}
+                    role="button"
+                    tabindex="0"
+                    on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.showTime = !m.showTime; convo = [...convo]; } }}
+                  >
+                    {hyphenateLongWords(m.text)}
+                    
+                    <!-- Message Status -->
+                    {#if m.sender_id === $auth?.id}
+                      <div class="flex items-center gap-1 text-xs opacity-60 mt-2 justify-end">
+                        {#if m.is_read}
+                          <CheckCheck class="w-3 h-3 text-primary" />
+                        {:else}
+                          <Check class="w-3 h-3 text-base-content/40" />
+                        {/if}
                       </div>
                     {/if}
+                  </div>
+                  
+                  <!-- Time display below message -->
+                  {#if m.showTime}
+                    <div class={`text-xs opacity-60 mt-1 ${m.sender_id === $auth?.id ? 'text-right' : 'text-left'}`}>
+                      <span class="text-base-content/60">{formatTime(m.created_at)}</span>
+                    </div>
                   {/if}
-                </div>
+                {/if}
               {/if}
             </div>
           </div>
@@ -519,18 +598,39 @@
     {#if imageData}
       <div class="relative mb-3">
         <img src={imageData} alt="preview" class="max-h-32 rounded-lg shadow-sm" />
-        <button 
-          class="btn btn-circle btn-sm btn-ghost absolute top-2 right-2 bg-base-100/80 backdrop-blur-sm hover:bg-base-200/80" 
+        <button
+          class="btn btn-circle btn-sm btn-ghost absolute top-2 right-2 bg-base-100/80 backdrop-blur-sm hover:bg-base-200/80"
           on:click={() => imageData = null}
         >
           <X class="w-4 h-4" />
         </button>
       </div>
     {/if}
+
+    {#if fileData}
+      <div class="relative mb-3">
+        <div class="flex items-center gap-3 p-3 bg-base-200/50 rounded-lg border border-base-300/50">
+          <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+            <Paperclip class="w-5 h-5 text-primary" />
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium truncate">{fileName}</p>
+            <p class="text-xs text-base-content/60">{(fileData.length * 0.75 / 1024).toFixed(1)} KB</p>
+          </div>
+          <button
+            class="btn btn-circle btn-sm btn-ghost hover:bg-base-200/80"
+            on:click={() => { fileData = null; fileName = null; }}
+          >
+            <X class="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    {/if}
     
     <div class="flex items-end gap-3">
-      <!-- Hidden file input -->
+      <!-- Hidden file inputs -->
       <input type="file" accept="image/*" class="hidden" bind:this={fileInput} on:change={fileChanged} />
+      <input type="file" class="hidden" bind:this={generalFileInput} on:change={generalFileChanged} />
       
       <!-- Attachment Menu -->
       <div class="relative attachment-menu">
@@ -546,7 +646,7 @@
               <ImagePlus class="w-4 h-4" />
               Photo
             </button>
-            <button class="btn btn-ghost btn-sm gap-2 w-full justify-start">
+            <button class="btn btn-ghost btn-sm gap-2 w-full justify-start" on:click={chooseGeneralFile}>
               <Paperclip class="w-4 h-4" />
               File
             </button>
@@ -593,10 +693,10 @@
       </div>
       
       <!-- Send Button -->
-      <button 
-        class="btn btn-circle btn-primary shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" 
-        on:click={send} 
-        disabled={!msg.trim() && !imageData} 
+      <button
+        class="btn btn-circle btn-primary shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+        on:click={send}
+        disabled={!msg.trim() && !imageData && !fileData}
         aria-label="Send message"
       >
         <Send class="w-4 h-4" />
@@ -640,7 +740,7 @@
 {/if}
 
 {#if showProfile}
-  <UserProfileModal userId={parseInt(id)} on:close={() => (showProfile = false)} />
+  <UserProfileModal userId={id} on:close={() => (showProfile = false)} />
 {/if}
 
 <style>

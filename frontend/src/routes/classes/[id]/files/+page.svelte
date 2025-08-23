@@ -330,12 +330,11 @@ function fmtSize(bytes: number | null | undefined, decimals = 1) {
 }
 
 onMount(() => {
-  let storedParent: number | null = null;
+  let storedParent: string | null = null;
   if (typeof sessionStorage !== 'undefined') {
     const sp = sessionStorage.getItem(`files_parent_${id}`);
     if (sp) {
-      const n = parseInt(sp);
-      if (!isNaN(n)) storedParent = n;
+      storedParent = sp;
     }
     const bc = sessionStorage.getItem(`files_breadcrumbs_${id}`);
     if (bc) {

@@ -228,17 +228,23 @@
         const { cls } = parseQN(qn)
         newQN = `${cls}.${m[1]}`
       }
+      const testData: any = {
+        stdin: editingTest.stdin ?? '',
+        expected_stdout: editingTest.expected_stdout ?? '',
+        time_limit_sec: parseFloat(editingTest.time_limit_sec) || 1,
+        unittest_code: updated,
+        unittest_name: newQN
+      }
+      
+      // Only include weight for weighted assignments
+      if (assignment?.grading_policy === 'weighted') {
+        testData.weight = parseFloat(editingTest.weight) || 1
+      }
+      
       await apiFetch(`/api/tests/${editingTest.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          stdin: editingTest.stdin ?? '',
-          expected_stdout: editingTest.expected_stdout ?? '',
-          weight: parseFloat(editingTest.weight) || 1,
-          time_limit_sec: parseFloat(editingTest.time_limit_sec) || 1,
-          unittest_code: updated,
-          unittest_name: newQN
-        })
+        body: JSON.stringify(testData)
       })
       closeEditUnitTest()
       await load()
@@ -315,15 +321,21 @@
 
   async function addTest() {
     try {
+      const testData: any = {
+        stdin: tStdin,
+        expected_stdout: tStdout,
+        time_limit_sec: parseFloat(tLimit) || undefined
+      }
+      
+      // Only include weight for weighted assignments
+      if (assignment?.grading_policy === 'weighted') {
+        testData.weight = parseFloat(tWeight) || 1
+      }
+      
       await apiFetch(`/api/assignments/${id}/tests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          stdin: tStdin,
-          expected_stdout: tStdout,
-          weight: parseFloat(tWeight) || 1,
-          time_limit_sec: parseFloat(tLimit) || undefined
-        })
+        body: JSON.stringify(testData)
       })
       tStdin = tStdout = tLimit = ''
       tWeight = '1'
@@ -352,7 +364,7 @@
   function addUTTest() {
     utTests = [
       ...utTests,
-      { name: `test_${utTests.length + 1}`, description: '', weight: '1', timeLimit: '1', assertions: [] }
+      { name: `test_${utTests.length + 1}`, description: '', weight: assignment?.grading_policy === 'weighted' ? '1' : '0', timeLimit: '1', assertions: [] }
     ]
   }
 
@@ -611,15 +623,21 @@
       for (const t of tests) {
         if (t.unittest_name && nameToCfg.has(t.unittest_name)) {
           const cfg = nameToCfg.get(t.unittest_name)!
+          const testData: any = {
+            stdin: t.stdin ?? '',
+            expected_stdout: t.expected_stdout ?? '',
+            time_limit_sec: cfg.time
+          }
+          
+          // Only include weight for weighted assignments
+          if (assignment?.grading_policy === 'weighted') {
+            testData.weight = cfg.weight
+          }
+          
           await apiFetch(`/api/tests/${t.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              stdin: t.stdin ?? '',
-              expected_stdout: t.expected_stdout ?? '',
-              weight: cfg.weight,
-              time_limit_sec: cfg.time
-            })
+            body: JSON.stringify(testData)
           })
         }
       }
@@ -653,15 +671,21 @@
 
   async function updateTest(t: any) {
     try {
+      const testData: any = {
+        stdin: t.stdin,
+        expected_stdout: t.expected_stdout,
+        time_limit_sec: parseFloat(t.time_limit_sec) || undefined
+      }
+      
+      // Only include weight for weighted assignments
+      if (assignment?.grading_policy === 'weighted') {
+        testData.weight = parseFloat(t.weight) || 1
+      }
+      
       await apiFetch(`/api/tests/${t.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          stdin: t.stdin,
-          expected_stdout: t.expected_stdout,
-          weight: parseFloat(t.weight) || 1,
-          time_limit_sec: parseFloat(t.time_limit_sec) || undefined
-        })
+        body: JSON.stringify(testData)
       })
       await load()
     } catch (e: any) {
@@ -823,15 +847,17 @@
                     </details>
                   {/if}
                 {/if}
-                <div class="grid sm:grid-cols-2 gap-2">
+                <div class="grid gap-2" class:sm:grid-cols-2={assignment?.grading_policy === 'weighted'}>
                   <label class="form-control w-full space-y-1">
                     <span class="label-text flex items-center gap-1"><Clock size={14}/> <span>Time limit (s)</span></span>
                     <input class="input input-bordered w-full" placeholder="seconds" bind:value={t.time_limit_sec}>
                   </label>
-                  <label class="form-control w-full space-y-1">
-                    <span class="label-text flex items-center gap-1"><Scale size={14}/> <span>Weight</span></span>
-                    <input class="input input-bordered w-full" placeholder="points" bind:value={t.weight}>
-                  </label>
+                  {#if assignment?.grading_policy === 'weighted'}
+                    <label class="form-control w-full space-y-1">
+                      <span class="label-text flex items-center gap-1"><Scale size={14}/> <span>Points</span></span>
+                      <input class="input input-bordered w-full" placeholder="points" bind:value={t.weight}>
+                    </label>
+                  {/if}
                 </div>
               </div>
             {/each}
@@ -843,7 +869,7 @@
         <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4">
           <div class="border-base-300/60 space-y-2">
             <h4 class="font-semibold flex items-center gap-2"><Code size={18}/> Add IO test</h4>
-            <div class="grid sm:grid-cols-2 gap-2">
+            <div class="grid gap-2" class:sm:grid-cols-2={assignment?.grading_policy === 'weighted'}>
               <label class="form-control w-full space-y-1">
                 <span class="label-text">Input</span>
                 <input class="input input-bordered w-full" placeholder="stdin" bind:value={tStdin}>
@@ -856,10 +882,12 @@
                 <span class="label-text flex items-center gap-1"><Clock size={14}/> <span>Time limit (s)</span></span>
                 <input class="input input-bordered w-full" placeholder="seconds" bind:value={tLimit}>
               </label>
-              <label class="form-control w-full space-y-1">
-                <span class="label-text flex items-center gap-1"><Scale size={14}/> <span>Weight</span></span>
-                <input class="input input-bordered w-full" placeholder="points" bind:value={tWeight}>
-              </label>
+              {#if assignment?.grading_policy === 'weighted'}
+                <label class="form-control w-full space-y-1">
+                  <span class="label-text flex items-center gap-1"><Scale size={14}/> <span>Points</span></span>
+                  <input class="input input-bordered w-full" placeholder="points" bind:value={tWeight}>
+                </label>
+              {/if}
             </div>
             <div>
               <button class="btn btn-primary" on:click={addTest} disabled={!tStdin || !tStdout}><Plus size={16}/> Add</button>
@@ -901,7 +929,7 @@
             {#each utTests as ut, ti}
               <div class="rounded-xl border border-base-300/60 p-3 space-y-2 ut-method">
                 <div class="flex items-center justify-between gap-3 ut-method-header">
-                  <div class="grid sm:grid-cols-2 gap-2 flex-1">
+                  <div class="grid gap-2 flex-1" class:sm:grid-cols-2={assignment?.grading_policy === 'weighted'}>
                     <label class="form-control w-full space-y-1">
                       <span class="label-text">Method name</span>
                       <input class="input input-bordered w-full" bind:value={ut.name} placeholder="test_something">
@@ -915,15 +943,17 @@
                     <button class="btn btn-ghost btn-xs" on:click={() => removeUTTest(ti)}><Trash2 size={14}/> Remove</button>
                   </div>
                 </div>
-                <div class="grid sm:grid-cols-2 gap-2">
+                <div class="grid gap-2" class:sm:grid-cols-2={assignment?.grading_policy === 'weighted'}>
                   <label class="form-control w-full space-y-1">
                     <span class="label-text flex items-center gap-1"><Clock size={14}/> <span>Time limit (s)</span></span>
                     <input class="input input-bordered w-full" bind:value={ut.timeLimit}>
                   </label>
-                  <label class="form-control w-full space-y-1">
-                    <span class="label-text flex items-center gap-1"><Scale size={14}/> <span>Weight</span></span>
-                    <input class="input input-bordered w-full" bind:value={ut.weight}>
-                  </label>
+                  {#if assignment?.grading_policy === 'weighted'}
+                    <label class="form-control w-full space-y-1">
+                      <span class="label-text flex items-center gap-1"><Scale size={14}/> <span>Points</span></span>
+                      <input class="input input-bordered w-full" bind:value={ut.weight}>
+                    </label>
+                  {/if}
                 </div>
                 <div class="space-y-2 ut-assertions">
                   <div class="flex items-center justify-between">

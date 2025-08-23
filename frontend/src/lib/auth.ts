@@ -1,9 +1,10 @@
 import { writable } from "svelte/store";
 import { apiFetch } from "$lib/api";
 import { browser } from "$app/environment";
+import { onlineUsers } from "./stores/onlineUsers";
 
 export type User = {
-  id: number;
+  id: string;
   role: string;
   name?: string | null;
   avatar?: string | null;
@@ -27,10 +28,14 @@ function createAuth() {
     theme?: "light" | "dark" | null,
   ) {
     set({ id, role, name, avatar, bk_uid, email, theme });
+    // Mark user as online
+    onlineUsers.markOnline();
   }
 
   /** Log out everywhere */
   async function logout() {
+    // Mark user as offline BEFORE clearing auth so the request is authorized
+    await onlineUsers.markOffline();
     if (browser) {
       try {
         await apiFetch("/api/logout", { method: "POST" });

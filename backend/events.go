@@ -6,10 +6,11 @@ import (
 
 	"github.com/gin-contrib/sse"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type subscriber struct {
-	userID int
+	userID uuid.UUID
 	ch     chan sse.Event
 }
 
@@ -18,7 +19,7 @@ var (
 	subs   = map[*subscriber]bool{}
 )
 
-func addSubscriber(uid int) *subscriber {
+func addSubscriber(uid uuid.UUID) *subscriber {
 	sub := &subscriber{userID: uid, ch: make(chan sse.Event, 10)}
 	subsMu.Lock()
 	subs[sub] = true
@@ -35,12 +36,12 @@ func removeSubscriber(sub *subscriber) {
 
 func broadcast(evt sse.Event) {
 	// Determine the submission owner
-	var uid int
+	var uid uuid.UUID
 	var showTrace bool
 	switch evt.Event {
 	case "status":
 		if m, ok := evt.Data.(map[string]any); ok {
-			if sid, ok := m["submission_id"].(int); ok {
+			if sid, ok := m["submission_id"].(uuid.UUID); ok {
 				if s, err := GetSubmission(sid); err == nil {
 					uid = s.StudentID
 				}
@@ -61,7 +62,7 @@ func broadcast(evt sse.Event) {
 	}
 	subsMu.Lock()
 	for sub := range subs {
-		if uid == 0 || sub.userID == uid {
+		if uid == uuid.Nil || sub.userID == uid {
 			select {
 			case sub.ch <- evt:
 			default:
@@ -73,7 +74,7 @@ func broadcast(evt sse.Event) {
 
 // eventsHandler streams submission updates to clients using SSE.
 func eventsHandler(c *gin.Context) {
-	uid := c.GetInt("userID")
+	uid := getUserID(c)
 	sub := addSubscriber(uid)
 	defer removeSubscriber(sub)
 	// Send current statuses and results so clients don't miss recent updates

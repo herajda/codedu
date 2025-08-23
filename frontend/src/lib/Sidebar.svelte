@@ -1,27 +1,16 @@
 <script lang="ts">
-  import { apiJSON } from '$lib/api';
   import { page } from '$app/stores';
   import '@fortawesome/fontawesome-free/css/all.min.css';
   import { sidebarOpen, sidebarCollapsed } from '$lib/sidebar';
   import { auth } from '$lib/auth';
   import { unreadMessages } from '$lib/stores/messages';
+  import { classesStore } from '$lib/stores/classes';
 
-  type ClassSummary = { id: number | string; name: string };
-
-  let classes: ClassSummary[] = [];
-  let loadError = '';
-  let hasLoaded = false;
-
-  $: if ($auth && !hasLoaded) {
-    hasLoaded = true;
-    (async () => {
-      try {
-        const result = await apiJSON('/api/classes');
-        classes = Array.isArray(result) ? result : [];
-      } catch (e: any) {
-        loadError = e?.message ?? 'Failed to load classes';
-      }
-    })();
+  $: if ($auth) {
+    // Load classes when auth state changes
+    classesStore.load().catch(() => {
+      // Error handling is done in the store
+    });
   }
 
   function isActive(path: string): boolean {
@@ -70,7 +59,7 @@
 
         <div class="section-title">Classes</div>
         <ul class="space-y-2">
-          {#each classes as c}
+          {#each $classesStore.classes as c}
             <li class="nav-collapsible" data-open={isSection(`/classes/${c.id}`)}>
               <details open={isSection(`/classes/${c.id}`)}>
                 <summary class="nav-summary">
@@ -114,13 +103,16 @@
               </details>
             </li>
           {/each}
-          {#if !classes.length && !loadError}
+          {#if !$classesStore.classes.length && !$classesStore.loading && !$classesStore.error}
             <li class="text-sm opacity-60">No classes</li>
+          {/if}
+          {#if $classesStore.loading}
+            <li class="text-sm opacity-60">Loading classes...</li>
           {/if}
         </ul>
 
-        {#if loadError}
-          <p class="text-error mt-3 text-sm">{loadError}</p>
+        {#if $classesStore.error}
+          <p class="text-error mt-3 text-sm">{$classesStore.error}</p>
         {/if}
       </div>
     </div>

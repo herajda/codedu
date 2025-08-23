@@ -222,6 +222,40 @@ $: id = $page.params.id
     }
   }
 
+  async function downloadFiles() {
+    try {
+      if (Array.isArray(files) && files.length) {
+        const zip = new JSZip()
+        for (const f of files) {
+          zip.file(f.name, f.content ?? '')
+        }
+        const blob = await zip.generateAsync({ type: 'blob' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        const safeTitle = (assignmentTitle || 'submission').replace(/[^a-z0-9_\-]+/gi, '_').slice(0, 60)
+        a.href = url
+        a.download = `${safeTitle}_${submission?.id ?? id}.zip`
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        URL.revokeObjectURL(url)
+      } else {
+        const textContent = submission?.code_content ?? ''
+        const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `submission_${submission?.id ?? id}.txt`
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        URL.revokeObjectURL(url)
+      }
+    } catch (e: any) {
+      err = e?.message ?? String(e)
+    }
+  }
+
   function goBack(){
     try {
       if (typeof window !== 'undefined' && window.history.length > 1) {
@@ -278,7 +312,7 @@ $: id = $page.params.id
     )
   })
   onDestroy(() => { esCtrl?.close() })
-  $: sid = submission?.id ?? Number(id)
+  $: sid = submission?.id ?? id
 </script>
 
 {#if !submission}
@@ -291,7 +325,7 @@ $: id = $page.params.id
           <div class="space-y-2">
             <h1 class="card-title text-2xl">{assignmentTitle || 'Assignment'}</h1>
             <div class="flex flex-wrap gap-2 text-xs sm:text-sm opacity-80">
-              <span class="inline-flex items-center gap-2 px-3 py-1 rounded bg-base-200">Submission #{submission.id}</span>
+              <span class="inline-flex items-center gap-2 px-3 py-1 rounded bg-base-200">Attempt #{submission.attempt_number ?? submission.id}</span>
               <span class="inline-flex items-center gap-2 px-3 py-1 rounded bg-base-200">Submitted {formatDateTime(submission.created_at)}</span>
               {#if assignmentManual}
                 <span class="inline-flex items-center gap-2 px-3 py-1 rounded bg-info/20 text-info">Manual review</span>
@@ -313,12 +347,52 @@ $: id = $page.params.id
         {#if (role==='teacher' || role==='admin')}
           <div class="rounded-box bg-base-200 p-4 mt-2">
             <div class="font-medium mb-2">Teacher actions</div>
-            <div class="flex items-center gap-3">
-              <input type="number" step="1" min="0" inputmode="numeric" pattern="[0-9]*" on:keydown={(e) => { if (['e','E','+','-','.',','].includes(e.key)) e.preventDefault() }} class="input input-bordered input-sm w-28 sm:w-32" bind:value={overrideValue} placeholder="points (optional)" aria-label="Override points">
-              <button class={`btn btn-primary btn-sm ${savingOverride ? 'loading' : ''}`} on:click={saveOverride} disabled={savingOverride}>Save points</button>
-              <button class="btn btn-success btn-sm" on:click={async()=>{ try{ const raw:any=overrideValue; const str = raw==null? '' : (typeof raw==='string'? raw : String(raw)); const v = str.trim()===''? null : parseInt(str,10); await apiFetch(`/api/submissions/${submission.id}/accept`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ points: v })}); await load(); }catch(e:any){ err=e.message } }}>Accept submission</button>
-            </div>
-            <div class="text-xs opacity-70 mt-2">Leave points empty to accept without overriding. Acceptance marks the submission completed and visible to the student as manually accepted.</div>
+            
+            {#if submission?.manually_accepted}
+              <!-- Show undo button for manually accepted submissions -->
+              <div class="flex items-center gap-3">
+                <button class="btn btn-warning btn-sm" on:click={async()=>{ 
+                  try{ 
+                    await apiFetch(`/api/submissions/${submission.id}/undo-accept`, { 
+                      method:'PUT', 
+                      headers:{'Content-Type':'application/json'}, 
+                      body: JSON.stringify({}) 
+                    }); 
+                    await load(); 
+                  }catch(e:any){ 
+                    err=e.message 
+                  } 
+                }}>Undo manual acceptance</button>
+              </div>
+              <div class="text-xs opacity-70 mt-2">This submission was manually accepted. Click undo to allow re-grading.</div>
+            {:else}
+              <!-- Show accept/give points options for non-manually accepted submissions -->
+              {#if submission?.status === 'failed' || submission?.status === 'pending'}
+                <!-- Show expandable section for failed/pending submissions -->
+                <div class="collapse collapse-arrow bg-base-100">
+                  <input type="checkbox" />
+                  <div class="collapse-title font-medium">
+                    Accept submission and give points
+                  </div>
+                  <div class="collapse-content">
+                    <div class="flex items-center gap-3 mt-3">
+                      <input type="number" step="1" min="0" inputmode="numeric" pattern="[0-9]*" on:keydown={(e) => { if (['e','E','+','-','.',','].includes(e.key)) e.preventDefault() }} class="input input-bordered input-sm w-28 sm:w-32" bind:value={overrideValue} placeholder="points (optional)" aria-label="Override points">
+                      <button class={`btn btn-primary btn-sm ${savingOverride ? 'loading' : ''}`} on:click={saveOverride} disabled={savingOverride}>Save points</button>
+                      <button class="btn btn-success btn-sm" on:click={async()=>{ try{ const raw:any=overrideValue; const str = raw==null? '' : (typeof raw==='string'? raw : String(raw)); const v = str.trim()===''? null : parseInt(str,10); await apiFetch(`/api/submissions/${submission.id}/accept`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ points: v })}); await load(); }catch(e:any){ err=e.message } }}>Accept submission</button>
+                    </div>
+                    <div class="text-xs opacity-70 mt-2">Leave points empty to accept without overriding. Acceptance marks the submission completed and visible to the student as manually accepted.</div>
+                  </div>
+                </div>
+              {:else}
+                <!-- Show regular accept/give points for other statuses -->
+                <div class="flex items-center gap-3">
+                  <input type="number" step="1" min="0" inputmode="numeric" pattern="[0-9]*" on:keydown={(e) => { if (['e','E','+','-','.',','].includes(e.key)) e.preventDefault() }} class="input input-bordered input-sm w-28 sm:w-32" bind:value={overrideValue} placeholder="points (optional)" aria-label="Override points">
+                  <button class={`btn btn-primary btn-sm ${savingOverride ? 'loading' : ''}`} on:click={saveOverride} disabled={savingOverride}>Save points</button>
+                  <button class="btn btn-success btn-sm" on:click={async()=>{ try{ const raw:any=overrideValue; const str = raw==null? '' : (typeof raw==='string'? raw : String(raw)); const v = str.trim()===''? null : parseInt(str,10); await apiFetch(`/api/submissions/${submission.id}/accept`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ points: v })}); await load(); }catch(e:any){ err=e.message } }}>Accept submission</button>
+                </div>
+                <div class="text-xs opacity-70 mt-2">Leave points empty to accept without overriding. Acceptance marks the submission completed and visible to the student as manually accepted.</div>
+              {/if}
+            {/if}
           </div>
         {/if}
 
@@ -526,6 +600,10 @@ $: id = $page.params.id
 
 <dialog bind:this={fileDialog} class="modal">
   <div class="modal-box w-11/12 max-w-5xl">
+    <div class="flex items-center justify-between mb-2">
+      <div class="font-medium">Files</div>
+      <button class="btn btn-sm btn-primary" on:click={downloadFiles}>Download</button>
+    </div>
     {#if files.length}
       <div class="flex flex-col md:flex-row gap-4">
         <div class="md:w-60">

@@ -198,7 +198,7 @@ func getSigningKey() []byte {
 		key := strings.TrimSpace(os.Getenv("SESS_SIGNING_KEY"))
 		if key == "" {
 			// derive from server secret or random
-			seed := fmt.Sprintf("%d-%s", time.Now().UnixNano(), "code-grader")
+			seed := fmt.Sprintf("%d-%s", time.Now().UnixNano(), "code-edu")
 			h := sha256.Sum256([]byte(seed))
 			signingKey = h[:]
 		} else {

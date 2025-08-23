@@ -10,4 +10,8 @@ export function resetUnreadMessages() {
   unreadMessages.set(0);
 }
 
+export function setUnreadMessages(n: number) {
+  unreadMessages.set(n);
+}
+
 

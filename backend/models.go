@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-contrib/sse"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -15,7 +16,7 @@ const maxFileSize = 20 * 1024 * 1024 // 20 MB
 var ErrBlocked = errors.New("blocked")
 
 type User struct {
-	ID           int       `db:"id"`
+	ID           uuid.UUID `db:"id"`
 	Email        string    `db:"email"`
 	PasswordHash string    `db:"password_hash"`
 	Name         *string   `db:"name"`
@@ -28,10 +29,10 @@ type User struct {
 }
 
 type Assignment struct {
-	ID            int       `db:"id" json:"id"`
+	ID            uuid.UUID `db:"id" json:"id"`
 	Title         string    `db:"title" json:"title"`
 	Description   string    `db:"description" json:"description"`
-	CreatedBy     int       `db:"created_by" json:"created_by"`
+	CreatedBy     uuid.UUID `db:"created_by" json:"created_by"`
 	Deadline      time.Time `db:"deadline" json:"deadline"`
 	MaxPoints     int       `db:"max_points" json:"max_points"`
 	GradingPolicy string    `db:"grading_policy" json:"grading_policy"`
@@ -41,7 +42,7 @@ type Assignment struct {
 	TemplatePath  *string   `db:"template_path" json:"template_path"`
 	CreatedAt     time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
-	ClassID       int       `db:"class_id" json:"class_id"`
+	ClassID       uuid.UUID `db:"class_id" json:"class_id"`
 
 	// LLM-interactive testing configuration
 	LLMInteractive     bool    `db:"llm_interactive" json:"llm_interactive"`
@@ -51,19 +52,23 @@ type Assignment struct {
 	LLMStrictness      int     `db:"llm_strictness" json:"llm_strictness"`
 	LLMRubric          *string `db:"llm_rubric" json:"llm_rubric"`
 	LLMTeacherBaseline *string `db:"llm_teacher_baseline_json" json:"llm_teacher_baseline_json"`
+
+	// Second deadline feature
+	SecondDeadline   *time.Time `db:"second_deadline" json:"second_deadline"`
+	LatePenaltyRatio float64    `db:"late_penalty_ratio" json:"late_penalty_ratio"`
 }
 type Class struct {
-	ID        int       `db:"id"        json:"id"`
+	ID        uuid.UUID `db:"id"        json:"id"`
 	Name      string    `db:"name"      json:"name"`
-	TeacherID int       `db:"teacher_id" json:"teacher_id"`
+	TeacherID uuid.UUID `db:"teacher_id" json:"teacher_id"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
 type Submission struct {
-	ID               int       `db:"id" json:"id"`
-	AssignmentID     int       `db:"assignment_id" json:"assignment_id"`
-	StudentID        int       `db:"student_id" json:"student_id"`
+	ID               uuid.UUID `db:"id" json:"id"`
+	AssignmentID     uuid.UUID `db:"assignment_id" json:"assignment_id"`
+	StudentID        uuid.UUID `db:"student_id" json:"student_id"`
 	CodePath         string    `db:"code_path" json:"code_path"`
 	CodeContent      string    `db:"code_content" json:"code_content"`
 	Status           string    `db:"status" json:"status"`
@@ -74,11 +79,12 @@ type Submission struct {
 	Late             bool      `db:"late" json:"late"`
 	CreatedAt        time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
+	AttemptNumber    *int      `db:"attempt_number" json:"attempt_number,omitempty"`
 }
 
 type TestCase struct {
-	ID             int       `db:"id" json:"id"`
-	AssignmentID   int       `db:"assignment_id" json:"assignment_id"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	AssignmentID   uuid.UUID `db:"assignment_id" json:"assignment_id"`
 	Stdin          string    `db:"stdin" json:"stdin"`
 	ExpectedStdout string    `db:"expected_stdout" json:"expected_stdout"`
 	Weight         float64   `db:"weight" json:"weight"`
@@ -95,7 +101,7 @@ type TestCase struct {
 // ──────────────────────────────────────────────────────
 
 type UserSummary struct {
-	ID        int       `db:"id"         json:"id"`
+	ID        uuid.UUID `db:"id"         json:"id"`
 	Email     string    `db:"email"      json:"email"`
 	Name      *string   `db:"name"       json:"name"`
 	Role      string    `db:"role"       json:"role"`
@@ -111,7 +117,7 @@ func ListUsers() ([]UserSummary, error) {
 	return list, err
 }
 
-func UpdateUserRole(id int, role string) error {
+func UpdateUserRole(id uuid.UUID, role string) error {
 	// only three legal roles
 	switch role {
 	case "student", "teacher", "admin":
@@ -122,7 +128,7 @@ func UpdateUserRole(id int, role string) error {
 	return err
 }
 
-func GetUser(id int) (*User, error) {
+func GetUser(id uuid.UUID) (*User, error) {
 	var u User
 	err := DB.Get(&u, `SELECT id, email, password_hash, name, avatar, role, theme, bk_class, bk_uid, created_at
                 FROM users WHERE id=$1`, id)
@@ -132,7 +138,7 @@ func GetUser(id int) (*User, error) {
 	return &u, nil
 }
 
-func UpdateUserProfile(id int, name, avatar, theme *string) error {
+func UpdateUserProfile(id uuid.UUID, name, avatar, theme *string) error {
 	_, err := DB.Exec(`UPDATE users SET name=COALESCE($1,name), avatar=COALESCE($2,avatar), theme=COALESCE($3,theme) WHERE id=$4`, name, avatar, theme, id)
 	return err
 }
@@ -143,7 +149,7 @@ func AssignRandomAvatarsToUsersWithout(catalog []string) error {
 	if len(catalog) == 0 {
 		return nil
 	}
-	type row struct{ ID int }
+	type row struct{ ID uuid.UUID }
 	var rows []row
 	if err := DB.Select(&rows, `SELECT id FROM users WHERE avatar IS NULL`); err != nil {
 		return err
@@ -151,20 +157,20 @@ func AssignRandomAvatarsToUsersWithout(catalog []string) error {
 	if len(rows) == 0 {
 		return nil
 	}
-	for _, r := range rows {
-		pick := catalog[int(time.Now().UnixNano()+int64(r.ID))%len(catalog)]
+	for i, r := range rows {
+		pick := catalog[int(time.Now().UnixNano()+int64(i))%len(catalog)]
 		_, _ = DB.Exec(`UPDATE users SET avatar=$1 WHERE id=$2`, pick, r.ID)
 	}
 	return nil
 }
 
-func UpdateUserPassword(id int, hash string) error {
+func UpdateUserPassword(id uuid.UUID, hash string) error {
 	_, err := DB.Exec(`UPDATE users SET password_hash=$1 WHERE id=$2`, hash, id)
 	return err
 }
 
 // LinkLocalAccount sets a new email and password hash for an existing user.
-func LinkLocalAccount(id int, email, hash string) error {
+func LinkLocalAccount(id uuid.UUID, email, hash string) error {
 	_, err := DB.Exec(`UPDATE users SET email=$1, password_hash=$2 WHERE id=$3`, email, hash, id)
 	return err
 }
@@ -181,17 +187,18 @@ func ListAllClasses() ([]Class, error) {
 // ──────────────────────────────────────────────────────────────────────────────
 func CreateAssignment(a *Assignment) error {
 	const q = `
-          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, manual_review, template_path, class_id)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, manual_review, template_path, class_id, second_deadline, late_penalty_ratio)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
           RETURNING id, created_at, updated_at`
 	return DB.QueryRow(q,
 		a.Title, a.Description, a.CreatedBy, a.Deadline,
 		a.MaxPoints, a.GradingPolicy, a.Published, a.ShowTraceback, a.ManualReview, a.TemplatePath, a.ClassID,
+		a.SecondDeadline, a.LatePenaltyRatio,
 	).Scan(&a.ID, &a.CreatedAt, &a.UpdatedAt)
 }
 
 // ListAssignments returns all assignments.
-func ListAssignments(role string, userID int) ([]Assignment, error) {
+func ListAssignments(role string, userID uuid.UUID) ([]Assignment, error) {
 	list := []Assignment{}
 	query := `
     SELECT a.id, a.title, a.description, a.created_by, a.deadline,
@@ -203,7 +210,9 @@ func ListAssignments(role string, userID int) ([]Assignment, error) {
            a.llm_scenarios_json,
            COALESCE(a.llm_strictness,50) AS llm_strictness,
            a.llm_rubric,
-           a.llm_teacher_baseline_json
+           a.llm_teacher_baseline_json,
+           a.second_deadline,
+           COALESCE(a.late_penalty_ratio,0.5) AS late_penalty_ratio
       FROM assignments a`
 	var args []any
 	switch role {
@@ -224,7 +233,7 @@ func ListAssignments(role string, userID int) ([]Assignment, error) {
 }
 
 // GetAssignment looks up one assignment by ID.
-func GetAssignment(id int) (*Assignment, error) {
+func GetAssignment(id uuid.UUID) (*Assignment, error) {
 	var a Assignment
 	err := DB.Get(&a, `
     SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, manual_review, template_path, created_at, updated_at, class_id,
@@ -234,7 +243,9 @@ func GetAssignment(id int) (*Assignment, error) {
            llm_scenarios_json,
            COALESCE(llm_strictness,50) AS llm_strictness,
            llm_rubric,
-           llm_teacher_baseline_json
+           llm_teacher_baseline_json,
+           second_deadline,
+           COALESCE(late_penalty_ratio,0.5) AS late_penalty_ratio
       FROM assignments
      WHERE id = $1`, id)
 	if err != nil {
@@ -244,7 +255,7 @@ func GetAssignment(id int) (*Assignment, error) {
 }
 
 // GetAssignmentForSubmission retrieves the assignment associated with a submission.
-func GetAssignmentForSubmission(subID int) (*Assignment, error) {
+func GetAssignmentForSubmission(subID uuid.UUID) (*Assignment, error) {
 	var a Assignment
 	err := DB.Get(&a, `
         SELECT a.id, a.title, a.description, a.created_by, a.deadline,
@@ -256,7 +267,9 @@ func GetAssignmentForSubmission(subID int) (*Assignment, error) {
                a.llm_scenarios_json,
                COALESCE(a.llm_strictness,50) AS llm_strictness,
                a.llm_rubric,
-               a.llm_teacher_baseline_json
+               a.llm_teacher_baseline_json,
+               a.second_deadline,
+               COALESCE(a.late_penalty_ratio,0.5) AS late_penalty_ratio
           FROM assignments a
           JOIN submissions s ON s.assignment_id = a.id
          WHERE s.id=$1`, subID)
@@ -274,12 +287,14 @@ func UpdateAssignment(a *Assignment) error {
            max_points=$4, grading_policy=$5, show_traceback=$6, manual_review=$7,
            llm_interactive=$8, llm_feedback=$9, llm_auto_award=$10, llm_scenarios_json=$11,
            llm_strictness=$12, llm_rubric=$13, llm_teacher_baseline_json=$14,
+           second_deadline=$15, late_penalty_ratio=$16,
            updated_at=now()
-     WHERE id=$15`,
+     WHERE id=$17`,
 		a.Title, a.Description, a.Deadline,
 		a.MaxPoints, a.GradingPolicy, a.ShowTraceback, a.ManualReview,
 		a.LLMInteractive, a.LLMFeedback, a.LLMAutoAward, a.LLMScenariosRaw,
 		a.LLMStrictness, a.LLMRubric, a.LLMTeacherBaseline,
+		a.SecondDeadline, a.LatePenaltyRatio,
 		a.ID)
 	if err != nil {
 		return err
@@ -291,25 +306,25 @@ func UpdateAssignment(a *Assignment) error {
 }
 
 // DeleteAssignment removes an assignment (and cascades test_cases/submissions).
-func DeleteAssignment(id int) error {
+func DeleteAssignment(id uuid.UUID) error {
 	_, err := DB.Exec(`DELETE FROM assignments WHERE id=$1`, id)
 	return err
 }
 
 // SetAssignmentPublished updates the published flag on an assignment.
-func SetAssignmentPublished(id int, published bool) error {
+func SetAssignmentPublished(id uuid.UUID, published bool) error {
 	_, err := DB.Exec(`UPDATE assignments SET published=$1, updated_at=now() WHERE id=$2`, published, id)
 	return err
 }
 
-func UpdateAssignmentTemplate(id int, path *string) error {
+func UpdateAssignmentTemplate(id uuid.UUID, path *string) error {
 	_, err := DB.Exec(`UPDATE assignments SET template_path=$1, updated_at=now() WHERE id=$2`, path, id)
 	return err
 }
 
 // IsTeacherOfAssignment checks whether the given teacher owns the class the
 // assignment belongs to.
-func IsTeacherOfAssignment(aid, teacherID int) (bool, error) {
+func IsTeacherOfAssignment(aid, teacherID uuid.UUID) (bool, error) {
 	var x int
 	err := DB.Get(&x, `SELECT 1 FROM assignments a JOIN classes c ON c.id=a.class_id
                 WHERE a.id=$1 AND c.teacher_id=$2`, aid, teacherID)
@@ -321,7 +336,7 @@ func IsTeacherOfAssignment(aid, teacherID int) (bool, error) {
 
 // IsStudentOfAssignment checks whether the student is enrolled in the class the
 // assignment belongs to.
-func IsStudentOfAssignment(aid, studentID int) (bool, error) {
+func IsStudentOfAssignment(aid, studentID uuid.UUID) (bool, error) {
 	var x int
 	err := DB.Get(&x, `SELECT 1 FROM assignments a JOIN class_students cs ON cs.class_id=a.class_id
                 WHERE a.id=$1 AND cs.student_id=$2`, aid, studentID)
@@ -350,8 +365,8 @@ func FindUserByBkUID(uid string) (*User, error) {
 }
 
 // createStudentWithID inserts a new student and returns its database ID.
-func createStudentWithID(email, hash string, name, bkClass, bkUID *string) (int, error) {
-	var id int
+func createStudentWithID(email, hash string, name, bkClass, bkUID *string) (uuid.UUID, error) {
+	var id uuid.UUID
 	err := DB.QueryRow(`
                 INSERT INTO users (email, password_hash, name, role, bk_class, bk_uid)
                 VALUES ($1,$2,$3,'student',$4,$5)
@@ -361,7 +376,7 @@ func createStudentWithID(email, hash string, name, bkClass, bkUID *string) (int,
 
 // EnsureStudentForBk ensures a student exists for the given Bakaláři UID
 // and returns the local user ID.
-func EnsureStudentForBk(uid, cls, name string) (int, error) {
+func EnsureStudentForBk(uid, cls, name string) (uuid.UUID, error) {
 	if len(uid) > 3 {
 		uid = uid[len(uid)-3:]
 	}
@@ -391,8 +406,8 @@ func CreateClass(c *Class) error {
 	).Scan(&c.ID, &c.CreatedAt, &c.UpdatedAt)
 }
 
-func UpdateClassName(id, teacherID int, name string) error {
-	if teacherID != 0 {
+func UpdateClassName(id uuid.UUID, teacherID uuid.UUID, name string) error {
+	if teacherID != uuid.Nil {
 		var x int
 		if err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, id, teacherID); err != nil {
 			return err
@@ -408,8 +423,29 @@ func UpdateClassName(id, teacherID int, name string) error {
 	return nil
 }
 
-func DeleteClass(id, teacherID int) error {
-	if teacherID != 0 {
+// UpdateClassTeacher changes ownership of a class to a different teacher.
+// Admins may transfer any class. When teacherID is provided (non-zero), it is validated by the caller.
+func UpdateClassTeacher(id uuid.UUID, newTeacherID uuid.UUID) error {
+	// Ensure the target user exists and is a teacher
+	var role string
+	if err := DB.Get(&role, `SELECT role FROM users WHERE id=$1`, newTeacherID); err != nil {
+		return err
+	}
+	if role != "teacher" {
+		return fmt.Errorf("user is not a teacher")
+	}
+	res, err := DB.Exec(`UPDATE classes SET teacher_id=$1, updated_at=now() WHERE id=$2`, newTeacherID, id)
+	if err != nil {
+		return err
+	}
+	if cnt, _ := res.RowsAffected(); cnt == 0 {
+		return fmt.Errorf("no rows updated")
+	}
+	return nil
+}
+
+func DeleteClass(id uuid.UUID, teacherID uuid.UUID) error {
+	if teacherID != uuid.Nil {
 		var x int
 		if err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, id, teacherID); err != nil {
 			return err
@@ -419,8 +455,8 @@ func DeleteClass(id, teacherID int) error {
 	return err
 }
 
-func AddStudentsToClass(classID, teacherID int, studentIDs []int) error {
-	if teacherID != 0 {
+func AddStudentsToClass(classID, teacherID uuid.UUID, studentIDs []uuid.UUID) error {
+	if teacherID != uuid.Nil {
 		var x int
 		if err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, classID, teacherID); err != nil {
 			return err
@@ -441,7 +477,7 @@ func AddStudentsToClass(classID, teacherID int, studentIDs []int) error {
 	return tx.Commit()
 }
 
-func ListClassesForTeacher(teacherID int) ([]Class, error) {
+func ListClassesForTeacher(teacherID uuid.UUID) ([]Class, error) {
 	var cls []Class
 	err := DB.Select(&cls, `
                 SELECT * FROM classes
@@ -450,7 +486,7 @@ func ListClassesForTeacher(teacherID int) ([]Class, error) {
 	return cls, err
 }
 
-func ListClassesForStudent(studentID int) ([]Class, error) {
+func ListClassesForStudent(studentID uuid.UUID) ([]Class, error) {
 	var cls []Class
 	err := DB.Select(&cls, `
         SELECT c.* FROM classes c
@@ -473,9 +509,9 @@ func ListAllStudents() ([]Student, error) {
 // classes – helpers for detail view
 // ──────────────────────────────────────────────────────────────────────────────
 type Student struct {
-	ID    int     `db:"id"    json:"id"`
-	Email string  `db:"email" json:"email"`
-	Name  *string `db:"name"  json:"name"`
+	ID    uuid.UUID `db:"id"    json:"id"`
+	Email string    `db:"email" json:"email"`
+	Name  *string   `db:"name"  json:"name"`
 }
 
 type ClassDetail struct {
@@ -485,7 +521,7 @@ type ClassDetail struct {
 	Assignments []Assignment `json:"assignments"`
 }
 
-func GetClassDetail(id int, role string, userID int) (*ClassDetail, error) {
+func GetClassDetail(id uuid.UUID, role string, userID uuid.UUID) (*ClassDetail, error) {
 	// 1) Class meta -------------------------------------------------------
 	var cls Class
 	switch role {
@@ -552,8 +588,8 @@ func GetClassDetail(id int, role string, userID int) (*ClassDetail, error) {
 	}, nil
 }
 
-func RemoveStudentFromClass(classID, teacherID, studentID int) error {
-	if teacherID == 0 {
+func RemoveStudentFromClass(classID, teacherID, studentID uuid.UUID) error {
+	if teacherID == uuid.Nil {
 		_, err := DB.Exec(`DELETE FROM class_students WHERE class_id=$1 AND student_id=$2`, classID, studentID)
 		return err
 	}
@@ -563,15 +599,16 @@ func RemoveStudentFromClass(classID, teacherID, studentID int) error {
 	return err
 }
 
-func DeleteUser(id int) error {
+func DeleteUser(id uuid.UUID) error {
 	_, err := DB.Exec(`DELETE FROM users WHERE id=$1`, id)
 	return err
 }
 
-func ListSubmissionsForStudent(studentID int) ([]Submission, error) {
+func ListSubmissionsForStudent(studentID uuid.UUID) ([]Submission, error) {
 	subs := []Submission{}
 	err := DB.Select(&subs, `
-               SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at
+               SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at,
+                      ROW_NUMBER() OVER (PARTITION BY assignment_id, student_id ORDER BY created_at ASC, id ASC) AS attempt_number
                  FROM submissions
                 WHERE student_id = $1
                 ORDER BY created_at DESC`, studentID)
@@ -604,10 +641,11 @@ type SubmissionWithStudent struct {
 	FailureReason *string `db:"failure_reason" json:"failure_reason,omitempty"`
 }
 
-func ListSubmissionsForAssignmentAndStudent(aid, sid int) ([]SubmissionWithReason, error) {
+func ListSubmissionsForAssignmentAndStudent(aid, sid uuid.UUID) ([]SubmissionWithReason, error) {
 	subs := []SubmissionWithReason{}
 	err := DB.Select(&subs, `
                SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at,
+                      ROW_NUMBER() OVER (PARTITION BY assignment_id, student_id ORDER BY created_at ASC, id ASC) AS attempt_number,
                       (SELECT r.status FROM results r
                          WHERE r.submission_id = submissions.id AND r.status <> 'passed'
                          ORDER BY r.id LIMIT 1) AS failure_reason
@@ -619,10 +657,11 @@ func ListSubmissionsForAssignmentAndStudent(aid, sid int) ([]SubmissionWithReaso
 
 // ListSubmissionsForAssignment returns all submissions for a given assignment
 // along with each student's email and first failing result.
-func ListSubmissionsForAssignment(aid int) ([]SubmissionWithStudent, error) {
+func ListSubmissionsForAssignment(aid uuid.UUID) ([]SubmissionWithStudent, error) {
 	subs := []SubmissionWithStudent{}
 	err := DB.Select(&subs, `
                SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.points, s.override_points, s.is_teacher_run, s.manually_accepted, s.late, s.created_at, s.updated_at,
+                     ROW_NUMBER() OVER (PARTITION BY s.assignment_id, s.student_id ORDER BY s.created_at ASC, s.id ASC) AS attempt_number,
                      u.email, u.name,
                      (SELECT r.status FROM results r
                         WHERE r.submission_id = s.id AND r.status <> 'passed'
@@ -635,10 +674,11 @@ func ListSubmissionsForAssignment(aid int) ([]SubmissionWithStudent, error) {
 }
 
 // Teacher runs listing: include teacher email/name and is_teacher_run filter
-func ListTeacherRunsForAssignment(aid int) ([]SubmissionWithStudent, error) {
+func ListTeacherRunsForAssignment(aid uuid.UUID) ([]SubmissionWithStudent, error) {
 	subs := []SubmissionWithStudent{}
 	err := DB.Select(&subs, `
                 SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.points, s.override_points, s.is_teacher_run, s.manually_accepted, s.late, s.created_at, s.updated_at,
+                       ROW_NUMBER() OVER (PARTITION BY s.assignment_id, s.student_id ORDER BY s.created_at ASC, s.id ASC) AS attempt_number,
                        u.email, u.name,
                        (SELECT r.status FROM results r
                           WHERE r.submission_id = s.id AND r.status <> 'passed'
@@ -683,7 +723,7 @@ func UpdateTestCase(tc *TestCase) error {
 	return nil
 }
 
-func ListTestCases(assignmentID int) ([]TestCase, error) {
+func ListTestCases(assignmentID uuid.UUID) ([]TestCase, error) {
 	list := []TestCase{}
 	err := DB.Select(&list, `
                SELECT id, assignment_id, stdin, expected_stdout, weight, time_limit_sec, memory_limit_kb, unittest_code, unittest_name, created_at, updated_at
@@ -693,13 +733,13 @@ func ListTestCases(assignmentID int) ([]TestCase, error) {
 	return list, err
 }
 
-func DeleteTestCase(id int) error {
+func DeleteTestCase(id uuid.UUID) error {
 	_, err := DB.Exec(`DELETE FROM test_cases WHERE id=$1`, id)
 	return err
 }
 
 // DeleteAllTestCasesForAssignment removes all test cases for a given assignment.
-func DeleteAllTestCasesForAssignment(assignmentID int) error {
+func DeleteAllTestCasesForAssignment(assignmentID uuid.UUID) error {
 	_, err := DB.Exec(`DELETE FROM test_cases WHERE assignment_id=$1`, assignmentID)
 	return err
 }
@@ -710,9 +750,9 @@ func DeleteAllTestCasesForAssignment(assignmentID int) error {
 
 // Result represents outcome of one test case execution.
 type Result struct {
-	ID           int       `db:"id" json:"id"`
-	SubmissionID int       `db:"submission_id" json:"submission_id"`
-	TestCaseID   int       `db:"test_case_id" json:"test_case_id"`
+	ID           uuid.UUID `db:"id" json:"id"`
+	SubmissionID uuid.UUID `db:"submission_id" json:"submission_id"`
+	TestCaseID   uuid.UUID `db:"test_case_id" json:"test_case_id"`
 	Status       string    `db:"status" json:"status"`
 	ActualStdout string    `db:"actual_stdout" json:"actual_stdout"`
 	Stderr       string    `db:"stderr" json:"stderr"`
@@ -723,8 +763,8 @@ type Result struct {
 
 // LLMRun stores artifacts from an LLM-interactive testing run for a submission.
 type LLMRun struct {
-	ID              int       `db:"id" json:"id"`
-	SubmissionID    int       `db:"submission_id" json:"submission_id"`
+	ID              uuid.UUID `db:"id" json:"id"`
+	SubmissionID    uuid.UUID `db:"submission_id" json:"submission_id"`
 	SmokeOK         bool      `db:"smoke_ok" json:"smoke_ok"`
 	ReviewJSON      *string   `db:"review_json" json:"review_json,omitempty"`
 	InteractiveJSON *string   `db:"interactive_json" json:"interactive_json,omitempty"`
@@ -747,7 +787,7 @@ func CreateLLMRun(r *LLMRun) error {
 		Scan(&r.ID, &r.CreatedAt)
 }
 
-func GetLatestLLMRun(subID int) (*LLMRun, error) {
+func GetLatestLLMRun(subID uuid.UUID) (*LLMRun, error) {
 	var r LLMRun
 	err := DB.Get(&r, `SELECT id, submission_id, smoke_ok, review_json, interactive_json, transcript, verdict, reason, model_name, tool_calls, wall_time_ms, output_size, created_at
                          FROM llm_runs WHERE submission_id=$1 ORDER BY id DESC LIMIT 1`, subID)
@@ -757,11 +797,16 @@ func GetLatestLLMRun(subID int) (*LLMRun, error) {
 	return &r, nil
 }
 
-func GetSubmission(id int) (*Submission, error) {
+func GetSubmission(id uuid.UUID) (*Submission, error) {
 	var s Submission
 	err := DB.Get(&s, `
-        SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at
-          FROM submissions
+        SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at,
+               attempt_number
+          FROM (
+            SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at,
+                   ROW_NUMBER() OVER (PARTITION BY assignment_id, student_id ORDER BY created_at ASC, id ASC) AS attempt_number
+              FROM submissions
+          ) s
          WHERE id=$1`, id)
 	if err != nil {
 		return nil, err
@@ -769,7 +814,7 @@ func GetSubmission(id int) (*Submission, error) {
 	return &s, nil
 }
 
-func UpdateSubmissionStatus(id int, status string) error {
+func UpdateSubmissionStatus(id uuid.UUID, status string) error {
 	_, err := DB.Exec(`UPDATE submissions SET status=$1, updated_at=now() WHERE id=$2`, status, id)
 	if err == nil {
 		broadcast(sse.Event{Event: "status", Data: map[string]any{"submission_id": id, "status": status}})
@@ -790,7 +835,7 @@ func CreateResult(r *Result) error {
 	return err
 }
 
-func ListResultsForSubmission(subID int) ([]Result, error) {
+func ListResultsForSubmission(subID uuid.UUID) ([]Result, error) {
 	list := []Result{}
 	err := DB.Select(&list, `
         SELECT id, submission_id, test_case_id, status, actual_stdout, stderr, exit_code, runtime_ms, created_at
@@ -800,30 +845,30 @@ func ListResultsForSubmission(subID int) ([]Result, error) {
 	return list, err
 }
 
-func SetSubmissionPoints(id int, pts float64) error {
+func SetSubmissionPoints(id uuid.UUID, pts float64) error {
 	_, err := DB.Exec(`UPDATE submissions SET points=$1 WHERE id=$2`, pts, id)
 	return err
 }
 
-func SetSubmissionLate(id int, late bool) error {
+func SetSubmissionLate(id uuid.UUID, late bool) error {
 	_, err := DB.Exec(`UPDATE submissions SET late=$1 WHERE id=$2`, late, id)
 	return err
 }
 
-func SetSubmissionOverridePoints(id int, pts *float64) error {
+func SetSubmissionOverridePoints(id uuid.UUID, pts *float64) error {
 	_, err := DB.Exec(`UPDATE submissions SET override_points=$1 WHERE id=$2`, pts, id)
 	return err
 }
 
-func SetSubmissionManualAccept(id int, accepted bool) error {
+func SetSubmissionManualAccept(id uuid.UUID, accepted bool) error {
 	_, err := DB.Exec(`UPDATE submissions SET manually_accepted=$1, updated_at=now() WHERE id=$2`, accepted, id)
 	return err
 }
 
 type ScoreCell struct {
-	StudentID    int      `db:"student_id" json:"student_id"`
-	AssignmentID int      `db:"assignment_id" json:"assignment_id"`
-	Points       *float64 `db:"points" json:"points"`
+	StudentID    uuid.UUID `db:"student_id" json:"student_id"`
+	AssignmentID uuid.UUID `db:"assignment_id" json:"assignment_id"`
+	Points       *float64  `db:"points" json:"points"`
 }
 
 type ClassProgress struct {
@@ -833,7 +878,7 @@ type ClassProgress struct {
 }
 
 // GetClassProgress returns score cells for each student/assignment pair in a class.
-func GetClassProgress(classID int) (*ClassProgress, error) {
+func GetClassProgress(classID uuid.UUID) (*ClassProgress, error) {
 	var students []Student
 	if err := DB.Select(&students, `
                 SELECT u.id, u.email, u.name
@@ -852,7 +897,9 @@ func GetClassProgress(classID int) (*ClassProgress, error) {
                        COALESCE(llm_interactive,false) AS llm_interactive,
                        COALESCE(llm_feedback,false) AS llm_feedback,
                        COALESCE(llm_auto_award,true) AS llm_auto_award,
-                       llm_scenarios_json
+                       llm_scenarios_json,
+                       second_deadline,
+                       COALESCE(late_penalty_ratio,0.5) AS late_penalty_ratio
                   FROM assignments
                  WHERE class_id=$1
                  ORDER BY deadline ASC`, classID); err != nil {
@@ -880,15 +927,15 @@ func GetClassProgress(classID int) (*ClassProgress, error) {
 // ──────────────────────────────────────────
 
 type ClassFile struct {
-	ID        int       `db:"id" json:"id"`
-	ClassID   int       `db:"class_id" json:"class_id"`
-	ParentID  *int      `db:"parent_id" json:"parent_id"`
-	Name      string    `db:"name" json:"name"`
-	Path      string    `db:"path" json:"path"`
-	IsDir     bool      `db:"is_dir" json:"is_dir"`
-	Size      int       `db:"size" json:"size"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	ID        uuid.UUID  `db:"id" json:"id"`
+	ClassID   uuid.UUID  `db:"class_id" json:"class_id"`
+	ParentID  *uuid.UUID `db:"parent_id" json:"parent_id"`
+	Name      string     `db:"name" json:"name"`
+	Path      string     `db:"path" json:"path"`
+	IsDir     bool       `db:"is_dir" json:"is_dir"`
+	Size      int        `db:"size" json:"size"`
+	CreatedAt time.Time  `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time  `db:"updated_at" json:"updated_at"`
 }
 
 type ClassFileWithContent struct {
@@ -896,7 +943,7 @@ type ClassFileWithContent struct {
 	Content []byte `db:"content" json:"content"`
 }
 
-func buildFilePath(parentID *int, name string) (string, error) {
+func buildFilePath(parentID *uuid.UUID, name string) (string, error) {
 	if parentID == nil {
 		return "/" + name, nil
 	}
@@ -907,7 +954,7 @@ func buildFilePath(parentID *int, name string) (string, error) {
 	return p + "/" + name, nil
 }
 
-func ListFiles(classID int, parentID *int) ([]ClassFile, error) {
+func ListFiles(classID uuid.UUID, parentID *uuid.UUID) ([]ClassFile, error) {
 	list := []ClassFile{}
 	query := `SELECT id,class_id,parent_id,name,path,is_dir,size,created_at,updated_at
                    FROM class_files WHERE class_id=$1`
@@ -923,7 +970,7 @@ func ListFiles(classID int, parentID *int) ([]ClassFile, error) {
 	return list, err
 }
 
-func SearchFiles(classID int, term string) ([]ClassFile, error) {
+func SearchFiles(classID uuid.UUID, term string) ([]ClassFile, error) {
 	list := []ClassFile{}
 	err := DB.Select(&list, `
                 SELECT id,class_id,parent_id,name,path,is_dir,size,created_at,updated_at
@@ -934,7 +981,7 @@ func SearchFiles(classID int, term string) ([]ClassFile, error) {
 	return list, err
 }
 
-func ListNotebooks(classID int) ([]ClassFile, error) {
+func ListNotebooks(classID uuid.UUID) ([]ClassFile, error) {
 	list := []ClassFile{}
 	err := DB.Select(&list, `SELECT id,class_id,parent_id,name,path,is_dir,size,created_at,updated_at
                 FROM class_files
@@ -943,7 +990,7 @@ func ListNotebooks(classID int) ([]ClassFile, error) {
 	return list, err
 }
 
-func SaveFile(classID int, parentID *int, name string, data []byte, isDir bool) (*ClassFile, error) {
+func SaveFile(classID uuid.UUID, parentID *uuid.UUID, name string, data []byte, isDir bool) (*ClassFile, error) {
 	if !isDir && len(data) > maxFileSize {
 		return nil, fmt.Errorf("file too large")
 	}
@@ -964,7 +1011,7 @@ func SaveFile(classID int, parentID *int, name string, data []byte, isDir bool) 
 	return &cf, nil
 }
 
-func GetFile(id int) (*ClassFileWithContent, error) {
+func GetFile(id uuid.UUID) (*ClassFileWithContent, error) {
 	var cf ClassFileWithContent
 	err := DB.Get(&cf, `SELECT id,class_id,parent_id,name,path,is_dir,size,created_at,updated_at,content FROM class_files WHERE id=$1`, id)
 	if err != nil {
@@ -973,7 +1020,7 @@ func GetFile(id int) (*ClassFileWithContent, error) {
 	return &cf, nil
 }
 
-func RenameFile(id int, newName string) error {
+func RenameFile(id uuid.UUID, newName string) error {
 	var f ClassFile
 	if err := DB.Get(&f, `SELECT id,class_id,parent_id,name,path FROM class_files WHERE id=$1`, id); err != nil {
 		return err
@@ -1005,7 +1052,7 @@ func RenameFile(id int, newName string) error {
 	return tx.Commit()
 }
 
-func DeleteFile(id int) error {
+func DeleteFile(id uuid.UUID) error {
 	var f ClassFile
 	if err := DB.Get(&f, `SELECT class_id,path FROM class_files WHERE id=$1`, id); err != nil {
 		return err
@@ -1014,7 +1061,7 @@ func DeleteFile(id int) error {
 	return err
 }
 
-func UpdateFileContent(id int, data []byte) error {
+func UpdateFileContent(id uuid.UUID, data []byte) error {
 	if len(data) > maxFileSize {
 		return fmt.Errorf("file too large")
 	}
@@ -1022,7 +1069,7 @@ func UpdateFileContent(id int, data []byte) error {
 	return err
 }
 
-func IsTeacherOfClass(cid, teacherID int) (bool, error) {
+func IsTeacherOfClass(cid, teacherID uuid.UUID) (bool, error) {
 	var x int
 	err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, cid, teacherID)
 	if err != nil {
@@ -1031,7 +1078,7 @@ func IsTeacherOfClass(cid, teacherID int) (bool, error) {
 	return true, nil
 }
 
-func IsStudentOfClass(cid, studentID int) (bool, error) {
+func IsStudentOfClass(cid, studentID uuid.UUID) (bool, error) {
 	var x int
 	err := DB.Get(&x, `SELECT 1 FROM class_students WHERE class_id=$1 AND student_id=$2`, cid, studentID)
 	if err != nil {
@@ -1045,11 +1092,13 @@ func IsStudentOfClass(cid, studentID int) (bool, error) {
 // ──────────────────────────────────────────────────────
 
 type Message struct {
-	ID          int       `db:"id" json:"id"`
-	SenderID    int       `db:"sender_id" json:"sender_id"`
-	RecipientID int       `db:"recipient_id" json:"recipient_id"`
+	ID          uuid.UUID `db:"id" json:"id"`
+	SenderID    uuid.UUID `db:"sender_id" json:"sender_id"`
+	RecipientID uuid.UUID `db:"recipient_id" json:"recipient_id"`
 	Text        string    `db:"content" json:"text"`
 	Image       *string   `db:"image" json:"image,omitempty"`
+	FileName    *string   `db:"file_name" json:"file_name,omitempty"`
+	File        *string   `db:"file" json:"file,omitempty"`
 	IsRead      bool      `db:"is_read" json:"is_read"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 }
@@ -1062,10 +1111,10 @@ func CreateMessage(m *Message) error {
 	if blocked {
 		return ErrBlocked
 	}
-	const q = `INSERT INTO messages (sender_id, recipient_id, content, image)
-                    VALUES ($1,$2,$3,$4)
+	const q = `INSERT INTO messages (sender_id, recipient_id, content, image, file_name, file)
+                    VALUES ($1,$2,$3,$4,$5,$6)
                     RETURNING id, created_at, is_read`
-	err = DB.QueryRow(q, m.SenderID, m.RecipientID, m.Text, m.Image).
+	err = DB.QueryRow(q, m.SenderID, m.RecipientID, m.Text, m.Image, m.FileName, m.File).
 		Scan(&m.ID, &m.CreatedAt, &m.IsRead)
 	if err == nil {
 		broadcastMsg(sse.Event{Event: "message", Data: m})
@@ -1073,9 +1122,9 @@ func CreateMessage(m *Message) error {
 	return err
 }
 
-func ListMessages(userID, otherID, limit, offset int) ([]Message, error) {
+func ListMessages(userID, otherID uuid.UUID, limit, offset int) ([]Message, error) {
 	msgs := []Message{}
-	err := DB.Select(&msgs, `SELECT id,sender_id,recipient_id,content,image,created_at,is_read
+	err := DB.Select(&msgs, `SELECT id,sender_id,recipient_id,content,image,file_name,file,created_at,is_read
                                  FROM messages
                                 WHERE (sender_id=$1 AND recipient_id=$2)
                                    OR (sender_id=$2 AND recipient_id=$1)
@@ -1085,7 +1134,7 @@ func ListMessages(userID, otherID, limit, offset int) ([]Message, error) {
 	return msgs, err
 }
 
-func MarkMessagesRead(userID, otherID int) error {
+func MarkMessagesRead(userID, otherID uuid.UUID) error {
 	res, err := DB.Exec(`UPDATE messages SET is_read=TRUE
                            WHERE sender_id=$1 AND recipient_id=$2 AND is_read=FALSE`,
 		otherID, userID)
@@ -1099,10 +1148,10 @@ func MarkMessagesRead(userID, otherID int) error {
 }
 
 type UserSearch struct {
-	ID     int     `db:"id" json:"id"`
-	Email  string  `db:"email" json:"email"`
-	Name   *string `db:"name" json:"name"`
-	Avatar *string `db:"avatar" json:"avatar"`
+	ID     uuid.UUID `db:"id" json:"id"`
+	Email  string    `db:"email" json:"email"`
+	Name   *string   `db:"name" json:"name"`
+	Avatar *string   `db:"avatar" json:"avatar"`
 }
 
 func SearchUsers(term string) ([]UserSearch, error) {
@@ -1115,17 +1164,17 @@ func SearchUsers(term string) ([]UserSearch, error) {
 	return list, err
 }
 
-func BlockUser(blockerID, blockedID int) error {
+func BlockUser(blockerID, blockedID uuid.UUID) error {
 	_, err := DB.Exec(`INSERT INTO blocked_users (blocker_id, blocked_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, blockerID, blockedID)
 	return err
 }
 
-func UnblockUser(blockerID, blockedID int) error {
+func UnblockUser(blockerID, blockedID uuid.UUID) error {
 	_, err := DB.Exec(`DELETE FROM blocked_users WHERE blocker_id=$1 AND blocked_id=$2`, blockerID, blockedID)
 	return err
 }
 
-func ListBlockedUsers(blockerID int) ([]UserSearch, error) {
+func ListBlockedUsers(blockerID uuid.UUID) ([]UserSearch, error) {
 	list := []UserSearch{}
 	err := DB.Select(&list, `SELECT u.id, u.email, u.name, u.avatar
                                    FROM blocked_users b
@@ -1135,7 +1184,7 @@ func ListBlockedUsers(blockerID int) ([]UserSearch, error) {
 	return list, err
 }
 
-func IsBlocked(a, b int) (bool, error) {
+func IsBlocked(a, b uuid.UUID) (bool, error) {
 	var x int
 	err := DB.Get(&x, `SELECT 1 FROM blocked_users WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)`, a, b)
 	if err == sql.ErrNoRows {
@@ -1148,17 +1197,17 @@ func IsBlocked(a, b int) (bool, error) {
 }
 
 type Conversation struct {
-	OtherID     int     `db:"other_id" json:"other_id"`
-	Name        *string `db:"name" json:"name"`
-	Avatar      *string `db:"avatar" json:"avatar"`
-	Email       string  `db:"email" json:"email"`
-	UnreadCount int     `db:"unread_count" json:"unread_count"`
-	Starred     bool    `db:"starred" json:"starred"`
-	Archived    bool    `db:"archived" json:"archived"`
+	OtherID     uuid.UUID `db:"other_id" json:"other_id"`
+	Name        *string   `db:"name" json:"name"`
+	Avatar      *string   `db:"avatar" json:"avatar"`
+	Email       string    `db:"email" json:"email"`
+	UnreadCount int       `db:"unread_count" json:"unread_count"`
+	Starred     bool      `db:"starred" json:"starred"`
+	Archived    bool      `db:"archived" json:"archived"`
 	Message
 }
 
-func ListRecentConversations(userID, limit int) ([]Conversation, error) {
+func ListRecentConversations(userID uuid.UUID, limit int) ([]Conversation, error) {
 	list := []Conversation{}
 	if limit <= 0 {
 		limit = 20
@@ -1180,7 +1229,7 @@ func ListRecentConversations(userID, limit int) ([]Conversation, error) {
                 GROUP BY sender_id
        )
        SELECT l.other_id, u.name, u.avatar, u.email,
-              l.id, l.sender_id, l.recipient_id, l.content, l.image, l.created_at,
+              l.id, l.sender_id, l.recipient_id, l.content, l.image, l.file_name, l.file, l.created_at,
               COALESCE(un.unread_count,0) AS unread_count,
               (sc.other_id IS NOT NULL) AS starred,
               (ac.other_id IS NOT NULL) AS archived
@@ -1197,22 +1246,22 @@ func ListRecentConversations(userID, limit int) ([]Conversation, error) {
 	return list, err
 }
 
-func StarConversation(userID, otherID int) error {
+func StarConversation(userID, otherID uuid.UUID) error {
 	_, err := DB.Exec(`INSERT INTO starred_conversations (user_id, other_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, userID, otherID)
 	return err
 }
 
-func UnstarConversation(userID, otherID int) error {
+func UnstarConversation(userID, otherID uuid.UUID) error {
 	_, err := DB.Exec(`DELETE FROM starred_conversations WHERE user_id=$1 AND other_id=$2`, userID, otherID)
 	return err
 }
 
-func ArchiveConversation(userID, otherID int) error {
+func ArchiveConversation(userID, otherID uuid.UUID) error {
 	_, err := DB.Exec(`INSERT INTO archived_conversations (user_id, other_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, userID, otherID)
 	return err
 }
 
-func UnarchiveConversation(userID, otherID int) error {
+func UnarchiveConversation(userID, otherID uuid.UUID) error {
 	_, err := DB.Exec(`DELETE FROM archived_conversations WHERE user_id=$1 AND other_id=$2`, userID, otherID)
 	return err
 }
@@ -1222,9 +1271,9 @@ func UnarchiveConversation(userID, otherID int) error {
 // ──────────────────────────────────────────────────────
 
 type ForumMessage struct {
-	ID        int       `db:"id" json:"id"`
-	ClassID   int       `db:"class_id" json:"class_id"`
-	UserID    int       `db:"user_id" json:"user_id"`
+	ID        uuid.UUID `db:"id" json:"id"`
+	ClassID   uuid.UUID `db:"class_id" json:"class_id"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
 	Text      string    `db:"content" json:"text"`
 	Image     *string   `db:"image" json:"image,omitempty"`
 	FileName  *string   `db:"file_name" json:"file_name,omitempty"`
@@ -1247,7 +1296,7 @@ func CreateForumMessage(m *ForumMessage) error {
 	return nil
 }
 
-func ListForumMessages(classID, limit, offset int) ([]ForumMessage, error) {
+func ListForumMessages(classID uuid.UUID, limit, offset int) ([]ForumMessage, error) {
 	msgs := []ForumMessage{}
 	err := DB.Select(&msgs, `SELECT fm.id, fm.class_id, fm.user_id, fm.content, fm.image, fm.file_name, fm.file, fm.created_at,
                                        u.name, u.email, u.avatar
@@ -1258,4 +1307,77 @@ func ListForumMessages(classID, limit, offset int) ([]ForumMessage, error) {
                                   LIMIT $2 OFFSET $3`,
 		classID, limit, offset)
 	return msgs, err
+}
+
+type UserPresence struct {
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	IsOnline  bool      `db:"is_online" json:"is_online"`
+	LastSeen  time.Time `db:"last_seen" json:"last_seen"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// UserPresence functions
+func MarkUserOnline(userID uuid.UUID) error {
+	_, err := DB.Exec(`
+		INSERT INTO user_presence (user_id, is_online, last_seen, updated_at) 
+		VALUES ($1, TRUE, now(), now())
+		ON CONFLICT (user_id) 
+		DO UPDATE SET is_online = TRUE, last_seen = now(), updated_at = now()
+	`, userID)
+	return err
+}
+
+func MarkUserOffline(userID uuid.UUID) error {
+	_, err := DB.Exec(`
+		UPDATE user_presence 
+		SET is_online = FALSE, updated_at = now() 
+		WHERE user_id = $1
+	`, userID)
+	return err
+}
+
+func UpdateUserLastSeen(userID uuid.UUID) error {
+	_, err := DB.Exec(`
+		INSERT INTO user_presence (user_id, is_online, last_seen, updated_at) 
+		VALUES ($1, TRUE, now(), now())
+		ON CONFLICT (user_id) 
+		DO UPDATE SET last_seen = now(), updated_at = now()
+	`, userID)
+	return err
+}
+
+func GetOnlineUsers() ([]UserPresence, error) {
+	var users []UserPresence
+	err := DB.Select(&users, `
+		SELECT user_id, is_online, last_seen, created_at, updated_at
+		FROM user_presence 
+		WHERE is_online = TRUE 
+		ORDER BY last_seen DESC
+	`)
+	return users, err
+}
+
+func IsUserOnline(userID uuid.UUID) (bool, error) {
+	var isOnline bool
+	err := DB.Get(&isOnline, `
+		SELECT is_online 
+		FROM user_presence 
+		WHERE user_id = $1
+	`, userID)
+	if err != nil {
+		// If no record exists, user is considered offline
+		return false, nil
+	}
+	return isOnline, nil
+}
+
+func CleanupInactiveUsers() error {
+	// Mark users as offline if they haven't been seen in the last 5 minutes
+	_, err := DB.Exec(`
+		UPDATE user_presence 
+		SET is_online = FALSE, updated_at = now() 
+		WHERE last_seen < now() - INTERVAL '5 minutes' AND is_online = TRUE
+	`)
+	return err
 }
