@@ -32,6 +32,9 @@ import { compressImage } from '$lib/utils/compressImage';
   let linkPassword2 = '';
   let linkError = '';
 
+  // Determine if current route is an auth page (login or register)
+  $: isAuthPage = $page.url.pathname.startsWith('/login') || $page.url.pathname.startsWith('/register');
+
   function isValidEmail(email: string | null | undefined): boolean {
     return !!email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   }
@@ -282,7 +285,7 @@ import { compressImage } from '$lib/utils/compressImage';
     <Sidebar />
   {/if}
 
-  <div class={`relative z-10 min-h-screen flex flex-col ${user && !$sidebarCollapsed ? 'sm:ml-64' : ''}`}>
+  <div class={`relative z-10 min-h-screen flex flex-col ${user && !$sidebarCollapsed ? 'sm:ml-64' : ''}`} class:auth-page={isAuthPage}>
     <div class="sticky top-0 z-50 px-3 py-1">
       <div class="appbar w-full h-14 px-3 flex items-center" class:appbar--scrolled={isScrolled}>
         <div class="flex items-center gap-2 min-w-0">
