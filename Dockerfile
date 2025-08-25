@@ -23,6 +23,7 @@ FROM alpine:3.20
 WORKDIR /app
 RUN apk add --no-cache ca-certificates
 COPY --from=backend-builder /app/backend/server .
+COPY --from=backend-builder /app/backend/schema.sql .
 COPY --from=frontend-builder /frontend/build /frontend/build
 EXPOSE 22946
 CMD ["./server"]
