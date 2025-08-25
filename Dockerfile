@@ -7,10 +7,11 @@ COPY frontend .
 RUN npm run build
 
 # Build backend
-FROM golang:1.22 AS backend-builder
+FROM golang:1.23 AS backend-builder
 WORKDIR /app
 COPY backend/go.mod backend/go.sum ./backend/
 WORKDIR /app/backend
+ENV GOTOOLCHAIN=auto
 RUN go mod download
 COPY backend .
 # copy frontend build into expected path
