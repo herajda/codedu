@@ -117,6 +117,9 @@ docker-compose up --build
 The application will be available at `http://localhost:8080` and no other
 ports are exposed from the stack.
 
+The compose file seeds an initial admin and provides a sample `JWT_SECRET`.
+Change these environment variables before deploying to production.
+
 
 ### Services
 - **frontend**: SvelteKit static build

@@ -8,6 +8,7 @@ services:
       DATABASE_URL: postgres://codedu_user:supersecret@db:5432/codedu_db?sslmode=disable
       ADMIN_EMAIL: admin@example.com
       ADMIN_PASSWORD: changeme
+      JWT_SECRET: devsecret
     depends_on:
       - db
   db:
