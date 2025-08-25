@@ -120,14 +120,15 @@ ports are exposed from the stack.
 The compose file seeds an initial admin and provides a sample `JWT_SECRET`.
 Change these environment variables before deploying to production.
 
+The backend launches student code inside Docker containers. The compose setup
+mounts `/var/run/docker.sock` so the app can talk to the host Docker daemon.
+Ensure Docker is installed and running, and pull the sandbox image once with
+`docker pull python:3.11` to avoid a slow first run.
+
 
 ### Services
-- **frontend**: SvelteKit static build
-- **backend**: Gin-based Go API
+- **app**: Go API serving the static frontend and running the background worker
 - **db**: PostgreSQL
-- **worker**: Background task processor for grading
-- Ensure the Docker image `python:3.11` is available locally. If it's missing,
-  pull it once with `docker pull python:3.11`.
 - After modifying the frontend, rebuild it with `npm run build` so the Go
   server can serve the updated static files.
 
