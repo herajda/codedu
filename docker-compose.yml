@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+  app:
+    build: .
+    ports:
+      - "8080:22946"
+    environment:
+      DATABASE_URL: postgres://codedu_user:supersecret@db:5432/codedu_db?sslmode=disable
+      ADMIN_EMAIL: admin@example.com
+      ADMIN_PASSWORD: changeme
+    depends_on:
+      - db
+  db:
+    image: postgres:16
+    restart: always
+    environment:
+      POSTGRES_USER: codedu_user
+      POSTGRES_PASSWORD: supersecret
+      POSTGRES_DB: codedu_db
+    volumes:
+      - db_data:/var/lib/postgresql/data
+volumes:
+  db_data:

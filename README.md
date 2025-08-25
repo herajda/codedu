@@ -105,6 +105,19 @@ never sent to the CodeEdu server.
 
 You can copy `backend/.env.example` and adjust it for your environment.
 
+### Running with Docker
+
+The repository includes a `docker-compose.yml` that builds the frontend and backend
+into a single container and starts a PostgreSQL instance. Launch everything with:
+
+```bash
+docker-compose up --build
+```
+
+The application will be available at `http://localhost:8080` and no other
+ports are exposed from the stack.
+
+
 ### Services
 - **frontend**: SvelteKit static build
 - **backend**: Gin-based Go API
