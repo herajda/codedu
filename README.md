@@ -103,34 +103,34 @@ When this variable is configured, the frontend login page presents a
 "Bakalari" tab that communicates with Bakaláři directly so credentials are
 never sent to the CodeEdu server.
 
-You can copy `backend/.env.example` and adjust it for your environment.
+Adjust the `.env` file at the repository root to match your environment.
 
 ### Running with Docker
 
-The repository includes a `docker-compose.yml` that builds the frontend and backend
-into a single container and starts a PostgreSQL instance. Launch everything with:
+The repository includes a `docker-compose.yml` that builds separate containers
+for the Go API and the SvelteKit frontend (served with SSR) alongside a PostgreSQL
+database. Start the whole stack with:
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
-The application will be available at `http://localhost:8080` and no other
-ports are exposed from the stack.
+Only the frontend is exposed on `http://localhost:3000`; the backend and database
+remain accessible only inside the Compose network.
 
-The compose file seeds an initial admin and provides a sample `JWT_SECRET`.
-Change these environment variables before deploying to production.
+Environment variables are supplied via a `.env` file. Adjust the sample credentials
+(`ADMIN_EMAIL`, `ADMIN_PASSWORD`, `JWT_SECRET`, and database settings) before
+deploying to production.
 
-The backend launches student code inside Docker containers. The compose setup
+The backend still launches student code inside Docker containers. The Compose setup
 mounts `/var/run/docker.sock` so the app can talk to the host Docker daemon.
-Ensure Docker is installed and running, and pull the sandbox image once with
+Ensure Docker is installed and pull the sandbox image once with
 `docker pull python:3.11` to avoid a slow first run.
 
-
 ### Services
-- **app**: Go API serving the static frontend and running the background worker
+- **frontend**: SvelteKit server rendering the UI
+- **backend**: Go API and background worker
 - **db**: PostgreSQL
-- After modifying the frontend, rebuild it with `npm run build` so the Go
-  server can serve the updated static files.
 
 ---
 
