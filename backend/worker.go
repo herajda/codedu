@@ -29,13 +29,18 @@ type Job struct{ SubmissionID uuid.UUID }
 
 var taskQueue chan Job
 
-const (
-	pythonImage  = "python:3.11"
-	dockerUser   = "65534" // run containers as 'nobody'
-	dockerCPUs   = "1"     // limit CPU shares
-	dockerMemory = "256m"  // memory limit
-	// additional grace period for docker startup/shutdown
-	dockerExtraTime = 10 * time.Second
+// execution/runtime configuration (overridable via env for DinD setup)
+var (
+    // shared exec root between backend and docker-engine sidecar
+    execRoot = getenvOr("EXECUTION_ROOT", "/sandbox")
+    // runner image used for student code
+    pythonImage  = getenvOr("PYTHON_RUNNER_IMAGE", "codedu-python:3.11")
+    // container user and resource limits (string forms acceptable by docker)
+    dockerUser   = getenvOr("DOCKER_USER", "65534:65534") // nobody:nogroup
+    dockerCPUs   = getenvOr("DOCKER_CPUS", "0.5")
+    dockerMemory = getenvOr("DOCKER_MEMORY", "256m")
+    // additional grace period for docker startup/shutdown
+    dockerExtraTime = 10 * time.Second
 )
 
 // ==== LLM typed outputs ====
@@ -466,7 +471,7 @@ func runSubmission(id uuid.UUID) {
 	UpdateSubmissionStatus(id, "running")
 
 	// Recreate submitted files from the stored archive
-	tmpDir, err := os.MkdirTemp("", "grader-")
+    tmpDir, err := os.MkdirTemp(execRoot, "job-")
 	if err != nil {
 		UpdateSubmissionStatus(id, "failed")
 		return
@@ -874,7 +879,7 @@ func smokePythonProgram(dir, file string) (bool, string) {
 		"--cap-drop=ALL",
 		"--security-opt", "no-new-privileges",
 		"--mount", "type=tmpfs,destination=/tmp,tmpfs-size=16m",
-		"-v", fmt.Sprintf("%s:/code:ro,z", abs),
+    "-v", fmt.Sprintf("%s:/code:ro", abs),
 		pythonImage, "bash", "-lc", fmt.Sprintf("PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 python -u /code/%s", strings.ReplaceAll(file, "'", "'\\''")))
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
@@ -1215,7 +1220,7 @@ func runInteractiveScenarios(dir, mainFile string, scenarios []interactiveScenar
 			"--cap-drop=ALL",
 			"--security-opt", "no-new-privileges",
 			"--mount", "type=tmpfs,destination=/tmp,tmpfs-size=16m",
-			"-v", fmt.Sprintf("%s:/code:ro,z", abs),
+			"-v", fmt.Sprintf("%s:/code:ro", abs),
 			pythonImage, "bash", "-lc", script)
 		stdoutPipe, _ := cmd.StdoutPipe()
 		stderrPipe, _ := cmd.StderrPipe()
@@ -1462,7 +1467,7 @@ func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, s
 	ctx, cancel := context.WithTimeout(context.Background(), timeout+dockerExtraTime)
 	defer cancel()
 
-	mount := fmt.Sprintf("%s:/code:ro,z", abs)
+    mount := fmt.Sprintf("%s:/code:ro", abs)
 
 	// Measure runtime inside the container. A shell script records timestamps
 	// before and after executing the Python program and prints the elapsed
@@ -1575,9 +1580,9 @@ if __name__ == '__main__':
 	_ = os.Chmod(dir, 0755)
 	_ = os.Chmod(testPath, 0644)
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout+dockerExtraTime)
+    ctx, cancel := context.WithTimeout(context.Background(), timeout+dockerExtraTime)
 	defer cancel()
-	mount := fmt.Sprintf("%s:/code:ro,z", abs)
+    mount := fmt.Sprintf("%s:/code:ro", abs)
 	script := fmt.Sprintf("start=$(date +%%s%%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 python -u /code/run_test.py; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status")
 	cmd := exec.CommandContext(ctx, "docker", "run",
 		"--rm", "-i", "--network=none", "--user", dockerUser,

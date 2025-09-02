@@ -234,7 +234,7 @@ func verifySignature(path, expStr, sig string) bool {
 func stageFiles(files []SessionFile) (string, error) {
 	if len(files) == 0 {
 		// create empty dir
-		d, err := os.MkdirTemp("", "sess-")
+    d, err := os.MkdirTemp(execRoot, "sess-")
 		if err != nil {
 			return "", err
 		}
@@ -244,7 +244,7 @@ func stageFiles(files []SessionFile) (string, error) {
 		return "", fmt.Errorf("too many files")
 	}
 	var total int
-	root, err := os.MkdirTemp("", "sess-")
+    root, err := os.MkdirTemp(execRoot, "sess-")
 	if err != nil {
 		return "", err
 	}
@@ -357,7 +357,7 @@ func (s *SessionState) startProcess() error {
 	s.Cancel = cancel
 	// give this container a predictable name for later rm -f
 	cname := strings.ReplaceAll(s.ID, "_", "-")
-	args := []string{"run", "--rm", "-i", "--name", cname, netFlag, "--user", dockerUser, "--cpus", dockerCPUs, "--memory", dockerMemory, "-v", fmt.Sprintf("%s:/code:ro,z", abs)}
+    args := []string{"run", "--rm", "-i", "--name", cname, netFlag, "--user", dockerUser, "--cpus", dockerCPUs, "--memory", dockerMemory, "-v", fmt.Sprintf("%s:/code:ro", abs)}
 	wd := strings.TrimSpace(s.Workdir)
 	if wd != "" {
 		// Only allow relative safe paths inside /code

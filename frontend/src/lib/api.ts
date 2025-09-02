@@ -1,16 +1,35 @@
 // RequestInit and RequestInfo are provided by the DOM lib
+import { browser } from '$app/environment';
+
+function resolveInput(input: RequestInfo): RequestInfo {
+  if (typeof input === 'string') {
+    if (input.startsWith('/api')) {
+      if (!browser) {
+        // On the server, call backend directly via internal service name
+        const base = (((globalThis as any).process?.env?.SSR_API_BASE) ?? 'http://backend:8080').replace(/\/$/, '')
+        return base + input;
+      }
+      // In the browser, keep relative path so nginx routes it
+      return input;
+    }
+  }
+  return input;
+}
+
 export async function apiFetch(
   input: RequestInfo,
   init: RequestInit = {},
   _retry = false
 ) {
-  const res = await fetch(input, {
+  const url = resolveInput(input)
+  const res = await fetch(url, {
     ...init,
     credentials: 'include'
   })
   if (res.status === 401 && !_retry) {
-    const r = await fetch('/api/refresh', { method: 'POST', credentials: 'include' })
-    if (r.ok) return apiFetch(input, init, true)
+    const refreshURL = browser ? '/api/refresh' : ((((globalThis as any).process?.env?.SSR_API_BASE) ?? 'http://backend:8080').replace(/\/$/, '') + '/api/refresh')
+    const r = await fetch(refreshURL, { method: 'POST', credentials: 'include' })
+    if (r.ok) return apiFetch(url, init, true)
   }
   return res
 }

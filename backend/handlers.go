@@ -843,7 +843,7 @@ func createSubmission(c *gin.Context) {
 		return
 	}
 
-	tmpDir, err := os.MkdirTemp("", "upload-")
+    tmpDir, err := os.MkdirTemp(execRoot, "upload-")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "server error"})
 		return
@@ -963,7 +963,7 @@ func runTeacherSolution(c *gin.Context) {
 		return
 	}
 
-	tmpDir, err := os.MkdirTemp("", "teacher-solution-")
+    tmpDir, err := os.MkdirTemp(execRoot, "teacher-solution-")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "server error"})
 		return
@@ -1337,7 +1337,7 @@ func submissionTerminalWS(c *gin.Context) {
 	}
 
 	// Decode submission archive to a temp dir
-	tmpDir, err := os.MkdirTemp("", "term-sub-")
+    tmpDir, err := os.MkdirTemp(execRoot, "term-sub-")
 	if err != nil {
 		wsFail("server error")
 		return
@@ -1595,7 +1595,7 @@ func submissionRunWS(c *gin.Context) {
 		if td != "" {
 			return td, nil
 		}
-		tmpDir, err := os.MkdirTemp("", "run-sub-")
+    tmpDir, err := os.MkdirTemp(execRoot, "run-sub-")
 		if err != nil {
 			return "", err
 		}
@@ -1805,7 +1805,7 @@ func submissionRunWS(c *gin.Context) {
 				cmd := exec.Command("docker", "run", "--rm", "--name", containerName,
 					"-p", fmt.Sprintf("127.0.0.1:%d:6080", hostPort),
 					"--cpus", dockerCPUs, "--memory", dockerMemory,
-					"-v", fmt.Sprintf("%s:/code:ro,z", abs),
+					"-v", fmt.Sprintf("%s:/code:ro", abs),
 					pythonImage, "bash", "-lc", script)
 				stdoutPipe, e1 := cmd.StdoutPipe()
 				stderrPipe, e2 := cmd.StderrPipe()
@@ -1931,7 +1931,7 @@ func submissionRunWS(c *gin.Context) {
 			// Headless mode (no GUI)
 			containerName := fmt.Sprintf("run-%d-%d", sub.ID, time.Now().UnixNano())
 			script := fmt.Sprintf("cd /code && python %s", strings.ReplaceAll(mainFile, "'", "'\\''"))
-			cmd := exec.Command("docker", "run", "--rm", "--name", containerName, "-i", "--network=none", "--user", dockerUser, "--cpus", dockerCPUs, "--memory", dockerMemory, "-v", fmt.Sprintf("%s:/code:ro,z", abs), pythonImage, "bash", "-lc", script)
+    cmd := exec.Command("docker", "run", "--rm", "--name", containerName, "-i", "--network=none", "--user", dockerUser, "--cpus", dockerCPUs, "--memory", dockerMemory, "-v", fmt.Sprintf("%s:/code:ro", abs), pythonImage, "bash", "-lc", script)
 			stdoutPipe, e1 := cmd.StdoutPipe()
 			stderrPipe, e2 := cmd.StderrPipe()
 			stdinPipe, e3 := cmd.StdinPipe()
