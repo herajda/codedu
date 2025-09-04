@@ -107,6 +107,8 @@ func main() {
 	InitDB()
 	InitAuth()
 	ensureAdmin()
+	// Ensure the shared execution root exists with permissive traversal
+	ensureExecRoot(execRoot)
 	StartWorker(2)
 	// seed RNG for avatar assignment
 	rand.Seed(time.Now().UnixNano())

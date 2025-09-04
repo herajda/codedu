@@ -42,7 +42,7 @@ services:
       DB_NAME: codedu_db
       DB_SSLMODE: disable
       EXECUTION_ROOT: /sandbox
-      PYTHON_RUNNER_IMAGE: codedu-python:3.11
+      PYTHON_RUNNER_IMAGE: python:3.11
       DOCKER_HOST: tcp://docker-engine:2375
       DOCKER_TLS_CERTDIR: ""
       DOCKER_USER: "65534:65534"
@@ -51,10 +51,12 @@ services:
     env_file:
       - .env
     depends_on:
-      - db
-      - docker-engine
+      db:
+        condition: service_started
+      docker-engine:
+        condition: service_started
     volumes:
-      - runner_shared:/sandbox
+      - runner_shared:/sandbox:z
       - ./.env:/app/.env:ro
     networks: [appnet]
 
@@ -74,13 +76,14 @@ services:
     privileged: true
     environment:
       DOCKER_TLS_CERTDIR: ""
-    entrypoint: ["dockerd"]
+    # Use the image's default entrypoint (dockerd-entrypoint.sh) so it can
+    # properly prepare cgroups for DinD on cgroup v2 hosts.
     command: ["--host=tcp://0.0.0.0:2375","--storage-driver=overlay2","--iptables=false","--ip-masq=false","--log-level=error"]
     volumes:
       - docker_data:/var/lib/docker
-      - runner_shared:/sandbox
-      - ./runner:/runner:ro
+      - runner_shared:/sandbox:z
     networks: [appnet]
+
 
 volumes:
   db_data:

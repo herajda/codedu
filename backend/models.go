@@ -1319,13 +1319,15 @@ type UserPresence struct {
 
 // UserPresence functions
 func MarkUserOnline(userID uuid.UUID) error {
-	_, err := DB.Exec(`
-		INSERT INTO user_presence (user_id, is_online, last_seen, updated_at) 
-		VALUES ($1, TRUE, now(), now())
-		ON CONFLICT (user_id) 
-		DO UPDATE SET is_online = TRUE, last_seen = now(), updated_at = now()
-	`, userID)
-	return err
+    // Upsert presence only if the user exists to avoid FK errors when tokens are stale
+    _, err := DB.Exec(`
+        INSERT INTO user_presence (user_id, is_online, last_seen, updated_at)
+        SELECT $1, TRUE, now(), now()
+        WHERE EXISTS (SELECT 1 FROM users WHERE id = $1)
+        ON CONFLICT (user_id)
+        DO UPDATE SET is_online = TRUE, last_seen = now(), updated_at = now()
+    `, userID)
+    return err
 }
 
 func MarkUserOffline(userID uuid.UUID) error {
@@ -1338,13 +1340,15 @@ func MarkUserOffline(userID uuid.UUID) error {
 }
 
 func UpdateUserLastSeen(userID uuid.UUID) error {
-	_, err := DB.Exec(`
-		INSERT INTO user_presence (user_id, is_online, last_seen, updated_at) 
-		VALUES ($1, TRUE, now(), now())
-		ON CONFLICT (user_id) 
-		DO UPDATE SET last_seen = now(), updated_at = now()
-	`, userID)
-	return err
+    // Touch presence only if the user exists to avoid FK errors when tokens are stale
+    _, err := DB.Exec(`
+        INSERT INTO user_presence (user_id, is_online, last_seen, updated_at)
+        SELECT $1, TRUE, now(), now()
+        WHERE EXISTS (SELECT 1 FROM users WHERE id = $1)
+        ON CONFLICT (user_id)
+        DO UPDATE SET last_seen = now(), updated_at = now()
+    `, userID)
+    return err
 }
 
 func GetOnlineUsers() ([]UserPresence, error) {

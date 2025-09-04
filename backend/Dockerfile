@@ -21,7 +21,7 @@ COPY schema.sql ./schema.sql
 RUN mkdir -p /uploads /sandbox
 ENV PORT=8080
 ENV EXECUTION_ROOT=/sandbox
-ENV PYTHON_RUNNER_IMAGE=codedu-python:3.11
+ENV PYTHON_RUNNER_IMAGE=python:3.11
 ENV DOCKER_HOST=tcp://docker-engine:2375
 ENV DOCKER_TLS_CERTDIR=
 EXPOSE 8080
