@@ -107,6 +107,8 @@ func main() {
 	InitDB()
 	InitAuth()
 	ensureAdmin()
+	// Ensure the shared execution root exists with permissive traversal
+	ensureExecRoot(execRoot)
 	StartWorker(2)
 	// seed RNG for avatar assignment
 	rand.Seed(time.Now().UnixNano())
@@ -334,8 +336,10 @@ func main() {
 		c.File(filepath.Join(buildPath, "index.html"))
 	})
 
-	log.Println("🚀 Server running on http://localhost:22946")
-	if err := r.Run(":22946"); err != nil {
+	// Honor PORT env (default 8080) so reverse proxy can route correctly
+	port := getenvOr("PORT", "8080")
+	log.Printf("🚀 Server running on http://0.0.0.0:%s", port)
+	if err := r.Run(":" + port); err != nil {
 		log.Fatalf("could not start server: %v", err)
 	}
 }

@@ -843,7 +843,7 @@ func createSubmission(c *gin.Context) {
 		return
 	}
 
-	tmpDir, err := os.MkdirTemp("", "upload-")
+    tmpDir, err := os.MkdirTemp(execRoot, "upload-")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "server error"})
 		return
@@ -858,9 +858,8 @@ func createSubmission(c *gin.Context) {
 		}
 	}
 
-	// Ensure directory and files are readable by the container user (nobody)
-	// The container mounts this directory read-only and needs execute perms on dirs
-	filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
+	// Ensure uploaded files are readable by the container user
+	_ = filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -871,6 +870,22 @@ func createSubmission(c *gin.Context) {
 		}
 		return nil
 	})
+	_ = ensureSandboxPerms(tmpDir)
+
+	// Ensure uploaded files are readable by the container user.
+	_ = filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			_ = os.Chmod(path, 0755)
+		} else {
+			_ = os.Chmod(path, 0644)
+		}
+		return nil
+	})
+	_ = ensureSandboxPerms(tmpDir)
+
 
 	buf := new(bytes.Buffer)
 	zw := zip.NewWriter(buf)
@@ -963,7 +978,7 @@ func runTeacherSolution(c *gin.Context) {
 		return
 	}
 
-	tmpDir, err := os.MkdirTemp("", "teacher-solution-")
+    tmpDir, err := os.MkdirTemp(execRoot, "teacher-solution-")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "server error"})
 		return
@@ -1005,12 +1020,26 @@ func runTeacherSolution(c *gin.Context) {
 			mainFile = firstPy
 		}
 	}
-	if mainFile == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "no python files found"})
-		return
-	}
+		if mainFile == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "no python files found"})
+			return
+		}
 
-	tests, err := ListTestCases(aid)
+		// Ensure staged code is world-readable so the unprivileged container user can access it
+		_ = filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return nil
+			}
+			if info.IsDir() {
+				_ = os.Chmod(path, 0755)
+			} else {
+				_ = os.Chmod(path, 0644)
+			}
+			return nil
+		})
+		_ = ensureSandboxPerms(tmpDir)
+
+		tests, err := ListTestCases(aid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
@@ -1337,7 +1366,7 @@ func submissionTerminalWS(c *gin.Context) {
 	}
 
 	// Decode submission archive to a temp dir
-	tmpDir, err := os.MkdirTemp("", "term-sub-")
+    tmpDir, err := os.MkdirTemp(execRoot, "term-sub-")
 	if err != nil {
 		wsFail("server error")
 		return
@@ -1377,20 +1406,23 @@ func submissionTerminalWS(c *gin.Context) {
 		_ = os.WriteFile(filepath.Join(tmpDir, "main.py"), b, 0644)
 	}
 	// Permissions for container user
-	_ = filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		if info.IsDir() {
-			_ = os.Chmod(path, 0755)
-		} else {
-			_ = os.Chmod(path, 0644)
-		}
-		return nil
-	})
+        _ = filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
+            if err != nil {
+                return nil
+            }
+            if info.IsDir() {
+                _ = os.Chmod(path, 0755)
+            } else {
+                _ = os.Chmod(path, 0644)
+            }
+            return nil
+        })
+        _ = ensureSandboxPerms(tmpDir)
 
 	// Prepare docker run with TTY and bash
 	abs, _ := filepath.Abs(tmpDir)
+    // Ensure image exists to avoid interactive sessions hanging on pulls
+    _ = ensureDockerImage(pythonImage)
 	// Configure a clean prompt and disable bracketed paste to avoid stray sequences
 	// We also set a custom INPUTRC in /tmp to tweak readline behaviour and prevent rc files
 	bootstrap := strings.Join([]string{
@@ -1408,7 +1440,7 @@ func submissionTerminalWS(c *gin.Context) {
 	// Give the container a unique name so we can force-remove it on session end
 	containerName := fmt.Sprintf("term-%d-%d", sub.ID, time.Now().UnixNano())
 
-	cmd := exec.Command("docker", "run",
+    cmd := exec.Command("docker", "run",
 		"--rm",
 		"--name", containerName,
 		"-it",
@@ -1416,9 +1448,10 @@ func submissionTerminalWS(c *gin.Context) {
 		"--user", dockerUser,
 		"--cpus", dockerCPUs,
 		"--memory", dockerMemory,
+		"--security-opt", "label=disable",
 		"-e", "PS1=~% ",
 		"-e", "PROMPT_COMMAND=",
-		"-v", fmt.Sprintf("%s:/code:rw,z", abs),
+		"-v", fmt.Sprintf("%s:/code:rw", abs),
 		pythonImage, "bash", "-lc", bootstrap)
 
 	// PTY for interactive session
@@ -1595,7 +1628,7 @@ func submissionRunWS(c *gin.Context) {
 		if td != "" {
 			return td, nil
 		}
-		tmpDir, err := os.MkdirTemp("", "run-sub-")
+    tmpDir, err := os.MkdirTemp(execRoot, "run-sub-")
 		if err != nil {
 			return "", err
 		}
@@ -1802,10 +1835,11 @@ func submissionRunWS(c *gin.Context) {
 					fmt.Sprintf("cat > /tmp/supervisord.conf << 'EOF'\n%s\nEOF", sup),
 					"/usr/bin/supervisord -c /tmp/supervisord.conf",
 				}, "\n"))
-				cmd := exec.Command("docker", "run", "--rm", "--name", containerName,
+                cmd := exec.Command("docker", "run", "--rm", "--name", containerName,
 					"-p", fmt.Sprintf("127.0.0.1:%d:6080", hostPort),
 					"--cpus", dockerCPUs, "--memory", dockerMemory,
-					"-v", fmt.Sprintf("%s:/code:ro,z", abs),
+					"--security-opt", "label=disable",
+					"-v", fmt.Sprintf("%s:/code:ro", abs),
 					pythonImage, "bash", "-lc", script)
 				stdoutPipe, e1 := cmd.StdoutPipe()
 				stderrPipe, e2 := cmd.StderrPipe()
@@ -1931,7 +1965,7 @@ func submissionRunWS(c *gin.Context) {
 			// Headless mode (no GUI)
 			containerName := fmt.Sprintf("run-%d-%d", sub.ID, time.Now().UnixNano())
 			script := fmt.Sprintf("cd /code && python %s", strings.ReplaceAll(mainFile, "'", "'\\''"))
-			cmd := exec.Command("docker", "run", "--rm", "--name", containerName, "-i", "--network=none", "--user", dockerUser, "--cpus", dockerCPUs, "--memory", dockerMemory, "-v", fmt.Sprintf("%s:/code:ro,z", abs), pythonImage, "bash", "-lc", script)
+        cmd := exec.Command("docker", "run", "--rm", "--name", containerName, "-i", "--network=none", "--user", dockerUser, "--cpus", dockerCPUs, "--memory", dockerMemory, "--security-opt", "label=disable", "-v", fmt.Sprintf("%s:/code:ro", abs), pythonImage, "bash", "-lc", script)
 			stdoutPipe, e1 := cmd.StdoutPipe()
 			stderrPipe, e2 := cmd.StderrPipe()
 			stdinPipe, e3 := cmd.StdinPipe()
