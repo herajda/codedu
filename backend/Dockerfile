@@ -16,7 +16,6 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /out/codegrader /usr/local/bin/codegrader
-COPY templates ./templates
 COPY schema.sql ./schema.sql
 RUN mkdir -p /uploads /sandbox
 ENV PORT=8080
