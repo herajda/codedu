@@ -10,16 +10,22 @@ import (
 )
 
 func ensureClassMember(c *gin.Context, classID uuid.UUID) bool {
-	uid := getUserID(c)
-	role := c.GetString("role")
-	if role == "admin" {
-		return true
-	}
-	var ok bool
-	var err error
-	if role == "teacher" {
-		ok, err = IsTeacherOfClass(classID, uid)
-	} else {
+    uid := getUserID(c)
+    role := c.GetString("role")
+    if role == "admin" {
+        return true
+    }
+    // Special-case: Teachers' group is accessible to any teacher/admin
+    if classID == TeacherGroupID {
+        if role == "teacher" { return true }
+        c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+        return false
+    }
+    var ok bool
+    var err error
+    if role == "teacher" {
+        ok, err = IsTeacherOfClass(classID, uid)
+    } else {
 		ok, err = IsStudentOfClass(classID, uid)
 	}
 	if err != nil || !ok {

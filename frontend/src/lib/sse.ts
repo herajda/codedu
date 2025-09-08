@@ -17,7 +17,8 @@ export function createEventSource(
   const retry = opts.retry ?? 5000;
 
   function connect() {
-    es = new EventSource(url);
+    // Include credentials so auth cookies are sent to protected SSE endpoints
+    es = new EventSource(url, { withCredentials: true });
     setup(es!);
     es.onopen = () => {
       opts.onOpen?.();

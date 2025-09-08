@@ -67,15 +67,28 @@ func issueTokens(uid uuid.UUID, role string) (string, string, error) {
 	return accessStr, refreshStr, nil
 }
 
+// isSecure determines if we should set the Secure flag on cookies. When running
+// behind a reverse proxy/terminating TLS, the request may not have TLS set, so
+// honor X-Forwarded-Proto as well.
+func isSecure(c *gin.Context) bool {
+    if c.Request.TLS != nil {
+        return true
+    }
+    if strings.EqualFold(c.Request.Header.Get("X-Forwarded-Proto"), "https") {
+        return true
+    }
+    return false
+}
+
 func setAuthCookies(c *gin.Context, access, refresh string) {
-	secure := c.Request.TLS != nil
+	secure := isSecure(c)
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     "access_token",
 		Value:    access,
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   secure,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 		MaxAge:   int(accessTokenTTL.Seconds()),
 	})
 	http.SetCookie(c.Writer, &http.Cookie{
@@ -84,20 +97,20 @@ func setAuthCookies(c *gin.Context, access, refresh string) {
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   secure,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 		MaxAge:   int(refreshTokenTTL.Seconds()),
 	})
 }
 
 func clearAuthCookies(c *gin.Context) {
-	secure := c.Request.TLS != nil
+	secure := isSecure(c)
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     "access_token",
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   secure,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 	})
 	http.SetCookie(c.Writer, &http.Cookie{
@@ -106,7 +119,7 @@ func clearAuthCookies(c *gin.Context) {
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   secure,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 	})
 }
@@ -208,8 +221,8 @@ func LoginBakalari(c *gin.Context) {
 	}
 	bkClass := req.Class
 
-	var user *User
-	var err error
+    var user *User
+    var err error
 	user, err = FindUserByBkUID(bkUID)
 	if err != nil || user == nil {
 		// create new user with random password placeholder
@@ -221,36 +234,51 @@ func LoginBakalari(c *gin.Context) {
 		tmpPass := hex.EncodeToString(randBytes)
 		hash, _ := bcrypt.GenerateFromPassword([]byte(clientHash(tmpPass)), bcrypt.DefaultCost)
 		email := bkUID
-		if role == "teacher" {
-			err = CreateTeacher(email, string(hash), &bkUID)
-		} else {
-			// Set name if provided
-			var nm *string
-			if req.Name != nil && strings.TrimSpace(*req.Name) != "" {
-				t := strings.TrimSpace(*req.Name)
-				nm = &t
-			}
-			err = CreateStudent(email, string(hash), nm, bkClass, &bkUID)
-		}
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create user"})
-			return
-		}
-		user, _ = FindUserByBkUID(bkUID)
-	} else if role == "student" {
-		if bkClass != nil && (user.BkClass == nil || *user.BkClass != *bkClass) {
-			_, _ = DB.Exec(`UPDATE users SET bk_class=$1 WHERE id=$2`, *bkClass, user.ID)
-			user.BkClass = bkClass
-		}
-		// If name missing, update from Bakaláři
-		if req.Name != nil {
-			n := strings.TrimSpace(*req.Name)
-			if n != "" && (user.Name == nil || *user.Name == "") {
-				_, _ = DB.Exec(`UPDATE users SET name=$1 WHERE id=$2`, n, user.ID)
-				user.Name = &n
-			}
-		}
-	}
+        if role == "teacher" {
+            // Set name if provided
+            var nm *string
+            if req.Name != nil && strings.TrimSpace(*req.Name) != "" {
+                t := strings.TrimSpace(*req.Name)
+                nm = &t
+            }
+            err = CreateTeacher(email, string(hash), nm, &bkUID)
+        } else {
+            // Set name if provided
+            var nm *string
+            if req.Name != nil && strings.TrimSpace(*req.Name) != "" {
+                t := strings.TrimSpace(*req.Name)
+                nm = &t
+            }
+            err = CreateStudent(email, string(hash), nm, bkClass, &bkUID)
+        }
+        if err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create user"})
+            return
+        }
+        user, _ = FindUserByBkUID(bkUID)
+    } else if role == "student" {
+        if bkClass != nil && (user.BkClass == nil || *user.BkClass != *bkClass) {
+            _, _ = DB.Exec(`UPDATE users SET bk_class=$1 WHERE id=$2`, *bkClass, user.ID)
+            user.BkClass = bkClass
+        }
+        // If name missing, update from Bakaláři
+        if req.Name != nil {
+            n := strings.TrimSpace(*req.Name)
+            if n != "" && (user.Name == nil || *user.Name == "") {
+                _, _ = DB.Exec(`UPDATE users SET name=$1 WHERE id=$2`, n, user.ID)
+                user.Name = &n
+            }
+        }
+    } else if role == "teacher" {
+        // If name missing for teacher, update from Bakaláři
+        if req.Name != nil {
+            n := strings.TrimSpace(*req.Name)
+            if n != "" && (user.Name == nil || *user.Name == "") {
+                _, _ = DB.Exec(`UPDATE users SET name=$1 WHERE id=$2`, n, user.ID)
+                user.Name = &n
+            }
+        }
+    }
 
 	access, refresh, err := issueTokens(user.ID, user.Role)
 	if err != nil {

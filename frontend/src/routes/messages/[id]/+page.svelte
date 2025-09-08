@@ -565,18 +565,18 @@
                     on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.showTime = !m.showTime; convo = [...convo]; } }}
                   >
                     {hyphenateLongWords(m.text)}
-                    
-                    <!-- Message Status -->
-                    {#if m.sender_id === $auth?.id}
-                      <div class="flex items-center gap-1 text-xs opacity-60 mt-2 justify-end">
-                        {#if m.is_read}
-                          <CheckCheck class="w-3 h-3 text-primary" />
-                        {:else}
-                          <Check class="w-3 h-3 text-base-content/40" />
-                        {/if}
-                      </div>
-                    {/if}
                   </div>
+
+                  <!-- Message Status below the bubble -->
+                  {#if m.sender_id === $auth?.id}
+                    <div class="flex items-center gap-1 text-xs opacity-60 mt-1 justify-end w-full">
+                      {#if m.is_read}
+                        <CheckCheck class="w-3 h-3 text-primary" />
+                      {:else}
+                        <Check class="w-3 h-3 text-base-content/40" />
+                      {/if}
+                    </div>
+                  {/if}
                   
                   <!-- Time display below message -->
                   {#if m.showTime}

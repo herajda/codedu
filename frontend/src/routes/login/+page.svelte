@@ -17,8 +17,8 @@
   
     async function submit() {
       error = ''
-      // 1. Log in
-      const res = await fetch('/api/login', {
+      // 1. Log in (use apiFetch so credentials are consistently included)
+      const res = await apiFetch('/api/login', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ email, password: await sha256(password) })

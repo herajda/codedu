@@ -103,10 +103,12 @@ var defaultAvatars = []string{
 }
 
 func main() {
-	// 1) Init DB and auth
-	InitDB()
-	InitAuth()
-	ensureAdmin()
+    // 1) Init DB and auth
+    InitDB()
+    InitAuth()
+    ensureAdmin()
+    // Ensure Teachers' group exists as a special class
+    EnsureTeacherGroupExists()
 	// Ensure the shared execution root exists with permissive traversal
 	ensureExecRoot(execRoot)
 	StartWorker(2)
@@ -211,8 +213,9 @@ func main() {
 		api.PUT("/classes/:id", RoleGuard("teacher", "admin"), updateClass)
 		api.DELETE("/classes/:id", RoleGuard("teacher", "admin"), deleteClass)
 
-		// Assignments now tied to class
-		api.POST("/classes/:id/assignments", RoleGuard("teacher", "admin"), createAssignment)
+        // Assignments now tied to class
+        api.POST("/classes/:id/assignments", RoleGuard("teacher", "admin"), createAssignment)
+        api.POST("/classes/:id/assignments/import", RoleGuard("teacher", "admin"), importAssignmentToClass)
 
 		// User deletion (admin)
 		api.DELETE("/users/:id", RoleGuard("admin"), deleteUser)
@@ -306,15 +309,15 @@ func main() {
 		api.DELETE("/presence", RoleGuard("student", "teacher", "admin"), presenceHandler)
 		api.GET("/online-users", RoleGuard("student", "teacher", "admin"), onlineUsersHandler)
 
-		// Class forums
-		api.GET("/classes/:id/forum", RoleGuard("teacher", "student", "admin"), listForumMessagesHandler)
-		api.POST("/classes/:id/forum", RoleGuard("teacher", "student", "admin"), createForumMessageHandler)
-		api.GET("/classes/:id/forum/events", RoleGuard("teacher", "student", "admin"), forumEventsHandler)
+        // Class forums
+        api.GET("/classes/:id/forum", RoleGuard("teacher", "student", "admin"), listForumMessagesHandler)
+        api.POST("/classes/:id/forum", RoleGuard("teacher", "student", "admin"), createForumMessageHandler)
+        api.GET("/classes/:id/forum/events", RoleGuard("teacher", "student", "admin"), forumEventsHandler)
 
-		// Class file system
-		api.GET("/classes/:id/files", RoleGuard("teacher", "student", "admin"), listClassFiles)
-		api.GET("/classes/:id/notebooks", RoleGuard("teacher", "student", "admin"), listClassNotebooks)
-		api.POST("/classes/:id/files", RoleGuard("teacher", "admin"), uploadClassFile)
+        // Class file system
+        api.GET("/classes/:id/files", RoleGuard("teacher", "student", "admin"), listClassFiles)
+        api.GET("/classes/:id/notebooks", RoleGuard("teacher", "student", "admin"), listClassNotebooks)
+        api.POST("/classes/:id/files", RoleGuard("teacher", "admin"), uploadClassFile)
 		api.GET("/files/:id", RoleGuard("teacher", "student", "admin"), downloadClassFile)
 		api.PUT("/files/:id", RoleGuard("teacher", "admin"), renameClassFile)
 		api.PUT("/files/:id/content", RoleGuard("teacher", "admin"), updateFileContent)

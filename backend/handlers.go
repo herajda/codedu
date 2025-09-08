@@ -257,12 +257,16 @@ func getAssignment(c *gin.Context) {
 		tests, _ := ListTestCases(id)
 		c.JSON(http.StatusOK, gin.H{"assignment": a, "submissions": subs, "tests_count": len(tests)})
 		return
-	} else if role == "teacher" {
-		if ok, err := IsTeacherOfAssignment(id, getUserID(c)); err != nil || !ok {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-			return
-		}
-	}
+    } else if role == "teacher" {
+        if ok, err := IsTeacherOfAssignment(id, getUserID(c)); err != nil || !ok {
+            // Allow preview if the assignment is shared in Teachers' group
+            var x int
+            if err := DB.Get(&x, `SELECT 1 FROM class_files WHERE class_id=$1 AND assignment_id=$2 LIMIT 1`, TeacherGroupID, id); err != nil {
+                c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+                return
+            }
+        }
+    }
 	tests, _ := ListTestCases(id)
 	if a.GradingPolicy == "weighted" {
 		sum := 0.0
@@ -271,13 +275,20 @@ func getAssignment(c *gin.Context) {
 		}
 		a.MaxPoints = int(sum)
 	}
-	resp := gin.H{"assignment": a, "tests": tests}
-	if role == "teacher" || role == "admin" {
-		subs, _ := ListSubmissionsForAssignment(id)
-		tsubs, _ := ListTeacherRunsForAssignment(id)
-		resp["submissions"] = subs
-		resp["teacher_runs"] = tsubs
-	}
+    resp := gin.H{"assignment": a, "tests": tests}
+    if role == "teacher" || role == "admin" {
+        subs, _ := ListSubmissionsForAssignment(id)
+        var tsubs []SubmissionWithStudent
+        if role == "teacher" {
+            // Show only this teacher's runs
+            tsubs, _ = ListTeacherRunsForAssignmentByUser(id, getUserID(c))
+        } else {
+            // Admins can see all teacher runs
+            tsubs, _ = ListTeacherRunsForAssignment(id)
+        }
+        resp["submissions"] = subs
+        resp["teacher_runs"] = tsubs
+    }
 	c.JSON(http.StatusOK, resp)
 }
 
@@ -952,13 +963,17 @@ func runTeacherSolution(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	// only teachers/admins and must own the assignment if teacher
-	if role := c.GetString("role"); role == "teacher" {
-		if ok, err := IsTeacherOfAssignment(aid, getUserID(c)); err != nil || !ok {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-			return
-		}
-	}
+    // only teachers/admins; for teachers require ownership OR that the assignment is shared in Teachers' group
+    if role := c.GetString("role"); role == "teacher" {
+        if ok, err := IsTeacherOfAssignment(aid, getUserID(c)); err != nil || !ok {
+            // Allow if the assignment is referenced in the Teachers' group tree
+            var x int
+            if err := DB.Get(&x, `SELECT 1 FROM class_files WHERE class_id=$1 AND assignment_id=$2 LIMIT 1`, TeacherGroupID, aid); err != nil {
+                c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+                return
+            }
+        }
+    }
 
 	if err := c.Request.ParseMultipartForm(32 << 20); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid form"})
@@ -2174,10 +2189,10 @@ func createTeacher(c *gin.Context) {
 		return
 	}
 	hash, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-	if err := CreateTeacher(req.Email, string(hash), nil); err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "user exists"})
-		return
-	}
+    if err := CreateTeacher(req.Email, string(hash), nil, nil); err != nil {
+        c.JSON(http.StatusConflict, gin.H{"error": "user exists"})
+        return
+    }
 	c.Status(http.StatusCreated)
 }
 
@@ -2406,23 +2421,30 @@ func overrideSubmissionPoints(c *gin.Context) {
 // ──────────────────────────────────────────
 
 func listClassFiles(c *gin.Context) {
-	cid, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-		return
-	}
-	role := c.GetString("role")
-	if role == "teacher" {
-		if ok, err := IsTeacherOfClass(cid, getUserID(c)); err != nil || !ok {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-			return
-		}
-	} else if role == "student" {
-		if ok, err := IsStudentOfClass(cid, getUserID(c)); err != nil || !ok {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-			return
-		}
-	}
+    cid, err := uuid.Parse(c.Param("id"))
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+        return
+    }
+    role := c.GetString("role")
+    if cid == TeacherGroupID {
+        if !(role == "teacher" || role == "admin") {
+            c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+            return
+        }
+    } else {
+        if role == "teacher" {
+            if ok, err := IsTeacherOfClass(cid, getUserID(c)); err != nil || !ok {
+                c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+                return
+            }
+        } else if role == "student" {
+            if ok, err := IsStudentOfClass(cid, getUserID(c)); err != nil || !ok {
+                c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+                return
+            }
+        }
+    }
 	search := c.Query("search")
 	if search != "" {
 		list, err := SearchFiles(cid, search)
@@ -2449,23 +2471,30 @@ func listClassFiles(c *gin.Context) {
 }
 
 func listClassNotebooks(c *gin.Context) {
-	cid, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-		return
-	}
-	role := c.GetString("role")
-	if role == "teacher" {
-		if ok, err := IsTeacherOfClass(cid, getUserID(c)); err != nil || !ok {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-			return
-		}
-	} else if role == "student" {
-		if ok, err := IsStudentOfClass(cid, getUserID(c)); err != nil || !ok {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-			return
-		}
-	}
+    cid, err := uuid.Parse(c.Param("id"))
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+        return
+    }
+    role := c.GetString("role")
+    if cid == TeacherGroupID {
+        if !(role == "teacher" || role == "admin") {
+            c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+            return
+        }
+    } else {
+        if role == "teacher" {
+            if ok, err := IsTeacherOfClass(cid, getUserID(c)); err != nil || !ok {
+                c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+                return
+            }
+        } else if role == "student" {
+            if ok, err := IsStudentOfClass(cid, getUserID(c)); err != nil || !ok {
+                c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+                return
+            }
+        }
+    }
 	list, err := ListNotebooks(cid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
@@ -2475,17 +2504,24 @@ func listClassNotebooks(c *gin.Context) {
 }
 
 func uploadClassFile(c *gin.Context) {
-	cid, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-		return
-	}
-	if c.GetString("role") == "teacher" {
-		if ok, err := IsTeacherOfClass(cid, getUserID(c)); err != nil || !ok {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-			return
-		}
-	}
+    cid, err := uuid.Parse(c.Param("id"))
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+        return
+    }
+    if cid == TeacherGroupID {
+        if !(c.GetString("role") == "teacher" || c.GetString("role") == "admin") {
+            c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+            return
+        }
+    } else {
+        if c.GetString("role") == "teacher" {
+            if ok, err := IsTeacherOfClass(cid, getUserID(c)); err != nil || !ok {
+                c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+                return
+            }
+        }
+    }
 	var parentID *uuid.UUID
 	pidStr := c.Request.FormValue("parent_id")
 	if pidStr != "" {
@@ -2522,21 +2558,89 @@ func uploadClassFile(c *gin.Context) {
 		c.JSON(http.StatusCreated, cf)
 		return
 	}
-	var req struct {
-		Name     string     `json:"name" binding:"required"`
-		ParentID *uuid.UUID `json:"parent_id"`
-		IsDir    bool       `json:"is_dir"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	cf, err := SaveFile(cid, req.ParentID, req.Name, nil, req.IsDir)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-		return
-	}
-	c.JSON(http.StatusCreated, cf)
+    var req struct {
+        Name         string      `json:"name"`
+        ParentID     *uuid.UUID  `json:"parent_id"`
+        IsDir        bool        `json:"is_dir"`
+        AssignmentID *uuid.UUID  `json:"assignment_id"`
+    }
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+    // Special support: create an assignment reference entry in Teachers' group
+    if req.AssignmentID != nil {
+        if cid != TeacherGroupID {
+            c.JSON(http.StatusBadRequest, gin.H{"error": "assignment refs allowed only in teachers group"})
+            return
+        }
+        // Load source assignment (no ownership requirement; visibility is governed by presence in Teachers group tree)
+        a, err := GetAssignment(*req.AssignmentID)
+        if err != nil {
+            c.JSON(http.StatusNotFound, gin.H{"error": "source assignment not found"})
+            return
+        }
+        name := strings.TrimSpace(req.Name)
+        if name == "" {
+            name = a.Title
+        }
+        cf, err := SaveAssignmentRef(cid, req.ParentID, name, *req.AssignmentID)
+        if err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+            return
+        }
+        c.JSON(http.StatusCreated, cf)
+        return
+    }
+
+    // Default: create directory or empty file placeholder
+    if strings.TrimSpace(req.Name) == "" {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
+        return
+    }
+    cf, err := SaveFile(cid, req.ParentID, req.Name, nil, req.IsDir)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+        return
+    }
+    c.JSON(http.StatusCreated, cf)
+}
+
+// importAssignmentToClass: POST /api/classes/:id/assignments/import
+// Allows teacher/admin to clone a shared assignment (referenced in Teachers' group)
+// into one of their own classes, including tests and template/settings.
+func importAssignmentToClass(c *gin.Context) {
+    classID, err := uuid.Parse(c.Param("id"))
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid class id"})
+        return
+    }
+    // Teachers must own the class (admins bypass)
+    if role := c.GetString("role"); role == "teacher" {
+        if ok, err := IsTeacherOfClass(classID, getUserID(c)); err != nil || !ok {
+            c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+            return
+        }
+    }
+    var req struct {
+        SourceAssignmentID uuid.UUID `json:"source_assignment_id"`
+    }
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+    // Validate that the source assignment is actually published in Teachers' group tree (exists as a ref)
+    var tmp int
+    if err := DB.Get(&tmp, `SELECT 1 FROM class_files WHERE class_id=$1 AND assignment_id=$2 LIMIT 1`, TeacherGroupID, req.SourceAssignmentID); err != nil {
+        c.JSON(http.StatusForbidden, gin.H{"error": "not shared in teachers group"})
+        return
+    }
+    newID, err := CloneAssignmentWithTests(req.SourceAssignmentID, classID, getUserID(c))
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "clone failed"})
+        return
+    }
+    c.JSON(http.StatusCreated, gin.H{"assignment_id": newID})
 }
 
 func downloadClassFile(c *gin.Context) {
@@ -2550,18 +2654,25 @@ func downloadClassFile(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-	role := c.GetString("role")
-	if role == "teacher" {
-		if ok, err := IsTeacherOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-			return
-		}
-	} else if role == "student" {
-		if ok, err := IsStudentOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-			return
-		}
-	}
+    role := c.GetString("role")
+    if f.ClassID == TeacherGroupID {
+        if !(role == "teacher" || role == "admin") {
+            c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+            return
+        }
+    } else {
+        if role == "teacher" {
+            if ok, err := IsTeacherOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
+                c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+                return
+            }
+        } else if role == "student" {
+            if ok, err := IsStudentOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
+                c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+                return
+            }
+        }
+    }
 	if f.IsDir {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "not a file"})
 		return
@@ -2594,12 +2705,19 @@ func renameClassFile(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-	if c.GetString("role") == "teacher" {
-		if ok, err := IsTeacherOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-			return
-		}
-	}
+    if f.ClassID == TeacherGroupID {
+        if !(c.GetString("role") == "teacher" || c.GetString("role") == "admin") {
+            c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+            return
+        }
+    } else {
+        if c.GetString("role") == "teacher" {
+            if ok, err := IsTeacherOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
+                c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+                return
+            }
+        }
+    }
 	if err := RenameFile(fid, req.Name); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
@@ -2618,12 +2736,19 @@ func deleteClassFile(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-	if c.GetString("role") == "teacher" {
-		if ok, err := IsTeacherOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-			return
-		}
-	}
+    if f.ClassID == TeacherGroupID {
+        if !(c.GetString("role") == "teacher" || c.GetString("role") == "admin") {
+            c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+            return
+        }
+    } else {
+        if c.GetString("role") == "teacher" {
+            if ok, err := IsTeacherOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
+                c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+                return
+            }
+        }
+    }
 	if err := DeleteFile(fid); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
@@ -2651,12 +2776,19 @@ func updateFileContent(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-	if c.GetString("role") == "teacher" {
-		if ok, err := IsTeacherOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-			return
-		}
-	}
+    if f.ClassID == TeacherGroupID {
+        if !(c.GetString("role") == "teacher" || c.GetString("role") == "admin") {
+            c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+            return
+        }
+    } else {
+        if c.GetString("role") == "teacher" {
+            if ok, err := IsTeacherOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
+                c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+                return
+            }
+        }
+    }
 	if f.IsDir {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "not a file"})
 		return
@@ -2688,13 +2820,15 @@ func resizeAvatar(data string) (string, error) {
 		return "", err
 	}
 
-	dst := imaging.Resize(img, avatarSize, avatarSize, imaging.Lanczos)
+    // Preserve aspect ratio and crop to square to avoid squeezing
+    dst := imaging.Fill(img, avatarSize, avatarSize, imaging.Center, imaging.Lanczos)
 
 	buf := bytes.Buffer{}
 	switch format {
-	case "jpeg", "jpg":
-		err = jpeg.Encode(&buf, dst, &jpeg.Options{Quality: 90})
-		format = "jpeg"
+    case "jpeg", "jpg":
+        // Slightly higher quality to reduce downscaling artifacts
+        err = jpeg.Encode(&buf, dst, &jpeg.Options{Quality: 95})
+        format = "jpeg"
 	default:
 		err = png.Encode(&buf, dst)
 		format = "png"

@@ -12,6 +12,10 @@
   let id = $page.params.id;
   $: if ($page.params.id !== id) {
     id = $page.params.id;
+    // reset paging state on class change
+    msgs = [];
+    offset = 0;
+    hasMore = true;
     load();
     connect();
   }
@@ -30,6 +34,15 @@
   let showAttachmentMenu = false;
   let showEmojiPicker = false;
   let esCtrl: { close: () => void } | null = null;
+
+  // Pagination & scroll preservation (mirrors chat behavior)
+  const pageSize = 20;
+  let offset = 0;
+  let hasMore = true;
+  let prevLen = 0;
+  let preserveScroll = false;
+  let prevHeight = 0;
+  let prevTop = 0;
 
   let lightboxOpen = false;
   let modalImage: string | null = null;
@@ -84,9 +97,21 @@
     }
   }
 
-  async function load() {
+  async function load(more = false) {
     try {
-      msgs = await apiJSON(`/api/classes/${id}/forum`);
+      if (more && chatBox) {
+        preserveScroll = true;
+        prevHeight = chatBox.scrollHeight;
+        prevTop = chatBox.scrollTop;
+      }
+      const list: any[] = await apiJSON(`/api/classes/${id}/forum?limit=${pageSize}&offset=${offset}`);
+      // Backend returns newest-first; reverse to show oldest->newest within chunk
+      list.reverse();
+      for (const m of list) (m as any).showTime = false;
+      if (more) msgs = [...list, ...msgs];
+      else msgs = list;
+      offset += list.length;
+      hasMore = list.length >= pageSize;
     } catch (e: any) {
       err = e.message;
     }
@@ -101,6 +126,7 @@
       es.addEventListener('message', e => {
         try {
           const m = JSON.parse((e as MessageEvent).data);
+          (m as any).showTime = false;
           msgs = [...msgs, m];
         } catch {}
       });
@@ -108,9 +134,12 @@
   }
 
   onMount(() => {
+    offset = 0; hasMore = true; msgs = [];
     load();
     connect();
     adjustHeight();
+    // Focus input on open to mirror chat UX
+    setTimeout(() => msgInput?.focus(), 0);
     document.addEventListener('click', handleClickOutside);
     document.addEventListener('keydown', handleLightboxKeydown);
     return () => {
@@ -121,7 +150,15 @@
   });
 
   afterUpdate(() => {
-    if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
+    if (!chatBox) return;
+    if (preserveScroll) {
+      chatBox.scrollTop = chatBox.scrollHeight - prevHeight + prevTop;
+      preserveScroll = false;
+      prevLen = msgs.length;
+    } else if (msgs.length !== prevLen) {
+      chatBox.scrollTop = chatBox.scrollHeight;
+      prevLen = msgs.length;
+    }
   });
 
   $: imageUrls = msgs.filter(m => !!m.image).map(m => m.image as string);
@@ -182,6 +219,17 @@
     return m.name ?? m.email?.split('@')[0] ?? 'Unknown';
   }
 
+  // Deterministic placeholder avatar (avoid Math.random quirks on re-render)
+  function placeholderAvatar(seed: string): string {
+    let h = 0;
+    for (let i = 0; i < seed.length; i++) h = ((h << 5) - h + seed.charCodeAt(i)) >>> 0;
+    const n = (h % 50) + 1;
+    return `/avatars/a${n}.svg`;
+  }
+  function avatarFor(m: any): string {
+    return m.avatar ?? placeholderAvatar(String(m.user_id ?? m.email ?? 'x'));
+  }
+
   function choosePhoto() { photoInput?.click(); }
   function chooseFile() { fileInput?.click(); }
 
@@ -217,6 +265,13 @@
         fileData = null;
         fileName = null;
         adjustHeight();
+        // Ensure the just-sent message appears immediately like chat
+        offset = 0; hasMore = true; await load();
+        // Jump to the newest message and keep typing
+        setTimeout(() => {
+          if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
+          msgInput?.focus();
+        }, 0);
       }
     } catch (e) {
       console.error('send failed', e);
@@ -239,13 +294,20 @@
 
   <div class="flex-1 overflow-hidden relative z-0">
     <div class="h-full overflow-y-auto p-6 space-y-6" bind:this={chatBox}>
+      {#if hasMore}
+        <div class="text-center">
+          <button class="btn btn-outline btn-sm glass" on:click={() => load(true)}>
+            Load more messages
+          </button>
+        </div>
+      {/if}
       {#each msgs as m, i (m.id)}
         <div class={`flex ${m.user_id === $auth?.id ? 'justify-end' : 'justify-start'}`}>
           <div class="flex gap-3 max-w-[85%] sm:max-w-[75%] items-end">
             {#if m.user_id !== $auth?.id}
               <div class="avatar flex-shrink-0">
                 <div class="w-8 h-8 rounded-full overflow-hidden ring-1 ring-base-300/50 shrink-0">
-                  <img src={m.avatar ?? `/avatars/a${Math.floor(Math.random() * 50) + 1}.svg`} alt="" class="w-full h-full object-cover" />
+                  <img src={avatarFor(m)} alt="" class="w-full h-full object-cover" />
                 </div>
               </div>
             {/if}
@@ -264,7 +326,24 @@
               {/if}
 
               {#if m.file_name && m.file}
-                <a class="block p-2 mb-2 rounded-2xl bg-base-200/80 backdrop-blur-sm border border-base-300/30" href={m.file} download={m.file_name}>{m.file_name}</a>
+                <a
+                  href={m.file}
+                  download={m.file_name}
+                  class="flex items-center gap-3 p-3 mb-2 bg-base-200/50 rounded-2xl border border-base-300/30 hover:bg-base-200/70 transition-colors"
+                >
+                  <div class="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <Paperclip class="w-6 h-6 text-primary" />
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium truncate">{m.file_name || 'File'}</p>
+                    <p class="text-xs text-base-content/60">Click to download</p>
+                  </div>
+                  <div class="flex-shrink-0">
+                    <svg class="w-5 h-5 text-base-content/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                  </div>
+                </a>
               {/if}
 
               {#if m.text}
@@ -327,15 +406,23 @@
         </button>
       </div>
     {/if}
-    {#if fileName}
-      <div class="relative mb-3 p-2 bg-base-200/80 backdrop-blur-sm border border-base-300/30 rounded-lg">
-        <span>{fileName}</span>
-        <button
-          class="btn btn-circle btn-sm btn-ghost absolute top-2 right-2 bg-base-100/80 backdrop-blur-sm hover:bg-base-200/80"
-          on:click={() => { fileName = null; fileData = null; }}
-        >
-          <X class="w-4 h-4" />
-        </button>
+    {#if fileData}
+      <div class="relative mb-3">
+        <div class="flex items-center gap-3 p-3 bg-base-200/50 rounded-lg border border-base-300/50">
+          <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+            <Paperclip class="w-5 h-5 text-primary" />
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium truncate">{fileName}</p>
+            <p class="text-xs text-base-content/60">{(fileData.length * 0.75 / 1024).toFixed(1)} KB</p>
+          </div>
+          <button
+            class="btn btn-circle btn-sm btn-ghost hover:bg-base-200/80"
+            on:click={() => { fileName = null; fileData = null; }}
+          >
+            <X class="w-4 h-4" />
+          </button>
+        </div>
       </div>
     {/if}
 
@@ -457,5 +544,20 @@
 
   .chat-input-area {
     background: linear-gradient(180deg, hsl(var(--b1) / 0.8) 0%, hsl(var(--b1) / 0.95) 100%);
+  }
+
+  /* Custom scrollbar for chat (match DM chat) */
+  .overflow-y-auto::-webkit-scrollbar {
+    width: 6px;
+  }
+  .overflow-y-auto::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .overflow-y-auto::-webkit-scrollbar-thumb {
+    background: hsl(var(--bc) / 0.2);
+    border-radius: 3px;
+  }
+  .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--bc) / 0.3);
   }
 </style>

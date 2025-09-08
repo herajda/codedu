@@ -8,8 +8,7 @@
   import { sidebarOpen, sidebarCollapsed } from '$lib/sidebar';
   import { apiFetch, apiJSON } from '$lib/api';
   import { sha256 } from '$lib/hash';
-import { compressImage } from '$lib/utils/compressImage';
-  import { onDestroy } from 'svelte';
+  import { onDestroy, tick } from 'svelte';
   import { page } from '$app/stores';
   import { createEventSource } from '$lib/sse';
   import { incrementUnreadMessages, resetUnreadMessages, setUnreadMessages } from '$lib/stores/messages';
@@ -18,6 +17,7 @@ import { compressImage } from '$lib/utils/compressImage';
 
   let settingsDialog: HTMLDialogElement;
   let passwordDialog: HTMLDialogElement;
+  let bkLinkDialog: HTMLDialogElement;
   let avatarInput: HTMLInputElement;
   let name = '';
   let avatarFile: string | null = null;
@@ -39,9 +39,9 @@ import { compressImage } from '$lib/utils/compressImage';
     return !!email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   }
 
-  function logout() {
-    auth.logout();
-    goto('/login');
+  async function logout() {
+    await auth.logout();
+    goto('/login', { replaceState: true });
   }
 
   function openSettings() {
@@ -62,10 +62,14 @@ import { compressImage } from '$lib/utils/compressImage';
   async function onAvatarChange(e: Event) {
     const file = (e.target as HTMLInputElement).files?.[0];
     if (!file) { avatarFile = null; return; }
-    const compressed = await compressImage(file, 512, 0.8);
     const reader = new FileReader();
-    reader.onload = () => { avatarFile = reader.result as string; };
-    reader.readAsDataURL(compressed);
+    reader.onload = () => {
+      // When a custom image is chosen, clear any catalog selection
+      selectedAvatarFromCatalog = null;
+      avatarFile = reader.result as string;
+    };
+    // Read the original file to avoid client-side downscaling artifacts
+    reader.readAsDataURL(file);
   }
 
   function chooseAvatar() {
@@ -158,6 +162,23 @@ import { compressImage } from '$lib/utils/compressImage';
   onMount(() => {
     auth.init();
   });
+
+  async function maybeShowBakalariLinkPrompt() {
+    if (!browser || !user) return;
+    // Show only for Bakalari users with no valid local email
+    const needsLink = user.bk_uid != null && !isValidEmail(user.email);
+    if (!needsLink) return;
+    const key = `bk-link-shown:${user.id}`;
+    if (localStorage.getItem(key) === 'yes') return;
+    // Ensure the dialog element is mounted before opening
+    await tick();
+    if (!bkLinkDialog) return;
+    try {
+      bkLinkDialog.showModal();
+      // Mark as shown only after successfully opening the dialog
+      localStorage.setItem(key, 'yes');
+    } catch {}
+  }
   
   // Initialize online users and set up periodic updates
   let presenceInterval: NodeJS.Timeout | null = null;
@@ -173,6 +194,8 @@ import { compressImage } from '$lib/utils/compressImage';
       onlineUsers.updateLastSeen();
       onlineUsers.loadOnlineUsers();
     }, 10000); // Update every 10 seconds
+    // Check if we should prompt Bakalari users to link a local account
+    maybeShowBakalariLinkPrompt();
   } else {
     // Clear interval when user logs out
     if (presenceInterval) {
@@ -193,7 +216,8 @@ import { compressImage } from '$lib/utils/compressImage';
       if (user) {
         try {
           // Use keepalive fetch with DELETE so backend sets is_online = FALSE
-          fetch('/api/presence', { method: 'DELETE', keepalive: true });
+          // Include credentials to ensure auth cookie is sent even on keepalive
+          fetch('/api/presence', { method: 'DELETE', keepalive: true, credentials: 'include' });
         } catch {}
       }
     });
@@ -243,6 +267,11 @@ import { compressImage } from '$lib/utils/compressImage';
   let prefersDark = false;
   let media: MediaQueryList;
   function applyThemeFromPreference() {
+    // Force light theme on auth pages (login/register)
+    if (isAuthPage) {
+      document.documentElement.setAttribute('data-theme', 'light');
+      return;
+    }
     document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
   }
   
@@ -278,7 +307,7 @@ import { compressImage } from '$lib/utils/compressImage';
       }
     }
   }
-</script>
+  </script>
 
   <Background />
   {#if user}
@@ -374,11 +403,15 @@ import { compressImage } from '$lib/utils/compressImage';
               <div class="flex items-center space-x-4">
                 <button type="button" class="avatar cursor-pointer" on:click={chooseAvatar} aria-label="Choose avatar">
                   {#if avatarFile}
-                    <div class="w-16 rounded-full"><img src={avatarFile} alt="New avatar preview" /></div>
+                    <div class="w-16 h-16 rounded-full overflow-hidden ring-1 ring-base-300/60">
+                      <img src={avatarFile} alt="New avatar preview" class="w-full h-full object-cover" />
+                    </div>
                   {:else if user.avatar}
-                    <div class="w-16 rounded-full"><img src={user.avatar} alt="Current avatar" /></div>
+                    <div class="w-16 h-16 rounded-full overflow-hidden ring-1 ring-base-300/60">
+                      <img src={user.avatar} alt="Current avatar" class="w-full h-full object-cover" />
+                    </div>
                   {:else}
-                    <div class="w-16 rounded-full bg-neutral text-neutral-content flex items-center justify-center">
+                    <div class="w-16 h-16 rounded-full bg-neutral text-neutral-content flex items-center justify-center ring-1 ring-base-300/60">
                       {user.role.slice(0,1).toUpperCase()}
                     </div>
                   {/if}
@@ -399,7 +432,12 @@ import { compressImage } from '$lib/utils/compressImage';
               <div class="space-y-2">
                 <div class="flex items-center justify-between">
                   <h4 class="font-semibold">Choose a default avatar</h4>
-                  <span class="text-sm text-base-content/60">or upload your own</span>
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm text-base-content/60">or</span>
+                    <button type="button" class="btn btn-outline btn-sm" on:click={chooseAvatar}>
+                      <i class="fa-solid fa-image mr-2"></i>Upload your own
+                    </button>
+                  </div>
                 </div>
                 <div class="max-h-64 overflow-y-auto">
                   <div class="grid grid-cols-8 gap-2">
@@ -428,6 +466,28 @@ import { compressImage } from '$lib/utils/compressImage';
               {/if}
               <div class="modal-action">
                 <button class="btn" on:click={saveSettings}>Save</button>
+              </div>
+            </div>
+            <form method="dialog" class="modal-backdrop"><button>close</button></form>
+          </dialog>
+          <!-- First-time Bakaláři link prompt -->
+          <dialog bind:this={bkLinkDialog} class="modal">
+            <div class="modal-box space-y-4">
+              <div class="flex items-center gap-3">
+                <img src="/bakalari-logo.svg" alt="Bakaláři" class="w-8 h-8" />
+                <h3 class="font-bold text-lg">Create a local account</h3>
+              </div>
+              <p class="text-base-content/80">
+                You are signed in via Bakaláři. To keep access if Bakaláři is unavailable and to enable password login,
+                link your account to an email and password.
+              </p>
+              <div class="modal-action">
+                <form method="dialog">
+                  <button class="btn btn-ghost" aria-label="Dismiss">Later</button>
+                </form>
+                <button class="btn btn-primary" on:click={() => { bkLinkDialog.close(); openSettings(); }}>
+                  Link account now
+                </button>
               </div>
             </div>
             <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -469,4 +529,3 @@ import { compressImage } from '$lib/utils/compressImage';
     </main>
 
   </div>
-

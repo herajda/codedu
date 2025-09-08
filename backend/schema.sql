@@ -153,6 +153,7 @@ CREATE TABLE IF NOT EXISTS class_files (
   name TEXT NOT NULL,
   path TEXT NOT NULL,
   is_dir BOOLEAN NOT NULL DEFAULT FALSE,
+  assignment_id UUID REFERENCES assignments(id) ON DELETE SET NULL,
   content BYTEA,
   size INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -160,6 +161,8 @@ CREATE TABLE IF NOT EXISTS class_files (
   UNIQUE(class_id, path)
 );
 CREATE INDEX IF NOT EXISTS idx_class_files_path ON class_files(class_id, path);
+-- Backfill column if upgrading
+ALTER TABLE class_files ADD COLUMN IF NOT EXISTS assignment_id UUID REFERENCES assignments(id) ON DELETE SET NULL;
 
 -- Messages table for private chats
 CREATE TABLE IF NOT EXISTS messages (
@@ -230,4 +233,3 @@ CREATE TABLE IF NOT EXISTS user_presence (
 -- Index for efficient queries
 CREATE INDEX IF NOT EXISTS idx_user_presence_online ON user_presence(is_online);
 CREATE INDEX IF NOT EXISTS idx_user_presence_last_seen ON user_presence(last_seen);
-

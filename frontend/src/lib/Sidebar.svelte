@@ -109,6 +109,31 @@
           {#if $classesStore.loading}
             <li class="text-sm opacity-60">Loading classes...</li>
           {/if}
+
+          {#if $auth?.role === 'teacher' || $auth?.role === 'admin'}
+            <li class="nav-collapsible" data-open={isSection('/teachers')}>
+              <details open={isSection('/teachers')}>
+                <summary class="nav-summary">
+                  <i class="fa-solid fa-people-group nav-icon" aria-hidden="true"></i>
+                  <span class="truncate">Teachers' Group</span>
+                </summary>
+                <div class="nav-group">
+                  <a class={`nav-sublink ${isActive('/teachers/forum') ? 'is-active' : ''}`} href="/teachers/forum" on:click={() => sidebarOpen.set(false)}>
+                    <i class="fa-regular fa-comments sub-icon" aria-hidden="true"></i>
+                    <span>Forum</span>
+                  </a>
+                  <a class={`nav-sublink ${isActive('/teachers/files') ? 'is-active' : ''}`} href="/teachers/files" on:click={() => sidebarOpen.set(false)}>
+                    <i class="fa-regular fa-folder-open sub-icon" aria-hidden="true"></i>
+                    <span>Files</span>
+                  </a>
+                  <a class={`nav-sublink ${isActive('/teachers/assignments') ? 'is-active' : ''}`} href="/teachers/assignments" on:click={() => sidebarOpen.set(false)}>
+                    <i class="fa-solid fa-list-check sub-icon" aria-hidden="true"></i>
+                    <span>Assignments</span>
+                  </a>
+                </div>
+              </details>
+            </li>
+          {/if}
         </ul>
 
         {#if $classesStore.error}

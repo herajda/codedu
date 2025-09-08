@@ -307,8 +307,8 @@ func UpdateAssignment(a *Assignment) error {
 
 // DeleteAssignment removes an assignment (and cascades test_cases/submissions).
 func DeleteAssignment(id uuid.UUID) error {
-	_, err := DB.Exec(`DELETE FROM assignments WHERE id=$1`, id)
-	return err
+    _, err := DB.Exec(`DELETE FROM assignments WHERE id=$1`, id)
+    return err
 }
 
 // SetAssignmentPublished updates the published flag on an assignment.
@@ -318,8 +318,69 @@ func SetAssignmentPublished(id uuid.UUID, published bool) error {
 }
 
 func UpdateAssignmentTemplate(id uuid.UUID, path *string) error {
-	_, err := DB.Exec(`UPDATE assignments SET template_path=$1, updated_at=now() WHERE id=$2`, path, id)
-	return err
+    _, err := DB.Exec(`UPDATE assignments SET template_path=$1, updated_at=now() WHERE id=$2`, path, id)
+    return err
+}
+
+// CloneAssignmentWithTests duplicates an assignment (including test cases and
+// template/settings) into a target class and returns the new assignment ID.
+func CloneAssignmentWithTests(sourceID, targetClassID, createdBy uuid.UUID) (uuid.UUID, error) {
+    src, err := GetAssignment(sourceID)
+    if err != nil {
+        return uuid.Nil, err
+    }
+    // Insert new assignment copying most fields; do not publish by default
+    dst := &Assignment{
+        ClassID:          targetClassID,
+        Title:            src.Title,
+        Description:      src.Description,
+        Deadline:         src.Deadline,
+        MaxPoints:        src.MaxPoints,
+        GradingPolicy:    src.GradingPolicy,
+        Published:        false,
+        ShowTraceback:    src.ShowTraceback,
+        ManualReview:     src.ManualReview,
+        TemplatePath:     src.TemplatePath,
+        CreatedBy:        createdBy,
+        SecondDeadline:   src.SecondDeadline,
+        LatePenaltyRatio: src.LatePenaltyRatio,
+        // LLM fields applied post-insert via UpdateAssignment
+        LLMInteractive:     src.LLMInteractive,
+        LLMFeedback:        src.LLMFeedback,
+        LLMAutoAward:       src.LLMAutoAward,
+        LLMScenariosRaw:    src.LLMScenariosRaw,
+        LLMStrictness:      src.LLMStrictness,
+        LLMRubric:          src.LLMRubric,
+        LLMTeacherBaseline: src.LLMTeacherBaseline,
+    }
+    if err := CreateAssignment(dst); err != nil {
+        return uuid.Nil, err
+    }
+    // Apply LLM fields to match source
+    if err := UpdateAssignment(dst); err != nil {
+        return uuid.Nil, err
+    }
+    // Copy test cases
+    tests, err := ListTestCases(sourceID)
+    if err != nil {
+        return uuid.Nil, err
+    }
+    for _, t := range tests {
+        tc := &TestCase{
+            AssignmentID:   dst.ID,
+            Stdin:          t.Stdin,
+            ExpectedStdout: t.ExpectedStdout,
+            Weight:         t.Weight,
+            TimeLimitSec:   t.TimeLimitSec,
+            MemoryLimitKB:  t.MemoryLimitKB,
+            UnittestCode:   t.UnittestCode,
+            UnittestName:   t.UnittestName,
+        }
+        if err := CreateTestCase(tc); err != nil {
+            return uuid.Nil, err
+        }
+    }
+    return dst.ID, nil
 }
 
 // IsTeacherOfAssignment checks whether the given teacher owns the class the
@@ -346,11 +407,11 @@ func IsStudentOfAssignment(aid, studentID uuid.UUID) (bool, error) {
 	return true, nil
 }
 
-func CreateTeacher(email, hash string, bkUID *string) error {
-	_, err := DB.Exec(`
-        INSERT INTO users (email, password_hash, role, bk_uid)
-        VALUES ($1,$2,'teacher',$3)`, email, hash, bkUID)
-	return err
+func CreateTeacher(email, hash string, name, bkUID *string) error {
+    _, err := DB.Exec(`
+        INSERT INTO users (email, password_hash, name, role, bk_uid)
+        VALUES ($1,$2,$3,'teacher',$4)`, email, hash, name, bkUID)
+    return err
 }
 
 // FindUserByBkUID returns a user identified by the Bakaláři UID.
@@ -522,22 +583,28 @@ type ClassDetail struct {
 }
 
 func GetClassDetail(id uuid.UUID, role string, userID uuid.UUID) (*ClassDetail, error) {
-	// 1) Class meta -------------------------------------------------------
-	var cls Class
-	switch role {
-	case "teacher":
-		if err := DB.Get(&cls, `SELECT * FROM classes WHERE id=$1 AND teacher_id=$2`, id, userID); err != nil {
-			return nil, err
-		}
-	case "student":
-		if err := DB.Get(&cls, `SELECT c.* FROM classes c JOIN class_students cs ON cs.class_id=c.id WHERE c.id=$1 AND cs.student_id=$2`, id, userID); err != nil {
-			return nil, err
-		}
-	default:
-		if err := DB.Get(&cls, `SELECT * FROM classes WHERE id = $1`, id); err != nil {
-			return nil, err
-		}
-	}
+    // 1) Class meta -------------------------------------------------------
+    var cls Class
+    switch role {
+    case "teacher":
+        if id == TeacherGroupID {
+            if err := DB.Get(&cls, `SELECT * FROM classes WHERE id=$1`, id); err != nil {
+                return nil, err
+            }
+        } else {
+            if err := DB.Get(&cls, `SELECT * FROM classes WHERE id=$1 AND teacher_id=$2`, id, userID); err != nil {
+                return nil, err
+            }
+        }
+    case "student":
+        if err := DB.Get(&cls, `SELECT c.* FROM classes c JOIN class_students cs ON cs.class_id=c.id WHERE c.id=$1 AND cs.student_id=$2`, id, userID); err != nil {
+            return nil, err
+        }
+    default:
+        if err := DB.Get(&cls, `SELECT * FROM classes WHERE id = $1`, id); err != nil {
+            return nil, err
+        }
+    }
 
 	// 2) Teacher (one row) -----------------------------------------------------
 	var teacher Student // reuse tiny struct {id,email,name}
@@ -688,6 +755,25 @@ func ListTeacherRunsForAssignment(aid uuid.UUID) ([]SubmissionWithStudent, error
                  WHERE s.assignment_id = $1 AND s.is_teacher_run = TRUE
                  ORDER BY s.created_at DESC`, aid)
 	return subs, err
+}
+
+// ListTeacherRunsForAssignmentByUser returns teacher runs for a given assignment
+// filtered to a specific teacher (user) ID. This ensures teacher runs are not
+// shared across teachers in the UI.
+func ListTeacherRunsForAssignmentByUser(aid, uid uuid.UUID) ([]SubmissionWithStudent, error) {
+    subs := []SubmissionWithStudent{}
+    err := DB.Select(&subs, `
+                SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.points, s.override_points, s.is_teacher_run, s.manually_accepted, s.late, s.created_at, s.updated_at,
+                       ROW_NUMBER() OVER (PARTITION BY s.assignment_id, s.student_id ORDER BY s.created_at ASC, s.id ASC) AS attempt_number,
+                       u.email, u.name,
+                       (SELECT r.status FROM results r
+                          WHERE r.submission_id = s.id AND r.status <> 'passed'
+                           ORDER BY r.id LIMIT 1) AS failure_reason
+                  FROM submissions s
+                  JOIN users u ON u.id = s.student_id
+                 WHERE s.assignment_id = $1 AND s.is_teacher_run = TRUE AND s.student_id = $2
+                 ORDER BY s.created_at DESC`, aid, uid)
+    return subs, err
 }
 
 func CreateTestCase(tc *TestCase) error {
@@ -927,15 +1013,16 @@ func GetClassProgress(classID uuid.UUID) (*ClassProgress, error) {
 // ──────────────────────────────────────────
 
 type ClassFile struct {
-	ID        uuid.UUID  `db:"id" json:"id"`
-	ClassID   uuid.UUID  `db:"class_id" json:"class_id"`
-	ParentID  *uuid.UUID `db:"parent_id" json:"parent_id"`
-	Name      string     `db:"name" json:"name"`
-	Path      string     `db:"path" json:"path"`
-	IsDir     bool       `db:"is_dir" json:"is_dir"`
-	Size      int        `db:"size" json:"size"`
-	CreatedAt time.Time  `db:"created_at" json:"created_at"`
-	UpdatedAt time.Time  `db:"updated_at" json:"updated_at"`
+    ID        uuid.UUID  `db:"id" json:"id"`
+    ClassID   uuid.UUID  `db:"class_id" json:"class_id"`
+    ParentID  *uuid.UUID `db:"parent_id" json:"parent_id"`
+    Name      string     `db:"name" json:"name"`
+    Path      string     `db:"path" json:"path"`
+    IsDir     bool       `db:"is_dir" json:"is_dir"`
+    AssignmentID *uuid.UUID `db:"assignment_id" json:"assignment_id,omitempty"`
+    Size      int        `db:"size" json:"size"`
+    CreatedAt time.Time  `db:"created_at" json:"created_at"`
+    UpdatedAt time.Time  `db:"updated_at" json:"updated_at"`
 }
 
 type ClassFileWithContent struct {
@@ -955,8 +1042,8 @@ func buildFilePath(parentID *uuid.UUID, name string) (string, error) {
 }
 
 func ListFiles(classID uuid.UUID, parentID *uuid.UUID) ([]ClassFile, error) {
-	list := []ClassFile{}
-	query := `SELECT id,class_id,parent_id,name,path,is_dir,size,created_at,updated_at
+    list := []ClassFile{}
+    query := `SELECT id,class_id,parent_id,name,path,is_dir,assignment_id,size,created_at,updated_at
                    FROM class_files WHERE class_id=$1`
 	args := []any{classID}
 	if parentID == nil {
@@ -971,14 +1058,14 @@ func ListFiles(classID uuid.UUID, parentID *uuid.UUID) ([]ClassFile, error) {
 }
 
 func SearchFiles(classID uuid.UUID, term string) ([]ClassFile, error) {
-	list := []ClassFile{}
-	err := DB.Select(&list, `
-                SELECT id,class_id,parent_id,name,path,is_dir,size,created_at,updated_at
+    list := []ClassFile{}
+    err := DB.Select(&list, `
+                SELECT id,class_id,parent_id,name,path,is_dir,assignment_id,size,created_at,updated_at
                   FROM class_files
                  WHERE class_id=$1 AND (name ILIKE $2 OR path ILIKE $2)
                  ORDER BY is_dir DESC, path`,
-		classID, "%"+term+"%")
-	return list, err
+        classID, "%"+term+"%")
+    return list, err
 }
 
 func ListNotebooks(classID uuid.UUID) ([]ClassFile, error) {
@@ -991,24 +1078,42 @@ func ListNotebooks(classID uuid.UUID) ([]ClassFile, error) {
 }
 
 func SaveFile(classID uuid.UUID, parentID *uuid.UUID, name string, data []byte, isDir bool) (*ClassFile, error) {
-	if !isDir && len(data) > maxFileSize {
-		return nil, fmt.Errorf("file too large")
-	}
-	path, err := buildFilePath(parentID, name)
-	if err != nil {
-		return nil, err
-	}
-	size := len(data)
-	var cf ClassFile
-	err = DB.QueryRow(`INSERT INTO class_files (class_id,parent_id,name,path,is_dir,content,size)
+    if !isDir && len(data) > maxFileSize {
+        return nil, fmt.Errorf("file too large")
+    }
+    path, err := buildFilePath(parentID, name)
+    if err != nil {
+        return nil, err
+    }
+    size := len(data)
+    var cf ClassFile
+    err = DB.QueryRow(`INSERT INTO class_files (class_id,parent_id,name,path,is_dir,content,size)
                         VALUES ($1,$2,$3,$4,$5,$6,$7)
-                        RETURNING id,class_id,parent_id,name,path,is_dir,size,created_at,updated_at`,
-		classID, parentID, name, path, isDir, data, size).Scan(
-		&cf.ID, &cf.ClassID, &cf.ParentID, &cf.Name, &cf.Path, &cf.IsDir, &cf.Size, &cf.CreatedAt, &cf.UpdatedAt)
-	if err != nil {
-		return nil, err
-	}
-	return &cf, nil
+                        RETURNING id,class_id,parent_id,name,path,is_dir,assignment_id,size,created_at,updated_at`,
+        classID, parentID, name, path, isDir, data, size).Scan(
+        &cf.ID, &cf.ClassID, &cf.ParentID, &cf.Name, &cf.Path, &cf.IsDir, &cf.AssignmentID, &cf.Size, &cf.CreatedAt, &cf.UpdatedAt)
+    if err != nil {
+        return nil, err
+    }
+    return &cf, nil
+}
+
+// SaveAssignmentRef creates a non-directory file entry that references an assignment.
+func SaveAssignmentRef(classID uuid.UUID, parentID *uuid.UUID, name string, assignmentID uuid.UUID) (*ClassFile, error) {
+    path, err := buildFilePath(parentID, name)
+    if err != nil {
+        return nil, err
+    }
+    var cf ClassFile
+    err = DB.QueryRow(`INSERT INTO class_files (class_id,parent_id,name,path,is_dir,assignment_id,content,size)
+                        VALUES ($1,$2,$3,$4,FALSE,$5,NULL,0)
+                        RETURNING id,class_id,parent_id,name,path,is_dir,assignment_id,size,created_at,updated_at`,
+        classID, parentID, name, path, assignmentID).Scan(
+        &cf.ID, &cf.ClassID, &cf.ParentID, &cf.Name, &cf.Path, &cf.IsDir, &cf.AssignmentID, &cf.Size, &cf.CreatedAt, &cf.UpdatedAt)
+    if err != nil {
+        return nil, err
+    }
+    return &cf, nil
 }
 
 func GetFile(id uuid.UUID) (*ClassFileWithContent, error) {
@@ -1297,16 +1402,16 @@ func CreateForumMessage(m *ForumMessage) error {
 }
 
 func ListForumMessages(classID uuid.UUID, limit, offset int) ([]ForumMessage, error) {
-	msgs := []ForumMessage{}
-	err := DB.Select(&msgs, `SELECT fm.id, fm.class_id, fm.user_id, fm.content, fm.image, fm.file_name, fm.file, fm.created_at,
+    msgs := []ForumMessage{}
+    err := DB.Select(&msgs, `SELECT fm.id, fm.class_id, fm.user_id, fm.content, fm.image, fm.file_name, fm.file, fm.created_at,
                                        u.name, u.email, u.avatar
                                   FROM forum_messages fm
                                   JOIN users u ON u.id=fm.user_id
                                  WHERE fm.class_id=$1
-                               ORDER BY fm.created_at ASC
+                               ORDER BY fm.created_at DESC
                                   LIMIT $2 OFFSET $3`,
-		classID, limit, offset)
-	return msgs, err
+        classID, limit, offset)
+    return msgs, err
 }
 
 type UserPresence struct {

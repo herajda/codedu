@@ -5,7 +5,7 @@
   import { formatDateTime } from "$lib/date";
   import { page } from '$app/stores';
   import { classesStore } from '$lib/stores/classes';
-  import { BookOpen, CalendarClock, Trophy, Inbox, Users, LayoutGrid, MessageSquare, FolderOpen } from 'lucide-svelte';
+  import { BookOpen, CalendarClock, Trophy, Inbox, Users, LayoutGrid, MessageSquare, FolderOpen, ListChecks } from 'lucide-svelte';
 
   let role = '';
   let classes:any[] = [];
@@ -275,7 +275,25 @@
           <div class="text-xl font-semibold">{teacherStats?.activeAssignments ?? 0}</div>
         </div>
       </div>
-      
+    </section>
+
+    <section class="mb-6">
+      <div class="card-elevated p-4 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="p-2 bg-primary/10 rounded-lg">
+            <LayoutGrid class="w-5 h-5 text-primary" aria-hidden="true" />
+          </div>
+          <div class="min-w-0">
+            <div class="text-xs uppercase tracking-wide text-base-content/60">Teachers' Group</div>
+            <div class="text-sm text-base-content/70 whitespace-nowrap truncate">Collaborate with colleagues</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <a href="/teachers/forum" class="btn btn-outline btn-sm"><MessageSquare class="w-4 h-4 mr-1" />Forum</a>
+          <a href="/teachers/files" class="btn btn-outline btn-sm"><FolderOpen class="w-4 h-4 mr-1" />Files</a>
+          <a href="/teachers/assignments" class="btn btn-outline btn-sm"><ListChecks class="w-4 h-4 mr-1" />Assignments</a>
+        </div>
+      </div>
     </section>
 
     <section class="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
