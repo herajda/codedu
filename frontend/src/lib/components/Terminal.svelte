@@ -27,7 +27,8 @@
 
   function wsUrl(): string {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    return `${proto}://${location.host}/api/submissions/${submissionId}/terminal`;
+    // Prefer dedicated /ws path for compatibility with strict reverse proxies
+    return `${proto}://${location.host}/ws/submissions/${submissionId}/terminal`;
   }
 
   function start() {
@@ -290,5 +291,4 @@
   .term-input::placeholder { color: rgba(214, 255, 240, 0.35); }
   .suggestion { position: absolute; top: 0; color: rgba(214,255,240,0.28); pointer-events: none; }
 </style>
-
 

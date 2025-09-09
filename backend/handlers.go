@@ -1347,7 +1347,7 @@ func undoManualAccept(c *gin.Context) {
 // container seeded with the submission's files. Teacher/admin only; also
 // validates teacher owns the assignment's class if teacher role.
 func submissionTerminalWS(c *gin.Context) {
-	sid, err := uuid.Parse(c.Param("id"))
+    sid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -1371,10 +1371,13 @@ func submissionTerminalWS(c *gin.Context) {
 
 	// Upgrade to WebSocket early so client doesn't time out while we prepare
 	up := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
-	conn, err := up.Upgrade(c.Writer, c.Request, nil)
-	if err != nil {
-		return
-	}
+    conn, err := up.Upgrade(c.Writer, c.Request, nil)
+    if err != nil {
+        log.Printf("websocket upgrade failed for submission %s: %v", sid, err)
+        // If upgrade fails, try to return a plain error for easier diagnosis
+        c.Status(http.StatusBadRequest)
+        return
+    }
 	wsFail := func(msg string) {
 		_ = conn.WriteMessage(websocket.TextMessage, []byte("ERROR: "+msg))
 		_ = conn.Close()
@@ -1452,22 +1455,30 @@ func submissionTerminalWS(c *gin.Context) {
 		"exec bash --noprofile --norc -i",
 	}, " && ")
 
-	// Give the container a unique name so we can force-remove it on session end
-	containerName := fmt.Sprintf("term-%d-%d", sub.ID, time.Now().UnixNano())
+    // Give the container a unique and Docker-safe name so we can force-remove it on session end
+    // Use the UUID string (lowercase) and ensure only allowed characters
+    safeID := strings.ToLower(sub.ID.String())
+    // UUID contains only [0-9a-f-], which are allowed by Docker names
+    containerName := fmt.Sprintf("term-%s-%d", safeID, time.Now().UnixNano())
 
     cmd := exec.Command("docker", "run",
-		"--rm",
-		"--name", containerName,
-		"-it",
-		"--network=none",
-		"--user", dockerUser,
-		"--cpus", dockerCPUs,
-		"--memory", dockerMemory,
-		"--security-opt", "label=disable",
-		"-e", "PS1=~% ",
-		"-e", "PROMPT_COMMAND=",
-		"-v", fmt.Sprintf("%s:/code:rw", abs),
-		pythonImage, "bash", "-lc", bootstrap)
+        "--rm",
+        "--name", containerName,
+        "-it",
+        "--network=none",
+        "--user", dockerUser,
+        "--cpus", dockerCPUs,
+        "--memory", dockerMemory,
+        "--pids-limit", "128",
+        "--read-only",
+        "--cap-drop=ALL",
+        "--security-opt", "no-new-privileges",
+        "--security-opt", "label=disable",
+        "--mount", "type=tmpfs,destination=/tmp,tmpfs-size=16m",
+        "-e", "PS1=~% ",
+        "-e", "PROMPT_COMMAND=",
+        "-v", fmt.Sprintf("%s:/code:rw", abs),
+        pythonImage, "bash", "-lc", bootstrap)
 
 	// PTY for interactive session
 	ptyFile, err := pty.Start(cmd)
@@ -1530,7 +1541,7 @@ func submissionTerminalWS(c *gin.Context) {
 // back to the client. The client can send "input" messages to forward stdin and
 // "stop" to terminate the current run. Errors are sent as JSON messages.
 func submissionRunWS(c *gin.Context) {
-	sid, err := uuid.Parse(c.Param("id"))
+    sid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -1557,12 +1568,15 @@ func submissionRunWS(c *gin.Context) {
 
 	// Upgrade WS
 	up := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
-	conn, err := up.Upgrade(c.Writer, c.Request, nil)
-	if err != nil {
-		return
-	}
+    conn, err := up.Upgrade(c.Writer, c.Request, nil)
+    if err != nil {
+        log.Printf("websocket upgrade failed for submission %s: %v", sid, err)
+        c.Status(http.StatusBadRequest)
+        return
+    }
 
-	sessionKey := fmt.Sprintf("sub-%d", sub.ID)
+    // Use a stable per-submission key based on UUID string
+    sessionKey := fmt.Sprintf("sub-%s", strings.ToLower(sub.ID.String()))
 
 	// channel to serialize writes
 	ch := make(chan map[string]any, 128)
@@ -1808,7 +1822,8 @@ func submissionRunWS(c *gin.Context) {
 					ch <- map[string]any{"type": "error", "message": "no free port for GUI"}
 					continue
 				}
-				containerName := fmt.Sprintf("gui-%d-%d", sub.ID, time.Now().UnixNano())
+                safeID := strings.ToLower(sub.ID.String())
+                containerName := fmt.Sprintf("gui-%s-%d", safeID, time.Now().UnixNano())
 				// Supervisord-inspired approach for robust process management
 				sup := strings.Join([]string{
 					"[supervisord]",
@@ -1977,10 +1992,26 @@ func submissionRunWS(c *gin.Context) {
 				break
 			}
 
-			// Headless mode (no GUI)
-			containerName := fmt.Sprintf("run-%d-%d", sub.ID, time.Now().UnixNano())
-			script := fmt.Sprintf("cd /code && python %s", strings.ReplaceAll(mainFile, "'", "'\\''"))
-        cmd := exec.Command("docker", "run", "--rm", "--name", containerName, "-i", "--network=none", "--user", dockerUser, "--cpus", dockerCPUs, "--memory", dockerMemory, "--security-opt", "label=disable", "-v", fmt.Sprintf("%s:/code:ro", abs), pythonImage, "bash", "-lc", script)
+            // Headless mode (no GUI)
+            safeID := strings.ToLower(sub.ID.String())
+            containerName := fmt.Sprintf("run-%s-%d", safeID, time.Now().UnixNano())
+            script := fmt.Sprintf("cd /code && python %s", strings.ReplaceAll(mainFile, "'", "'\\''"))
+        // Ensure the image is available to avoid long pull hangs during interactive runs
+        _ = ensureDockerImage(pythonImage)
+        cmd := exec.Command("docker", "run", "--rm", "--name", containerName, "-i",
+                "--network=none",
+                "--user", dockerUser,
+                "--cpus", dockerCPUs,
+                "--memory", dockerMemory,
+                "--memory-swap", dockerMemory,
+                "--pids-limit", "128",
+                "--read-only",
+                "--cap-drop=ALL",
+                "--security-opt", "no-new-privileges",
+                "--security-opt", "label=disable",
+                "--mount", "type=tmpfs,destination=/tmp,tmpfs-size=16m",
+                "-v", fmt.Sprintf("%s:/code:ro", abs),
+                pythonImage, "bash", "-lc", script)
 			stdoutPipe, e1 := cmd.StdoutPipe()
 			stderrPipe, e2 := cmd.StderrPipe()
 			stdinPipe, e3 := cmd.StdinPipe()

@@ -23,7 +23,8 @@
 
   function wsUrl(): string {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    return `${proto}://${location.host}/api/submissions/${submissionId}/run`;
+    // Prefer dedicated /ws path for better proxy compatibility; backend provides both.
+    return `${proto}://${location.host}/ws/submissions/${submissionId}/run`;
   }
 
   function ensureWS(): Promise<void> {
@@ -214,5 +215,4 @@
   .gui-frame-wrap { width: 100%; height: 60vh; background: #0a0f18; }
   .gui-frame { width: 100%; height: 100%; border: 0; display: block; }
 </style>
-
 

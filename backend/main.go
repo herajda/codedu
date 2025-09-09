@@ -228,15 +228,11 @@ func main() {
 		api.GET("/submissions/:id/run", RoleGuard("teacher", "admin"), submissionRunWS)
 
 		// GUI proxy (noVNC static + WebSocket) when a Tkinter GUI is detected
-		api.GET("/submissions/:id/gui/*path", RoleGuard("teacher", "admin"), func(c *gin.Context) {
-			// Look up active run session and reverse proxy to local noVNC on 127.0.0.1:GuiHostPort
-			sidStr := c.Param("id")
-			var sid int
-			if _, err := fmt.Sscanf(sidStr, "%d", &sid); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-				return
-			}
-			sessionKey := fmt.Sprintf("sub-%d", sid)
+        api.GET("/submissions/:id/gui/*path", RoleGuard("teacher", "admin"), func(c *gin.Context) {
+            // Look up active run session and reverse proxy to local noVNC on 127.0.0.1:GuiHostPort
+            sidStr := c.Param("id")
+            // IDs are UUID; use the raw string (lowercased) for run-session key
+            sessionKey := fmt.Sprintf("sub-%s", strings.ToLower(strings.TrimSpace(sidStr)))
 			runSessionsMu.Lock()
 			sess := runSessions[sessionKey]
 			runSessionsMu.Unlock()
@@ -323,6 +319,14 @@ func main() {
 		api.PUT("/files/:id/content", RoleGuard("teacher", "admin"), updateFileContent)
 		api.DELETE("/files/:id", RoleGuard("teacher", "admin"), deleteClassFile)
 
+	}
+
+	// Dedicated WebSocket prefix with auth (useful when external proxies only upgrade under /ws)
+	ws := r.Group("/ws")
+	ws.Use(JWTAuth())
+	{
+		ws.GET("/submissions/:id/run", RoleGuard("teacher", "admin"), submissionRunWS)
+		ws.GET("/submissions/:id/terminal", RoleGuard("teacher", "admin"), submissionTerminalWS)
 	}
 
 	// 5) Frontend
