@@ -234,7 +234,7 @@ func verifySignature(path, expStr, sig string) bool {
 func stageFiles(files []SessionFile) (string, error) {
 	if len(files) == 0 {
 		// create empty dir
-    d, err := os.MkdirTemp(execRoot, "sess-")
+		d, err := os.MkdirTemp(execRoot, "sess-")
 		if err != nil {
 			return "", err
 		}
@@ -244,7 +244,7 @@ func stageFiles(files []SessionFile) (string, error) {
 		return "", fmt.Errorf("too many files")
 	}
 	var total int
-    root, err := os.MkdirTemp(execRoot, "sess-")
+	root, err := os.MkdirTemp(execRoot, "sess-")
 	if err != nil {
 		return "", err
 	}
@@ -279,18 +279,18 @@ func stageFiles(files []SessionFile) (string, error) {
 			}
 		}
 	}
-    _ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-        if err != nil {
-            return nil
-        }
-        if info.IsDir() {
-            _ = os.Chmod(path, 0755)
-        } else {
-            _ = os.Chmod(path, 0644)
-        }
-        return nil
-    })
-    _ = ensureSandboxPerms(root)
+	_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			_ = os.Chmod(path, 0755)
+		} else {
+			_ = os.Chmod(path, 0644)
+		}
+		return nil
+	})
+	_ = ensureSandboxPerms(root)
 	return root, nil
 }
 
@@ -333,10 +333,10 @@ func (s *SessionState) writeNDJSONLine(obj map[string]any) {
 }
 
 func (s *SessionState) startProcess() error {
-    // Ensure image exists before starting to avoid long pulls during session
-    _ = ensureDockerImage(pythonImage)
-    // network policy
-    netFlag := "--network=none"
+	// Ensure image exists before starting to avoid long pulls during session
+	_ = ensureDockerImage(pythonImage)
+	// network policy
+	netFlag := "--network=none"
 	s.Network = strings.ToLower(strings.TrimSpace(s.Network))
 	if s.Network == "egress" || s.Network == "full" {
 		allowEgress := strings.TrimSpace(os.Getenv("ALLOW_SESSION_EGRESS")) == "1"
@@ -360,7 +360,21 @@ func (s *SessionState) startProcess() error {
 	s.Cancel = cancel
 	// give this container a predictable name for later rm -f
 	cname := strings.ReplaceAll(s.ID, "_", "-")
-    args := []string{"run", "--rm", "-i", "--name", cname, netFlag, "--user", dockerUser, "--cpus", dockerCPUs, "--memory", dockerMemory, "--security-opt", "label=disable", "-v", fmt.Sprintf("%s:/code:ro", abs)}
+	args := []string{
+		"run", "--rm", "-i",
+		"--name", cname,
+		netFlag,
+		"--user", dockerUser,
+		"--cpus", dockerCPUs,
+		"--memory", dockerMemory,
+		"--pids-limit", "128",
+		"--read-only",
+		"--cap-drop=ALL",
+		"--security-opt", "no-new-privileges",
+		"--security-opt", "label=disable",
+		"--mount", "type=tmpfs,destination=/tmp,tmpfs-size=16m",
+		"-v", fmt.Sprintf("%s:/code:ro", abs),
+	}
 	wd := strings.TrimSpace(s.Workdir)
 	if wd != "" {
 		// Only allow relative safe paths inside /code

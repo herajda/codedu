@@ -47,11 +47,12 @@
 
 Submitted code is executed in secure Docker containers with the following constraints:
 
-- Read-only file system
-- No network access
+- Read-only file system (with a small writable tmpfs at `/tmp`)
+- No network access by default; egress can be enabled only on dedicated Docker networks or via host-level firewall rules
 - Limited CPU and memory
 - Execution timeouts
-- Non-root user
+- Non-root user with dropped Linux capabilities and `--security-opt=no-new-privileges`
+- Supports rootless Docker where available
 
 The backend initiates and manages container execution for each submission and test case.
 
