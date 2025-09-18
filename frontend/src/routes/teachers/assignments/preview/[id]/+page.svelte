@@ -2,6 +2,7 @@
 // @ts-nocheck
 import { onMount } from 'svelte';
 import { page } from '$app/stores';
+import { goto } from '$app/navigation';
 import { apiJSON } from '$lib/api';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
@@ -54,7 +55,9 @@ async function doCopyToClass(){
   try{
     const res = await apiJSON(`/api/classes/${copyClassId}/assignments/import`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source_assignment_id: assignment.id }) });
     copyDialog?.close();
-    alert('Assignment added to class');
+    if (res?.assignment_id) {
+      await goto(`/assignments/${res.assignment_id}?new=1`);
+    }
   }catch(e:any){
     copyErr = e.message;
   }

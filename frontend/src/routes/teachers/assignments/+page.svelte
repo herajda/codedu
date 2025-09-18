@@ -112,18 +112,37 @@ async function del(it: ClassFile) {
 let addDialog: HTMLDialogElement;
 let myAssignments: any[] = [];
 let myAssignLoading = false;
-let selectedAssignmentId: string | null = null;
+let selectedAssignmentId = '';
 let addName = '';
 let addErr = '';
+let addClasses: any[] = [];
+let selectedAddClassId = '';
+$: filteredAddAssignments = selectedAddClassId
+  ? myAssignments.filter(a => a.class_id === selectedAddClassId)
+  : [];
+$: if (!selectedAddClassId && selectedAssignmentId) {
+  selectedAssignmentId = '';
+}
+$: if (selectedAddClassId && selectedAssignmentId) {
+  const matches = myAssignments.some(a => a.id === selectedAssignmentId && a.class_id === selectedAddClassId);
+  if (!matches) selectedAssignmentId = '';
+}
 
 async function openAdd() {
   addErr = '';
   addName = '';
-  selectedAssignmentId = null;
+  selectedAssignmentId = '';
+  selectedAddClassId = '';
+  addClasses = [];
   myAssignLoading = true;
   try {
     // Teachers get their own assignments; admins get all
-    myAssignments = await apiJSON('/api/assignments');
+    const [assignments, classes] = await Promise.all([
+      apiJSON('/api/assignments'),
+      apiJSON('/api/classes')
+    ]);
+    myAssignments = assignments;
+    addClasses = classes;
   } catch (e: any) { addErr = e.message; }
   myAssignLoading = false;
   addDialog.showModal();
@@ -159,9 +178,15 @@ async function doCopy() {
   if (!copyItem || !copyItem.assignment_id) { copyErr = 'Invalid item'; return; }
   if (!copyClassId) { copyErr = 'Choose a class'; return; }
   const res = await apiFetch(`/api/classes/${copyClassId}/assignments/import`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source_assignment_id: copyItem.assignment_id }) });
-  if (!res.ok) { const js = await res.json().catch(() => ({})); copyErr = js.error || res.statusText; return; }
+  let js: any = null;
+  try { js = await res.json(); } catch {}
+  if (!res.ok) { copyErr = js?.error || res.statusText; return; }
   copyDialog.close();
-  alert('Assignment copied to class');
+  if (js?.assignment_id) {
+    await goto(`/assignments/${js.assignment_id}?new=1`);
+  } else {
+    await goto(`/classes/${copyClassId}/assignments`);
+  }
 }
 
 // Preview logic
@@ -295,16 +320,41 @@ onMount(() => {
       {#if myAssignLoading}
         <p>Loading…</p>
       {:else}
-        <label class="label"><span class="label-text">Choose one of your assignments</span></label>
-        <select class="select select-bordered w-full"
-          bind:value={selectedAssignmentId}>
-          <option value="" disabled selected>Select…</option>
-          {#each myAssignments as a}
-            <option value={a.id}>{a.title}</option>
-          {/each}
-        </select>
-        <label class="label mt-3"><span class="label-text">Display name (optional)</span></label>
-        <input class="input input-bordered w-full" bind:value={addName} placeholder="Defaults to assignment title" />
+        <div class="rounded-box bg-base-200 p-4 space-y-4">
+          <div class="form-control">
+            <label class="label"><span class="label-text font-semibold">Choose a class</span></label>
+            <select class="select select-bordered select-primary w-full"
+              bind:value={selectedAddClassId}>
+              <option value="" disabled>Select a class…</option>
+              {#each addClasses as c}
+                <option value={c.id}>{c.name}</option>
+              {/each}
+            </select>
+            {#if !addClasses.length && !addErr}
+              <p class="mt-2 text-sm text-gray-500">You don't have any classes yet.</p>
+            {/if}
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text font-semibold">Choose an assignment</span></label>
+            <select class="select select-bordered w-full"
+              bind:value={selectedAssignmentId}
+              disabled={!selectedAddClassId || !filteredAddAssignments.length}>
+              <option value="" disabled>{!selectedAddClassId ? 'Select a class first…' : (!filteredAddAssignments.length ? 'No assignments in this class' : 'Select an assignment…')}</option>
+              {#if selectedAddClassId}
+                {#each filteredAddAssignments as a (a.id)}
+                  <option value={a.id}>{a.title}</option>
+                {/each}
+              {/if}
+            </select>
+            {#if selectedAddClassId && filteredAddAssignments.length}
+              <p class="mt-2 text-xs text-gray-500">{filteredAddAssignments.length} assignment{filteredAddAssignments.length === 1 ? '' : 's'} found in this class.</p>
+            {/if}
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Display name (optional)</span></label>
+            <input class="input input-bordered w-full" bind:value={addName} placeholder="Defaults to assignment title" />
+          </div>
+        </div>
         {#if addErr}<p class="text-error mt-2">{addErr}</p>{/if}
         <div class="modal-action">
           <form method="dialog"><button class="btn">Cancel</button></form>
