@@ -11,6 +11,11 @@ import (
 
 func JWTAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		path := c.Request.URL.Path
+		if strings.HasPrefix(path, "/api/password-reset/") {
+			c.Next()
+			return
+		}
 		var tokenStr string
 		auth := c.GetHeader("Authorization")
 		if strings.HasPrefix(auth, "Bearer ") {

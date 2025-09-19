@@ -105,6 +105,10 @@ The backend expects several variables to be set (usually via a `.env` file):
 - `ADMIN_EMAIL` – email for the seeded administrator account
 - `ADMIN_PASSWORD` – password for the seeded administrator account
 - `BAKALARI_BASE_URL` – base URL of the Bakaláři API v3 instance
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD` – SMTP credentials used to send transactional email (port defaults to 587 if omitted)
+- `SMTP_FROM` – verified sender address used as the envelope `From`
+- `SMTP_FROM_NAME` – optional display name for the `From` header
+- `PASSWORD_RESET_BASE_URL` – absolute frontend origin used to render password reset links (for example `https://codedu.example.com`)
 
 When this variable is configured, the frontend login page presents a
 "Bakalari" tab that communicates with Bakaláři directly so credentials are
@@ -164,6 +168,8 @@ The backend now exposes two additional endpoints:
 - `POST /api/bakalari/atoms` – Teacher endpoint returning the teacher's class atoms from Bakaláři.
 - `POST /api/classes/:id/import-bakalari` – Import all students from a selected Bakaláři class into the local class.
 - `POST /api/assignments/:id/tests/upload` – Teacher/admin endpoint that parses a Python `unittest` file and creates individual test cases for each method.
+- `POST /api/password-reset/request` – Initiate a password reset email for local accounts.
+- `POST /api/password-reset/complete` – Finalize a password reset using a token from email.
 
 ---
 

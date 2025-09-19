@@ -53,20 +53,26 @@ function createAuth() {
   async function init() {
     if (!browser) return; // don’t do anything on server
 
-    const r = await apiFetch("/api/me");
-    if (r.ok) {
-      const me = await r.json();
-      login(
-        me.id,
-        me.role,
-        me.name ?? null,
-        me.avatar ?? null,
-        me.bk_uid ?? null,
-        me.email ?? null,
-        me.theme ?? null,
-      );
-    } else {
-      logout();
+    try {
+      const r = await apiFetch("/api/me");
+      if (r.ok) {
+        const me = await r.json();
+        login(
+          me.id,
+          me.role,
+          me.name ?? null,
+          me.avatar ?? null,
+          me.bk_uid ?? null,
+          me.email ?? null,
+          me.theme ?? null,
+        );
+      } else if (r.status === 401) {
+        set(null);
+      } else {
+        set(null);
+      }
+    } catch {
+      set(null);
     }
   }
 

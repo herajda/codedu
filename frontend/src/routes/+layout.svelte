@@ -32,8 +32,9 @@
   let linkPassword2 = '';
   let linkError = '';
 
-  // Determine if current route is an auth page (login or register)
-  $: isAuthPage = $page.url.pathname.startsWith('/login') || $page.url.pathname.startsWith('/register');
+  const PUBLIC_AUTH_PREFIXES = ['/login', '/register', '/forgot-password', '/reset-password'];
+  // Determine if current route is an auth-related public page
+  $: isAuthPage = PUBLIC_AUTH_PREFIXES.some((prefix) => $page.url.pathname.startsWith(prefix));
 
   function isValidEmail(email: string | null | undefined): boolean {
     return !!email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -160,7 +161,9 @@
   $: user = $auth;
 
   onMount(() => {
-    auth.init();
+    if (!isAuthPage) {
+      auth.init();
+    }
   });
 
   async function maybeShowBakalariLinkPrompt() {
@@ -365,7 +368,7 @@
           </button>
         {/if}
       </div>
-      <a href="/dashboard" class="appbar-center min-w-0">
+      <a href={user ? '/dashboard' : '/login'} class="appbar-center min-w-0">
         <span class="logo truncate font-semibold tracking-tight text-3xl sm:text-4xl">
           <span class="logo-bracket">&lt;</span>
           <span class="logo-text">CodEdu</span>

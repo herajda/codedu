@@ -79,11 +79,13 @@
   </div>
   <div class="flex justify-center">
     {#if mode === 'local' || !hasBakalari}
-      <form on:submit|preventDefault={submit} class="card w-full max-w-sm bg-base-100 shadow p-6 space-y-4">
-        <input type="email" bind:value={email} placeholder="Email" required class="input input-bordered w-full" />
-        <input type="password" bind:value={password} placeholder="Password" required class="input input-bordered w-full" />
-        <button type="submit" class="btn btn-primary w-full">Log In</button>
-      </form>
+      <div class="w-full max-w-sm">
+        <form on:submit|preventDefault={submit} class="card w-full bg-base-100 shadow p-6 space-y-4">
+          <input type="email" bind:value={email} placeholder="Email" required class="input input-bordered w-full" />
+          <input type="password" bind:value={password} placeholder="Password" required class="input input-bordered w-full" />
+          <button type="submit" class="btn btn-primary w-full">Log In</button>
+        </form>
+      </div>
     {:else}
       <div class="w-full max-w-sm">
         <!-- Bakalari Header with Logo and School Name -->
@@ -104,6 +106,14 @@
   {#if error}
     <p class="text-error text-center mt-4">{error}</p>
   {/if}
-  <p class="text-center mt-4">
-    Don't have an account? <a href="/register" class="link link-primary">Register here</a>
-  </p>
+  <div class="mt-6 space-y-2 text-center text-sm text-base-content/80">
+    <p>
+      Don't have an account?
+      <a href="/register" class="link link-primary">Register here</a>
+    </p>
+    {#if mode === 'local' || !hasBakalari}
+      <p>
+        <a href="/forgot-password" class="link link-secondary">Forgot your password?</a>
+      </p>
+    {/if}
+  </div>

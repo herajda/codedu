@@ -103,12 +103,13 @@ var defaultAvatars = []string{
 }
 
 func main() {
-    // 1) Init DB and auth
-    InitDB()
-    InitAuth()
-    ensureAdmin()
-    // Ensure Teachers' group exists as a special class
-    EnsureTeacherGroupExists()
+	// 1) Init DB and auth
+	InitDB()
+	InitAuth()
+	ensureAdmin()
+	InitMailer()
+	// Ensure Teachers' group exists as a special class
+	EnsureTeacherGroupExists()
 	// Ensure the shared execution root exists with permissive traversal
 	ensureExecRoot(execRoot)
 	StartWorker(2)
@@ -128,6 +129,10 @@ func main() {
 	r.POST("/api/login-bakalari", LoginBakalari)
 	r.POST("/api/refresh", Refresh)
 	r.POST("/api/logout", Logout)
+
+	publicAPI := r.Group("/api")
+	publicAPI.POST("/password-reset/request", requestPasswordReset)
+	publicAPI.POST("/password-reset/complete", completePasswordReset)
 
 	// 4) Protected
 	api := r.Group("/api")
@@ -213,9 +218,9 @@ func main() {
 		api.PUT("/classes/:id", RoleGuard("teacher", "admin"), updateClass)
 		api.DELETE("/classes/:id", RoleGuard("teacher", "admin"), deleteClass)
 
-        // Assignments now tied to class
-        api.POST("/classes/:id/assignments", RoleGuard("teacher", "admin"), createAssignment)
-        api.POST("/classes/:id/assignments/import", RoleGuard("teacher", "admin"), importAssignmentToClass)
+		// Assignments now tied to class
+		api.POST("/classes/:id/assignments", RoleGuard("teacher", "admin"), createAssignment)
+		api.POST("/classes/:id/assignments/import", RoleGuard("teacher", "admin"), importAssignmentToClass)
 
 		// User deletion (admin)
 		api.DELETE("/users/:id", RoleGuard("admin"), deleteUser)
@@ -228,11 +233,11 @@ func main() {
 		api.GET("/submissions/:id/run", RoleGuard("teacher", "admin"), submissionRunWS)
 
 		// GUI proxy (noVNC static + WebSocket) when a Tkinter GUI is detected
-        api.GET("/submissions/:id/gui/*path", RoleGuard("teacher", "admin"), func(c *gin.Context) {
-            // Look up active run session and reverse proxy to local noVNC on 127.0.0.1:GuiHostPort
-            sidStr := c.Param("id")
-            // IDs are UUID; use the raw string (lowercased) for run-session key
-            sessionKey := fmt.Sprintf("sub-%s", strings.ToLower(strings.TrimSpace(sidStr)))
+		api.GET("/submissions/:id/gui/*path", RoleGuard("teacher", "admin"), func(c *gin.Context) {
+			// Look up active run session and reverse proxy to local noVNC on 127.0.0.1:GuiHostPort
+			sidStr := c.Param("id")
+			// IDs are UUID; use the raw string (lowercased) for run-session key
+			sessionKey := fmt.Sprintf("sub-%s", strings.ToLower(strings.TrimSpace(sidStr)))
 			runSessionsMu.Lock()
 			sess := runSessions[sessionKey]
 			runSessionsMu.Unlock()
@@ -305,15 +310,15 @@ func main() {
 		api.DELETE("/presence", RoleGuard("student", "teacher", "admin"), presenceHandler)
 		api.GET("/online-users", RoleGuard("student", "teacher", "admin"), onlineUsersHandler)
 
-        // Class forums
-        api.GET("/classes/:id/forum", RoleGuard("teacher", "student", "admin"), listForumMessagesHandler)
-        api.POST("/classes/:id/forum", RoleGuard("teacher", "student", "admin"), createForumMessageHandler)
-        api.GET("/classes/:id/forum/events", RoleGuard("teacher", "student", "admin"), forumEventsHandler)
+		// Class forums
+		api.GET("/classes/:id/forum", RoleGuard("teacher", "student", "admin"), listForumMessagesHandler)
+		api.POST("/classes/:id/forum", RoleGuard("teacher", "student", "admin"), createForumMessageHandler)
+		api.GET("/classes/:id/forum/events", RoleGuard("teacher", "student", "admin"), forumEventsHandler)
 
-        // Class file system
-        api.GET("/classes/:id/files", RoleGuard("teacher", "student", "admin"), listClassFiles)
-        api.GET("/classes/:id/notebooks", RoleGuard("teacher", "student", "admin"), listClassNotebooks)
-        api.POST("/classes/:id/files", RoleGuard("teacher", "admin"), uploadClassFile)
+		// Class file system
+		api.GET("/classes/:id/files", RoleGuard("teacher", "student", "admin"), listClassFiles)
+		api.GET("/classes/:id/notebooks", RoleGuard("teacher", "student", "admin"), listClassNotebooks)
+		api.POST("/classes/:id/files", RoleGuard("teacher", "admin"), uploadClassFile)
 		api.GET("/files/:id", RoleGuard("teacher", "student", "admin"), downloadClassFile)
 		api.PUT("/files/:id", RoleGuard("teacher", "admin"), renameClassFile)
 		api.PUT("/files/:id/content", RoleGuard("teacher", "admin"), updateFileContent)

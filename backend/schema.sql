@@ -233,3 +233,13 @@ CREATE TABLE IF NOT EXISTS user_presence (
 -- Index for efficient queries
 CREATE INDEX IF NOT EXISTS idx_user_presence_online ON user_presence(is_online);
 CREATE INDEX IF NOT EXISTS idx_user_presence_last_seen ON user_presence(last_seen);
+
+-- Password reset tokens
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  token_hash TEXT PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens(user_id);
