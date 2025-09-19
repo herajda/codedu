@@ -91,6 +91,12 @@ Grading behavior is defined per assignment and supports:
 
 The system is fully Dockerized for simple setup using `docker-compose`.
 
+### Running Containers
+1. Start the persistent PostgreSQL database stack once with `docker compose -f docker-compose.db.yml up -d`.
+2. Launch or rebuild the application services with `docker compose up -d`.
+
+Stopping the application (`docker compose down`) keeps the database running because it lives in its own Compose project. When you really need to shut the database down, run `docker compose -f docker-compose.db.yml down`.
+
 ### Environment Variables
 The backend expects several variables to be set (usually via a `.env` file):
 

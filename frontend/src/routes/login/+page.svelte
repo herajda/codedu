@@ -70,7 +70,7 @@
   
   <h1 class="text-3xl font-bold text-center mb-6">Log In</h1>
     <div role="tablist" class="tabs tabs-boxed justify-center mb-6">
-    <a role="tab" class="tab {mode==='local' ? 'tab-active' : ''}" on:click={() => mode = 'local'}>Local</a>
+    <a role="tab" class="tab {mode==='local' ? 'tab-active' : ''}" on:click={() => mode = 'local'}>Email</a>
     {#if hasBakalari}
       <a role="tab" class="tab {mode==='bakalari' ? 'tab-active' : ''}" on:click={() => mode = 'bakalari'}>
         <img src="/bakalari-logo.svg" alt="Bakalari" class="w-16 h-16" />

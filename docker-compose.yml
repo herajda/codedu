@@ -51,24 +51,11 @@ services:
     env_file:
       - .env
     depends_on:
-      db:
-        condition: service_started
       docker-engine:
         condition: service_started
     volumes:
       - runner_shared:/sandbox:z
       - ./.env:/app/.env:ro
-    networks: [appnet]
-
-  db:
-    image: postgres:16
-    restart: always
-    environment:
-      POSTGRES_USER: codedu_user
-      POSTGRES_PASSWORD: supersecret
-      POSTGRES_DB: codedu_db
-    volumes:
-      - db_data:/var/lib/postgresql/data
     networks: [appnet]
 
   docker-engine:
@@ -86,10 +73,10 @@ services:
 
 
 volumes:
-  db_data:
   docker_data:
   runner_shared:
 
 networks:
   appnet:
-    driver: bridge
+    external: true
+    name: codedu_appnet
