@@ -36,6 +36,7 @@
   let bkLinkPassword = '';
   let bkLinkError = '';
   let linkingBakalari = false;
+  let emailNotifications = true;
 
   const PUBLIC_AUTH_PREFIXES = ['/login', '/register', '/forgot-password', '/reset-password'];
   // Determine if current route is an auth-related public page
@@ -64,6 +65,7 @@
     bkLinkPassword = '';
     bkLinkError = '';
     linkingBakalari = false;
+    emailNotifications = user?.email_notifications ?? true;
     // load catalog
     fetch('/api/avatars').then(r => r.ok ? r.json() : []).then((list) => { avatarChoices = list; });
     settingsDialog.showModal();
@@ -128,12 +130,13 @@
       body.avatar = avatarFile;
     }
     if (user && user.bk_uid == null) body.name = name;
+    body.email_notifications = emailNotifications;
     const res = await apiFetch('/api/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (res.ok) {
       const meRes = await apiFetch('/api/me');
       if (meRes.ok) {
         const me = await meRes.json();
-        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null);
+        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null, me.email_notifications ?? true);
       }
     }
     settingsDialog.close();
@@ -159,7 +162,7 @@
       const meRes = await apiFetch('/api/me');
       if (meRes.ok) {
         const me = await meRes.json();
-        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null);
+        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null, me.email_notifications ?? true);
       }
       settingsDialog.close();
     } catch (e: any) {
@@ -200,7 +203,7 @@
       const meRes = await apiFetch('/api/me');
       if (meRes.ok) {
         const me = await meRes.json();
-        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null);
+        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null, me.email_notifications ?? true);
       }
       bkLinkUsername = '';
       bkLinkPassword = '';
@@ -356,7 +359,7 @@
     prefersDark = !prefersDark;
     applyThemeFromPreference();
     if (user) {
-      auth.login(user.id, user.role, user.name ?? null, user.avatar ?? null, user.bk_uid ?? null, user.email ?? null, prefersDark ? 'dark' : 'light');
+      auth.login(user.id, user.role, user.name ?? null, user.avatar ?? null, user.bk_uid ?? null, user.email ?? null, prefersDark ? 'dark' : 'light', user.email_notifications ?? true);
       try {
         await apiFetch('/api/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ theme: prefersDark ? 'dark' : 'light' }) });
       } catch (e) {
@@ -537,6 +540,22 @@
                     <p class="text-error">{linkError}</p>
                   {/if}
                   <button class="btn" on:click={linkLocal}>Link account</button>
+                </div>
+              {/if}
+              {#if user?.role === 'student'}
+                <div class="space-y-2">
+                  <div class="flex items-center justify-between gap-4">
+                    <div class="space-y-1">
+                      <h4 class="font-semibold">Email notifications</h4>
+                      <p class="text-sm text-base-content/70">Get reminders about new assignments, upcoming deadlines, and direct messages.</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      class="toggle toggle-primary"
+                      bind:checked={emailNotifications}
+                      aria-label="Toggle email notifications"
+                    />
+                  </div>
                 </div>
               {/if}
               <div class="modal-action">

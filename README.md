@@ -109,6 +109,7 @@ The backend expects several variables to be set (usually via a `.env` file):
 - `SMTP_FROM` – verified sender address used as the envelope `From`
 - `SMTP_FROM_NAME` – optional display name for the `From` header
 - `PASSWORD_RESET_BASE_URL` – absolute frontend origin used to render password reset links (for example `https://codedu.example.com`)
+- `APP_BASE_URL` – optional origin used in email notifications; defaults to `PASSWORD_RESET_BASE_URL` when unset
 
 When this variable is configured, the frontend login page presents a
 "Bakalari" tab that communicates with Bakaláři directly so credentials are

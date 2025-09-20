@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
   avatar TEXT,
   role TEXT NOT NULL DEFAULT 'student' CHECK (role IN ('student','teacher','admin')),
   theme TEXT NOT NULL DEFAULT 'light' CHECK (theme IN ('light','dark')),
+  email_notifications BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -18,6 +19,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS bk_class TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS bk_uid TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS theme TEXT NOT NULL DEFAULT 'light' CHECK (theme IN ('light','dark'));
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_notifications BOOLEAN NOT NULL DEFAULT TRUE;
 
 
 CREATE TABLE IF NOT EXISTS classes (
@@ -182,6 +184,16 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS image TEXT;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_name TEXT;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS file TEXT;
+
+-- Track completed email notifications to avoid duplicates
+CREATE TABLE IF NOT EXISTS notification_log (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  notification_type TEXT NOT NULL,
+  context TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(user_id, notification_type, context)
+);
 
 -- Blocked users table
 CREATE TABLE IF NOT EXISTS blocked_users (

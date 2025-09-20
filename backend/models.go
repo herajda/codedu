@@ -17,16 +17,17 @@ const maxFileSize = 20 * 1024 * 1024 // 20 MB
 var ErrBlocked = errors.New("blocked")
 
 type User struct {
-	ID           uuid.UUID `db:"id"`
-	Email        string    `db:"email"`
-	PasswordHash string    `db:"password_hash"`
-	Name         *string   `db:"name"`
-	Avatar       *string   `db:"avatar"`
-	Role         string    `db:"role"`
-	Theme        string    `db:"theme"`
-	BkClass      *string   `db:"bk_class"`
-	BkUID        *string   `db:"bk_uid"`
-	CreatedAt    time.Time `db:"created_at"`
+	ID                 uuid.UUID `db:"id"`
+	Email              string    `db:"email"`
+	PasswordHash       string    `db:"password_hash"`
+	Name               *string   `db:"name"`
+	Avatar             *string   `db:"avatar"`
+	Role               string    `db:"role"`
+	Theme              string    `db:"theme"`
+	EmailNotifications bool      `db:"email_notifications"`
+	BkClass            *string   `db:"bk_class"`
+	BkUID              *string   `db:"bk_uid"`
+	CreatedAt          time.Time `db:"created_at"`
 }
 
 type Assignment struct {
@@ -131,7 +132,7 @@ func UpdateUserRole(id uuid.UUID, role string) error {
 
 func GetUser(id uuid.UUID) (*User, error) {
 	var u User
-	err := DB.Get(&u, `SELECT id, email, password_hash, name, avatar, role, theme, bk_class, bk_uid, created_at
+	err := DB.Get(&u, `SELECT id, email, password_hash, name, avatar, role, theme, email_notifications, bk_class, bk_uid, created_at
                 FROM users WHERE id=$1`, id)
 	if err != nil {
 		return nil, err
@@ -139,8 +140,8 @@ func GetUser(id uuid.UUID) (*User, error) {
 	return &u, nil
 }
 
-func UpdateUserProfile(id uuid.UUID, name, avatar, theme *string) error {
-	_, err := DB.Exec(`UPDATE users SET name=COALESCE($1,name), avatar=COALESCE($2,avatar), theme=COALESCE($3,theme) WHERE id=$4`, name, avatar, theme, id)
+func UpdateUserProfile(id uuid.UUID, name, avatar, theme *string, notifications *bool) error {
+	_, err := DB.Exec(`UPDATE users SET name=COALESCE($1,name), avatar=COALESCE($2,avatar), theme=COALESCE($3,theme), email_notifications=COALESCE($4,email_notifications) WHERE id=$5`, name, avatar, theme, notifications, id)
 	return err
 }
 
@@ -1363,6 +1364,7 @@ func CreateMessage(m *Message) error {
 		Scan(&m.ID, &m.CreatedAt, &m.IsRead)
 	if err == nil {
 		broadcastMsg(sse.Event{Event: "message", Data: m})
+		queueMessageEmail(*m)
 	}
 	return err
 }

@@ -39,6 +39,7 @@ type mailerConfig struct {
 	fromAddress  string
 	fromHeader   string
 	resetBaseURL string
+	appBaseURL   string
 }
 
 func InitMailer() {
@@ -70,6 +71,10 @@ func InitMailer() {
 	if fromName != "" {
 		fromHeader = fmt.Sprintf("%s <%s>", fromName, from)
 	}
+	appBase := strings.TrimSpace(os.Getenv("APP_BASE_URL"))
+	if appBase == "" {
+		appBase = baseURL
+	}
 	mailer = &mailerConfig{
 		host:         host,
 		port:         port,
@@ -78,6 +83,7 @@ func InitMailer() {
 		fromAddress:  from,
 		fromHeader:   fromHeader,
 		resetBaseURL: baseURL,
+		appBaseURL:   strings.TrimRight(appBase, "/"),
 	}
 	log.Printf("📧 SMTP mailer configured for %s:%d", host, port)
 }
@@ -90,6 +96,17 @@ func (m *mailerConfig) resetURL(token string) string {
 	return fmt.Sprintf("%s/reset-password?token=%s", base, url.QueryEscape(token))
 }
 
+func (m *mailerConfig) absoluteURL(path string) string {
+	base := strings.TrimRight(m.appBaseURL, "/")
+	if base == "" {
+		return ""
+	}
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	return base + path
+}
+
 func (m *mailerConfig) sendPasswordReset(to, token string) error {
 	resetLink := m.resetURL(token)
 	if resetLink == "" {
@@ -97,6 +114,10 @@ func (m *mailerConfig) sendPasswordReset(to, token string) error {
 	}
 	subject := "Password reset instructions"
 	body := fmt.Sprintf("We received a request to reset your password.\n\nFollow this link to choose a new password (valid for 1 hour):\n%s\n\nIf you did not request a reset, you can safely ignore this email.", resetLink)
+	return m.sendPlainText(to, subject, body)
+}
+
+func (m *mailerConfig) sendPlainText(to, subject, body string) error {
 	msg := buildEmailMessage(m.fromHeader, to, subject, body)
 	return m.sendMail([]string{to}, []byte(msg))
 }

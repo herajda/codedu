@@ -420,6 +420,7 @@ func publishAssignment(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
+	queueAssignmentPublishedEmail(id)
 	c.Status(http.StatusNoContent)
 }
 
@@ -2874,9 +2875,10 @@ func resizeAvatar(data string) (string, error) {
 func updateProfile(c *gin.Context) {
 	uid := getUserID(c)
 	var req struct {
-		Name   *string `json:"name"`
-		Avatar *string `json:"avatar"`
-		Theme  *string `json:"theme"`
+		Name               *string `json:"name"`
+		Avatar             *string `json:"avatar"`
+		Theme              *string `json:"theme"`
+		EmailNotifications *bool   `json:"email_notifications"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -2924,7 +2926,7 @@ func updateProfile(c *gin.Context) {
 		}
 		req.Theme = &t
 	}
-	if err := UpdateUserProfile(uid, req.Name, req.Avatar, req.Theme); err != nil {
+	if err := UpdateUserProfile(uid, req.Name, req.Avatar, req.Theme, req.EmailNotifications); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}

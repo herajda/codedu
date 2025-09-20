@@ -11,6 +11,7 @@ export type User = {
   email?: string | null;
   bk_uid?: string | null;
   theme?: "light" | "dark" | null;
+  email_notifications?: boolean | null;
 } | null;
 
 function createAuth() {
@@ -26,8 +27,9 @@ function createAuth() {
     bk_uid?: string | null,
     email?: string | null,
     theme?: "light" | "dark" | null,
+    emailNotifications?: boolean | null,
   ) {
-    set({ id, role, name, avatar, bk_uid, email, theme });
+    set({ id, role, name, avatar, bk_uid, email, theme, email_notifications: emailNotifications ?? true });
     // Mark user as online
     onlineUsers.markOnline();
   }
@@ -65,6 +67,7 @@ function createAuth() {
           me.bk_uid ?? null,
           me.email ?? null,
           me.theme ?? null,
+          me.email_notifications ?? true,
         );
       } else if (r.status === 401) {
         set(null);

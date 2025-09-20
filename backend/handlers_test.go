@@ -11,6 +11,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -23,22 +24,26 @@ func TestGetAssignmentStudentForbidden(t *testing.T) {
 	DB = sqlx.NewDb(db, "sqlmock")
 
 	now := time.Now()
+	assignmentID := uuid.New()
+	studentID := uuid.New()
+	creatorID := uuid.New()
+	classID := uuid.New()
 	rows := sqlmock.NewRows([]string{"id", "title", "description", "created_by", "deadline", "max_points", "grading_policy", "published", "show_traceback", "template_path", "created_at", "updated_at", "class_id"}).
-		AddRow(4, "A", "d", 1, now, 100, "all_or_nothing", true, false, nil, now, now, 2)
+		AddRow(assignmentID.String(), "A", "d", creatorID.String(), now, 100, "all_or_nothing", true, false, nil, now, now, classID.String())
 	// Accept a superset of columns now returned by GetAssignment
 	mock.ExpectQuery(`SELECT\s+.*\s+FROM assignments\s+WHERE id = \$1`).
-		WithArgs(4).WillReturnRows(rows)
+		WithArgs(assignmentID).WillReturnRows(rows)
 
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT 1 FROM assignments a JOIN class_students cs ON cs.class_id=a.class_id WHERE a.id=$1 AND cs.student_id=$2`)).
-		WithArgs(4, 9).WillReturnError(sql.ErrNoRows)
+		WithArgs(assignmentID, studentID).WillReturnError(sql.ErrNoRows)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Params = gin.Params{{Key: "id", Value: "4"}}
-	c.Request, _ = http.NewRequest("GET", "/assignments/4", nil)
+	c.Params = gin.Params{{Key: "id", Value: assignmentID.String()}}
+	c.Request, _ = http.NewRequest("GET", "/assignments/"+assignmentID.String(), nil)
 	c.Set("role", "student")
-	c.Set("userID", 9)
+	c.Set("userID", studentID)
 
 	getAssignment(c)
 
@@ -58,18 +63,20 @@ func TestUpdateAssignmentTeacherForbidden(t *testing.T) {
 	defer db.Close()
 	DB = sqlx.NewDb(db, "sqlmock")
 
+	assignmentID := uuid.New()
+	teacherID := uuid.New()
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT 1 FROM assignments a JOIN classes c ON c.id=a.class_id WHERE a.id=$1 AND c.teacher_id=$2`)).
-		WithArgs(5, 7).WillReturnError(sql.ErrNoRows)
+		WithArgs(assignmentID, teacherID).WillReturnError(sql.ErrNoRows)
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Params = gin.Params{{Key: "id", Value: "5"}}
+	c.Params = gin.Params{{Key: "id", Value: assignmentID.String()}}
 	body := `{"title":"t","description":"","deadline":"2023-01-01T00:00:00Z","max_points":10,"grading_policy":"all_or_nothing"}`
-	c.Request, _ = http.NewRequest("PUT", "/assignments/5", bytes.NewBufferString(body))
+	c.Request, _ = http.NewRequest("PUT", "/assignments/"+assignmentID.String(), bytes.NewBufferString(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 	c.Set("role", "teacher")
-	c.Set("userID", 7)
+	c.Set("userID", teacherID)
 
 	updateAssignment(c)
 
