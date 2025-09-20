@@ -14,6 +14,7 @@
   import { incrementUnreadMessages, resetUnreadMessages, setUnreadMessages } from '$lib/stores/messages';
   import { onlineUsers } from '$lib/stores/onlineUsers';
   import { browser } from '$app/environment';
+  import { login as bkLogin, hasBakalari } from '$lib/bakalari';
 
   let settingsDialog: HTMLDialogElement;
   let passwordDialog: HTMLDialogElement;
@@ -31,6 +32,10 @@
   let linkPassword = '';
   let linkPassword2 = '';
   let linkError = '';
+  let bkLinkUsername = '';
+  let bkLinkPassword = '';
+  let bkLinkError = '';
+  let linkingBakalari = false;
 
   const PUBLIC_AUTH_PREFIXES = ['/login', '/register', '/forgot-password', '/reset-password'];
   // Determine if current route is an auth-related public page
@@ -55,6 +60,10 @@
     linkPassword = '';
     linkPassword2 = '';
     linkError = '';
+    bkLinkUsername = '';
+    bkLinkPassword = '';
+    bkLinkError = '';
+    linkingBakalari = false;
     // load catalog
     fetch('/api/avatars').then(r => r.ok ? r.json() : []).then((list) => { avatarChoices = list; });
     settingsDialog.showModal();
@@ -155,6 +164,51 @@
       settingsDialog.close();
     } catch (e: any) {
       linkError = e.message;
+    }
+  }
+
+  async function linkBakalari() {
+    bkLinkError = '';
+    if (!hasBakalari) {
+      bkLinkError = 'Bakaláři integration is not configured.';
+      return;
+    }
+    if (!bkLinkUsername || !bkLinkPassword) {
+      bkLinkError = 'Please provide your Bakaláři credentials.';
+      return;
+    }
+    linkingBakalari = true;
+    try {
+      const { info } = await bkLogin(bkLinkUsername, bkLinkPassword);
+      const parts = [info?.FirstName, info?.MiddleName, info?.LastName].filter(Boolean).join(' ').trim();
+      const derivedName = (info?.FullName ?? info?.DisplayName ?? info?.UserName) ?? (parts.length > 0 ? parts : null);
+      const res = await apiFetch('/api/me/link-bakalari', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid: info.UserUID,
+          role: info.UserType,
+          class: info.Class?.Abbrev ?? null,
+          name: derivedName
+        })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        bkLinkError = data.error ?? res.statusText;
+        return;
+      }
+      const meRes = await apiFetch('/api/me');
+      if (meRes.ok) {
+        const me = await meRes.json();
+        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null);
+      }
+      bkLinkUsername = '';
+      bkLinkPassword = '';
+      settingsDialog.close();
+    } catch (e: any) {
+      bkLinkError = e?.message ?? 'Unable to link account';
+    } finally {
+      linkingBakalari = false;
     }
   }
 
@@ -454,7 +508,25 @@
               </div>
               {/if}
               {#if user.bk_uid == null}
-                <button class="btn" on:click={openPasswordDialog}>Change password</button>
+                <div class="space-y-4">
+                  <button class="btn" on:click={openPasswordDialog}>Change password</button>
+                  {#if hasBakalari}
+                    <div class="space-y-2">
+                      <h4 class="font-semibold flex items-center gap-2">
+                        <img src="/bakalari-logo.svg" alt="Bakaláři" class="w-6 h-6" />
+                        Link with Bakaláři
+                      </h4>
+                      <input class="input input-bordered w-full" bind:value={bkLinkUsername} placeholder="Bakaláři username" autocomplete="username" />
+                      <input type="password" class="input input-bordered w-full" bind:value={bkLinkPassword} placeholder="Bakaláři password" autocomplete="current-password" />
+                      {#if bkLinkError}
+                        <p class="text-error">{bkLinkError}</p>
+                      {/if}
+                      <button class="btn" on:click={linkBakalari} disabled={linkingBakalari} class:loading={linkingBakalari}>
+                        {linkingBakalari ? 'Linking...' : 'Link Bakaláři account'}
+                      </button>
+                    </div>
+                  {/if}
+                </div>
               {:else if !isValidEmail(user.email)}
                 <div class="space-y-2">
                   <h4 class="font-semibold">Create local account</h4>

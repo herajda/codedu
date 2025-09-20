@@ -173,6 +173,7 @@ func main() {
 		})
 		api.PUT("/me", updateProfile)
 		api.PUT("/me/password", changePassword)
+		api.POST("/me/link-bakalari", linkBakalariAccount)
 		api.POST("/me/link-local", linkLocalAccount)
 
 		// Assignments

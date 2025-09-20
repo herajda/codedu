@@ -257,16 +257,16 @@ func getAssignment(c *gin.Context) {
 		tests, _ := ListTestCases(id)
 		c.JSON(http.StatusOK, gin.H{"assignment": a, "submissions": subs, "tests_count": len(tests)})
 		return
-    } else if role == "teacher" {
-        if ok, err := IsTeacherOfAssignment(id, getUserID(c)); err != nil || !ok {
-            // Allow preview if the assignment is shared in Teachers' group
-            var x int
-            if err := DB.Get(&x, `SELECT 1 FROM class_files WHERE class_id=$1 AND assignment_id=$2 LIMIT 1`, TeacherGroupID, id); err != nil {
-                c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-                return
-            }
-        }
-    }
+	} else if role == "teacher" {
+		if ok, err := IsTeacherOfAssignment(id, getUserID(c)); err != nil || !ok {
+			// Allow preview if the assignment is shared in Teachers' group
+			var x int
+			if err := DB.Get(&x, `SELECT 1 FROM class_files WHERE class_id=$1 AND assignment_id=$2 LIMIT 1`, TeacherGroupID, id); err != nil {
+				c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+				return
+			}
+		}
+	}
 	tests, _ := ListTestCases(id)
 	if a.GradingPolicy == "weighted" {
 		sum := 0.0
@@ -275,20 +275,20 @@ func getAssignment(c *gin.Context) {
 		}
 		a.MaxPoints = int(sum)
 	}
-    resp := gin.H{"assignment": a, "tests": tests}
-    if role == "teacher" || role == "admin" {
-        subs, _ := ListSubmissionsForAssignment(id)
-        var tsubs []SubmissionWithStudent
-        if role == "teacher" {
-            // Show only this teacher's runs
-            tsubs, _ = ListTeacherRunsForAssignmentByUser(id, getUserID(c))
-        } else {
-            // Admins can see all teacher runs
-            tsubs, _ = ListTeacherRunsForAssignment(id)
-        }
-        resp["submissions"] = subs
-        resp["teacher_runs"] = tsubs
-    }
+	resp := gin.H{"assignment": a, "tests": tests}
+	if role == "teacher" || role == "admin" {
+		subs, _ := ListSubmissionsForAssignment(id)
+		var tsubs []SubmissionWithStudent
+		if role == "teacher" {
+			// Show only this teacher's runs
+			tsubs, _ = ListTeacherRunsForAssignmentByUser(id, getUserID(c))
+		} else {
+			// Admins can see all teacher runs
+			tsubs, _ = ListTeacherRunsForAssignment(id)
+		}
+		resp["submissions"] = subs
+		resp["teacher_runs"] = tsubs
+	}
 	c.JSON(http.StatusOK, resp)
 }
 
@@ -854,7 +854,7 @@ func createSubmission(c *gin.Context) {
 		return
 	}
 
-    tmpDir, err := os.MkdirTemp(execRoot, "upload-")
+	tmpDir, err := os.MkdirTemp(execRoot, "upload-")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "server error"})
 		return
@@ -896,7 +896,6 @@ func createSubmission(c *gin.Context) {
 		return nil
 	})
 	_ = ensureSandboxPerms(tmpDir)
-
 
 	buf := new(bytes.Buffer)
 	zw := zip.NewWriter(buf)
@@ -963,17 +962,17 @@ func runTeacherSolution(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-    // only teachers/admins; for teachers require ownership OR that the assignment is shared in Teachers' group
-    if role := c.GetString("role"); role == "teacher" {
-        if ok, err := IsTeacherOfAssignment(aid, getUserID(c)); err != nil || !ok {
-            // Allow if the assignment is referenced in the Teachers' group tree
-            var x int
-            if err := DB.Get(&x, `SELECT 1 FROM class_files WHERE class_id=$1 AND assignment_id=$2 LIMIT 1`, TeacherGroupID, aid); err != nil {
-                c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-                return
-            }
-        }
-    }
+	// only teachers/admins; for teachers require ownership OR that the assignment is shared in Teachers' group
+	if role := c.GetString("role"); role == "teacher" {
+		if ok, err := IsTeacherOfAssignment(aid, getUserID(c)); err != nil || !ok {
+			// Allow if the assignment is referenced in the Teachers' group tree
+			var x int
+			if err := DB.Get(&x, `SELECT 1 FROM class_files WHERE class_id=$1 AND assignment_id=$2 LIMIT 1`, TeacherGroupID, aid); err != nil {
+				c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+				return
+			}
+		}
+	}
 
 	if err := c.Request.ParseMultipartForm(32 << 20); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid form"})
@@ -993,7 +992,7 @@ func runTeacherSolution(c *gin.Context) {
 		return
 	}
 
-    tmpDir, err := os.MkdirTemp(execRoot, "teacher-solution-")
+	tmpDir, err := os.MkdirTemp(execRoot, "teacher-solution-")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "server error"})
 		return
@@ -1035,26 +1034,26 @@ func runTeacherSolution(c *gin.Context) {
 			mainFile = firstPy
 		}
 	}
-		if mainFile == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "no python files found"})
-			return
-		}
+	if mainFile == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no python files found"})
+		return
+	}
 
-		// Ensure staged code is world-readable so the unprivileged container user can access it
-		_ = filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return nil
-			}
-			if info.IsDir() {
-				_ = os.Chmod(path, 0755)
-			} else {
-				_ = os.Chmod(path, 0644)
-			}
+	// Ensure staged code is world-readable so the unprivileged container user can access it
+	_ = filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
 			return nil
-		})
-		_ = ensureSandboxPerms(tmpDir)
+		}
+		if info.IsDir() {
+			_ = os.Chmod(path, 0755)
+		} else {
+			_ = os.Chmod(path, 0644)
+		}
+		return nil
+	})
+	_ = ensureSandboxPerms(tmpDir)
 
-		tests, err := ListTestCases(aid)
+	tests, err := ListTestCases(aid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
@@ -1347,7 +1346,7 @@ func undoManualAccept(c *gin.Context) {
 // container seeded with the submission's files. Teacher/admin only; also
 // validates teacher owns the assignment's class if teacher role.
 func submissionTerminalWS(c *gin.Context) {
-    sid, err := uuid.Parse(c.Param("id"))
+	sid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -1371,20 +1370,20 @@ func submissionTerminalWS(c *gin.Context) {
 
 	// Upgrade to WebSocket early so client doesn't time out while we prepare
 	up := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
-    conn, err := up.Upgrade(c.Writer, c.Request, nil)
-    if err != nil {
-        log.Printf("websocket upgrade failed for submission %s: %v", sid, err)
-        // If upgrade fails, try to return a plain error for easier diagnosis
-        c.Status(http.StatusBadRequest)
-        return
-    }
+	conn, err := up.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		log.Printf("websocket upgrade failed for submission %s: %v", sid, err)
+		// If upgrade fails, try to return a plain error for easier diagnosis
+		c.Status(http.StatusBadRequest)
+		return
+	}
 	wsFail := func(msg string) {
 		_ = conn.WriteMessage(websocket.TextMessage, []byte("ERROR: "+msg))
 		_ = conn.Close()
 	}
 
 	// Decode submission archive to a temp dir
-    tmpDir, err := os.MkdirTemp(execRoot, "term-sub-")
+	tmpDir, err := os.MkdirTemp(execRoot, "term-sub-")
 	if err != nil {
 		wsFail("server error")
 		return
@@ -1424,23 +1423,23 @@ func submissionTerminalWS(c *gin.Context) {
 		_ = os.WriteFile(filepath.Join(tmpDir, "main.py"), b, 0644)
 	}
 	// Permissions for container user
-        _ = filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
-            if err != nil {
-                return nil
-            }
-            if info.IsDir() {
-                _ = os.Chmod(path, 0755)
-            } else {
-                _ = os.Chmod(path, 0644)
-            }
-            return nil
-        })
-        _ = ensureSandboxPerms(tmpDir)
+	_ = filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			_ = os.Chmod(path, 0755)
+		} else {
+			_ = os.Chmod(path, 0644)
+		}
+		return nil
+	})
+	_ = ensureSandboxPerms(tmpDir)
 
 	// Prepare docker run with TTY and bash
 	abs, _ := filepath.Abs(tmpDir)
-    // Ensure image exists to avoid interactive sessions hanging on pulls
-    _ = ensureDockerImage(pythonImage)
+	// Ensure image exists to avoid interactive sessions hanging on pulls
+	_ = ensureDockerImage(pythonImage)
 	// Configure a clean prompt and disable bracketed paste to avoid stray sequences
 	// We also set a custom INPUTRC in /tmp to tweak readline behaviour and prevent rc files
 	bootstrap := strings.Join([]string{
@@ -1455,30 +1454,30 @@ func submissionTerminalWS(c *gin.Context) {
 		"exec bash --noprofile --norc -i",
 	}, " && ")
 
-    // Give the container a unique and Docker-safe name so we can force-remove it on session end
-    // Use the UUID string (lowercase) and ensure only allowed characters
-    safeID := strings.ToLower(sub.ID.String())
-    // UUID contains only [0-9a-f-], which are allowed by Docker names
-    containerName := fmt.Sprintf("term-%s-%d", safeID, time.Now().UnixNano())
+	// Give the container a unique and Docker-safe name so we can force-remove it on session end
+	// Use the UUID string (lowercase) and ensure only allowed characters
+	safeID := strings.ToLower(sub.ID.String())
+	// UUID contains only [0-9a-f-], which are allowed by Docker names
+	containerName := fmt.Sprintf("term-%s-%d", safeID, time.Now().UnixNano())
 
-    cmd := exec.Command("docker", "run",
-        "--rm",
-        "--name", containerName,
-        "-it",
-        "--network=none",
-        "--user", dockerUser,
-        "--cpus", dockerCPUs,
-        "--memory", dockerMemory,
-        "--pids-limit", "128",
-        "--read-only",
-        "--cap-drop=ALL",
-        "--security-opt", "no-new-privileges",
-        "--security-opt", "label=disable",
-        "--mount", "type=tmpfs,destination=/tmp,tmpfs-size=16m",
-        "-e", "PS1=~% ",
-        "-e", "PROMPT_COMMAND=",
-        "-v", fmt.Sprintf("%s:/code:rw", abs),
-        pythonImage, "bash", "-lc", bootstrap)
+	cmd := exec.Command("docker", "run",
+		"--rm",
+		"--name", containerName,
+		"-it",
+		"--network=none",
+		"--user", dockerUser,
+		"--cpus", dockerCPUs,
+		"--memory", dockerMemory,
+		"--pids-limit", "128",
+		"--read-only",
+		"--cap-drop=ALL",
+		"--security-opt", "no-new-privileges",
+		"--security-opt", "label=disable",
+		"--mount", "type=tmpfs,destination=/tmp,tmpfs-size=16m",
+		"-e", "PS1=~% ",
+		"-e", "PROMPT_COMMAND=",
+		"-v", fmt.Sprintf("%s:/code:rw", abs),
+		pythonImage, "bash", "-lc", bootstrap)
 
 	// PTY for interactive session
 	ptyFile, err := pty.Start(cmd)
@@ -1541,7 +1540,7 @@ func submissionTerminalWS(c *gin.Context) {
 // back to the client. The client can send "input" messages to forward stdin and
 // "stop" to terminate the current run. Errors are sent as JSON messages.
 func submissionRunWS(c *gin.Context) {
-    sid, err := uuid.Parse(c.Param("id"))
+	sid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
@@ -1568,15 +1567,15 @@ func submissionRunWS(c *gin.Context) {
 
 	// Upgrade WS
 	up := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
-    conn, err := up.Upgrade(c.Writer, c.Request, nil)
-    if err != nil {
-        log.Printf("websocket upgrade failed for submission %s: %v", sid, err)
-        c.Status(http.StatusBadRequest)
-        return
-    }
+	conn, err := up.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		log.Printf("websocket upgrade failed for submission %s: %v", sid, err)
+		c.Status(http.StatusBadRequest)
+		return
+	}
 
-    // Use a stable per-submission key based on UUID string
-    sessionKey := fmt.Sprintf("sub-%s", strings.ToLower(sub.ID.String()))
+	// Use a stable per-submission key based on UUID string
+	sessionKey := fmt.Sprintf("sub-%s", strings.ToLower(sub.ID.String()))
 
 	// channel to serialize writes
 	ch := make(chan map[string]any, 128)
@@ -1657,7 +1656,7 @@ func submissionRunWS(c *gin.Context) {
 		if td != "" {
 			return td, nil
 		}
-    tmpDir, err := os.MkdirTemp(execRoot, "run-sub-")
+		tmpDir, err := os.MkdirTemp(execRoot, "run-sub-")
 		if err != nil {
 			return "", err
 		}
@@ -1822,8 +1821,8 @@ func submissionRunWS(c *gin.Context) {
 					ch <- map[string]any{"type": "error", "message": "no free port for GUI"}
 					continue
 				}
-                safeID := strings.ToLower(sub.ID.String())
-                containerName := fmt.Sprintf("gui-%s-%d", safeID, time.Now().UnixNano())
+				safeID := strings.ToLower(sub.ID.String())
+				containerName := fmt.Sprintf("gui-%s-%d", safeID, time.Now().UnixNano())
 				// Supervisord-inspired approach for robust process management
 				sup := strings.Join([]string{
 					"[supervisord]",
@@ -1865,7 +1864,7 @@ func submissionRunWS(c *gin.Context) {
 					fmt.Sprintf("cat > /tmp/supervisord.conf << 'EOF'\n%s\nEOF", sup),
 					"/usr/bin/supervisord -c /tmp/supervisord.conf",
 				}, "\n"))
-                cmd := exec.Command("docker", "run", "--rm", "--name", containerName,
+				cmd := exec.Command("docker", "run", "--rm", "--name", containerName,
 					"-p", fmt.Sprintf("127.0.0.1:%d:6080", hostPort),
 					"--cpus", dockerCPUs, "--memory", dockerMemory,
 					"--security-opt", "label=disable",
@@ -1992,26 +1991,26 @@ func submissionRunWS(c *gin.Context) {
 				break
 			}
 
-            // Headless mode (no GUI)
-            safeID := strings.ToLower(sub.ID.String())
-            containerName := fmt.Sprintf("run-%s-%d", safeID, time.Now().UnixNano())
-            script := fmt.Sprintf("cd /code && python %s", strings.ReplaceAll(mainFile, "'", "'\\''"))
-        // Ensure the image is available to avoid long pull hangs during interactive runs
-        _ = ensureDockerImage(pythonImage)
-        cmd := exec.Command("docker", "run", "--rm", "--name", containerName, "-i",
-                "--network=none",
-                "--user", dockerUser,
-                "--cpus", dockerCPUs,
-                "--memory", dockerMemory,
-                "--memory-swap", dockerMemory,
-                "--pids-limit", "128",
-                "--read-only",
-                "--cap-drop=ALL",
-                "--security-opt", "no-new-privileges",
-                "--security-opt", "label=disable",
-                "--mount", "type=tmpfs,destination=/tmp,tmpfs-size=16m",
-                "-v", fmt.Sprintf("%s:/code:ro", abs),
-                pythonImage, "bash", "-lc", script)
+			// Headless mode (no GUI)
+			safeID := strings.ToLower(sub.ID.String())
+			containerName := fmt.Sprintf("run-%s-%d", safeID, time.Now().UnixNano())
+			script := fmt.Sprintf("cd /code && python %s", strings.ReplaceAll(mainFile, "'", "'\\''"))
+			// Ensure the image is available to avoid long pull hangs during interactive runs
+			_ = ensureDockerImage(pythonImage)
+			cmd := exec.Command("docker", "run", "--rm", "--name", containerName, "-i",
+				"--network=none",
+				"--user", dockerUser,
+				"--cpus", dockerCPUs,
+				"--memory", dockerMemory,
+				"--memory-swap", dockerMemory,
+				"--pids-limit", "128",
+				"--read-only",
+				"--cap-drop=ALL",
+				"--security-opt", "no-new-privileges",
+				"--security-opt", "label=disable",
+				"--mount", "type=tmpfs,destination=/tmp,tmpfs-size=16m",
+				"-v", fmt.Sprintf("%s:/code:ro", abs),
+				pythonImage, "bash", "-lc", script)
 			stdoutPipe, e1 := cmd.StdoutPipe()
 			stderrPipe, e2 := cmd.StderrPipe()
 			stdinPipe, e3 := cmd.StdinPipe()
@@ -2220,10 +2219,10 @@ func createTeacher(c *gin.Context) {
 		return
 	}
 	hash, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-    if err := CreateTeacher(req.Email, string(hash), nil, nil); err != nil {
-        c.JSON(http.StatusConflict, gin.H{"error": "user exists"})
-        return
-    }
+	if err := CreateTeacher(req.Email, string(hash), nil, nil); err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "user exists"})
+		return
+	}
 	c.Status(http.StatusCreated)
 }
 
@@ -2452,30 +2451,30 @@ func overrideSubmissionPoints(c *gin.Context) {
 // ──────────────────────────────────────────
 
 func listClassFiles(c *gin.Context) {
-    cid, err := uuid.Parse(c.Param("id"))
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-        return
-    }
-    role := c.GetString("role")
-    if cid == TeacherGroupID {
-        if !(role == "teacher" || role == "admin") {
-            c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-            return
-        }
-    } else {
-        if role == "teacher" {
-            if ok, err := IsTeacherOfClass(cid, getUserID(c)); err != nil || !ok {
-                c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-                return
-            }
-        } else if role == "student" {
-            if ok, err := IsStudentOfClass(cid, getUserID(c)); err != nil || !ok {
-                c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-                return
-            }
-        }
-    }
+	cid, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	role := c.GetString("role")
+	if cid == TeacherGroupID {
+		if !(role == "teacher" || role == "admin") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	} else {
+		if role == "teacher" {
+			if ok, err := IsTeacherOfClass(cid, getUserID(c)); err != nil || !ok {
+				c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+				return
+			}
+		} else if role == "student" {
+			if ok, err := IsStudentOfClass(cid, getUserID(c)); err != nil || !ok {
+				c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+				return
+			}
+		}
+	}
 	search := c.Query("search")
 	if search != "" {
 		list, err := SearchFiles(cid, search)
@@ -2502,30 +2501,30 @@ func listClassFiles(c *gin.Context) {
 }
 
 func listClassNotebooks(c *gin.Context) {
-    cid, err := uuid.Parse(c.Param("id"))
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-        return
-    }
-    role := c.GetString("role")
-    if cid == TeacherGroupID {
-        if !(role == "teacher" || role == "admin") {
-            c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-            return
-        }
-    } else {
-        if role == "teacher" {
-            if ok, err := IsTeacherOfClass(cid, getUserID(c)); err != nil || !ok {
-                c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-                return
-            }
-        } else if role == "student" {
-            if ok, err := IsStudentOfClass(cid, getUserID(c)); err != nil || !ok {
-                c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-                return
-            }
-        }
-    }
+	cid, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	role := c.GetString("role")
+	if cid == TeacherGroupID {
+		if !(role == "teacher" || role == "admin") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	} else {
+		if role == "teacher" {
+			if ok, err := IsTeacherOfClass(cid, getUserID(c)); err != nil || !ok {
+				c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+				return
+			}
+		} else if role == "student" {
+			if ok, err := IsStudentOfClass(cid, getUserID(c)); err != nil || !ok {
+				c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+				return
+			}
+		}
+	}
 	list, err := ListNotebooks(cid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
@@ -2535,24 +2534,24 @@ func listClassNotebooks(c *gin.Context) {
 }
 
 func uploadClassFile(c *gin.Context) {
-    cid, err := uuid.Parse(c.Param("id"))
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-        return
-    }
-    if cid == TeacherGroupID {
-        if !(c.GetString("role") == "teacher" || c.GetString("role") == "admin") {
-            c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-            return
-        }
-    } else {
-        if c.GetString("role") == "teacher" {
-            if ok, err := IsTeacherOfClass(cid, getUserID(c)); err != nil || !ok {
-                c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-                return
-            }
-        }
-    }
+	cid, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if cid == TeacherGroupID {
+		if !(c.GetString("role") == "teacher" || c.GetString("role") == "admin") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	} else {
+		if c.GetString("role") == "teacher" {
+			if ok, err := IsTeacherOfClass(cid, getUserID(c)); err != nil || !ok {
+				c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+				return
+			}
+		}
+	}
 	var parentID *uuid.UUID
 	pidStr := c.Request.FormValue("parent_id")
 	if pidStr != "" {
@@ -2589,89 +2588,89 @@ func uploadClassFile(c *gin.Context) {
 		c.JSON(http.StatusCreated, cf)
 		return
 	}
-    var req struct {
-        Name         string      `json:"name"`
-        ParentID     *uuid.UUID  `json:"parent_id"`
-        IsDir        bool        `json:"is_dir"`
-        AssignmentID *uuid.UUID  `json:"assignment_id"`
-    }
-    if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
-    // Special support: create an assignment reference entry in Teachers' group
-    if req.AssignmentID != nil {
-        if cid != TeacherGroupID {
-            c.JSON(http.StatusBadRequest, gin.H{"error": "assignment refs allowed only in teachers group"})
-            return
-        }
-        // Load source assignment (no ownership requirement; visibility is governed by presence in Teachers group tree)
-        a, err := GetAssignment(*req.AssignmentID)
-        if err != nil {
-            c.JSON(http.StatusNotFound, gin.H{"error": "source assignment not found"})
-            return
-        }
-        name := strings.TrimSpace(req.Name)
-        if name == "" {
-            name = a.Title
-        }
-        cf, err := SaveAssignmentRef(cid, req.ParentID, name, *req.AssignmentID)
-        if err != nil {
-            c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-            return
-        }
-        c.JSON(http.StatusCreated, cf)
-        return
-    }
+	var req struct {
+		Name         string     `json:"name"`
+		ParentID     *uuid.UUID `json:"parent_id"`
+		IsDir        bool       `json:"is_dir"`
+		AssignmentID *uuid.UUID `json:"assignment_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	// Special support: create an assignment reference entry in Teachers' group
+	if req.AssignmentID != nil {
+		if cid != TeacherGroupID {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "assignment refs allowed only in teachers group"})
+			return
+		}
+		// Load source assignment (no ownership requirement; visibility is governed by presence in Teachers group tree)
+		a, err := GetAssignment(*req.AssignmentID)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "source assignment not found"})
+			return
+		}
+		name := strings.TrimSpace(req.Name)
+		if name == "" {
+			name = a.Title
+		}
+		cf, err := SaveAssignmentRef(cid, req.ParentID, name, *req.AssignmentID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+			return
+		}
+		c.JSON(http.StatusCreated, cf)
+		return
+	}
 
-    // Default: create directory or empty file placeholder
-    if strings.TrimSpace(req.Name) == "" {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
-        return
-    }
-    cf, err := SaveFile(cid, req.ParentID, req.Name, nil, req.IsDir)
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-        return
-    }
-    c.JSON(http.StatusCreated, cf)
+	// Default: create directory or empty file placeholder
+	if strings.TrimSpace(req.Name) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
+		return
+	}
+	cf, err := SaveFile(cid, req.ParentID, req.Name, nil, req.IsDir)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusCreated, cf)
 }
 
 // importAssignmentToClass: POST /api/classes/:id/assignments/import
 // Allows teacher/admin to clone a shared assignment (referenced in Teachers' group)
 // into one of their own classes, including tests and template/settings.
 func importAssignmentToClass(c *gin.Context) {
-    classID, err := uuid.Parse(c.Param("id"))
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid class id"})
-        return
-    }
-    // Teachers must own the class (admins bypass)
-    if role := c.GetString("role"); role == "teacher" {
-        if ok, err := IsTeacherOfClass(classID, getUserID(c)); err != nil || !ok {
-            c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-            return
-        }
-    }
-    var req struct {
-        SourceAssignmentID uuid.UUID `json:"source_assignment_id"`
-    }
-    if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
-    // Validate that the source assignment is actually published in Teachers' group tree (exists as a ref)
-    var tmp int
-    if err := DB.Get(&tmp, `SELECT 1 FROM class_files WHERE class_id=$1 AND assignment_id=$2 LIMIT 1`, TeacherGroupID, req.SourceAssignmentID); err != nil {
-        c.JSON(http.StatusForbidden, gin.H{"error": "not shared in teachers group"})
-        return
-    }
-    newID, err := CloneAssignmentWithTests(req.SourceAssignmentID, classID, getUserID(c))
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "clone failed"})
-        return
-    }
-    c.JSON(http.StatusCreated, gin.H{"assignment_id": newID})
+	classID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid class id"})
+		return
+	}
+	// Teachers must own the class (admins bypass)
+	if role := c.GetString("role"); role == "teacher" {
+		if ok, err := IsTeacherOfClass(classID, getUserID(c)); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	var req struct {
+		SourceAssignmentID uuid.UUID `json:"source_assignment_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	// Validate that the source assignment is actually published in Teachers' group tree (exists as a ref)
+	var tmp int
+	if err := DB.Get(&tmp, `SELECT 1 FROM class_files WHERE class_id=$1 AND assignment_id=$2 LIMIT 1`, TeacherGroupID, req.SourceAssignmentID); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "not shared in teachers group"})
+		return
+	}
+	newID, err := CloneAssignmentWithTests(req.SourceAssignmentID, classID, getUserID(c))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "clone failed"})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"assignment_id": newID})
 }
 
 func downloadClassFile(c *gin.Context) {
@@ -2685,25 +2684,25 @@ func downloadClassFile(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-    role := c.GetString("role")
-    if f.ClassID == TeacherGroupID {
-        if !(role == "teacher" || role == "admin") {
-            c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-            return
-        }
-    } else {
-        if role == "teacher" {
-            if ok, err := IsTeacherOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
-                c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-                return
-            }
-        } else if role == "student" {
-            if ok, err := IsStudentOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
-                c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-                return
-            }
-        }
-    }
+	role := c.GetString("role")
+	if f.ClassID == TeacherGroupID {
+		if !(role == "teacher" || role == "admin") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	} else {
+		if role == "teacher" {
+			if ok, err := IsTeacherOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
+				c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+				return
+			}
+		} else if role == "student" {
+			if ok, err := IsStudentOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
+				c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+				return
+			}
+		}
+	}
 	if f.IsDir {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "not a file"})
 		return
@@ -2736,19 +2735,19 @@ func renameClassFile(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-    if f.ClassID == TeacherGroupID {
-        if !(c.GetString("role") == "teacher" || c.GetString("role") == "admin") {
-            c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-            return
-        }
-    } else {
-        if c.GetString("role") == "teacher" {
-            if ok, err := IsTeacherOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
-                c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-                return
-            }
-        }
-    }
+	if f.ClassID == TeacherGroupID {
+		if !(c.GetString("role") == "teacher" || c.GetString("role") == "admin") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	} else {
+		if c.GetString("role") == "teacher" {
+			if ok, err := IsTeacherOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
+				c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+				return
+			}
+		}
+	}
 	if err := RenameFile(fid, req.Name); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
@@ -2767,19 +2766,19 @@ func deleteClassFile(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-    if f.ClassID == TeacherGroupID {
-        if !(c.GetString("role") == "teacher" || c.GetString("role") == "admin") {
-            c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-            return
-        }
-    } else {
-        if c.GetString("role") == "teacher" {
-            if ok, err := IsTeacherOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
-                c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-                return
-            }
-        }
-    }
+	if f.ClassID == TeacherGroupID {
+		if !(c.GetString("role") == "teacher" || c.GetString("role") == "admin") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	} else {
+		if c.GetString("role") == "teacher" {
+			if ok, err := IsTeacherOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
+				c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+				return
+			}
+		}
+	}
 	if err := DeleteFile(fid); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
@@ -2807,19 +2806,19 @@ func updateFileContent(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-    if f.ClassID == TeacherGroupID {
-        if !(c.GetString("role") == "teacher" || c.GetString("role") == "admin") {
-            c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-            return
-        }
-    } else {
-        if c.GetString("role") == "teacher" {
-            if ok, err := IsTeacherOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
-                c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-                return
-            }
-        }
-    }
+	if f.ClassID == TeacherGroupID {
+		if !(c.GetString("role") == "teacher" || c.GetString("role") == "admin") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	} else {
+		if c.GetString("role") == "teacher" {
+			if ok, err := IsTeacherOfClass(f.ClassID, getUserID(c)); err != nil || !ok {
+				c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+				return
+			}
+		}
+	}
 	if f.IsDir {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "not a file"})
 		return
@@ -2851,15 +2850,15 @@ func resizeAvatar(data string) (string, error) {
 		return "", err
 	}
 
-    // Preserve aspect ratio and crop to square to avoid squeezing
-    dst := imaging.Fill(img, avatarSize, avatarSize, imaging.Center, imaging.Lanczos)
+	// Preserve aspect ratio and crop to square to avoid squeezing
+	dst := imaging.Fill(img, avatarSize, avatarSize, imaging.Center, imaging.Lanczos)
 
 	buf := bytes.Buffer{}
 	switch format {
-    case "jpeg", "jpg":
-        // Slightly higher quality to reduce downscaling artifacts
-        err = jpeg.Encode(&buf, dst, &jpeg.Options{Quality: 95})
-        format = "jpeg"
+	case "jpeg", "jpg":
+		// Slightly higher quality to reduce downscaling artifacts
+		err = jpeg.Encode(&buf, dst, &jpeg.Options{Quality: 95})
+		format = "jpeg"
 	default:
 		err = png.Encode(&buf, dst)
 		format = "png"
@@ -2885,6 +2884,7 @@ func updateProfile(c *gin.Context) {
 	}
 	user, err := GetUser(uid)
 	if err != nil {
+		log.Printf("[linkBakalariAccount] GetUser error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
@@ -2959,6 +2959,170 @@ func changePassword(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
+	c.Status(http.StatusNoContent)
+}
+
+func linkBakalariAccount(c *gin.Context) {
+	uid := getUserID(c)
+	var req struct {
+		UID   string  `json:"uid" binding:"required"`
+		Role  string  `json:"role" binding:"required"`
+		Class *string `json:"class"`
+		Name  *string `json:"name"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	user, err := GetUser(uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	if user.BkUID != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "already linked"})
+		return
+	}
+
+	bkUID := strings.TrimSpace(req.UID)
+	if len(bkUID) > 3 {
+		bkUID = bkUID[len(bkUID)-3:]
+	}
+
+	role := "student"
+	if strings.EqualFold(req.Role, "teacher") {
+		role = "teacher"
+	}
+
+	var classValue *string
+	if role == "student" && req.Class != nil {
+		cls := strings.TrimSpace(*req.Class)
+		if cls != "" {
+			classValue = new(string)
+			*classValue = cls
+		}
+	}
+
+	var nameValue *string
+	if req.Name != nil {
+		n := strings.TrimSpace(*req.Name)
+		if n != "" {
+			nameValue = new(string)
+			*nameValue = n
+		}
+	}
+
+	var existing *User
+	existing, err = FindUserByBkUID(bkUID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+			return
+		}
+		existing = nil
+	}
+
+	var existingDetail *User
+	if existing != nil {
+		existingDetail, err = GetUser(existing.ID)
+		if err != nil {
+			log.Printf("[linkBakalariAccount] GetUser existing error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+			return
+		}
+	}
+
+	finalName := user.Name
+	if finalName == nil || strings.TrimSpace(*finalName) == "" {
+		if nameValue != nil {
+			finalName = nameValue
+		} else if existingDetail != nil && existingDetail.Name != nil && strings.TrimSpace(*existingDetail.Name) != "" {
+			finalName = existingDetail.Name
+		}
+	}
+
+	finalAvatar := user.Avatar
+	if finalAvatar == nil && existingDetail != nil && existingDetail.Avatar != nil {
+		finalAvatar = existingDetail.Avatar
+	}
+
+	finalBkClass := user.BkClass
+	if role == "student" {
+		if classValue != nil {
+			finalBkClass = classValue
+		} else if finalBkClass == nil || strings.TrimSpace(*finalBkClass) == "" {
+			if existingDetail != nil && existingDetail.BkClass != nil && strings.TrimSpace(*existingDetail.BkClass) != "" {
+				finalBkClass = existingDetail.BkClass
+			}
+		}
+	} else {
+		finalBkClass = nil
+	}
+
+	finalRole := user.Role
+	switch finalRole {
+	case "admin":
+		// do nothing
+	case "teacher":
+		// keep teacher role
+	default:
+		if role == "teacher" || (existingDetail != nil && existingDetail.Role == "teacher") {
+			finalRole = "teacher"
+		} else {
+			finalRole = "student"
+		}
+	}
+
+	tx, err := DB.Beginx()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			log.Printf("[linkBakalariAccount] rollback error: %v", err)
+		}
+	}()
+
+	if existingDetail != nil {
+		if err := mergeUsersTx(tx, user.ID, existingDetail.ID); err != nil {
+			log.Printf("[linkBakalariAccount] mergeUsersTx error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+			return
+		}
+		if _, err := tx.Exec(`DELETE FROM users WHERE id=$1`, existingDetail.ID); err != nil {
+			log.Printf("[linkBakalariAccount] delete existing user error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+			return
+		}
+	}
+
+	if _, err := tx.Exec(`
+		UPDATE users
+		   SET bk_uid=$2,
+		       bk_class = CASE
+		           WHEN $6 <> 'student' THEN NULL
+		           WHEN $3::text IS NOT NULL THEN $3
+		           ELSE bk_class
+		       END,
+		       name = COALESCE($4, name),
+		       avatar = COALESCE($5, avatar),
+		       role = $6,
+		       updated_at = now()
+		 WHERE id=$1`,
+		user.ID, bkUID, finalBkClass, finalName, finalAvatar, finalRole); err != nil {
+		log.Printf("[linkBakalariAccount] update user error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		log.Printf("[linkBakalariAccount] commit error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+
 	c.Status(http.StatusNoContent)
 }
 
