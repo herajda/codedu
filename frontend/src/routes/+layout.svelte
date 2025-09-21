@@ -37,6 +37,7 @@
   let bkLinkError = '';
   let linkingBakalari = false;
   let emailNotifications = true;
+  let emailMessageDigest = true;
 
   const PUBLIC_AUTH_PREFIXES = ['/login', '/register', '/forgot-password', '/reset-password'];
   // Determine if current route is an auth-related public page
@@ -66,6 +67,7 @@
     bkLinkError = '';
     linkingBakalari = false;
     emailNotifications = user?.email_notifications ?? true;
+    emailMessageDigest = user?.email_message_digest ?? true;
     // load catalog
     fetch('/api/avatars').then(r => r.ok ? r.json() : []).then((list) => { avatarChoices = list; });
     settingsDialog.showModal();
@@ -131,12 +133,15 @@
     }
     if (user && user.bk_uid == null) body.name = name;
     body.email_notifications = emailNotifications;
+    if (user?.role === 'student') {
+      body.email_message_digest = emailMessageDigest;
+    }
     const res = await apiFetch('/api/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (res.ok) {
       const meRes = await apiFetch('/api/me');
       if (meRes.ok) {
         const me = await meRes.json();
-        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null, me.email_notifications ?? true);
+        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null, me.email_notifications ?? true, me.email_message_digest ?? true);
       }
     }
     settingsDialog.close();
@@ -162,7 +167,7 @@
       const meRes = await apiFetch('/api/me');
       if (meRes.ok) {
         const me = await meRes.json();
-        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null, me.email_notifications ?? true);
+        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null, me.email_notifications ?? true, me.email_message_digest ?? true);
       }
       settingsDialog.close();
     } catch (e: any) {
@@ -203,7 +208,7 @@
       const meRes = await apiFetch('/api/me');
       if (meRes.ok) {
         const me = await meRes.json();
-        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null, me.email_notifications ?? true);
+        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null, me.email_notifications ?? true, me.email_message_digest ?? true);
       }
       bkLinkUsername = '';
       bkLinkPassword = '';
@@ -291,7 +296,11 @@
       setUnreadMessages(total);
     } catch {}
   }
-  
+
+  $: if (!emailNotifications && emailMessageDigest) {
+    emailMessageDigest = false;
+  }
+
   $: if (user && user.id !== unreadInitUserId) {
     unreadInitUserId = user.id;
     initUnreadCount();
@@ -359,7 +368,7 @@
     prefersDark = !prefersDark;
     applyThemeFromPreference();
     if (user) {
-      auth.login(user.id, user.role, user.name ?? null, user.avatar ?? null, user.bk_uid ?? null, user.email ?? null, prefersDark ? 'dark' : 'light', user.email_notifications ?? true);
+      auth.login(user.id, user.role, user.name ?? null, user.avatar ?? null, user.bk_uid ?? null, user.email ?? null, prefersDark ? 'dark' : 'light', user.email_notifications ?? true, user.email_message_digest ?? true);
       try {
         await apiFetch('/api/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ theme: prefersDark ? 'dark' : 'light' }) });
       } catch (e) {
@@ -554,6 +563,19 @@
                       class="toggle toggle-primary"
                       bind:checked={emailNotifications}
                       aria-label="Toggle email notifications"
+                    />
+                  </div>
+                  <div class="flex items-center justify-between gap-4">
+                    <div class="space-y-1">
+                      <h4 class="font-semibold">Daily message digest</h4>
+                      <p class="text-sm text-base-content/70">Receive one email per day summarising new direct messages.</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      class="toggle toggle-primary"
+                      bind:checked={emailMessageDigest}
+                      aria-label="Toggle message digest emails"
+                      disabled={!emailNotifications}
                     />
                   </div>
                 </div>

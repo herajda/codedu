@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
   role TEXT NOT NULL DEFAULT 'student' CHECK (role IN ('student','teacher','admin')),
   theme TEXT NOT NULL DEFAULT 'light' CHECK (theme IN ('light','dark')),
   email_notifications BOOLEAN NOT NULL DEFAULT TRUE,
+  email_message_digest BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -20,6 +21,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS bk_uid TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS theme TEXT NOT NULL DEFAULT 'light' CHECK (theme IN ('light','dark'));
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_notifications BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_message_digest BOOLEAN NOT NULL DEFAULT TRUE;
 
 
 CREATE TABLE IF NOT EXISTS classes (

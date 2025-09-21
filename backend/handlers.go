@@ -2879,6 +2879,7 @@ func updateProfile(c *gin.Context) {
 		Avatar             *string `json:"avatar"`
 		Theme              *string `json:"theme"`
 		EmailNotifications *bool   `json:"email_notifications"`
+		EmailMessageDigest *bool   `json:"email_message_digest"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -2918,6 +2919,10 @@ func updateProfile(c *gin.Context) {
 			req.Avatar = &av
 		}
 	}
+	if req.EmailNotifications != nil && !*req.EmailNotifications {
+		falseVal := false
+		req.EmailMessageDigest = &falseVal
+	}
 	if req.Theme != nil {
 		t := strings.ToLower(strings.TrimSpace(*req.Theme))
 		if t != "light" && t != "dark" {
@@ -2926,7 +2931,7 @@ func updateProfile(c *gin.Context) {
 		}
 		req.Theme = &t
 	}
-	if err := UpdateUserProfile(uid, req.Name, req.Avatar, req.Theme, req.EmailNotifications); err != nil {
+	if err := UpdateUserProfile(uid, req.Name, req.Avatar, req.Theme, req.EmailNotifications, req.EmailMessageDigest); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}

@@ -1,9 +1,11 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"net/mail"
+	"sort"
 	"strings"
 	"time"
 
@@ -14,7 +16,7 @@ const (
 	notifTypeAssignmentPublished = "assignment_published"
 	notifTypeAssignmentDeadline  = "assignment_deadline"
 	notifTypeSecondDeadline      = "assignment_second_deadline"
-	notifTypeMessage             = "new_message"
+	notifTypeMessageDigest       = "message_digest"
 	notificationSweepInterval    = 30 * time.Minute
 )
 
@@ -244,79 +246,6 @@ func sendDeadlineForTargets(targets []notificationTarget, asg assignmentDeadline
 	}
 }
 
-func queueMessageEmail(msg Message) {
-	if mailer == nil {
-		return
-	}
-	go func(m Message) {
-		if err := sendMessageNotification(m); err != nil {
-			log.Printf("[notifications] message email failed: %v", err)
-		}
-	}(msg)
-}
-
-func sendMessageNotification(msg Message) error {
-	if mailer == nil {
-		return nil
-	}
-	if msg.ID == uuid.Nil || msg.SenderID == msg.RecipientID {
-		return nil
-	}
-	recipient, err := GetUser(msg.RecipientID)
-	if err != nil {
-		return err
-	}
-	if !recipient.EmailNotifications {
-		return nil
-	}
-	address, ok := (&notificationTarget{UserID: recipient.ID, Email: recipient.Email, Name: recipient.Name}).emailAddress()
-	if !ok {
-		return nil
-	}
-	sent, err := notificationAlreadySent(recipient.ID, notifTypeMessage, msg.ID.String())
-	if err != nil {
-		return err
-	}
-	if sent {
-		return nil
-	}
-	sender, err := GetUser(msg.SenderID)
-	if err != nil {
-		return err
-	}
-	senderName := strings.TrimSpace(sender.Email)
-	if sender.Name != nil && strings.TrimSpace(*sender.Name) != "" {
-		senderName = strings.TrimSpace(*sender.Name)
-	}
-	subject := fmt.Sprintf("New message from %s", senderName)
-	preview := strings.TrimSpace(msg.Text)
-	if preview == "" {
-		if msg.Image != nil || msg.File != nil {
-			preview = "[Message contains attachments]"
-		} else {
-			preview = "[No text content]"
-		}
-	}
-	if runes := []rune(preview); len(runes) > 400 {
-		preview = string(runes[:400]) + "…"
-	}
-	preview = strings.ReplaceAll(preview, "\r\n", "\n")
-	link := ""
-	if mailer != nil {
-		link = mailer.absoluteURL(fmt.Sprintf("/messages/%s", msg.SenderID))
-	}
-	body := fmt.Sprintf("Hi %s,\n\nYou have a new message from %s.\n\nMessage preview:\n%s\n",
-		(&notificationTarget{Name: recipient.Name, Email: recipient.Email}).displayName(), senderName, preview)
-	if link != "" {
-		body += fmt.Sprintf("\nReply now: %s\n", link)
-	}
-	body += "\nYou can update your email notification preferences in CodEdu settings.\n"
-	if err := mailer.sendPlainText(address, subject, body); err != nil {
-		return err
-	}
-	return markNotificationSent(recipient.ID, notifTypeMessage, msg.ID.String())
-}
-
 func StartNotificationScheduler() {
 	if mailer == nil {
 		log.Println("📭 Email notifications disabled; scheduler not started")
@@ -330,6 +259,188 @@ func StartNotificationScheduler() {
 			time.Sleep(notificationSweepInterval)
 		}
 	}()
+
+	go func() {
+		for {
+			now := time.Now()
+			next := time.Date(now.Year(), now.Month(), now.Day(), 8, 0, 0, 0, now.Location())
+			if !next.After(now) {
+				next = next.Add(24 * time.Hour)
+			}
+			time.Sleep(next.Sub(now))
+			if err := sendDailyMessageDigests(); err != nil {
+				log.Printf("[notifications] message digest failed: %v", err)
+			}
+		}
+	}()
+}
+
+type messageDigestRow struct {
+	SenderID    uuid.UUID `db:"sender_id"`
+	SenderName  *string   `db:"sender_name"`
+	SenderEmail string    `db:"sender_email"`
+	Text        string    `db:"content"`
+	Image       *string   `db:"image"`
+	FileName    *string   `db:"file_name"`
+	CreatedAt   time.Time `db:"created_at"`
+}
+
+type messageDigestSummary struct {
+	SenderID   uuid.UUID
+	SenderName string
+	Count      int
+	Latest     time.Time
+	Samples    []string
+}
+
+func sendDailyMessageDigests() error {
+	if mailer == nil {
+		return nil
+	}
+	now := time.Now()
+	targets := []notificationTarget{}
+	if err := DB.Select(&targets, `SELECT id, email, name FROM users WHERE email_notifications = TRUE AND email_message_digest = TRUE`); err != nil {
+		return err
+	}
+	if len(targets) == 0 {
+		return nil
+	}
+	todayCtx := now.Format("2006-01-02")
+	for _, t := range targets {
+		address, ok := t.emailAddress()
+		if !ok {
+			continue
+		}
+		sentToday, err := notificationAlreadySent(t.UserID, notifTypeMessageDigest, todayCtx)
+		if err != nil {
+			log.Printf("[notifications] cannot check digest log: %v", err)
+			continue
+		}
+		if sentToday {
+			continue
+		}
+
+		cutoff := now.Add(-24 * time.Hour)
+		var lastSent sql.NullTime
+		if err := DB.Get(&lastSent, `SELECT MAX(created_at) FROM notification_log WHERE user_id=$1 AND notification_type=$2`, t.UserID, notifTypeMessageDigest); err != nil {
+			log.Printf("[notifications] cannot read last digest time: %v", err)
+		} else if lastSent.Valid && lastSent.Time.Before(now) {
+			if lastSent.Time.After(cutoff) {
+				cutoff = lastSent.Time
+			}
+		}
+
+		rows := []messageDigestRow{}
+		if err := DB.Select(&rows, `SELECT m.sender_id, m.content, m.created_at, m.image, m.file_name, s.name AS sender_name, s.email AS sender_email
+             FROM messages m
+             JOIN users s ON s.id = m.sender_id
+            WHERE m.recipient_id = $1 AND m.created_at > $2 AND m.created_at <= $3
+         ORDER BY m.created_at ASC`, t.UserID, cutoff, now); err != nil {
+			log.Printf("[notifications] cannot list new messages: %v", err)
+			continue
+		}
+		if len(rows) == 0 {
+			continue
+		}
+
+		summaries, total := summarizeMessages(rows)
+		if total == 0 {
+			continue
+		}
+
+		subject := fmt.Sprintf("Daily message summary: %d new message%s", total, pluralSuffix(total))
+		body := buildDigestEmailBody(t, summaries, total, cutoff)
+		if err := mailer.sendPlainText(address, subject, body); err != nil {
+			log.Printf("[notifications] failed to send digest to %s: %v", address, err)
+			continue
+		}
+		if err := markNotificationSent(t.UserID, notifTypeMessageDigest, todayCtx); err != nil {
+			log.Printf("[notifications] failed to log digest send: %v", err)
+		}
+	}
+	return nil
+}
+
+func summarizeMessages(rows []messageDigestRow) ([]messageDigestSummary, int) {
+	bySender := map[uuid.UUID]*messageDigestSummary{}
+	total := 0
+	for _, row := range rows {
+		total++
+		sum, ok := bySender[row.SenderID]
+		if !ok {
+			label := strings.TrimSpace(row.SenderEmail)
+			if row.SenderName != nil && strings.TrimSpace(*row.SenderName) != "" {
+				label = strings.TrimSpace(*row.SenderName)
+			} else if parts := strings.Split(row.SenderEmail, "@"); len(parts) > 0 && parts[0] != "" {
+				label = parts[0]
+			}
+			sum = &messageDigestSummary{SenderID: row.SenderID, SenderName: label}
+			bySender[row.SenderID] = sum
+		}
+		sum.Count++
+		if row.CreatedAt.After(sum.Latest) {
+			sum.Latest = row.CreatedAt
+		}
+		preview := buildMessagePreview(row)
+		if preview != "" && len(sum.Samples) < 3 {
+			sum.Samples = append(sum.Samples, preview)
+		}
+	}
+	summaries := make([]messageDigestSummary, 0, len(bySender))
+	for _, s := range bySender {
+		summaries = append(summaries, *s)
+	}
+	sort.Slice(summaries, func(i, j int) bool {
+		return summaries[i].Latest.After(summaries[j].Latest)
+	})
+	return summaries, total
+}
+
+func buildMessagePreview(row messageDigestRow) string {
+	text := strings.TrimSpace(row.Text)
+	if text != "" {
+		text = strings.ReplaceAll(text, "\r\n", "\n")
+	}
+	if text == "" {
+		if row.FileName != nil && strings.TrimSpace(*row.FileName) != "" {
+			text = fmt.Sprintf("[File] %s", strings.TrimSpace(*row.FileName))
+		} else if row.Image != nil {
+			text = "[Image attachment]"
+		} else {
+			text = "[No text content]"
+		}
+	}
+	runes := []rune(text)
+	if len(runes) > 160 {
+		text = string(runes[:160]) + "…"
+	}
+	return text
+}
+
+func buildDigestEmailBody(target notificationTarget, summaries []messageDigestSummary, total int, since time.Time) string {
+	link := mailer.absoluteURL("/messages")
+	var b strings.Builder
+	fmt.Fprintf(&b, "Hi %s,\n\n", target.displayName())
+	fmt.Fprintf(&b, "You received %d new message%s since %s.\n\n", total, pluralSuffix(total), formatTimestamp(since))
+	for _, s := range summaries {
+		fmt.Fprintf(&b, "- From %s (%d message%s, latest %s)\n", s.SenderName, s.Count, pluralSuffix(s.Count), formatTimestamp(s.Latest))
+		for _, sample := range s.Samples {
+			fmt.Fprintf(&b, "   - %s\n", sample)
+		}
+		b.WriteString("\n")
+	}
+	if link != "" {
+		fmt.Fprintf(&b, "Review and reply in CodEdu: %s\n\n", link)
+	}
+	b.WriteString("You can update your email notification preferences in CodEdu settings.\n")
+	return b.String()
+}
+
+func pluralSuffix(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
 }
 
 func formatTimestamp(ts time.Time) string {

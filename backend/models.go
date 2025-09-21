@@ -25,6 +25,7 @@ type User struct {
 	Role               string    `db:"role"`
 	Theme              string    `db:"theme"`
 	EmailNotifications bool      `db:"email_notifications"`
+	EmailMessageDigest bool      `db:"email_message_digest"`
 	BkClass            *string   `db:"bk_class"`
 	BkUID              *string   `db:"bk_uid"`
 	CreatedAt          time.Time `db:"created_at"`
@@ -132,7 +133,7 @@ func UpdateUserRole(id uuid.UUID, role string) error {
 
 func GetUser(id uuid.UUID) (*User, error) {
 	var u User
-	err := DB.Get(&u, `SELECT id, email, password_hash, name, avatar, role, theme, email_notifications, bk_class, bk_uid, created_at
+	err := DB.Get(&u, `SELECT id, email, password_hash, name, avatar, role, theme, email_notifications, email_message_digest, bk_class, bk_uid, created_at
                 FROM users WHERE id=$1`, id)
 	if err != nil {
 		return nil, err
@@ -140,8 +141,14 @@ func GetUser(id uuid.UUID) (*User, error) {
 	return &u, nil
 }
 
-func UpdateUserProfile(id uuid.UUID, name, avatar, theme *string, notifications *bool) error {
-	_, err := DB.Exec(`UPDATE users SET name=COALESCE($1,name), avatar=COALESCE($2,avatar), theme=COALESCE($3,theme), email_notifications=COALESCE($4,email_notifications) WHERE id=$5`, name, avatar, theme, notifications, id)
+func UpdateUserProfile(id uuid.UUID, name, avatar, theme *string, notifications, messageDigest *bool) error {
+	_, err := DB.Exec(`UPDATE users
+		SET name=COALESCE($1,name),
+		    avatar=COALESCE($2,avatar),
+		    theme=COALESCE($3,theme),
+		    email_notifications=COALESCE($4,email_notifications),
+		    email_message_digest=COALESCE($5,email_message_digest)
+	 WHERE id=$6`, name, avatar, theme, notifications, messageDigest, id)
 	return err
 }
 
@@ -1364,7 +1371,6 @@ func CreateMessage(m *Message) error {
 		Scan(&m.ID, &m.CreatedAt, &m.IsRead)
 	if err == nil {
 		broadcastMsg(sse.Event{Event: "message", Data: m})
-		queueMessageEmail(*m)
 	}
 	return err
 }

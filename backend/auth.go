@@ -71,13 +71,13 @@ func issueTokens(uid uuid.UUID, role string) (string, string, error) {
 // behind a reverse proxy/terminating TLS, the request may not have TLS set, so
 // honor X-Forwarded-Proto as well.
 func isSecure(c *gin.Context) bool {
-    if c.Request.TLS != nil {
-        return true
-    }
-    if strings.EqualFold(c.Request.Header.Get("X-Forwarded-Proto"), "https") {
-        return true
-    }
-    return false
+	if c.Request.TLS != nil {
+		return true
+	}
+	if strings.EqualFold(c.Request.Header.Get("X-Forwarded-Proto"), "https") {
+		return true
+	}
+	return false
 }
 
 func setAuthCookies(c *gin.Context, access, refresh string) {
@@ -125,8 +125,10 @@ func clearAuthCookies(c *gin.Context) {
 }
 
 type registerReq struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=6"`
+	FirstName string `json:"firstName" binding:"required"`
+	LastName  string `json:"lastName" binding:"required"`
+	Email     string `json:"email" binding:"required,email"`
+	Password  string `json:"password" binding:"required,min=6"`
 }
 
 func Register(c *gin.Context) {
@@ -135,8 +137,16 @@ func Register(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	first := strings.TrimSpace(req.FirstName)
+	last := strings.TrimSpace(req.LastName)
+	if first == "" || last == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "first and last name are required"})
+		return
+	}
+	name := strings.TrimSpace(first + " " + last)
+	email := strings.TrimSpace(req.Email)
 	hash, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-	if err := CreateStudent(req.Email, string(hash), nil, nil, nil); err != nil {
+	if err := CreateStudent(email, string(hash), &name, nil, nil); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create user"})
 		return
 	}
@@ -221,8 +231,8 @@ func LoginBakalari(c *gin.Context) {
 	}
 	bkClass := req.Class
 
-    var user *User
-    var err error
+	var user *User
+	var err error
 	user, err = FindUserByBkUID(bkUID)
 	if err != nil || user == nil {
 		// create new user with random password placeholder
@@ -234,51 +244,51 @@ func LoginBakalari(c *gin.Context) {
 		tmpPass := hex.EncodeToString(randBytes)
 		hash, _ := bcrypt.GenerateFromPassword([]byte(clientHash(tmpPass)), bcrypt.DefaultCost)
 		email := bkUID
-        if role == "teacher" {
-            // Set name if provided
-            var nm *string
-            if req.Name != nil && strings.TrimSpace(*req.Name) != "" {
-                t := strings.TrimSpace(*req.Name)
-                nm = &t
-            }
-            err = CreateTeacher(email, string(hash), nm, &bkUID)
-        } else {
-            // Set name if provided
-            var nm *string
-            if req.Name != nil && strings.TrimSpace(*req.Name) != "" {
-                t := strings.TrimSpace(*req.Name)
-                nm = &t
-            }
-            err = CreateStudent(email, string(hash), nm, bkClass, &bkUID)
-        }
-        if err != nil {
-            c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create user"})
-            return
-        }
-        user, _ = FindUserByBkUID(bkUID)
-    } else if role == "student" {
-        if bkClass != nil && (user.BkClass == nil || *user.BkClass != *bkClass) {
-            _, _ = DB.Exec(`UPDATE users SET bk_class=$1 WHERE id=$2`, *bkClass, user.ID)
-            user.BkClass = bkClass
-        }
-        // If name missing, update from Bakaláři
-        if req.Name != nil {
-            n := strings.TrimSpace(*req.Name)
-            if n != "" && (user.Name == nil || *user.Name == "") {
-                _, _ = DB.Exec(`UPDATE users SET name=$1 WHERE id=$2`, n, user.ID)
-                user.Name = &n
-            }
-        }
-    } else if role == "teacher" {
-        // If name missing for teacher, update from Bakaláři
-        if req.Name != nil {
-            n := strings.TrimSpace(*req.Name)
-            if n != "" && (user.Name == nil || *user.Name == "") {
-                _, _ = DB.Exec(`UPDATE users SET name=$1 WHERE id=$2`, n, user.ID)
-                user.Name = &n
-            }
-        }
-    }
+		if role == "teacher" {
+			// Set name if provided
+			var nm *string
+			if req.Name != nil && strings.TrimSpace(*req.Name) != "" {
+				t := strings.TrimSpace(*req.Name)
+				nm = &t
+			}
+			err = CreateTeacher(email, string(hash), nm, &bkUID)
+		} else {
+			// Set name if provided
+			var nm *string
+			if req.Name != nil && strings.TrimSpace(*req.Name) != "" {
+				t := strings.TrimSpace(*req.Name)
+				nm = &t
+			}
+			err = CreateStudent(email, string(hash), nm, bkClass, &bkUID)
+		}
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create user"})
+			return
+		}
+		user, _ = FindUserByBkUID(bkUID)
+	} else if role == "student" {
+		if bkClass != nil && (user.BkClass == nil || *user.BkClass != *bkClass) {
+			_, _ = DB.Exec(`UPDATE users SET bk_class=$1 WHERE id=$2`, *bkClass, user.ID)
+			user.BkClass = bkClass
+		}
+		// If name missing, update from Bakaláři
+		if req.Name != nil {
+			n := strings.TrimSpace(*req.Name)
+			if n != "" && (user.Name == nil || *user.Name == "") {
+				_, _ = DB.Exec(`UPDATE users SET name=$1 WHERE id=$2`, n, user.ID)
+				user.Name = &n
+			}
+		}
+	} else if role == "teacher" {
+		// If name missing for teacher, update from Bakaláři
+		if req.Name != nil {
+			n := strings.TrimSpace(*req.Name)
+			if n != "" && (user.Name == nil || *user.Name == "") {
+				_, _ = DB.Exec(`UPDATE users SET name=$1 WHERE id=$2`, n, user.ID)
+				user.Name = &n
+			}
+		}
+	}
 
 	access, refresh, err := issueTokens(user.ID, user.Role)
 	if err != nil {

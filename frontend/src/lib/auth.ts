@@ -12,6 +12,7 @@ export type User = {
   bk_uid?: string | null;
   theme?: "light" | "dark" | null;
   email_notifications?: boolean | null;
+  email_message_digest?: boolean | null;
 } | null;
 
 function createAuth() {
@@ -28,8 +29,19 @@ function createAuth() {
     email?: string | null,
     theme?: "light" | "dark" | null,
     emailNotifications?: boolean | null,
+    emailMessageDigest?: boolean | null,
   ) {
-    set({ id, role, name, avatar, bk_uid, email, theme, email_notifications: emailNotifications ?? true });
+    set({
+      id,
+      role,
+      name,
+      avatar,
+      bk_uid,
+      email,
+      theme,
+      email_notifications: emailNotifications ?? true,
+      email_message_digest: emailMessageDigest ?? true,
+    });
     // Mark user as online
     onlineUsers.markOnline();
   }
@@ -68,6 +80,7 @@ function createAuth() {
           me.email ?? null,
           me.theme ?? null,
           me.email_notifications ?? true,
+          me.email_message_digest ?? true,
         );
       } else if (r.status === 401) {
         set(null);

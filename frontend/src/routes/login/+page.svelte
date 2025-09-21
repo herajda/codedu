@@ -36,7 +36,7 @@
       const me = await meRes.json()
 
       // 3. Store & smart-redirect
-      auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null, me.email_notifications ?? true)
+      auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null, me.email_notifications ?? true, me.email_message_digest ?? true)
       goto('/dashboard')
     }
     async function submitBk() {
@@ -60,7 +60,7 @@
           return
         }
         const me = await meRes.json()
-        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null, me.email_notifications ?? true)
+        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null, me.email_notifications ?? true, me.email_message_digest ?? true)
         goto('/dashboard')
       } catch (e: any) {
         error = e.message

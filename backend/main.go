@@ -155,18 +155,19 @@ func main() {
 			if u.Avatar == nil {
 				pick := defaultAvatars[rand.Intn(len(defaultAvatars))]
 				// best-effort update; ignore error but reflect in response
-				_ = UpdateUserProfile(u.ID, nil, &pick, nil, nil)
+				_ = UpdateUserProfile(u.ID, nil, &pick, nil, nil, nil)
 				u.Avatar = &pick
 			}
 			c.JSON(http.StatusOK, gin.H{
-				"id":                  u.ID,
-				"role":                u.Role,
-				"name":                u.Name,
-				"avatar":              u.Avatar,
-				"bk_uid":              u.BkUID,
-				"email":               u.Email,
-				"theme":               u.Theme,
-				"email_notifications": u.EmailNotifications,
+				"id":                   u.ID,
+				"role":                 u.Role,
+				"name":                 u.Name,
+				"avatar":               u.Avatar,
+				"bk_uid":               u.BkUID,
+				"email":                u.Email,
+				"theme":                u.Theme,
+				"email_notifications":  u.EmailNotifications,
+				"email_message_digest": u.EmailMessageDigest,
 			})
 		})
 		// expose default avatars catalog to the frontend
