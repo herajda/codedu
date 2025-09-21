@@ -193,11 +193,16 @@
               <ul class="divide-y divide-base-300/60">
                 {#each students as s}
                   <li class="py-3 flex items-center gap-3">
-                    <div class="size-9 rounded-full bg-base-200 grid place-items-center font-semibold text-sm select-none">
-                      {getInitials(displayName(s))}
+                    <div class="size-9 rounded-full overflow-hidden ring-1 ring-base-300/70 flex items-center justify-center bg-base-200 text-sm font-semibold select-none">
+                      {#if s.avatar}
+                        <img src={s.avatar} alt={displayName(s) + ' avatar'} class="w-full h-full object-cover" loading="lazy" />
+                      {:else}
+                        {getInitials(displayName(s))}
+                      {/if}
                     </div>
                     <div class="flex-1 min-w-0">
                       <p class="truncate">{displayName(s)}</p>
+                      {#if s.email}<p class="text-xs text-base-content/60 truncate">{s.email}</p>{/if}
                       <p class="text-xs text-base-content/60 truncate">ID: {s.id}</p>
                     </div>
                     {#if role === 'teacher' || role === 'admin'}
@@ -279,12 +284,17 @@
           {#each filtered as s}
             <label class="flex items-center gap-3 p-3 cursor-pointer">
               <input type="checkbox" class="checkbox checkbox-sm" value={s.id} bind:group={selectedIDs} />
-              <div class="size-8 rounded-full bg-base-200 grid place-items-center text-xs font-semibold">
-                {getInitials(displayName(s))}
+              <div class="size-8 rounded-full overflow-hidden ring-[1.5px] ring-base-300/70 flex items-center justify-center bg-base-200 text-xs font-semibold">
+                {#if s.avatar}
+                  <img src={s.avatar} alt={displayName(s) + ' avatar'} class="w-full h-full object-cover" loading="lazy" />
+                {:else}
+                  {getInitials(displayName(s))}
+                {/if}
               </div>
               <div class="flex-1 min-w-0">
                 <div class="truncate">{displayName(s)}</div>
                 {#if s.email}<div class="text-xs text-base-content/60 truncate">{s.email}</div>{/if}
+                <div class="text-xs text-base-content/50 truncate">ID: {s.id}</div>
               </div>
             </label>
           {/each}

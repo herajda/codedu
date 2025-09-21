@@ -3,8 +3,10 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	htemplate "html/template"
 	"log"
 	"net/mail"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -48,6 +50,56 @@ func (t notificationTarget) emailAddress() (string, bool) {
 		return "", false
 	}
 	return addr, true
+}
+
+func buildUnsubscribeURL(userID uuid.UUID, scope string) string {
+	if mailer == nil {
+		return ""
+	}
+	token, err := createUnsubscribeToken(userID, scope)
+	if err != nil {
+		log.Printf("[notifications] cannot create unsubscribe token: %v", err)
+		return ""
+	}
+	path := fmt.Sprintf("/email/unsubscribe?token=%s", url.QueryEscape(token))
+	return mailer.absoluteURL(path)
+}
+
+func buildTextFooter(unsubURL, description string) string {
+	var b strings.Builder
+	b.WriteString("\n--\n")
+	if strings.TrimSpace(unsubURL) != "" {
+		fmt.Fprintf(&b, "To unsubscribe from %s, visit: %s\n", description, unsubURL)
+	}
+	b.WriteString("You can also manage your email preferences in CodEdu settings.\n")
+	return b.String()
+}
+
+func wrapHTMLContent(mainHTML, unsubURL, description string) string {
+	var b strings.Builder
+	b.WriteString("<!DOCTYPE html><html><body style=\"margin:0;background:#f5f7fb;font-family:'Helvetica Neue',Arial,sans-serif;line-height:1.6;color:#1f2933;\">")
+	b.WriteString("<div style=\"max-width:600px;margin:0 auto;padding:24px 20px;background:#ffffff;\">")
+	b.WriteString(mainHTML)
+	if strings.TrimSpace(unsubURL) != "" {
+		b.WriteString("<p style=\"margin-top:24px;font-size:13px;color:#5f6b7d;\">To unsubscribe from ")
+		b.WriteString(htemplate.HTMLEscapeString(description))
+		b.WriteString(", <a style=\"color:#2563eb;text-decoration:none;\" href=\"")
+		b.WriteString(htemplate.HTMLEscapeString(unsubURL))
+		b.WriteString("\">click here</a>.</p>")
+	}
+	b.WriteString("<p style=\"margin-top:8px;font-size:13px;color:#5f6b7d;\">You can also manage your email preferences in CodEdu settings.</p>")
+	b.WriteString("</div></body></html>")
+	return b.String()
+}
+
+func buildUnsubscribeHeaders(unsubURL string) map[string]string {
+	if strings.TrimSpace(unsubURL) == "" {
+		return nil
+	}
+	return map[string]string{
+		"List-Unsubscribe":      fmt.Sprintf("<%s>", unsubURL),
+		"List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+	}
 }
 
 func notificationAlreadySent(userID uuid.UUID, notifType, context string) (bool, error) {
@@ -119,26 +171,10 @@ func sendAssignmentPublishedNotifications(aid uuid.UUID) error {
 			continue
 		}
 		subject := fmt.Sprintf("New assignment: %s", assignment.Title)
-		body := fmt.Sprintf("Hi %s,\n\nA new assignment \"%s\" has been published in %s.\nDeadline: %s.\n",
-			t.displayName(), assignment.Title, className, formatTimestamp(assignment.Deadline))
-		if assignment.SecondDeadline != nil {
-			penalty := (1 - assignment.LatePenaltyRatio) * 100
-			if penalty < 0 {
-				penalty = 0
-			}
-			if penalty > 0 {
-				body += fmt.Sprintf("Late submissions accepted until %s (penalty %.0f%%).\n",
-					formatTimestamp(*assignment.SecondDeadline), penalty)
-			} else {
-				body += fmt.Sprintf("Late submissions accepted until %s with no penalty.\n",
-					formatTimestamp(*assignment.SecondDeadline))
-			}
-		}
-		if link != "" {
-			body += fmt.Sprintf("\nView the assignment: %s\n", link)
-		}
-		body += "\nYou can update your email notification preferences in CodEdu settings.\n"
-		if err := mailer.sendPlainText(address, subject, body); err != nil {
+		unsubURL := buildUnsubscribeURL(t.UserID, unsubscribeScopeAlerts)
+		textBody, htmlBody := assignmentPublishedEmailBodies(t, assignment, className, link, unsubURL)
+		headers := buildUnsubscribeHeaders(unsubURL)
+		if err := mailer.sendEmail(address, subject, textBody, htmlBody, headers); err != nil {
 			log.Printf("[notifications] failed to send assignment publish email to %s: %v", address, err)
 			continue
 		}
@@ -226,16 +262,10 @@ func sendDeadlineForTargets(targets []notificationTarget, asg assignmentDeadline
 			}
 			subject := fmt.Sprintf("Reminder: %s deadline approaching", asg.Title)
 			remaining := formatRelativeDuration(time.Until(due))
-			body := fmt.Sprintf("Hi %s,\n\nThis is a reminder that the assignment \"%s\" for %s is due on %s (%s left).\n",
-				t.displayName(), asg.Title, asg.ClassName, formatTimestamp(due), remaining)
-			if stageName == "second" {
-				body += "This refers to the late submission window.\n"
-			}
-			if link != "" {
-				body += fmt.Sprintf("\nSubmit or review your work: %s\n", link)
-			}
-			body += "\nYou can update your email notification preferences in CodEdu settings.\n"
-			if err := mailer.sendPlainText(address, subject, body); err != nil {
+			unsubURL := buildUnsubscribeURL(t.UserID, unsubscribeScopeAlerts)
+			textBody, htmlBody := deadlineEmailBodies(t, asg, due, remaining, stageName, link, unsubURL)
+			headers := buildUnsubscribeHeaders(unsubURL)
+			if err := mailer.sendEmail(address, subject, textBody, htmlBody, headers); err != nil {
 				log.Printf("[notifications] failed to send deadline email to %s: %v", address, err)
 				continue
 			}
@@ -349,8 +379,9 @@ func sendDailyMessageDigests() error {
 		}
 
 		subject := fmt.Sprintf("Daily message summary: %d new message%s", total, pluralSuffix(total))
-		body := buildDigestEmailBody(t, summaries, total, cutoff)
-		if err := mailer.sendPlainText(address, subject, body); err != nil {
+		unsubURL := buildUnsubscribeURL(t.UserID, unsubscribeScopeDigest)
+		textBody, htmlBody := buildDigestEmailBodies(t, summaries, total, cutoff, unsubURL)
+		if err := mailer.sendEmail(address, subject, textBody, htmlBody, buildUnsubscribeHeaders(unsubURL)); err != nil {
 			log.Printf("[notifications] failed to send digest to %s: %v", address, err)
 			continue
 		}
@@ -417,23 +448,116 @@ func buildMessagePreview(row messageDigestRow) string {
 	return text
 }
 
-func buildDigestEmailBody(target notificationTarget, summaries []messageDigestSummary, total int, since time.Time) string {
-	link := mailer.absoluteURL("/messages")
-	var b strings.Builder
-	fmt.Fprintf(&b, "Hi %s,\n\n", target.displayName())
-	fmt.Fprintf(&b, "You received %d new message%s since %s.\n\n", total, pluralSuffix(total), formatTimestamp(since))
-	for _, s := range summaries {
-		fmt.Fprintf(&b, "- From %s (%d message%s, latest %s)\n", s.SenderName, s.Count, pluralSuffix(s.Count), formatTimestamp(s.Latest))
-		for _, sample := range s.Samples {
-			fmt.Fprintf(&b, "   - %s\n", sample)
+func assignmentPublishedEmailBodies(target notificationTarget, assignment *Assignment, className, assignmentLink, unsubURL string) (string, string) {
+	var textB strings.Builder
+	fmt.Fprintf(&textB, "Hi %s,\n\n", target.displayName())
+	if assignment != nil {
+		fmt.Fprintf(&textB, "A new assignment \"%s\" has been published in %s.\n", assignment.Title, className)
+		fmt.Fprintf(&textB, "Deadline: %s.\n", formatTimestamp(assignment.Deadline))
+		if assignment.SecondDeadline != nil {
+			penalty := (1 - assignment.LatePenaltyRatio) * 100
+			if penalty < 0 {
+				penalty = 0
+			}
+			if penalty > 0 {
+				fmt.Fprintf(&textB, "Late submissions accepted until %s (penalty %.0f%%).\n", formatTimestamp(*assignment.SecondDeadline), penalty)
+			} else {
+				fmt.Fprintf(&textB, "Late submissions accepted until %s with no penalty.\n", formatTimestamp(*assignment.SecondDeadline))
+			}
 		}
-		b.WriteString("\n")
 	}
-	if link != "" {
-		fmt.Fprintf(&b, "Review and reply in CodEdu: %s\n\n", link)
+	if strings.TrimSpace(assignmentLink) != "" {
+		fmt.Fprintf(&textB, "\nView the assignment: %s\n", assignmentLink)
 	}
-	b.WriteString("You can update your email notification preferences in CodEdu settings.\n")
-	return b.String()
+	textB.WriteString(buildTextFooter(unsubURL, "assignment alerts"))
+
+	var htmlB strings.Builder
+	htmlB.WriteString(fmt.Sprintf("<p style=\"margin:0 0 16px;\">Hi %s,</p>", htemplate.HTMLEscapeString(target.displayName())))
+	if assignment != nil {
+		htmlB.WriteString(fmt.Sprintf("<p style=\"margin:0 0 8px;\">A new assignment \"<strong>%s</strong>\" has been published in <strong>%s</strong>.</p>", htemplate.HTMLEscapeString(assignment.Title), htemplate.HTMLEscapeString(className)))
+		htmlB.WriteString(fmt.Sprintf("<p style=\"margin:0 0 8px;\">Deadline: <strong>%s</strong>.</p>", htemplate.HTMLEscapeString(formatTimestamp(assignment.Deadline))))
+		if assignment.SecondDeadline != nil {
+			penalty := (1 - assignment.LatePenaltyRatio) * 100
+			if penalty < 0 {
+				penalty = 0
+			}
+			if penalty > 0 {
+				htmlB.WriteString(fmt.Sprintf("<p style=\"margin:0 0 8px;\">Late submissions accepted until %s (<strong>%.0f%% penalty</strong>).</p>", htemplate.HTMLEscapeString(formatTimestamp(*assignment.SecondDeadline)), penalty))
+			} else {
+				htmlB.WriteString(fmt.Sprintf("<p style=\"margin:0 0 8px;\">Late submissions accepted until %s with no penalty.</p>", htemplate.HTMLEscapeString(formatTimestamp(*assignment.SecondDeadline))))
+			}
+		}
+	}
+	if strings.TrimSpace(assignmentLink) != "" {
+		htmlB.WriteString(fmt.Sprintf("<p style=\"margin:12px 0 16px;\"><a style=\"color:#2563eb;text-decoration:none;\" href=\"%s\">View the assignment</a></p>", htemplate.HTMLEscapeString(assignmentLink)))
+	}
+	return textB.String(), wrapHTMLContent(htmlB.String(), unsubURL, "assignment alerts")
+}
+
+func deadlineEmailBodies(target notificationTarget, asg assignmentDeadlineRow, due time.Time, remaining, stageName, assignmentLink, unsubURL string) (string, string) {
+	var textB strings.Builder
+	fmt.Fprintf(&textB, "Hi %s,\n\n", target.displayName())
+	fmt.Fprintf(&textB, "This is a reminder that the assignment \"%s\" for %s is due on %s (%s left).\n", asg.Title, asg.ClassName, formatTimestamp(due), remaining)
+	if stageName == "second" {
+		textB.WriteString("This refers to the late submission window.\n")
+	}
+	if strings.TrimSpace(assignmentLink) != "" {
+		fmt.Fprintf(&textB, "\nSubmit or review your work: %s\n", assignmentLink)
+	}
+	textB.WriteString(buildTextFooter(unsubURL, "assignment alerts"))
+
+	var htmlB strings.Builder
+	htmlB.WriteString(fmt.Sprintf("<p style=\"margin:0 0 16px;\">Hi %s,</p>", htemplate.HTMLEscapeString(target.displayName())))
+	htmlB.WriteString(fmt.Sprintf("<p style=\"margin:0 0 8px;\">This is a reminder that the assignment \"<strong>%s</strong>\" for <strong>%s</strong> is due on %s (%s left).</p>", htemplate.HTMLEscapeString(asg.Title), htemplate.HTMLEscapeString(asg.ClassName), htemplate.HTMLEscapeString(formatTimestamp(due)), htemplate.HTMLEscapeString(remaining)))
+	if stageName == "second" {
+		htmlB.WriteString("<p style=\"margin:0 0 8px;color:#b45309;\">This refers to the late submission window.</p>")
+	}
+	if strings.TrimSpace(assignmentLink) != "" {
+		htmlB.WriteString(fmt.Sprintf("<p style=\"margin:12px 0 16px;\"><a style=\"color:#2563eb;text-decoration:none;\" href=\"%s\">Submit or review your work</a></p>", htemplate.HTMLEscapeString(assignmentLink)))
+	}
+	return textB.String(), wrapHTMLContent(htmlB.String(), unsubURL, "assignment alerts")
+}
+
+func buildDigestEmailBodies(target notificationTarget, summaries []messageDigestSummary, total int, since time.Time, unsubURL string) (string, string) {
+	link := mailer.absoluteURL("/messages")
+	var textB strings.Builder
+	fmt.Fprintf(&textB, "Hi %s,\n\n", target.displayName())
+	fmt.Fprintf(&textB, "You received %d new message%s since %s.\n\n", total, pluralSuffix(total), formatTimestamp(since))
+	for _, s := range summaries {
+		fmt.Fprintf(&textB, "- From %s (%d message%s, latest %s)\n", s.SenderName, s.Count, pluralSuffix(s.Count), formatTimestamp(s.Latest))
+		for _, sample := range s.Samples {
+			fmt.Fprintf(&textB, "   - %s\n", sample)
+		}
+		textB.WriteString("\n")
+	}
+	if strings.TrimSpace(link) != "" {
+		fmt.Fprintf(&textB, "Review and reply in CodEdu: %s\n", link)
+	}
+	textB.WriteString(buildTextFooter(unsubURL, "daily message digests"))
+
+	var htmlB strings.Builder
+	htmlB.WriteString(fmt.Sprintf("<p style=\"margin:0 0 16px;\">Hi %s,</p>", htemplate.HTMLEscapeString(target.displayName())))
+	htmlB.WriteString(fmt.Sprintf("<p style=\"margin:0 0 16px;\">You received %d new message%s since %s.</p>", total, pluralSuffix(total), htemplate.HTMLEscapeString(formatTimestamp(since))))
+	htmlB.WriteString("<ul style=\"padding-left:20px;margin:0 0 16px;\">")
+	for _, s := range summaries {
+		htmlB.WriteString("<li style=\"margin-bottom:12px;\">")
+		htmlB.WriteString(fmt.Sprintf("<strong>%s</strong> (%d message%s, latest %s)", htemplate.HTMLEscapeString(s.SenderName), s.Count, pluralSuffix(s.Count), htemplate.HTMLEscapeString(formatTimestamp(s.Latest))))
+		if len(s.Samples) > 0 {
+			htmlB.WriteString("<ul style=\"padding-left:18px;margin:8px 0 0;\">")
+			for _, sample := range s.Samples {
+				htmlB.WriteString("<li style=\"margin:4px 0;\">")
+				htmlB.WriteString(htemplate.HTMLEscapeString(sample))
+				htmlB.WriteString("</li>")
+			}
+			htmlB.WriteString("</ul>")
+		}
+		htmlB.WriteString("</li>")
+	}
+	htmlB.WriteString("</ul>")
+	if strings.TrimSpace(link) != "" {
+		htmlB.WriteString(fmt.Sprintf("<p style=\"margin:0 0 16px;\"><a style=\"color:#2563eb;text-decoration:none;\" href=\"%s\">Review and reply in CodEdu</a></p>", htemplate.HTMLEscapeString(link)))
+	}
+	return textB.String(), wrapHTMLContent(htmlB.String(), unsubURL, "daily message digests")
 }
 
 func pluralSuffix(n int) string {

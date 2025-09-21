@@ -6,7 +6,8 @@
   import { createEventSource } from '$lib/sse';
   import { auth } from '$lib/auth';
   import { compressImage } from '$lib/utils/compressImage';
-  import { 
+  import { formatDate as formatDisplayDate } from '$lib/date';
+  import {
     ImagePlus,
     Send,
     ChevronLeft,
@@ -160,14 +161,14 @@
     return new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   }
 
-  function formatDate(d: string | number | Date) {
+  function formatDateLabel(d: string | number | Date) {
     const date = new Date(d)
     const today = new Date()
     const yesterday = new Date()
     yesterday.setDate(today.getDate() - 1)
     if (date.toDateString() === today.toDateString()) return 'Today'
     if (date.toDateString() === yesterday.toDateString()) return 'Yesterday'
-    return date.toLocaleDateString()
+    return formatDisplayDate(date)
   }
 
   function hyphenateLongWords(text: string, max = 20) {
@@ -483,7 +484,7 @@
         {#if index === 0 || !sameDate(m.created_at, convo[index-1].created_at)}
           <div class="flex justify-center">
             <div class="bg-base-200/60 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-medium text-base-content/70 border border-base-300/30">
-              {formatDate(m.created_at)}
+              {formatDateLabel(m.created_at)}
             </div>
           </div>
         {/if}

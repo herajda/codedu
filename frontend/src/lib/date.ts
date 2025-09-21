@@ -1,18 +1,27 @@
 export function formatDateTime(value: string | number | Date): string {
-  return new Date(value).toLocaleString(undefined, {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23'
-  });
+  const date = ensureDate(value);
+  if (!date) {
+    return '';
+  }
+
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${formatDate(date)} ${hours}:${minutes}`;
 }
 
 export function formatDate(value: string | number | Date): string {
-  return new Date(value).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  });
+  const date = ensureDate(value);
+  if (!date) {
+    return '';
+  }
+
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}. ${month}. ${year}`;
+}
+
+function ensureDate(value: string | number | Date): Date | null {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
 }

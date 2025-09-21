@@ -135,6 +135,9 @@ func main() {
 	publicAPI.POST("/password-reset/request", requestPasswordReset)
 	publicAPI.POST("/password-reset/complete", completePasswordReset)
 
+	r.GET("/email/unsubscribe", handleEmailUnsubscribe)
+	r.POST("/email/unsubscribe", handleEmailUnsubscribe)
+
 	// 4) Protected
 	api := r.Group("/api")
 	api.Use(JWTAuth())

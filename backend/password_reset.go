@@ -21,6 +21,7 @@ import (
 	"net/smtp"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -250,7 +251,11 @@ func (m *mailerConfig) sendPasswordReset(to, token string) error {
 }
 
 func (m *mailerConfig) sendPlainText(to, subject, body string) error {
-	msg, err := m.buildPlainTextMessage(to, subject, body)
+	return m.sendEmail(to, subject, body, "", nil)
+}
+
+func (m *mailerConfig) sendEmail(to, subject, textBody, htmlBody string, headers map[string]string) error {
+	msg, err := m.buildEmailMessage(to, subject, textBody, htmlBody, headers)
 	if err != nil {
 		return err
 	}
@@ -322,7 +327,7 @@ func (m *mailerConfig) sendMail(recipients []string, msg []byte) error {
 	return smtp.SendMail(addr, auth, m.fromAddress, recipients, msg)
 }
 
-func (m *mailerConfig) buildPlainTextMessage(to, subject, body string) ([]byte, error) {
+func (m *mailerConfig) buildEmailMessage(to, subject, textBody, htmlBody string, headers map[string]string) ([]byte, error) {
 	if strings.TrimSpace(to) == "" {
 		return nil, errors.New("recipient address is required")
 	}
@@ -349,10 +354,20 @@ func (m *mailerConfig) buildPlainTextMessage(to, subject, body string) ([]byte, 
 	dateHeader := time.Now().UTC().Format(time.RFC1123Z)
 	subjectHeader := sanitizeHeader(subject)
 
-	normalizedBody := normalizeBody(body)
+	additionalHeaders := map[string]string{}
+	if len(headers) > 0 {
+		for k, v := range headers {
+			if strings.TrimSpace(k) == "" || strings.TrimSpace(v) == "" {
+				continue
+			}
+			additionalHeaders[k] = v
+		}
+	}
+
+	useHTML := strings.TrimSpace(htmlBody) != ""
 
 	var sb strings.Builder
-	sb.Grow(len(normalizedBody) + 256)
+	sb.Grow(len(textBody) + len(htmlBody) + 512)
 	sb.WriteString("Date: ")
 	sb.WriteString(dateHeader)
 	sb.WriteString("\r\n")
@@ -368,17 +383,52 @@ func (m *mailerConfig) buildPlainTextMessage(to, subject, body string) ([]byte, 
 	sb.WriteString("Subject: ")
 	sb.WriteString(subjectHeader)
 	sb.WriteString("\r\n")
+	if len(additionalHeaders) > 0 {
+		keys := make([]string, 0, len(additionalHeaders))
+		for k := range additionalHeaders {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			value := sanitizeHeader(additionalHeaders[k])
+			if value == "" {
+				continue
+			}
+			sb.WriteString(k)
+			sb.WriteString(": ")
+			sb.WriteString(value)
+			sb.WriteString("\r\n")
+		}
+	}
 	sb.WriteString("MIME-Version: 1.0\r\n")
-	sb.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
-	sb.WriteString("Content-Transfer-Encoding: 8bit\r\n")
-	sb.WriteString("\r\n")
-	sb.WriteString(normalizedBody)
-
-	if !strings.HasSuffix(normalizedBody, "\r\n") {
-		sb.WriteString("\r\n")
+	if useHTML {
+		boundary := strings.ReplaceAll(uuid.NewString(), "-", "")
+		sb.WriteString("Content-Type: multipart/alternative; boundary=\"")
+		sb.WriteString(boundary)
+		sb.WriteString("\"\r\n\r\n")
+		writeBodyPart(&sb, boundary, "text/plain; charset=UTF-8", textBody)
+		writeBodyPart(&sb, boundary, "text/html; charset=UTF-8", htmlBody)
+		sb.WriteString("--")
+		sb.WriteString(boundary)
+		sb.WriteString("--\r\n")
+	} else {
+		sb.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
+		sb.WriteString("Content-Transfer-Encoding: 8bit\r\n\r\n")
+		sb.WriteString(normalizeBody(textBody))
 	}
 
 	return []byte(sb.String()), nil
+}
+
+func writeBodyPart(sb *strings.Builder, boundary, contentType, body string) {
+	sb.WriteString("--")
+	sb.WriteString(boundary)
+	sb.WriteString("\r\n")
+	sb.WriteString("Content-Type: ")
+	sb.WriteString(contentType)
+	sb.WriteString("\r\n")
+	sb.WriteString("Content-Transfer-Encoding: 8bit\r\n\r\n")
+	sb.WriteString(normalizeBody(body))
 }
 
 func (m *mailerConfig) signMessage(msg []byte) ([]byte, error) {

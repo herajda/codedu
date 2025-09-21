@@ -1,11 +1,16 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -17,11 +22,20 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var jwtSecret []byte
+var (
+	jwtSecret       []byte
+	turnstileSecret string
+)
 
 const (
-	accessTokenTTL  = 15 * time.Minute
-	refreshTokenTTL = 30 * 24 * time.Hour
+	accessTokenTTL     = 15 * time.Minute
+	refreshTokenTTL    = 30 * 24 * time.Hour
+	turnstileVerifyURL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+)
+
+var (
+	errTurnstileInvalid = errors.New("turnstile token invalid")
+	errTurnstileConfig  = errors.New("turnstile secret not configured")
 )
 
 func InitAuth() {
@@ -31,6 +45,11 @@ func InitAuth() {
 		log.Fatal("JWT_SECRET is not set")
 	}
 	jwtSecret = []byte(secret)
+
+	turnstileSecret = os.Getenv("TURNSTILE_SECRET_KEY")
+	if turnstileSecret == "" {
+		log.Println("TURNSTILE_SECRET_KEY is not set; registration will be unavailable until configured")
+	}
 }
 
 // clientHash replicates the SHA-256 hashing performed by the frontend before
@@ -124,11 +143,63 @@ func clearAuthCookies(c *gin.Context) {
 	})
 }
 
+func verifyTurnstile(ctx context.Context, token, remoteIP string) error {
+	if turnstileSecret == "" {
+		return errTurnstileConfig
+	}
+	if token == "" {
+		return errTurnstileInvalid
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	form := url.Values{}
+	form.Set("secret", turnstileSecret)
+	form.Set("response", token)
+	if remoteIP != "" {
+		form.Set("remoteip", remoteIP)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, turnstileVerifyURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("turnstile verification unexpected status %d", resp.StatusCode)
+	}
+
+	var payload struct {
+		Success    bool     `json:"success"`
+		ErrorCodes []string `json:"error-codes"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return err
+	}
+	if !payload.Success {
+		if len(payload.ErrorCodes) > 0 {
+			return fmt.Errorf("%w: %s", errTurnstileInvalid, strings.Join(payload.ErrorCodes, ", "))
+		}
+		return errTurnstileInvalid
+	}
+
+	return nil
+}
+
 type registerReq struct {
-	FirstName string `json:"firstName" binding:"required"`
-	LastName  string `json:"lastName" binding:"required"`
-	Email     string `json:"email" binding:"required,email"`
-	Password  string `json:"password" binding:"required,min=6"`
+	FirstName      string `json:"firstName" binding:"required"`
+	LastName       string `json:"lastName" binding:"required"`
+	Email          string `json:"email" binding:"required,email"`
+	Password       string `json:"password" binding:"required,min=6"`
+	TurnstileToken string `json:"turnstileToken" binding:"required"`
 }
 
 func Register(c *gin.Context) {
@@ -145,6 +216,23 @@ func Register(c *gin.Context) {
 	}
 	name := strings.TrimSpace(first + " " + last)
 	email := strings.TrimSpace(req.Email)
+	if err := verifyTurnstile(c.Request.Context(), req.TurnstileToken, c.ClientIP()); err != nil {
+		log.Printf("turnstile verification failed: %v", err)
+		status := http.StatusBadRequest
+		message := "Verification failed. Please try again."
+		switch {
+		case errors.Is(err, errTurnstileConfig):
+			status = http.StatusInternalServerError
+			message = "Registration is temporarily unavailable. Please try again later."
+		case errors.Is(err, errTurnstileInvalid):
+			status = http.StatusBadRequest
+		default:
+			status = http.StatusBadGateway
+			message = "Verification service is unavailable. Please try again."
+		}
+		c.JSON(status, gin.H{"error": message})
+		return
+	}
 	hash, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err := CreateStudent(email, string(hash), &name, nil, nil); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create user"})

@@ -3,7 +3,7 @@ import { onMount } from 'svelte';
 import { apiJSON } from '$lib/api';
 import { page } from '$app/stores';
 import { formatDateTime } from "$lib/date";
-import { Trophy, CalendarClock, ListChecks, Target, PlayCircle, FolderOpen, MessageSquare } from 'lucide-svelte';
+import { Trophy, CalendarClock, ListChecks, Target, PlayCircle, FolderOpen, MessageSquare, MessageCircle } from 'lucide-svelte';
 
 let id = $page.params.id;
 $: if ($page.params.id !== id) { id = $page.params.id; load(); }
@@ -64,6 +64,22 @@ $: recentSubmissions = (submissions ?? [])
   .filter((s: any) => classAssignmentIds.has(s.assignment_id))
   .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
   .slice(0, 5);
+$: teacherName = cls?.teacher ? (cls.teacher.name ?? cls.teacher.email ?? '—') : '—';
+$: teacherEmail = cls?.teacher?.email ?? '';
+$: teacherAvatar = cls?.teacher?.avatar ?? null;
+$: teacherInitial = teacherName && teacherName !== '—'
+  ? teacherName.trim().charAt(0).toUpperCase()
+  : '?';
+$: teacherId = cls?.teacher?.id ?? null;
+$: teacherMessageQuery = (() => {
+  if (!cls?.teacher) return '';
+  const params = new URLSearchParams();
+  if (cls.teacher.name) params.set('name', cls.teacher.name);
+  else if (cls.teacher.email) params.set('email', cls.teacher.email);
+  const q = params.toString();
+  return q ? `?${q}` : '';
+})();
+$: teacherMessageUrl = teacherId ? `/messages/${teacherId}${teacherMessageQuery}` : '';
 
 function badgeFor(a: any) {
   const best = cls.assignmentProgress.find((p: any) => p.id === a.id)?.best ?? 0;
@@ -80,15 +96,15 @@ function badgeFor(a: any) {
 {:else if err}
   <p class="text-error">{err}</p>
 {:else}
-  <div class="flex items-start justify-between gap-3 mb-4 flex-wrap">
-    <div>
+  <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
+    <div class="space-y-1">
       <h1 class="text-2xl font-semibold">{cls.name} · Overview</h1>
-      <p class="opacity-70 text-sm">Teacher: {cls.teacher?.name ?? cls.teacher?.email ?? '—'}</p>
+      <p class="text-sm text-base-content/60">Stay on top of upcoming work and results.</p>
     </div>
     <div class="hidden sm:flex gap-2">
-      <a href={`/classes/${id}/files`} class="btn btn-outline"><FolderOpen class="w-4 h-4" aria-hidden="true" /> Files</a>
-      <a href={`/classes/${id}/forum`} class="btn btn-outline"><MessageSquare class="w-4 h-4" aria-hidden="true" /> Forum</a>
-      </div>
+        <a href={`/classes/${id}/files`} class="btn btn-outline"><FolderOpen class="w-4 h-4" aria-hidden="true" /> Files</a>
+        <a href={`/classes/${id}/forum`} class="btn btn-outline"><MessageSquare class="w-4 h-4" aria-hidden="true" /> Forum</a>
+    </div>
   </div>
 
   <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
@@ -122,6 +138,35 @@ function badgeFor(a: any) {
       </div>
     </div>
   </section>
+
+  {#if teacherId}
+    <div class="card-elevated flex flex-wrap items-center gap-4 px-5 py-4 mb-6">
+      <div class="avatar">
+        <div class="w-14 h-14 rounded-full overflow-hidden ring-2 ring-base-300/60">
+          {#if teacherAvatar}
+            <img src={teacherAvatar} alt={`Avatar of ${teacherName}`} class="w-full h-full object-cover" loading="lazy" />
+          {:else}
+            <div class="w-full h-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-xl font-semibold text-primary">
+              {teacherInitial}
+            </div>
+          {/if}
+        </div>
+      </div>
+      <div class="min-w-0 flex-1">
+        <div class="text-xs uppercase tracking-wide text-base-content/60">Teacher</div>
+        <div class="font-semibold leading-tight truncate">{teacherName}</div>
+        {#if teacherEmail && teacherEmail !== teacherName}
+          <a class="text-sm text-primary truncate hover:underline" href={`mailto:${teacherEmail}`}>{teacherEmail}</a>
+        {/if}
+      </div>
+      {#if teacherMessageUrl}
+        <a href={teacherMessageUrl} class="btn btn-primary gap-2">
+          <MessageCircle class="w-4 h-4" aria-hidden="true" />
+          Message teacher
+        </a>
+      {/if}
+    </div>
+  {/if}
 
   <div class="grid gap-6 lg:grid-cols-3">
     <section class="lg:col-span-2 space-y-6">

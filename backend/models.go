@@ -708,7 +708,7 @@ func ListClassesForStudent(studentID uuid.UUID) ([]Class, error) {
 func ListAllStudents() ([]Student, error) {
 	list := []Student{}
 	err := DB.Select(&list, `
-            SELECT id, email, name FROM users
+            SELECT id, email, name, avatar FROM users
              WHERE role = 'student'
              ORDER BY email`)
 	return list, err
@@ -718,9 +718,10 @@ func ListAllStudents() ([]Student, error) {
 // classes – helpers for detail view
 // ──────────────────────────────────────────────────────────────────────────────
 type Student struct {
-	ID    uuid.UUID `db:"id"    json:"id"`
-	Email string    `db:"email" json:"email"`
-	Name  *string   `db:"name"  json:"name"`
+	ID     uuid.UUID `db:"id"     json:"id"`
+	Email  string    `db:"email"  json:"email"`
+	Name   *string   `db:"name"   json:"name"`
+	Avatar *string   `db:"avatar" json:"avatar"`
 }
 
 type ClassDetail struct {
@@ -757,7 +758,7 @@ func GetClassDetail(id uuid.UUID, role string, userID uuid.UUID) (*ClassDetail, 
 	// 2) Teacher (one row) -----------------------------------------------------
 	var teacher Student // reuse tiny struct {id,email,name}
 	if err := DB.Get(&teacher,
-		`SELECT id, email, name FROM users WHERE id = $1`,
+		`SELECT id, email, name, avatar FROM users WHERE id = $1`,
 		cls.TeacherID); err != nil {
 		return nil, err
 	}
@@ -765,7 +766,7 @@ func GetClassDetail(id uuid.UUID, role string, userID uuid.UUID) (*ClassDetail, 
 	// 3) Students (many) -------------------------------------------------------
 	var students []Student
 	if err := DB.Select(&students, `
-               SELECT u.id, u.email, u.name
+               SELECT u.id, u.email, u.name, u.avatar
                  FROM users u
                  JOIN class_students cs ON cs.student_id = u.id
                 WHERE cs.class_id = $1
@@ -1115,7 +1116,7 @@ type ClassProgress struct {
 func GetClassProgress(classID uuid.UUID) (*ClassProgress, error) {
 	var students []Student
 	if err := DB.Select(&students, `
-                SELECT u.id, u.email, u.name
+                SELECT u.id, u.email, u.name, u.avatar
                   FROM users u
                   JOIN class_students cs ON cs.student_id=u.id
                  WHERE cs.class_id=$1

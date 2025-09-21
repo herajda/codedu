@@ -18,7 +18,7 @@ func TestBuildPlainTextMessageHeaders(t *testing.T) {
 		messageIDDomain: "example.com",
 	}
 
-	msg, err := m.buildPlainTextMessage("Student <student@example.net>", "Reset", "Body line one\nBody line two")
+	msg, err := m.buildEmailMessage("Student <student@example.net>", "Reset", "Body line one\nBody line two", "", nil)
 	if err != nil {
 		t.Fatalf("buildPlainTextMessage error: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestSignMessageAddsDKIMSignature(t *testing.T) {
 		dkimHeaderKeys:  defaultDKIMHeaderKeys(),
 	}
 
-	rawMsg, err := m.buildPlainTextMessage("student@example.net", "Reset", "Body")
+	rawMsg, err := m.buildEmailMessage("student@example.net", "Reset", "Body", "", nil)
 	if err != nil {
 		t.Fatalf("buildPlainTextMessage error: %v", err)
 	}

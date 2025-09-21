@@ -102,6 +102,7 @@ The backend expects several variables to be set (usually via a `.env` file):
 
 - `DATABASE_URL` – PostgreSQL connection string
 - `JWT_SECRET` – secret used to sign authentication tokens
+- `TURNSTILE_SECRET_KEY` – Cloudflare Turnstile secret used to validate registration challenges
 - `ADMIN_EMAIL` – email for the seeded administrator account
 - `ADMIN_PASSWORD` – password for the seeded administrator account
 - `BAKALARI_BASE_URL` – base URL of the Bakaláři API v3 instance
@@ -116,6 +117,9 @@ The backend expects several variables to be set (usually via a `.env` file):
 When this variable is configured, the frontend login page presents a
 "Bakalari" tab that communicates with Bakaláři directly so credentials are
 never sent to the CodeEdu server.
+
+The SvelteKit frontend also needs `PUBLIC_TURNSTILE_SITE_KEY` so it can render the
+Turnstile widget on the registration page.
 
 You can copy `backend/.env.example` and adjust it for your environment.
 

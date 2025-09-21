@@ -5,6 +5,7 @@ import { goto } from '$app/navigation';
 import { Search, MessageCircle, Plus, MoreVertical, Archive, Trash2, Star, StarOff, RefreshCw, X } from 'lucide-svelte';
 import NewChatModal from '$lib/components/NewChatModal.svelte';
 import { onlineUsers } from '$lib/stores/onlineUsers';
+import { formatDate as formatDisplayDate } from '$lib/date';
 
   let convos: any[] = [];
   let filteredConvos: any[] = [];
@@ -130,7 +131,7 @@ import { onlineUsers } from '$lib/stores/onlineUsers';
     } else if (isThisWeek(date)) {
       return date.toLocaleDateString([], { weekday: 'short' });
     } else {
-      return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      return formatDisplayDate(date);
     }
   }
 
