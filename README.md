@@ -110,12 +110,22 @@ The backend expects several variables to be set (usually via a `.env` file):
 - `SMTP_FROM_NAME` – optional display name for the `From` header
 - `PASSWORD_RESET_BASE_URL` – absolute frontend origin used to render password reset links (for example `https://codedu.example.com`)
 - `APP_BASE_URL` – optional origin used in email notifications; defaults to `PASSWORD_RESET_BASE_URL` when unset
+- `SMTP_DKIM_SELECTOR`, `SMTP_DKIM_DOMAIN` – optional DKIM selector and signing domain used to align outbound mail
+- `SMTP_DKIM_PRIVATE_KEY` or `SMTP_DKIM_PRIVATE_KEY_FILE` – supply the private key PEM used for DKIM signing (inline value or path to a readable file)
 
 When this variable is configured, the frontend login page presents a
 "Bakalari" tab that communicates with Bakaláři directly so credentials are
 never sent to the CodeEdu server.
 
 You can copy `backend/.env.example` and adjust it for your environment.
+
+### Email Deliverability (SPF, DKIM, DMARC)
+
+- The backend issues messages with the required headers (`From`, `To`, `Date`, `Message-ID`, `MIME-Version`, `Content-Type`, and `Content-Transfer-Encoding`) and derives `Message-ID` values from your domain so they align with DMARC.
+- Configure SPF for the domain used in `SMTP_FROM` by publishing a TXT record such as `v=spf1 include:mail.your-provider.example -all` that authorises your SMTP host/IPs.
+- Enable DKIM by providing the selector, domain, and private key via the variables above; publish the matching DNS TXT record at `<selector>._domainkey.<domain>` that contains `v=DKIM1; k=rsa; p=<public-key>` (or the Ed25519 equivalent).
+- Publish a DMARC policy TXT record at `_dmarc.<domain>` (for example `v=DMARC1; p=quarantine; rua=mailto:dmarc@your-domain.example`) so receivers can enforce policy aligned with the signed `From` domain.
+- Ensure the SMTP envelope sender (`MAIL FROM`) and header `From` values stay on the same domain—this repository already enforces that alignment for you.
 
 ### Services
 - **frontend**: SvelteKit static build

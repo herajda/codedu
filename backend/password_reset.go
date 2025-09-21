@@ -1,16 +1,23 @@
 package main
 
 import (
+	"bytes"
+	"crypto"
+	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"net/mail"
 	"net/smtp"
 	"net/url"
 	"os"
@@ -18,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/emersion/go-msgauth/dkim"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
@@ -32,14 +40,19 @@ var (
 )
 
 type mailerConfig struct {
-	host         string
-	port         int
-	username     string
-	password     string
-	fromAddress  string
-	fromHeader   string
-	resetBaseURL string
-	appBaseURL   string
+	host            string
+	port            int
+	username        string
+	password        string
+	fromAddress     string
+	fromHeader      string
+	resetBaseURL    string
+	appBaseURL      string
+	messageIDDomain string
+	dkimDomain      string
+	dkimSelector    string
+	dkimSigner      crypto.Signer
+	dkimHeaderKeys  []string
 }
 
 func InitMailer() {
@@ -75,17 +88,136 @@ func InitMailer() {
 	if appBase == "" {
 		appBase = baseURL
 	}
-	mailer = &mailerConfig{
-		host:         host,
-		port:         port,
-		username:     username,
-		password:     password,
-		fromAddress:  from,
-		fromHeader:   fromHeader,
-		resetBaseURL: baseURL,
-		appBaseURL:   strings.TrimRight(appBase, "/"),
+	messageDomain := domainFromAddress(from)
+	if messageDomain == "" {
+		messageDomain = host
 	}
+	m := &mailerConfig{
+		host:            host,
+		port:            port,
+		username:        username,
+		password:        password,
+		fromAddress:     from,
+		fromHeader:      fromHeader,
+		resetBaseURL:    baseURL,
+		appBaseURL:      strings.TrimRight(appBase, "/"),
+		messageIDDomain: messageDomain,
+	}
+	m.configureDKIM()
+	mailer = m
 	log.Printf("📧 SMTP mailer configured for %s:%d", host, port)
+}
+
+func (m *mailerConfig) configureDKIM() {
+	selector := strings.TrimSpace(os.Getenv("SMTP_DKIM_SELECTOR"))
+	rawDomain := strings.TrimSpace(os.Getenv("SMTP_DKIM_DOMAIN"))
+	inlineKey := os.Getenv("SMTP_DKIM_PRIVATE_KEY")
+	keyPath := strings.TrimSpace(os.Getenv("SMTP_DKIM_PRIVATE_KEY_FILE"))
+
+	if rawDomain == "" {
+		rawDomain = m.messageIDDomain
+	}
+
+	inlineKey = strings.TrimSpace(inlineKey)
+	if selector == "" || rawDomain == "" || (inlineKey == "" && keyPath == "") {
+		if selector != "" || rawDomain != "" || inlineKey != "" || keyPath != "" {
+			log.Println("⚠️ DKIM configuration incomplete; skipping signature setup")
+		}
+		return
+	}
+
+	var keyData []byte
+	var err error
+	if inlineKey != "" {
+		keyData = []byte(inlineKey)
+	} else {
+		keyData, err = os.ReadFile(keyPath)
+		if err != nil {
+			log.Printf("failed to read DKIM key file: %v", err)
+			return
+		}
+	}
+
+	signer, err := parseDKIMPrivateKey(keyData)
+	if err != nil {
+		log.Printf("invalid DKIM private key: %v", err)
+		return
+	}
+
+	m.dkimDomain = strings.ToLower(rawDomain)
+	m.dkimSelector = selector
+	m.dkimSigner = signer
+	m.dkimHeaderKeys = defaultDKIMHeaderKeys()
+	log.Printf("🔐 DKIM signing enabled (%s.%s)", selector, m.dkimDomain)
+}
+
+func defaultDKIMHeaderKeys() []string {
+	return []string{
+		"From",
+		"To",
+		"Subject",
+		"Date",
+		"Message-ID",
+		"MIME-Version",
+		"Content-Type",
+		"Content-Transfer-Encoding",
+	}
+}
+
+func domainFromAddress(value string) string {
+	addr := strings.TrimSpace(value)
+	if addr == "" {
+		return ""
+	}
+	if parsed, err := mail.ParseAddress(addr); err == nil && parsed.Address != "" {
+		addr = parsed.Address
+	}
+	if at := strings.LastIndex(addr, "@"); at >= 0 && at < len(addr)-1 {
+		return strings.ToLower(addr[at+1:])
+	}
+	return ""
+}
+
+func parseDKIMPrivateKey(pemBytes []byte) (crypto.Signer, error) {
+	data := bytes.TrimSpace(pemBytes)
+	for len(data) > 0 {
+		block, rest := pem.Decode(data)
+		if block == nil {
+			return nil, errors.New("dkim: failed to decode PEM block")
+		}
+		var (
+			key interface{}
+			err error
+		)
+		switch block.Type {
+		case "PRIVATE KEY":
+			key, err = x509.ParsePKCS8PrivateKey(block.Bytes)
+		case "RSA PRIVATE KEY":
+			key, err = x509.ParsePKCS1PrivateKey(block.Bytes)
+		case "ED25519 PRIVATE KEY":
+			if len(block.Bytes) != ed25519.PrivateKeySize {
+				return nil, errors.New("dkim: invalid ed25519 key length")
+			}
+			key = ed25519.PrivateKey(block.Bytes)
+		default:
+			// Skip unrelated blocks (e.g., certificates) and continue
+			data = rest
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		switch k := key.(type) {
+		case *rsa.PrivateKey:
+			return k, nil
+		case ed25519.PrivateKey:
+			return k, nil
+		default:
+			return nil, fmt.Errorf("dkim: unsupported private key type %T", k)
+		}
+		data = rest
+	}
+	return nil, errors.New("dkim: no private key found in PEM data")
 }
 
 func (m *mailerConfig) resetURL(token string) string {
@@ -118,11 +250,23 @@ func (m *mailerConfig) sendPasswordReset(to, token string) error {
 }
 
 func (m *mailerConfig) sendPlainText(to, subject, body string) error {
-	msg := buildEmailMessage(m.fromHeader, to, subject, body)
-	return m.sendMail([]string{to}, []byte(msg))
+	msg, err := m.buildPlainTextMessage(to, subject, body)
+	if err != nil {
+		return err
+	}
+	recipient := strings.TrimSpace(to)
+	if parsed, parseErr := mail.ParseAddress(recipient); parseErr == nil && parsed.Address != "" {
+		recipient = parsed.Address
+	}
+	return m.sendMail([]string{recipient}, msg)
 }
 
 func (m *mailerConfig) sendMail(recipients []string, msg []byte) error {
+	signedMsg, err := m.signMessage(msg)
+	if err != nil {
+		return err
+	}
+	msg = signedMsg
 	addr := fmt.Sprintf("%s:%d", m.host, m.port)
 	var auth smtp.Auth
 	if strings.TrimSpace(m.username) != "" {
@@ -178,19 +322,103 @@ func (m *mailerConfig) sendMail(recipients []string, msg []byte) error {
 	return smtp.SendMail(addr, auth, m.fromAddress, recipients, msg)
 }
 
-func buildEmailMessage(from, to, subject, body string) string {
-	normalizedBody := strings.ReplaceAll(body, "\n", "\r\n")
-	headers := []string{
-		fmt.Sprintf("From: %s", from),
-		fmt.Sprintf("To: %s", to),
-		fmt.Sprintf("Subject: %s", subject),
-		"MIME-Version: 1.0",
-		"Content-Type: text/plain; charset=UTF-8",
-		"Content-Transfer-Encoding: 8bit",
-		"",
-		normalizedBody,
+func (m *mailerConfig) buildPlainTextMessage(to, subject, body string) ([]byte, error) {
+	if strings.TrimSpace(to) == "" {
+		return nil, errors.New("recipient address is required")
 	}
-	return strings.Join(headers, "\r\n") + "\r\n"
+
+	toHeader := sanitizeHeader(to)
+	if parsed, err := mail.ParseAddress(toHeader); err == nil && parsed.Address != "" {
+		toHeader = parsed.String()
+	}
+
+	fromHeader := sanitizeHeader(m.fromHeader)
+	if parsed, err := mail.ParseAddress(fromHeader); err == nil && parsed.Address != "" {
+		fromHeader = parsed.String()
+	}
+
+	msgDomain := m.messageIDDomain
+	if msgDomain == "" {
+		msgDomain = domainFromAddress(m.fromAddress)
+	}
+	if msgDomain == "" {
+		msgDomain = strings.ToLower(m.host)
+	}
+
+	messageID := fmt.Sprintf("<%s@%s>", strings.ReplaceAll(uuid.NewString(), "-", ""), msgDomain)
+	dateHeader := time.Now().UTC().Format(time.RFC1123Z)
+	subjectHeader := sanitizeHeader(subject)
+
+	normalizedBody := normalizeBody(body)
+
+	var sb strings.Builder
+	sb.Grow(len(normalizedBody) + 256)
+	sb.WriteString("Date: ")
+	sb.WriteString(dateHeader)
+	sb.WriteString("\r\n")
+	sb.WriteString("From: ")
+	sb.WriteString(fromHeader)
+	sb.WriteString("\r\n")
+	sb.WriteString("To: ")
+	sb.WriteString(toHeader)
+	sb.WriteString("\r\n")
+	sb.WriteString("Message-ID: ")
+	sb.WriteString(messageID)
+	sb.WriteString("\r\n")
+	sb.WriteString("Subject: ")
+	sb.WriteString(subjectHeader)
+	sb.WriteString("\r\n")
+	sb.WriteString("MIME-Version: 1.0\r\n")
+	sb.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
+	sb.WriteString("Content-Transfer-Encoding: 8bit\r\n")
+	sb.WriteString("\r\n")
+	sb.WriteString(normalizedBody)
+
+	if !strings.HasSuffix(normalizedBody, "\r\n") {
+		sb.WriteString("\r\n")
+	}
+
+	return []byte(sb.String()), nil
+}
+
+func (m *mailerConfig) signMessage(msg []byte) ([]byte, error) {
+	if m == nil || m.dkimSigner == nil {
+		return msg, nil
+	}
+	options := &dkim.SignOptions{
+		Domain:                 m.dkimDomain,
+		Selector:               m.dkimSelector,
+		Signer:                 m.dkimSigner,
+		HeaderCanonicalization: dkim.CanonicalizationRelaxed,
+		BodyCanonicalization:   dkim.CanonicalizationRelaxed,
+	}
+	if len(m.dkimHeaderKeys) > 0 {
+		options.HeaderKeys = m.dkimHeaderKeys
+	}
+	var signed bytes.Buffer
+	if err := dkim.Sign(&signed, bytes.NewReader(msg), options); err != nil {
+		return nil, err
+	}
+	return signed.Bytes(), nil
+}
+
+func normalizeBody(body string) string {
+	if body == "" {
+		return "\r\n"
+	}
+	replaced := strings.ReplaceAll(body, "\r\n", "\n")
+	replaced = strings.ReplaceAll(replaced, "\r", "\n")
+	if !strings.HasSuffix(replaced, "\n") {
+		replaced += "\n"
+	}
+	return strings.ReplaceAll(replaced, "\n", "\r\n")
+}
+
+func sanitizeHeader(value string) string {
+	replaced := strings.ReplaceAll(value, "\r", " ")
+	replaced = strings.ReplaceAll(replaced, "\n", " ")
+	replaced = strings.TrimSpace(replaced)
+	return replaced
 }
 
 func requestPasswordReset(c *gin.Context) {
