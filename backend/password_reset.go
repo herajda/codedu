@@ -229,6 +229,10 @@ func (m *mailerConfig) resetURL(token string) string {
 	return fmt.Sprintf("%s/reset-password?token=%s", base, url.QueryEscape(token))
 }
 
+func (m *mailerConfig) verificationURL(token string) string {
+	return m.absoluteURL(fmt.Sprintf("/verify-email?token=%s", url.QueryEscape(token)))
+}
+
 func (m *mailerConfig) absoluteURL(path string) string {
 	base := strings.TrimRight(m.appBaseURL, "/")
 	if base == "" {
@@ -248,6 +252,17 @@ func (m *mailerConfig) sendPasswordReset(to, token string) error {
 	subject := "Password reset instructions"
 	body := fmt.Sprintf("We received a request to reset your password.\n\nFollow this link to choose a new password (valid for 1 hour):\n%s\n\nIf you did not request a reset, you can safely ignore this email.", resetLink)
 	return m.sendPlainText(to, subject, body)
+}
+
+func (m *mailerConfig) sendVerificationEmail(to, token string) error {
+	link := m.verificationURL(token)
+	if link == "" {
+		return errors.New("verification URL not configured")
+	}
+	subject := "Verify your CodEdu email address"
+	textBody := fmt.Sprintf("Welcome to CodEdu!\n\nActivate your account by confirming your email:\n%s\n\nIf you did not sign up, you can ignore this email.", link)
+	htmlBody := fmt.Sprintf(`<p>Welcome to CodEdu!</p><p>To activate your account, please verify your email address:</p><p><a href="%[1]s" style="display:inline-block;padding:10px 16px;background-color:#1d4ed8;color:#ffffff;border-radius:6px;text-decoration:none;">Verify email</a></p><p>Or copy this link into your browser:<br/><span style="color:#1d4ed8;">%[1]s</span></p><p>If you didn't sign up, you can safely ignore this email.</p>`, link)
+	return m.sendEmail(to, subject, textBody, htmlBody, nil)
 }
 
 func (m *mailerConfig) sendPlainText(to, subject, body string) error {

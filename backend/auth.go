@@ -233,9 +233,27 @@ func Register(c *gin.Context) {
 		c.JSON(status, gin.H{"error": message})
 		return
 	}
+	if mailer == nil {
+		log.Println("registration attempted but mailer is not configured")
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Registration is temporarily unavailable"})
+		return
+	}
 	hash, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-	if err := CreateStudent(email, string(hash), &name, nil, nil); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create user"})
+	_, token, err := createOrUpdatePendingStudent(email, string(hash), &name)
+	if err != nil {
+		switch {
+		case errors.Is(err, errEmailAlreadyInUse):
+			c.JSON(http.StatusConflict, gin.H{"error": "An account with this email already exists"})
+			return
+		default:
+			log.Printf("could not create pending user: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create user"})
+			return
+		}
+	}
+	if err := mailer.sendVerificationEmail(email, token); err != nil {
+		log.Printf("could not send verification email: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not send verification email"})
 		return
 	}
 	c.Status(http.StatusCreated)
@@ -274,6 +292,33 @@ func Login(c *gin.Context) {
 	}
 
 	log.Printf("[Login] password OK for user %d", user.ID)
+	if !user.EmailVerified {
+		message := "Please verify your email address before logging in."
+		verificationSent := false
+		if mailer == nil {
+			message = "Email verification is required, but email delivery is not configured. Please contact support."
+		} else {
+			token, err := issueEmailVerificationToken(user.ID)
+			if err != nil {
+				log.Printf("[Login] could not issue verification token for user %s: %v", user.ID, err)
+			} else {
+				verificationSent = true
+				message = "We sent you a new verification email. Please check your inbox."
+				email := user.Email
+				go func(addr, tok string) {
+					if err := mailer.sendVerificationEmail(addr, tok); err != nil {
+						log.Printf("[Login] failed to send verification email to %s: %v", addr, err)
+					}
+				}(email, token)
+			}
+		}
+		c.JSON(http.StatusForbidden, gin.H{
+			"error":                 message,
+			"needsVerification":     true,
+			"verificationEmailSent": verificationSent,
+		})
+		return
+	}
 	// 4️⃣ Issue tokens & cookies
 	access, refresh, err := issueTokens(user.ID, user.Role)
 	if err != nil {

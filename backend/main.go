@@ -33,9 +33,9 @@ func ensureAdmin() {
 	hash, _ := bcrypt.GenerateFromPassword([]byte(hashed), bcrypt.DefaultCost)
 
 	if _, err := DB.Exec(`
-            INSERT INTO users (email, password_hash, role)
-            VALUES ($1,$2,'admin')
-            ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, role='admin'`,
+            INSERT INTO users (email, password_hash, role, email_verified, email_verified_at)
+            VALUES ($1,$2,'admin',TRUE,now())
+            ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, role='admin', email_verified=TRUE, email_verified_at=COALESCE(users.email_verified_at, now())`,
 		email, hash); err != nil {
 		log.Fatalf("could not ensure admin: %v", err)
 	}
@@ -134,6 +134,7 @@ func main() {
 	publicAPI := r.Group("/api")
 	publicAPI.POST("/password-reset/request", requestPasswordReset)
 	publicAPI.POST("/password-reset/complete", completePasswordReset)
+	publicAPI.POST("/verify-email", verifyEmail)
 
 	r.GET("/email/unsubscribe", handleEmailUnsubscribe)
 	r.POST("/email/unsubscribe", handleEmailUnsubscribe)

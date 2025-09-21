@@ -10,13 +10,32 @@
     let bkUser = ''
     let bkPass = ''
     let error = ''
+    let needsVerification = false
+    let verificationEmailSent = false
+    let lastSubmittedEmail = ''
+    let verificationHelpLink = '/verify-email'
     let mode: 'local' | 'bakalari' = 'local'
     
     // Get school name from environment
     const schoolName = import.meta.env.BAKALARI_SCHOOL_NAME || 'School'
-  
+
+    $: verificationHelpLink = (() => {
+      const params: string[] = []
+      if (lastSubmittedEmail) {
+        params.push(`email=${encodeURIComponent(lastSubmittedEmail)}`)
+      }
+      if (verificationEmailSent) {
+        params.push('resent=1')
+      }
+      const query = params.join('&')
+      return query ? `/verify-email?${query}` : '/verify-email'
+    })()
+
     async function submit() {
       error = ''
+      needsVerification = false
+      verificationEmailSent = false
+      lastSubmittedEmail = email.trim()
       // 1. Log in (use apiFetch so credentials are consistently included)
       const res = await apiFetch('/api/login', {
         method: 'POST',
@@ -24,7 +43,15 @@
         body: JSON.stringify({ email, password: await sha256(password) })
       })
       if (!res.ok) {
-        error = (await res.json()).error
+        try {
+          const payload = await res.json()
+          error = payload?.error ?? 'Login failed'
+          needsVerification = Boolean(payload?.needsVerification)
+          verificationEmailSent = Boolean(payload?.verificationEmailSent)
+        } catch (parseErr) {
+          console.error(parseErr)
+          error = 'Login failed'
+        }
         return
       }
       // 2. Fetch /api/me
@@ -105,6 +132,27 @@
   </div>
   {#if error}
     <p class="text-error text-center mt-4">{error}</p>
+  {/if}
+  {#if needsVerification}
+    <div class="alert alert-info mx-auto mt-4 max-w-sm">
+      <div>
+        <p class="font-semibold">Verify your email to continue</p>
+        <p class="text-sm">
+          {#if verificationEmailSent && lastSubmittedEmail}
+            We just sent a new verification email to {lastSubmittedEmail}. Check your inbox and spam folder.
+          {:else if lastSubmittedEmail}
+            Your account for {lastSubmittedEmail} needs to be verified before you can log in.
+          {:else}
+            Your account needs to be verified before you can log in.
+          {/if}
+        </p>
+      </div>
+      <div class="mt-3 flex justify-end">
+        <button type="button" class="btn btn-sm btn-primary" on:click={() => goto(verificationHelpLink)}>
+          View instructions
+        </button>
+      </div>
+    </div>
   {/if}
   <div class="mt-6 space-y-2 text-center text-sm text-base-content/80">
     <p>

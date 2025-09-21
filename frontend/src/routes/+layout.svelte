@@ -44,7 +44,7 @@
   let showBakalariForm = false;
   let showLocalAccountForm = false;
 
-  const PUBLIC_AUTH_PREFIXES = ['/login', '/register', '/forgot-password', '/reset-password'];
+  const PUBLIC_AUTH_PREFIXES = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
   // Determine if current route is an auth-related public page
   $: isAuthPage = PUBLIC_AUTH_PREFIXES.some((prefix) => $page.url.pathname.startsWith(prefix));
 

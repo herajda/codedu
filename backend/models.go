@@ -17,18 +17,20 @@ const maxFileSize = 20 * 1024 * 1024 // 20 MB
 var ErrBlocked = errors.New("blocked")
 
 type User struct {
-	ID                 uuid.UUID `db:"id"`
-	Email              string    `db:"email"`
-	PasswordHash       string    `db:"password_hash"`
-	Name               *string   `db:"name"`
-	Avatar             *string   `db:"avatar"`
-	Role               string    `db:"role"`
-	Theme              string    `db:"theme"`
-	EmailNotifications bool      `db:"email_notifications"`
-	EmailMessageDigest bool      `db:"email_message_digest"`
-	BkClass            *string   `db:"bk_class"`
-	BkUID              *string   `db:"bk_uid"`
-	CreatedAt          time.Time `db:"created_at"`
+	ID                 uuid.UUID  `db:"id"`
+	Email              string     `db:"email"`
+	PasswordHash       string     `db:"password_hash"`
+	Name               *string    `db:"name"`
+	Avatar             *string    `db:"avatar"`
+	Role               string     `db:"role"`
+	Theme              string     `db:"theme"`
+	EmailNotifications bool       `db:"email_notifications"`
+	EmailMessageDigest bool       `db:"email_message_digest"`
+	EmailVerified      bool       `db:"email_verified"`
+	EmailVerifiedAt    *time.Time `db:"email_verified_at"`
+	BkClass            *string    `db:"bk_class"`
+	BkUID              *string    `db:"bk_uid"`
+	CreatedAt          time.Time  `db:"created_at"`
 }
 
 type Assignment struct {
@@ -133,7 +135,7 @@ func UpdateUserRole(id uuid.UUID, role string) error {
 
 func GetUser(id uuid.UUID) (*User, error) {
 	var u User
-	err := DB.Get(&u, `SELECT id, email, password_hash, name, avatar, role, theme, email_notifications, email_message_digest, bk_class, bk_uid, created_at
+	err := DB.Get(&u, `SELECT id, email, password_hash, name, avatar, role, theme, email_notifications, email_message_digest, email_verified, email_verified_at, bk_class, bk_uid, created_at
                 FROM users WHERE id=$1`, id)
 	if err != nil {
 		return nil, err
@@ -418,15 +420,15 @@ func IsStudentOfAssignment(aid, studentID uuid.UUID) (bool, error) {
 
 func CreateTeacher(email, hash string, name, bkUID *string) error {
 	_, err := DB.Exec(`
-        INSERT INTO users (email, password_hash, name, role, bk_uid)
-        VALUES ($1,$2,$3,'teacher',$4)`, email, hash, name, bkUID)
+        INSERT INTO users (email, password_hash, name, role, email_verified, bk_uid)
+        VALUES ($1,$2,$3,'teacher',TRUE,$4)`, email, hash, name, bkUID)
 	return err
 }
 
 // FindUserByBkUID returns a user identified by the Bakaláři UID.
 func FindUserByBkUID(uid string) (*User, error) {
 	var u User
-	err := DB.Get(&u, `SELECT id, email, password_hash, name, role, bk_class, bk_uid, avatar, theme, created_at
+	err := DB.Get(&u, `SELECT id, email, password_hash, name, role, bk_class, bk_uid, avatar, theme, email_verified, email_verified_at, created_at
                             FROM users WHERE bk_uid=$1`, uid)
 	if err != nil {
 		return nil, err
@@ -438,8 +440,8 @@ func FindUserByBkUID(uid string) (*User, error) {
 func createStudentWithID(email, hash string, name, bkClass, bkUID *string) (uuid.UUID, error) {
 	var id uuid.UUID
 	err := DB.QueryRow(`
-                INSERT INTO users (email, password_hash, name, role, bk_class, bk_uid)
-                VALUES ($1,$2,$3,'student',$4,$5)
+                INSERT INTO users (email, password_hash, name, role, email_verified, bk_class, bk_uid)
+                VALUES ($1,$2,$3,'student',TRUE,$4,$5)
                 RETURNING id`, email, hash, name, bkClass, bkUID).Scan(&id)
 	return id, err
 }

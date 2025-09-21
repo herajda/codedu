@@ -153,19 +153,20 @@
         return
       }
 
+      const trimmedEmail = email.trim()
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           firstName: firstName.trim(),
           lastName: lastName.trim(),
-          email: email.trim(),
+          email: trimmedEmail,
           password: await sha256(password),
           turnstileToken
         })
       })
       if (res.status === 201) {
-        goto('/login')
+        goto(`/verify-email?email=${encodeURIComponent(trimmedEmail)}`)
       } else {
         const { error: message } = await res.json()
         error = message ?? 'Registration failed. Please try again.'

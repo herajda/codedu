@@ -120,8 +120,8 @@ func getClassProgress(c *gin.Context) {
 
 func CreateStudent(email, hash string, name, bkClass, bkUID *string) error {
 	_, err := DB.Exec(
-		`INSERT INTO users (email, password_hash, name, role, bk_class, bk_uid)
-                 VALUES ($1,$2,$3,'student',$4,$5)`,
+		`INSERT INTO users (email, password_hash, name, role, email_verified, bk_class, bk_uid)
+                 VALUES ($1,$2,$3,'student',TRUE,$4,$5)`,
 		email, hash, name, bkClass, bkUID,
 	)
 	return err
@@ -130,7 +130,7 @@ func CreateStudent(email, hash string, name, bkClass, bkUID *string) error {
 func FindUserByEmail(email string) (*User, error) {
 	var u User
 	err := DB.Get(&u, `
-            SELECT id, email, password_hash, name, role, bk_class, bk_uid
+            SELECT id, email, password_hash, name, role, email_verified, email_verified_at, bk_class, bk_uid
               FROM users
              WHERE email = $1`,
 		email,

@@ -4,7 +4,7 @@ import { redirect } from '@sveltejs/kit';
 export const load: LayoutLoad = async ({ fetch, url }) => {
   const path = url.pathname;
 
-  const publicPrefixes = ['/login', '/register', '/forgot-password', '/reset-password'];
+  const publicPrefixes = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
 
   // Allow unauthenticated access to public auth routes
   if (publicPrefixes.some((prefix) => path.startsWith(prefix))) {
@@ -18,4 +18,3 @@ export const load: LayoutLoad = async ({ fetch, url }) => {
 
   return {};
 };
-
