@@ -3152,23 +3152,59 @@ func linkLocalAccount(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "non-bakalari account"})
 		return
 	}
-	if _, err := mail.ParseAddress(user.Email); err == nil {
+	if _, err := mail.ParseAddress(user.Email); err == nil && user.EmailVerified {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "already linked"})
 		return
 	}
-	if _, err := FindUserByEmail(req.Email); err == nil {
+	if mailer == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Email verification is temporarily unavailable"})
+		return
+	}
+	email := strings.TrimSpace(req.Email)
+	existing, err := FindUserByEmail(email)
+	if err == nil && existing.ID != uid {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "email already in use"})
 		return
-	} else if !errors.Is(err, sql.ErrNoRows) {
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
 	hash, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-	if err := LinkLocalAccount(uid, req.Email, string(hash)); err != nil {
+	tx, err := DB.Beginx()
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
-	c.Status(http.StatusNoContent)
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.Exec(`UPDATE users
+	                         SET email=$1,
+	                             password_hash=$2,
+	                             email_verified=FALSE,
+	                             email_verified_at=NULL
+	                       WHERE id=$3`, email, string(hash), uid); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	token, err := issueEmailVerificationTokenTx(tx, uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	if err := mailer.sendVerificationEmail(email, token); err != nil {
+		log.Printf("could not send verification email for user %s: %v", uid, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not send verification email"})
+		return
+	}
+	c.JSON(http.StatusAccepted, gin.H{
+		"message":           "Verification email sent",
+		"needsVerification": true,
+		"email":             email,
+	})
 }
 
 // ──────────────────────────────────────────

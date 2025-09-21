@@ -9,6 +9,7 @@ export type User = {
   name?: string | null;
   avatar?: string | null;
   email?: string | null;
+  email_verified?: boolean | null;
   bk_uid?: string | null;
   theme?: "light" | "dark" | null;
   email_notifications?: boolean | null;
@@ -27,6 +28,7 @@ function createAuth() {
     avatar?: string | null,
     bk_uid?: string | null,
     email?: string | null,
+    emailVerified?: boolean | null,
     theme?: "light" | "dark" | null,
     emailNotifications?: boolean | null,
     emailMessageDigest?: boolean | null,
@@ -38,6 +40,7 @@ function createAuth() {
       avatar,
       bk_uid,
       email,
+      email_verified: emailVerified ?? null,
       theme,
       email_notifications: emailNotifications ?? true,
       email_message_digest: emailMessageDigest ?? true,
@@ -78,6 +81,7 @@ function createAuth() {
           me.avatar ?? null,
           me.bk_uid ?? null,
           me.email ?? null,
+          me.email_verified ?? null,
           me.theme ?? null,
           me.email_notifications ?? true,
           me.email_message_digest ?? true,

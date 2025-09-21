@@ -115,7 +115,7 @@
               <details open={isSection('/teachers')}>
                 <summary class="nav-summary">
                   <i class="fa-solid fa-people-group nav-icon" aria-hidden="true"></i>
-                  <span class="truncate">Teachers' Group</span>
+                  <span class="truncate">Teachers</span>
                 </summary>
                 <div class="nav-group">
                   <a class={`nav-sublink ${isActive('/teachers/forum') ? 'is-active' : ''}`} href="/teachers/forum" on:click={() => sidebarOpen.set(false)}>

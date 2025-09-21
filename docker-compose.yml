@@ -48,6 +48,7 @@ services:
       DOCKER_USER: "65534:65534"
       DOCKER_CPUS: "0.5"
       DOCKER_MEMORY: "256m"
+      GIN_MODE: release
     env_file:
       - .env
     depends_on:

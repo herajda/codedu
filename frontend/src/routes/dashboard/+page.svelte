@@ -284,7 +284,7 @@
             <LayoutGrid class="w-5 h-5 text-primary" aria-hidden="true" />
           </div>
           <div class="min-w-0">
-            <div class="text-xs uppercase tracking-wide text-base-content/60">Teachers' Group</div>
+            <div class="text-xs uppercase tracking-wide text-base-content/60">Teachers</div>
             <div class="text-sm text-base-content/70 whitespace-nowrap truncate">Collaborate with colleagues</div>
           </div>
         </div>

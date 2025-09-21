@@ -22,6 +22,8 @@
   let avatarInput: HTMLInputElement;
   let name = '';
   let avatarFile: string | null = null;
+  let avatarProcessing = false;
+  let avatarError = '';
   let oldPassword = '';
   let newPassword = '';
   let newPassword2 = '';
@@ -44,6 +46,14 @@
   let showBakalariForm = false;
   let showLocalAccountForm = false;
 
+  $: trimmedLinkEmail = linkEmail.trim();
+  $: linkHasMinLength = linkPassword.length > 8;
+  $: linkHasLetter = /[A-Za-z]/.test(linkPassword);
+  $: linkHasNumber = /\d/.test(linkPassword);
+  $: linkMeetsPasswordRules = linkHasMinLength && linkHasLetter && linkHasNumber;
+  $: linkPasswordsMatch = linkPassword2.length === 0 ? false : linkPassword === linkPassword2;
+  $: canLinkLocal = isValidEmail(trimmedLinkEmail) && linkMeetsPasswordRules && linkPasswordsMatch;
+
   const PUBLIC_AUTH_PREFIXES = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
   // Determine if current route is an auth-related public page
   $: isAuthPage = PUBLIC_AUTH_PREFIXES.some((prefix) => $page.url.pathname.startsWith(prefix));
@@ -62,8 +72,10 @@
       name = user.name ?? '';
     }
     avatarFile = null;
+    avatarProcessing = false;
+    avatarError = '';
     selectedAvatarFromCatalog = null;
-    linkEmail = '';
+    linkEmail = user?.email_verified === false && user?.email ? user.email : '';
     linkPassword = '';
     linkPassword2 = '';
     linkError = '';
@@ -78,22 +90,98 @@
     editingNotifications = false;
     showBakalariForm = false;
     showLocalAccountForm = false;
+    if (!isValidEmail(user?.email) || user?.email_verified === false) {
+      showLocalAccountForm = true;
+    }
     // load catalog
     fetch('/api/avatars').then(r => r.ok ? r.json() : []).then((list) => { avatarChoices = list; });
     settingsDialog.showModal();
   }
 
-  async function onAvatarChange(e: Event) {
-    const file = (e.target as HTMLInputElement).files?.[0];
-    if (!file) { avatarFile = null; return; }
-    const reader = new FileReader();
-    reader.onload = () => {
-      // When a custom image is chosen, clear any catalog selection
-      selectedAvatarFromCatalog = null;
-      avatarFile = reader.result as string;
+  const MAX_AVATAR_DIMENSION = 512;
+
+  function loadImageElement(file: File): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve(img);
+      };
+      img.onerror = (err) => {
+        URL.revokeObjectURL(url);
+        reject(err);
+      };
+      img.src = url;
+    });
+  }
+
+  async function getCanvasImageSource(file: File): Promise<{ source: CanvasImageSource; width: number; height: number; cleanup: () => void; }> {
+    if (browser && 'createImageBitmap' in window && typeof createImageBitmap === 'function') {
+      try {
+        const bitmap = await createImageBitmap(file);
+        return {
+          source: bitmap,
+          width: bitmap.width,
+          height: bitmap.height,
+          cleanup: () => bitmap.close()
+        };
+      } catch {
+        // fall through to image element loader
+      }
+    }
+    const img = await loadImageElement(file);
+    return {
+      source: img,
+      width: img.naturalWidth,
+      height: img.naturalHeight,
+      cleanup: () => {}
     };
-    // Read the original file to avoid client-side downscaling artifacts
-    reader.readAsDataURL(file);
+  }
+
+  async function compressAvatar(file: File): Promise<string> {
+    if (!browser) {
+      throw new Error('Cannot process image on server');
+    }
+    const { source, width, height, cleanup } = await getCanvasImageSource(file);
+    const maxEdge = Math.max(width, height);
+    const scale = maxEdge > MAX_AVATAR_DIMENSION ? MAX_AVATAR_DIMENSION / maxEdge : 1;
+    const targetWidth = Math.max(1, Math.round(width * scale));
+    const targetHeight = Math.max(1, Math.round(height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      cleanup();
+      throw new Error('Canvas not supported');
+    }
+    ctx.drawImage(source, 0, 0, targetWidth, targetHeight);
+    cleanup();
+    const preferredType = file.type === 'image/png' || file.type === 'image/webp' || file.type === 'image/gif' ? 'image/png' : 'image/jpeg';
+    const quality = preferredType === 'image/jpeg' ? 0.82 : undefined;
+    return canvas.toDataURL(preferredType, quality);
+  }
+
+  async function onAvatarChange(e: Event) {
+    avatarError = '';
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) {
+      avatarFile = null;
+      return;
+    }
+    avatarProcessing = true;
+    try {
+      const processed = await compressAvatar(file);
+      selectedAvatarFromCatalog = null;
+      avatarFile = processed;
+    } catch (err) {
+      console.error('Failed to process avatar', err);
+      avatarFile = null;
+      avatarError = 'We could not process that image. Try a different file.';
+    } finally {
+      avatarProcessing = false;
+    }
   }
 
   function chooseAvatar() {
@@ -135,6 +223,9 @@
   }
 
   async function saveSettings() {
+    if (avatarProcessing) {
+      return;
+    }
     const body: any = {};
     if (selectedAvatarFromCatalog) {
       body.avatar = selectedAvatarFromCatalog;
@@ -151,7 +242,18 @@
       const meRes = await apiFetch('/api/me');
       if (meRes.ok) {
         const me = await meRes.json();
-        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null, me.email_notifications ?? true, me.email_message_digest ?? true);
+        auth.login(
+          me.id,
+          me.role,
+          me.name ?? null,
+          me.avatar ?? null,
+          me.bk_uid ?? null,
+          me.email ?? null,
+          me.email_verified ?? null,
+          me.theme ?? null,
+          me.email_notifications ?? true,
+          me.email_message_digest ?? true,
+        );
       }
     }
     settingsDialog.close();
@@ -159,27 +261,50 @@
 
   async function linkLocal() {
     linkError = '';
-    if (linkPassword !== linkPassword2) {
-      linkError = 'Passwords do not match';
+    if (!isValidEmail(trimmedLinkEmail)) {
+      linkError = 'Please provide a valid email address.';
+      return;
+    }
+    if (!linkMeetsPasswordRules) {
+      linkError = 'Password must be longer than 8 characters and include letters and numbers.';
+      return;
+    }
+    if (!linkPasswordsMatch) {
+      linkError = 'Passwords must match.';
       return;
     }
     try {
       const res = await apiFetch('/api/me/link-local', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: linkEmail, password: await sha256(linkPassword) })
+        body: JSON.stringify({ email: trimmedLinkEmail, password: await sha256(linkPassword) })
       });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         linkError = data.error ?? res.statusText;
         return;
       }
       const meRes = await apiFetch('/api/me');
       if (meRes.ok) {
         const me = await meRes.json();
-        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null, me.email_notifications ?? true, me.email_message_digest ?? true);
+        auth.login(
+          me.id,
+          me.role,
+          me.name ?? null,
+          me.avatar ?? null,
+          me.bk_uid ?? null,
+          me.email ?? null,
+          me.email_verified ?? null,
+          me.theme ?? null,
+          me.email_notifications ?? true,
+          me.email_message_digest ?? true,
+        );
       }
       settingsDialog.close();
+      const email = typeof data.email === 'string' && data.email.length > 0 ? data.email : trimmedLinkEmail;
+      if (email) {
+        goto(`/verify-email?email=${encodeURIComponent(email)}&resent=1`);
+      }
     } catch (e: any) {
       linkError = e.message;
     }
@@ -218,7 +343,18 @@
       const meRes = await apiFetch('/api/me');
       if (meRes.ok) {
         const me = await meRes.json();
-        auth.login(me.id, me.role, me.name ?? null, me.avatar ?? null, me.bk_uid ?? null, me.email ?? null, me.theme ?? null, me.email_notifications ?? true, me.email_message_digest ?? true);
+        auth.login(
+          me.id,
+          me.role,
+          me.name ?? null,
+          me.avatar ?? null,
+          me.bk_uid ?? null,
+          me.email ?? null,
+          me.email_verified ?? null,
+          me.theme ?? null,
+          me.email_notifications ?? true,
+          me.email_message_digest ?? true,
+        );
       }
       bkLinkUsername = '';
       bkLinkPassword = '';
@@ -378,7 +514,18 @@
     prefersDark = !prefersDark;
     applyThemeFromPreference();
     if (user) {
-      auth.login(user.id, user.role, user.name ?? null, user.avatar ?? null, user.bk_uid ?? null, user.email ?? null, prefersDark ? 'dark' : 'light', user.email_notifications ?? true, user.email_message_digest ?? true);
+      auth.login(
+        user.id,
+        user.role,
+        user.name ?? null,
+        user.avatar ?? null,
+        user.bk_uid ?? null,
+        user.email ?? null,
+        user.email_verified ?? null,
+        prefersDark ? 'dark' : 'light',
+        user.email_notifications ?? true,
+        user.email_message_digest ?? true,
+      );
       try {
         await apiFetch('/api/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ theme: prefersDark ? 'dark' : 'light' }) });
       } catch (e) {
@@ -559,6 +706,7 @@
                           <button type="button" class="btn btn-sm btn-ghost" on:click={() => {
                             avatarFile = null;
                             selectedAvatarFromCatalog = null;
+                            avatarError = '';
                             if (avatarInput) {
                               avatarInput.value = '';
                             }
@@ -586,6 +734,12 @@
                         <div class="text-sm text-base-content/70 space-y-2">
                           <p>Use a square image for the best result. Larger files are automatically resized.</p>
                           <p class="text-xs">Supported formats: JPG, PNG, GIF, WebP.</p>
+                          {#if avatarProcessing}
+                            <p class="text-xs text-primary">Processing image…</p>
+                          {/if}
+                          {#if avatarError}
+                            <p class="text-xs text-error">{avatarError}</p>
+                          {/if}
                         </div>
                         <input type="file" accept="image/*" on:change={onAvatarChange} bind:this={avatarInput} class="hidden" />
                       </div>
@@ -687,8 +841,8 @@
                         <div class="space-y-4">
                           <div class="flex flex-col gap-2 rounded-xl border border-base-300/60 bg-base-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                              <h5 class="font-medium text-base-content">Assignment & message alerts</h5>
-                              <p class="text-sm text-base-content/70">Receive emails for new assignments, deadlines, and direct messages.</p>
+                              <h5 class="font-medium text-base-content">Assignment alerts</h5>
+                              <p class="text-sm text-base-content/70">Receive emails for new assignments and deadlines.</p>
                             </div>
                             <input
                               type="checkbox"
@@ -824,13 +978,19 @@
                       </div>
                     </section>
                   {/if}
-                {:else if user && !isValidEmail(user.email)}
+                {:else if user && (!isValidEmail(user.email) || user.email_verified === false)}
                   <section class="card border border-base-300/60 bg-base-100 shadow-sm">
                     <div class="card-body gap-4">
                       <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                          <h4 class="card-title text-lg">Create local account</h4>
-                          <p class="text-sm text-base-content/70">Add an email and password in case Bakaláři is unavailable.</p>
+                          <h4 class="card-title text-lg">{user.email_verified === false && isValidEmail(user.email) ? 'Verify your email' : 'Create local account'}</h4>
+                          {#if user.email_verified === false && isValidEmail(user.email)}
+                            <p class="text-sm text-base-content/70">
+                              We sent a verification link to <span class="font-medium">{user.email}</span>. If you made a typo, update the email below and we'll resend it.
+                            </p>
+                          {:else}
+                            <p class="text-sm text-base-content/70">Add an email and password in case Bakaláři is unavailable.</p>
+                          {/if}
                         </div>
                         <button
                           type="button"
@@ -844,15 +1004,44 @@
                       {#if showLocalAccountForm}
                         <div class="space-y-3 max-w-md">
                           <input type="email" class="input input-bordered w-full" bind:value={linkEmail} placeholder="Email" autocomplete="email" />
-                          <input type="password" class="input input-bordered w-full" bind:value={linkPassword} placeholder="Password" autocomplete="new-password" />
+                          <div class="space-y-2">
+                            <input type="password" class="input input-bordered w-full" bind:value={linkPassword} placeholder="Password" autocomplete="new-password" />
+                            <div class="bg-base-200 rounded-lg p-3 text-sm space-y-2">
+                              <p class="font-semibold text-base-content">Password requirements</p>
+                              <ul class="space-y-1">
+                                <li class={`flex items-center gap-2 ${linkHasMinLength ? 'text-success' : 'text-base-content/70'}`}>
+                                  <span class={`inline-flex w-2 h-2 rounded-full ${linkHasMinLength ? 'bg-success' : 'bg-base-300'}`}></span>
+                                  <span>At least 9 characters</span>
+                                </li>
+                                <li class={`flex items-center gap-2 ${linkHasLetter ? 'text-success' : 'text-base-content/70'}`}>
+                                  <span class={`inline-flex w-2 h-2 rounded-full ${linkHasLetter ? 'bg-success' : 'bg-base-300'}`}></span>
+                                  <span>Includes a letter</span>
+                                </li>
+                                <li class={`flex items-center gap-2 ${linkHasNumber ? 'text-success' : 'text-base-content/70'}`}>
+                                  <span class={`inline-flex w-2 h-2 rounded-full ${linkHasNumber ? 'bg-success' : 'bg-base-300'}`}></span>
+                                  <span>Includes a number</span>
+                                </li>
+                                <li class={`flex items-center gap-2 ${linkPassword2.length === 0 ? 'text-base-content/70' : linkPasswordsMatch ? 'text-success' : 'text-error'}`}>
+                                  <span class={`inline-flex w-2 h-2 rounded-full ${linkPassword2.length === 0 ? 'bg-base-300' : linkPasswordsMatch ? 'bg-success' : 'bg-error'}`}></span>
+                                  <span>Passwords match</span>
+                                </li>
+                              </ul>
+                            </div>
+                          </div>
                           <input type="password" class="input input-bordered w-full" bind:value={linkPassword2} placeholder="Repeat password" autocomplete="new-password" />
                           {#if linkError}
                             <p class="text-error text-sm">{linkError}</p>
                           {/if}
-                          <button class="btn btn-primary" on:click={linkLocal}>Link account</button>
+                          <button type="button" class="btn btn-primary" on:click={linkLocal} disabled={!canLinkLocal}>
+                            {user.email_verified === false && isValidEmail(user.email) ? 'Update email & resend' : 'Link account'}
+                          </button>
                         </div>
                       {:else}
-                        <p class="text-xs text-base-content/60">Set up a fallback login to access CodEdu without Bakaláři.</p>
+                        {#if user.email_verified === false && isValidEmail(user.email)}
+                          <p class="text-xs text-base-content/60">Verification pending for <span class="font-medium">{user.email}</span>. You can update the email if needed.</p>
+                        {:else}
+                          <p class="text-xs text-base-content/60">Set up a fallback login to access CodEdu without Bakaláři.</p>
+                        {/if}
                       {/if}
                     </div>
                   </section>
@@ -861,7 +1050,7 @@
 
               <div class="modal-action bg-base-100 px-6 py-4 border-t border-base-300/60 justify-between sticky bottom-0 z-20">
                 <button type="button" class="btn btn-ghost" on:click={() => settingsDialog.close()}>Cancel</button>
-                <button class="btn btn-primary" on:click={saveSettings}>Save changes</button>
+                <button class="btn btn-primary" on:click={saveSettings} disabled={avatarProcessing}>Save changes</button>
               </div>
             </div>
             <form method="dialog" class="modal-backdrop"><button>close</button></form>

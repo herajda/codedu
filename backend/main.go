@@ -169,6 +169,7 @@ func main() {
 				"avatar":               u.Avatar,
 				"bk_uid":               u.BkUID,
 				"email":                u.Email,
+				"email_verified":       u.EmailVerified,
 				"theme":                u.Theme,
 				"email_notifications":  u.EmailNotifications,
 				"email_message_digest": u.EmailMessageDigest,

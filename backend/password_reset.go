@@ -492,11 +492,29 @@ func requestPasswordReset(c *gin.Context) {
 		return
 	}
 	var req struct {
-		Email string `json:"email" binding:"required,email"`
+		Email          string `json:"email" binding:"required,email"`
+		TurnstileToken string `json:"turnstileToken" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("password reset invalid payload: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := verifyTurnstile(c.Request.Context(), req.TurnstileToken, c.ClientIP()); err != nil {
+		log.Printf("password reset turnstile verification failed: %v", err)
+		status := http.StatusBadRequest
+		message := "Verification failed. Please try again."
+		switch {
+		case errors.Is(err, errTurnstileConfig):
+			status = http.StatusInternalServerError
+			message = "Password resets are temporarily unavailable. Please try again later."
+		case errors.Is(err, errTurnstileInvalid):
+			status = http.StatusBadRequest
+		default:
+			status = http.StatusBadGateway
+			message = "Verification service is unavailable. Please try again."
+		}
+		c.JSON(status, gin.H{"error": message})
 		return
 	}
 	log.Printf("password reset request received for email=%s", req.Email)
