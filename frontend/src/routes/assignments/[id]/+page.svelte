@@ -9,6 +9,7 @@ import { formatDateTime } from "$lib/date";
 import DOMPurify from 'dompurify'
 import { goto } from '$app/navigation'
 import { page } from '$app/stores'
+import ConfirmModal from '$lib/components/ConfirmModal.svelte'
 
 
 
@@ -32,12 +33,14 @@ $: role = $auth?.role ?? '';
   let percent=0
   let testsPassed=0
   let testsPercent=0
-  let testsCount=0
-  let err=''
-  let subStats: Record<string, {passed:number, total:number}> = {}
-  // removed test creation inputs (moved to tests page)
-  let files: File[] = []
-  let templateFile:File|null=null
+let testsCount=0
+let err=''
+let subStats: Record<string, {passed:number, total:number}> = {}
+// removed test creation inputs (moved to tests page)
+let files: File[] = []
+let templateFile:File|null=null
+
+let confirmModal: InstanceType<typeof ConfirmModal>
   // removed unittest file input (moved to tests page)
   let submitDialog: HTMLDialogElement;
   // removed tests dialog (moved to tests page)
@@ -296,8 +299,28 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
 
   async function saveEdit(){
     try{
-      if(new Date(eDeadline)<new Date() && !confirm('The deadline is in the past. Continue?')) return
-      if(eSecondDeadline && new Date(eSecondDeadline)<=new Date(eDeadline) && !confirm('The second deadline must be after the first deadline. Continue?')) return
+      if(new Date(eDeadline)<new Date()){
+        const proceed = await confirmModal.open({
+          title: 'Deadline is in the past',
+          body: 'Students will immediately see this assignment as overdue. Continue anyway?',
+          confirmLabel: 'Continue',
+          cancelLabel: 'Go back',
+          confirmClass: 'btn btn-warning',
+          cancelClass: 'btn'
+        })
+        if(!proceed) return
+      }
+      if(eSecondDeadline && new Date(eSecondDeadline)<=new Date(eDeadline)){
+        const proceed = await confirmModal.open({
+          title: 'Second deadline must follow the first',
+          body: 'The late deadline should be later than the main deadline. Continue with this timing anyway?',
+          confirmLabel: 'Continue',
+          cancelLabel: 'Go back',
+          confirmClass: 'btn btn-warning',
+          cancelClass: 'btn'
+        })
+        if(!proceed) return
+      }
       // For weighted assignments, max_points is calculated from test weights
       const maxPoints = ePolicy === 'weighted' ? (assignment.max_points || 100) : Number(ePoints)
       
@@ -328,7 +351,14 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
   }
 
   async function delAssignment(){
-    if(!confirm('Delete this assignment?')) return
+    const confirmed = await confirmModal.open({
+      title: 'Delete assignment',
+      body: 'This assignment and all related submissions will be permanently removed.',
+      confirmLabel: 'Delete assignment',
+      confirmClass: 'btn btn-error',
+      cancelClass: 'btn'
+    })
+    if(!confirmed) return
     try{
       await apiFetch(`/api/assignments/${id}`,{method:'DELETE'})
       goto(`/classes/${assignment.class_id}`)
@@ -1115,6 +1145,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
   {#if err}
     <div class="alert alert-error mt-4"><span>{err}</span></div>
   {/if}
+  <ConfirmModal bind:this={confirmModal} />
 {/if}
 
 <style>

@@ -8,6 +8,8 @@
     Users2, GraduationCap, School, BookOpen, Plus, Trash2, RefreshCw,
     Shield, Search, Edit, ArrowRightLeft, Check
   } from 'lucide-svelte';
+  import ConfirmModal from '$lib/components/ConfirmModal.svelte';
+  import PromptModal from '$lib/components/PromptModal.svelte';
 
   // Tabs
   type Tab = 'overview' | 'teachers' | 'users' | 'classes' | 'assignments'
@@ -47,6 +49,8 @@
   // Loading states
   let loadingUsers = false, loadingClasses = false, loadingAssignments = false;
   let ok = '', err = '';
+  let confirmModal: InstanceType<typeof ConfirmModal>;
+  let promptModal: InstanceType<typeof PromptModal>;
 
   async function loadUsers() {
     loadingUsers = true; err = '';
@@ -104,7 +108,14 @@
     } catch (e: any) { err = e.message; }
   }
   async function deleteUser(id: string) {
-    if (!confirm('Delete this user? This cannot be undone.')) return;
+    const confirmed = await confirmModal.open({
+      title: 'Delete user',
+      body: 'This user and their data will be permanently deleted. This cannot be undone.',
+      confirmLabel: 'Delete user',
+      confirmClass: 'btn btn-error',
+      cancelClass: 'btn'
+    });
+    if (!confirmed) return;
     try { await apiFetch(`/api/users/${id}`, { method: 'DELETE' }); ok = 'User deleted'; await loadUsers(); } catch (e: any) { err = e.message; }
   }
   function exportUsersCSV() {
@@ -137,8 +148,17 @@
     } catch (e: any) { err = e.message; }
   }
   async function renameClass(id: string) {
-    const name = prompt('New class name:');
-    if (!name) return;
+    const current = classes.find(c => c.id === id)?.name ?? '';
+    const name = await promptModal?.open({
+      title: 'Rename class',
+      label: 'Class name',
+      initialValue: current,
+      confirmLabel: 'Save',
+      icon: 'fa-solid fa-school text-primary',
+      validate: (value) => value.trim() ? null : 'Class name is required',
+      transform: (value) => value.trim()
+    });
+    if (!name || name === current) return;
     try { 
       await apiFetch(`/api/classes/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }); 
       ok = 'Class renamed'; 
@@ -148,7 +168,14 @@
     } catch (e: any) { err = e.message; }
   }
   async function deleteClassAction(id: string) {
-    if (!confirm('Delete this class and its data?')) return;
+    const confirmed = await confirmModal.open({
+      title: 'Delete class',
+      body: 'All data for this class, including assignments, will be removed.',
+      confirmLabel: 'Delete class',
+      confirmClass: 'btn btn-error',
+      cancelClass: 'btn'
+    });
+    if (!confirmed) return;
     try { 
       await apiFetch(`/api/classes/${id}`, { method: 'DELETE' }); 
       ok = 'Class deleted'; 
@@ -181,7 +208,14 @@
     try { await apiFetch(`/api/assignments/${aid}/publish`, { method: 'PUT' }); ok = 'Assignment published'; await loadAssignments(); } catch (e: any) { err = e.message; }
   }
   async function deleteAssignment(aid: string) {
-    if (!confirm('Delete this assignment?')) return;
+    const confirmed = await confirmModal.open({
+      title: 'Delete assignment',
+      body: 'This assignment will be permanently deleted for all students.',
+      confirmLabel: 'Delete assignment',
+      confirmClass: 'btn btn-error',
+      cancelClass: 'btn'
+    });
+    if (!confirmed) return;
     try { await apiFetch(`/api/assignments/${aid}`, { method: 'DELETE' }); ok = 'Assignment deleted'; await loadAssignments(); } catch (e: any) { err = e.message; }
   }
 </script>
@@ -244,6 +278,9 @@
     </div>
   </div>
 {/if}
+
+<ConfirmModal bind:this={confirmModal} />
+<PromptModal bind:this={promptModal} />
 
 {#if tab === 'teachers'}
   <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">

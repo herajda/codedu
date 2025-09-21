@@ -8,6 +8,8 @@ import { TEACHER_GROUP_ID } from '$lib/teacherGroup';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { goto } from '$app/navigation';
+import ConfirmModal from '$lib/components/ConfirmModal.svelte';
+import PromptModal from '$lib/components/PromptModal.svelte';
 
 type ClassFile = {
   id: string;
@@ -34,6 +36,9 @@ let breadcrumbs: { id: string | null; name: string }[] = [{ id: null, name: 'üè
 let currentParent: string | null = null;
 let loading = false;
 let err = '';
+
+let confirmModal: InstanceType<typeof ConfirmModal>;
+let promptModal: InstanceType<typeof PromptModal>;
 
 let search = '';
 let searchOpen = false;
@@ -91,19 +96,47 @@ async function createDir(name: string) {
   await apiFetch(`/api/classes/${groupId}/files`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, parent_id: currentParent, is_dir: true }) });
   await load(currentParent);
 }
-function promptDir() { const nm = prompt('Folder name'); if (nm) createDir(nm); }
+async function promptDir() {
+  const name = await promptModal?.open({
+    title: 'New folder',
+    label: 'Folder name',
+    placeholder: 'e.g. Unit 1',
+    confirmLabel: 'Create',
+    icon: 'fa-solid fa-folder-plus text-primary',
+    validate: (value) => value.trim() ? null : 'Folder name is required',
+    transform: (value) => value.trim()
+  });
+  if (!name) return;
+  await createDir(name);
+}
 
 // Rename
 async function rename(it: ClassFile) {
-  const nm = prompt('New name', it.name);
-  if (!nm || nm.trim() === '' || nm === it.name) return;
-  await apiFetch(`/api/files/${it.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: nm }) });
+  const name = await promptModal?.open({
+    title: 'Rename',
+    label: 'New name',
+    initialValue: it.name,
+    confirmLabel: 'Save',
+    icon: it.is_dir ? 'fa-solid fa-folder text-warning' : 'fa-solid fa-pen text-primary',
+    validate: (value) => value.trim() ? null : 'Name is required',
+    transform: (value) => value.trim(),
+    selectOnOpen: true
+  });
+  if (!name || name === it.name) return;
+  await apiFetch(`/api/files/${it.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
   await load(currentParent);
 }
 
 // Delete
 async function del(it: ClassFile) {
-  if (!confirm(`Delete ${it.name}?`)) return;
+  const shouldDelete = await confirmModal.open({
+    title: 'Delete assignment reference',
+    body: `This will permanently remove ${it.name} for teachers.`,
+    confirmLabel: 'Delete',
+    confirmClass: 'btn btn-error',
+    cancelClass: 'btn'
+  });
+  if (!shouldDelete) return;
   await apiFetch(`/api/files/${it.id}`, { method: 'DELETE' });
   await load(currentParent);
 }
@@ -493,6 +526,8 @@ onMount(() => {
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
   </dialog>
+  <ConfirmModal bind:this={confirmModal} />
+  <PromptModal bind:this={promptModal} />
 </div>
 
 <style>

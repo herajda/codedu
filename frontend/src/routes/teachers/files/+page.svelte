@@ -7,6 +7,8 @@ import '@fortawesome/fontawesome-free/css/all.min.css';
 import { compressImage } from '$lib/utils/compressImage';
 import { formatDateTime } from "$lib/date";
 import { TEACHER_GROUP_ID } from '$lib/teacherGroup';
+import ConfirmModal from '$lib/components/ConfirmModal.svelte';
+import PromptModal from '$lib/components/PromptModal.svelte';
 
 // Fixed Teachers' group ID
 let id = TEACHER_GROUP_ID;
@@ -36,6 +38,8 @@ let uploadErr = '';
 let uploading = false;
 const maxFileSize = 20 * 1024 * 1024;
 let viewMode: 'grid' | 'list' = typeof localStorage !== 'undefined' && localStorage.getItem('fileViewMode') === 'list' ? 'list' : 'grid';
+let confirmModal: InstanceType<typeof ConfirmModal>;
+let promptModal: InstanceType<typeof PromptModal>;
 
 function toggleSearch() { searchOpen = !searchOpen; if (!searchOpen) search = ''; }
 function isImage(name: string) { const ext = name.split('.').pop()?.toLowerCase(); return ['png','jpg','jpeg','gif','webp','svg'].includes(ext ?? ''); }
@@ -114,7 +118,19 @@ async function createDir(name:string){
   await load(currentParent);
 }
 
-function promptDir(){ const nm = prompt('Folder name'); if(nm) createDir(nm); }
+async function promptDir() {
+  const name = await promptModal?.open({
+    title: 'New folder',
+    label: 'Folder name',
+    placeholder: 'e.g. Resources',
+    confirmLabel: 'Create',
+    icon: 'fa-solid fa-folder-plus text-primary',
+    validate: (value) => value.trim() ? null : 'Folder name is required',
+    transform: (value) => value.trim()
+  });
+  if (!name) return;
+  await createDir(name);
+}
 
 async function createNotebook(name: string) {
   const cf = await apiJSON(`/api/classes/${id}/files`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, parent_id: currentParent }) });
@@ -123,11 +139,53 @@ async function createNotebook(name: string) {
   await load(currentParent);
 }
 
-function promptNotebook() { let nm = prompt('Notebook name', 'Untitled.ipynb'); if (!nm) return; if (!nm.toLowerCase().endsWith('.ipynb')) nm += '.ipynb'; createNotebook(nm); }
+async function promptNotebook() {
+  const notebookName = await promptModal?.open({
+    title: 'New notebook',
+    label: 'Notebook name',
+    initialValue: 'Untitled.ipynb',
+    helpText: 'Saved as a Jupyter notebook (.ipynb).',
+    confirmLabel: 'Create',
+    icon: 'fa-solid fa-book text-secondary',
+    validate: (value) => value.trim() ? null : 'Notebook name is required',
+    transform: (value) => {
+      const trimmed = value.trim();
+      if (!trimmed.toLowerCase().endsWith('.ipynb')) return `${trimmed}.ipynb`;
+      return trimmed;
+    }
+  });
+  if (!notebookName) return;
+  await createNotebook(notebookName);
+}
 
-async function del(item:any){ if(!confirm('Delete?')) return; await apiFetch(`/api/files/${item.id}`,{method:'DELETE'}); await load(currentParent); }
+async function del(item:any){
+  const confirmed = await confirmModal.open({
+    title: item.is_dir ? 'Delete folder' : 'Delete file',
+    body: item.is_dir ? 'Everything inside this folder will be removed.' : 'This file will be permanently deleted.',
+    confirmLabel: 'Delete',
+    confirmClass: 'btn btn-error',
+    cancelClass: 'btn'
+  });
+  if(!confirmed) return;
+  await apiFetch(`/api/files/${item.id}`,{method:'DELETE'});
+  await load(currentParent);
+}
 
-async function rename(item:any){ const nm = prompt('New name', item.name); if(!nm) return; await apiFetch(`/api/files/${item.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:nm})}); await load(currentParent); }
+async function rename(item:any){
+  const name = await promptModal?.open({
+    title: 'Rename',
+    label: 'New name',
+    initialValue: item.name,
+    confirmLabel: 'Save',
+    icon: item.is_dir ? 'fa-solid fa-folder text-warning' : 'fa-solid fa-pen text-primary',
+    validate: (value) => value.trim() ? null : 'Name is required',
+    transform: (value) => value.trim(),
+    selectOnOpen: true
+  });
+  if (!name || name === item.name) return;
+  await apiFetch(`/api/files/${item.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+  await load(currentParent);
+}
 
 function toggleView() { viewMode = viewMode === 'grid' ? 'list' : 'grid'; if (typeof localStorage !== 'undefined') { localStorage.setItem('fileViewMode', viewMode); } }
 
@@ -373,5 +431,6 @@ onMount(() => {
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
   </dialog>
+  <ConfirmModal bind:this={confirmModal} />
+  <PromptModal bind:this={promptModal} />
 </div>
-

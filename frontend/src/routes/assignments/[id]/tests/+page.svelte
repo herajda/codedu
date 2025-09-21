@@ -7,6 +7,7 @@
   import CodeMirror from '$lib/components/ui/CodeMirror.svelte'
   import { python } from '@codemirror/lang-python'
   import { Plus, Save, Trash2, Eye, FlaskConical, FileUp, Code, Copy, Clock, Scale, Upload as UploadIcon } from 'lucide-svelte'
+  import ConfirmModal from '$lib/components/ConfirmModal.svelte'
 
   $: id = $page.params.id
   $: role = ($auth as any)?.role ?? ''
@@ -14,6 +15,7 @@
   let assignment: any = null
   let tests: any[] = []
   let err = ''
+  let confirmModal: InstanceType<typeof ConfirmModal>
 
   // LLM testing settings (moved from Edit page)
   let llmFeedback = false
@@ -650,7 +652,14 @@
   }
 
   async function delTest(tid: number) {
-    if (!confirm('Delete this test?')) return
+    const confirmed = await confirmModal.open({
+      title: 'Delete test',
+      body: 'This test will be removed for all students.',
+      confirmLabel: 'Delete',
+      confirmClass: 'btn btn-error',
+      cancelClass: 'btn'
+    })
+    if (!confirmed) return
     try {
       await apiFetch(`/api/tests/${tid}`, { method: 'DELETE' })
       await load()
@@ -660,7 +669,14 @@
   }
 
   async function deleteAllTests() {
-    if (!confirm('Delete ALL tests for this assignment? This cannot be undone.')) return
+    const confirmed = await confirmModal.open({
+      title: 'Delete all tests',
+      body: 'All tests for this assignment will be permanently deleted. This cannot be undone.',
+      confirmLabel: 'Delete all',
+      confirmClass: 'btn btn-error',
+      cancelClass: 'btn'
+    })
+    if (!confirmed) return
     try {
       await apiFetch(`/api/assignments/${id}/tests`, { method: 'DELETE' })
       await load()
@@ -1147,6 +1163,8 @@
   </div>
 </dialog>
 
+<ConfirmModal bind:this={confirmModal} />
+
 <style>
   :global(.card-elevated){
     border-radius: 1rem;
@@ -1178,5 +1196,3 @@
     border-color: color-mix(in oklab, oklch(var(--p)) 40%, oklch(var(--bc)) 60%);
   }
 </style>
-
-

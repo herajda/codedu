@@ -6,6 +6,8 @@
   import { goto } from '$app/navigation';
   import { auth } from '$lib/auth';
   import '@fortawesome/fontawesome-free/css/all.min.css';
+  import ConfirmModal from '$lib/components/ConfirmModal.svelte';
+  import PromptModal from '$lib/components/PromptModal.svelte';
 
   let id = $page.params.id;
   $: if ($page.params.id !== id) { id = $page.params.id; load(); }
@@ -23,6 +25,8 @@
   let displayedNotes: any[] = [];
   let viewMode: 'grid' | 'list' =
     typeof localStorage !== 'undefined' && localStorage.getItem('notesViewMode') === 'list' ? 'list' : 'grid';
+  let confirmModal: InstanceType<typeof ConfirmModal>;
+  let promptModal: InstanceType<typeof PromptModal>;
   
   function toggleView() {
     viewMode = viewMode === 'grid' ? 'list' : 'grid';
@@ -92,23 +96,51 @@
     await load();
   }
 
-  function promptNotebook() {
-    let nm = prompt('Notebook name', 'Untitled.ipynb');
-    if (!nm) return;
-    if (!nm.toLowerCase().endsWith('.ipynb')) nm += '.ipynb';
-    createNotebook(nm);
+  async function promptNotebook() {
+    const notebookName = await promptModal?.open({
+      title: 'New notebook',
+      label: 'Notebook name',
+      initialValue: 'Untitled.ipynb',
+      helpText: 'Saved as a Jupyter notebook (.ipynb).',
+      confirmLabel: 'Create',
+      icon: 'fa-solid fa-book text-secondary',
+      validate: (value) => value.trim() ? null : 'Notebook name is required',
+      transform: (value) => {
+        const trimmed = value.trim();
+        if (!trimmed.toLowerCase().endsWith('.ipynb')) return `${trimmed}.ipynb`;
+        return trimmed;
+      }
+    });
+    if (!notebookName) return;
+    await createNotebook(notebookName);
   }
 
   async function del(n:any){
-    if(!confirm('Delete notebook?')) return;
+    const confirmed = await confirmModal.open({
+      title: 'Delete notebook',
+      body: 'This notebook will be permanently removed for the class.',
+      confirmLabel: 'Delete notebook',
+      confirmClass: 'btn btn-error',
+      cancelClass: 'btn'
+    });
+    if(!confirmed) return;
     await apiFetch(`/api/files/${n.id}`,{method:'DELETE'});
     await load();
   }
 
   async function rename(n:any){
-    const nm = prompt('New name', n.name);
-    if(!nm) return;
-    await apiFetch(`/api/files/${n.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:nm})});
+    const name = await promptModal?.open({
+      title: 'Rename notebook',
+      label: 'New name',
+      initialValue: n.name,
+      confirmLabel: 'Save',
+      icon: 'fa-solid fa-pen text-primary',
+      validate: (value) => value.trim() ? null : 'Name is required',
+      transform: (value) => value.trim(),
+      selectOnOpen: true
+    });
+    if(!name || name === n.name) return;
+    await apiFetch(`/api/files/${n.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
     await load();
   }
 
@@ -215,5 +247,8 @@
         </tbody>
       </table>
     </div>
-  {/if}
 {/if}
+{/if}
+
+<ConfirmModal bind:this={confirmModal} />
+<PromptModal bind:this={promptModal} />

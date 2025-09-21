@@ -143,7 +143,7 @@
     }
     if (user && user.bk_uid == null) body.name = name;
     body.email_notifications = emailNotifications;
-    if (user?.role === 'student') {
+    if (user?.role === 'student' || user?.role === 'teacher') {
       body.email_message_digest = emailMessageDigest;
     }
     const res = await apiFetch('/api/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -307,7 +307,7 @@
     } catch {}
   }
 
-  $: if (!emailNotifications && emailMessageDigest) {
+  $: if (user?.role === 'student' && !emailNotifications && emailMessageDigest) {
     emailMessageDigest = false;
   }
 
@@ -725,6 +725,46 @@
                               {emailNotifications && emailMessageDigest ? 'Enabled' : 'Disabled'}
                             </span>
                           </div>
+                        </div>
+                      {/if}
+                    </div>
+                  </section>
+                {:else if user?.role === 'teacher'}
+                  <section class="card border border-base-300/60 bg-base-100 shadow-sm">
+                    <div class="card-body gap-4">
+                      <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <h4 class="card-title text-lg">Email notifications</h4>
+                          <p class="text-sm text-base-content/70">Get a once-a-day digest of new direct messages.</p>
+                        </div>
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-outline"
+                          class:btn-active={editingNotifications}
+                          on:click={() => { editingNotifications = !editingNotifications; }}
+                        >
+                          {editingNotifications ? 'Done' : 'Adjust'}
+                        </button>
+                      </div>
+                      {#if editingNotifications}
+                        <div class="flex flex-col gap-2 rounded-xl border border-base-300/60 bg-base-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <h5 class="font-medium text-base-content">Daily message digest</h5>
+                            <p class="text-sm text-base-content/70">Receive an email summary of incoming messages every morning.</p>
+                          </div>
+                          <input
+                            type="checkbox"
+                            class="toggle toggle-primary"
+                            bind:checked={emailMessageDigest}
+                            aria-label="Toggle message digest emails for teachers"
+                          />
+                        </div>
+                      {:else}
+                        <div class="space-y-1">
+                          <span class="text-xs uppercase tracking-[0.08em] text-base-content/60">Daily digest</span>
+                          <span class={`badge ${emailMessageDigest ? 'badge-success badge-outline' : 'badge-neutral badge-outline'}`}>
+                            {emailMessageDigest ? 'Enabled' : 'Disabled'}
+                          </span>
                         </div>
                       {/if}
                     </div>

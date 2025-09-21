@@ -25,6 +25,7 @@
   import { sidebarCollapsed } from '$lib/sidebar';
   import UserProfileModal from '$lib/components/UserProfileModal.svelte';
   import { onlineUsers } from '$lib/stores/onlineUsers';
+  import ConfirmModal from '$lib/components/ConfirmModal.svelte';
 
   let id = $page.params.id;
   $: if ($page.params.id !== id) {
@@ -48,6 +49,7 @@
   let modalImage: string | null = null;
   let lightboxOpen = false;
   let currentImageIndex: number = -1;
+  let confirmModal: InstanceType<typeof ConfirmModal>;
   let esCtrl: { close: () => void } | null = null;
   let chatBox: HTMLDivElement | null = null;
   let msgInput: HTMLTextAreaElement | null = null;
@@ -324,7 +326,14 @@
   }
 
   async function blockThisUser() {
-    if (!confirm('Block this user?')) return;
+    const confirmed = await confirmModal.open({
+      title: 'Block user',
+      body: 'They will no longer be able to message you. You can unblock them later in settings.',
+      confirmLabel: 'Block user',
+      confirmClass: 'btn btn-error',
+      cancelClass: 'btn'
+    });
+    if (!confirmed) return;
     try {
       await apiFetch(`/api/users/${id}/block`, { method: 'POST' });
       goto('/messages');
@@ -742,6 +751,8 @@
 {#if showProfile}
   <UserProfileModal userId={id} on:close={() => (showProfile = false)} />
 {/if}
+
+<ConfirmModal bind:this={confirmModal} />
 
 <style>
   .chat-window {
