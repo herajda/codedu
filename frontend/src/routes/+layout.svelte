@@ -38,6 +38,11 @@
   let linkingBakalari = false;
   let emailNotifications = true;
   let emailMessageDigest = true;
+  let editingAvatar = false;
+  let editingName = false;
+  let editingNotifications = false;
+  let showBakalariForm = false;
+  let showLocalAccountForm = false;
 
   const PUBLIC_AUTH_PREFIXES = ['/login', '/register', '/forgot-password', '/reset-password'];
   // Determine if current route is an auth-related public page
@@ -68,6 +73,11 @@
     linkingBakalari = false;
     emailNotifications = user?.email_notifications ?? true;
     emailMessageDigest = user?.email_message_digest ?? true;
+    editingAvatar = false;
+    editingName = false;
+    editingNotifications = false;
+    showBakalariForm = false;
+    showLocalAccountForm = false;
     // load catalog
     fetch('/api/avatars').then(r => r.ok ? r.json() : []).then((list) => { avatarChoices = list; });
     settingsDialog.showModal();
@@ -467,121 +477,351 @@
             </ul>
           </div>
           <dialog bind:this={settingsDialog} class="modal">
-            <div class="modal-box space-y-4">
-              <h3 class="font-bold text-lg">Settings</h3>
-              <div class="flex items-center space-x-4">
-                <button type="button" class="avatar cursor-pointer" on:click={chooseAvatar} aria-label="Choose avatar">
-                  {#if avatarFile}
-                    <div class="w-16 h-16 rounded-full overflow-hidden ring-1 ring-base-300/60">
-                      <img src={avatarFile} alt="New avatar preview" class="w-full h-full object-cover" />
+            <div class="modal-box max-w-3xl p-0 overflow-hidden flex flex-col max-h-[85vh]">
+              <header class="relative bg-gradient-to-r from-sky-600 via-sky-500 to-cyan-500 text-white px-6 py-6 shadow-lg sticky top-0 z-20">
+                <div class="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+                  <div class="flex items-center gap-4">
+                    <div class="avatar">
+                      <div class="w-20 h-20 rounded-full ring-4 ring-white/30 shadow-lg overflow-hidden">
+                        {#if avatarFile}
+                          <img src={avatarFile} alt="New avatar preview" class="w-full h-full object-cover" />
+                        {:else if selectedAvatarFromCatalog}
+                          <img src={selectedAvatarFromCatalog} alt="New avatar preview" class="w-full h-full object-cover" />
+                        {:else if user?.avatar}
+                          <img src={user.avatar} alt="Current avatar" class="w-full h-full object-cover" />
+                        {:else}
+                          <div class="w-full h-full flex items-center justify-center text-3xl font-semibold bg-white/20 text-white">
+                            {user?.role.slice(0, 1).toUpperCase()}
+                          </div>
+                        {/if}
+                      </div>
                     </div>
-                  {:else if user.avatar}
-                    <div class="w-16 h-16 rounded-full overflow-hidden ring-1 ring-base-300/60">
-                      <img src={user.avatar} alt="Current avatar" class="w-full h-full object-cover" />
-                    </div>
-                  {:else}
-                    <div class="w-16 h-16 rounded-full bg-neutral text-neutral-content flex items-center justify-center ring-1 ring-base-300/60">
-                      {user.role.slice(0,1).toUpperCase()}
-                    </div>
-                  {/if}
-                  <input type="file" accept="image/*" on:change={onAvatarChange} bind:this={avatarInput} class="hidden" />
-                </button>
-                <div class="flex-1 space-y-1">
-                  {#if user.bk_uid == null}
-                    <input class="input input-bordered w-full" bind:value={name} />
-                  {:else}
-                    <p class="font-bold">{user.name}</p>
-                  {/if}
-                  {#if user.email}
-                    <p class="text-sm text-base-content/70">{user.email}</p>
-                  {/if}
-                </div>
-              </div>
-              {#if avatarChoices.length > 0}
-              <div class="space-y-2">
-                <div class="flex items-center justify-between">
-                  <h4 class="font-semibold">Choose a default avatar</h4>
-                  <div class="flex items-center gap-2">
-                    <span class="text-sm text-base-content/60">or</span>
-                    <button type="button" class="btn btn-outline btn-sm" on:click={chooseAvatar}>
-                      <i class="fa-solid fa-image mr-2"></i>Upload your own
-                    </button>
-                  </div>
-                </div>
-                <div class="max-h-64 overflow-y-auto">
-                  <div class="grid grid-cols-8 gap-2">
-                    {#each avatarChoices as a}
-                      <button type="button" class={`avatar w-12 h-12 rounded-full ring-2 ${selectedAvatarFromCatalog === a ? 'ring-primary' : 'ring-base-200'}`} on:click={() => { selectedAvatarFromCatalog = a; avatarFile = null; }}>
-                        <img src={a} alt="avatar" class="w-full h-full object-cover rounded-full" />
-                      </button>
-                    {/each}
-                  </div>
-                </div>
-              </div>
-              {/if}
-              {#if user.bk_uid == null}
-                <div class="space-y-4">
-                  <button class="btn" on:click={openPasswordDialog}>Change password</button>
-                  {#if hasBakalari}
-                    <div class="space-y-2">
-                      <h4 class="font-semibold flex items-center gap-2">
-                        <img src="/bakalari-logo.svg" alt="Bakaláři" class="w-6 h-6" />
-                        Link with Bakaláři
-                      </h4>
-                      <input class="input input-bordered w-full" bind:value={bkLinkUsername} placeholder="Bakaláři username" autocomplete="username" />
-                      <input type="password" class="input input-bordered w-full" bind:value={bkLinkPassword} placeholder="Bakaláři password" autocomplete="current-password" />
-                      {#if bkLinkError}
-                        <p class="text-error">{bkLinkError}</p>
+                    <div class="space-y-1">
+                      <h3 class="text-2xl font-semibold tracking-tight flex items-center gap-2">
+                        {user?.name ?? 'User'}
+                        {#if user?.role}
+                          <span class="badge badge-outline badge-sm border-white/40 text-white/80 bg-white/10 uppercase tracking-wide">
+                            {user.role}
+                          </span>
+                        {/if}
+                      </h3>
+                      {#if user?.email}
+                        <p class="text-sm text-white/80">{user.email}</p>
                       {/if}
-                      <button class="btn" on:click={linkBakalari} disabled={linkingBakalari} class:loading={linkingBakalari}>
-                        {linkingBakalari ? 'Linking...' : 'Link Bakaláři account'}
+                    </div>
+                  </div>
+                  <div class="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-outline border-white/40 text-white hover:border-white"
+                      class:btn-active={editingAvatar}
+                      on:click={() => {
+                        editingAvatar = !editingAvatar;
+                        if (editingAvatar && avatarChoices.length === 0) {
+                          fetch('/api/avatars').then((r) => (r.ok ? r.json() : [])).then((list) => { avatarChoices = list; });
+                        }
+                      }}
+                    >
+                      {editingAvatar ? 'Hide avatar tools' : 'Change avatar'}
+                    </button>
+                    {#if user && user.bk_uid == null}
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-outline border-white/40 text-white hover:border-white"
+                        class:btn-active={editingName}
+                        on:click={() => {
+                          if (editingName) {
+                            name = user?.name ?? '';
+                          }
+                          editingName = !editingName;
+                        }}
+                      >
+                        {editingName ? 'Cancel name edit' : 'Change name'}
                       </button>
-                    </div>
-                  {/if}
-                </div>
-              {:else if !isValidEmail(user.email)}
-                <div class="space-y-2">
-                  <h4 class="font-semibold">Create local account</h4>
-                  <input type="email" class="input input-bordered w-full" bind:value={linkEmail} placeholder="Email" />
-                  <input type="password" class="input input-bordered w-full" bind:value={linkPassword} placeholder="Password" />
-                  <input type="password" class="input input-bordered w-full" bind:value={linkPassword2} placeholder="Repeat Password" />
-                  {#if linkError}
-                    <p class="text-error">{linkError}</p>
-                  {/if}
-                  <button class="btn" on:click={linkLocal}>Link account</button>
-                </div>
-              {/if}
-              {#if user?.role === 'student'}
-                <div class="space-y-2">
-                  <div class="flex items-center justify-between gap-4">
-                    <div class="space-y-1">
-                      <h4 class="font-semibold">Email notifications</h4>
-                      <p class="text-sm text-base-content/70">Get reminders about new assignments, upcoming deadlines, and direct messages.</p>
-                    </div>
-                    <input
-                      type="checkbox"
-                      class="toggle toggle-primary"
-                      bind:checked={emailNotifications}
-                      aria-label="Toggle email notifications"
-                    />
-                  </div>
-                  <div class="flex items-center justify-between gap-4">
-                    <div class="space-y-1">
-                      <h4 class="font-semibold">Daily message digest</h4>
-                      <p class="text-sm text-base-content/70">Receive one email per day summarising new direct messages.</p>
-                    </div>
-                    <input
-                      type="checkbox"
-                      class="toggle toggle-primary"
-                      bind:checked={emailMessageDigest}
-                      aria-label="Toggle message digest emails"
-                      disabled={!emailNotifications}
-                    />
+                    {/if}
                   </div>
                 </div>
-              {/if}
-              <div class="modal-action">
-                <button class="btn" on:click={saveSettings}>Save</button>
+              </header>
+
+              <div class="space-y-6 bg-base-200/40 px-6 py-6 flex-1 overflow-y-auto">
+                {#if editingAvatar}
+                  <section class="card border border-primary/20 bg-base-100 shadow-lg">
+                    <div class="card-body gap-4">
+                      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <h4 class="card-title text-lg">Update avatar</h4>
+                          <p class="text-sm text-base-content/70">Upload your own image or choose one from the catalog.</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                          <button type="button" class="btn btn-sm btn-outline" on:click={chooseAvatar}>
+                            <i class="fa-solid fa-image mr-2"></i>Select image
+                          </button>
+                          <button type="button" class="btn btn-sm btn-ghost" on:click={() => {
+                            avatarFile = null;
+                            selectedAvatarFromCatalog = null;
+                            if (avatarInput) {
+                              avatarInput.value = '';
+                            }
+                          }}>
+                            Reset
+                          </button>
+                        </div>
+                      </div>
+                      <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
+                        <div class="avatar">
+                          <div class="w-24 h-24 rounded-full ring-2 ring-primary/60 shadow-inner overflow-hidden">
+                            {#if avatarFile}
+                              <img src={avatarFile} alt="New avatar preview" class="w-full h-full object-cover" />
+                            {:else if selectedAvatarFromCatalog}
+                              <img src={selectedAvatarFromCatalog} alt="New avatar preview" class="w-full h-full object-cover" />
+                            {:else if user?.avatar}
+                              <img src={user.avatar} alt="Current avatar" class="w-full h-full object-cover" />
+                            {:else}
+                              <div class="w-full h-full flex items-center justify-center text-2xl font-semibold bg-primary/20 text-primary">
+                                {user?.role.slice(0, 1).toUpperCase()}
+                              </div>
+                            {/if}
+                          </div>
+                        </div>
+                        <div class="text-sm text-base-content/70 space-y-2">
+                          <p>Use a square image for the best result. Larger files are automatically resized.</p>
+                          <p class="text-xs">Supported formats: JPG, PNG, GIF, WebP.</p>
+                        </div>
+                        <input type="file" accept="image/*" on:change={onAvatarChange} bind:this={avatarInput} class="hidden" />
+                      </div>
+                      {#if avatarChoices.length > 0}
+                        <div class="space-y-3">
+                          <div class="flex items-center justify-between">
+                            <h5 class="text-xs uppercase tracking-[0.08em] text-base-content/60">Default avatars</h5>
+                            <button type="button" class="btn btn-sm btn-outline" on:click={chooseAvatar}>
+                              <i class="fa-solid fa-upload mr-2"></i>Upload instead
+                            </button>
+                          </div>
+                          <div class="grid gap-3 max-h-56 overflow-y-auto pr-1" style="grid-template-columns: repeat(auto-fit, minmax(48px, 1fr));">
+                            {#each avatarChoices as a}
+                              <button
+                                type="button"
+                                class={`avatar w-12 h-12 rounded-full ring-2 transition duration-150 ${selectedAvatarFromCatalog === a ? 'ring-primary ring-offset-2 ring-offset-base-100 scale-105' : 'ring-base-300/80 hover:ring-primary/60'}`}
+                                on:click={() => { selectedAvatarFromCatalog = a; avatarFile = null; }}
+                                aria-label="Select avatar"
+                              >
+                                <img src={a} alt="avatar" class="w-full h-full object-cover rounded-full" />
+                              </button>
+                            {/each}
+                          </div>
+                        </div>
+                      {/if}
+                    </div>
+                  </section>
+                {/if}
+
+                <section class="card border border-base-300/60 bg-base-100 shadow-sm">
+                  <div class="card-body gap-4">
+                    <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h4 class="card-title text-lg">Profile details</h4>
+                        <p class="text-sm text-base-content/70">Control how your profile appears across CodEdu.</p>
+                      </div>
+                      {#if user && user.bk_uid == null}
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-outline"
+                          class:btn-active={editingName}
+                          on:click={() => {
+                            if (editingName) {
+                              name = user?.name ?? '';
+                            }
+                            editingName = !editingName;
+                          }}
+                        >
+                          {editingName ? 'Cancel' : 'Change name'}
+                        </button>
+                      {/if}
+                    </div>
+                    {#if editingName && user && user.bk_uid == null}
+                      <div class="space-y-3 max-w-md">
+                        <label class="form-control w-full space-y-1">
+                          <span class="label-text">Display name</span>
+                          <input class="input input-bordered w-full" bind:value={name} placeholder="Enter your name" />
+                        </label>
+                        <p class="text-xs text-base-content/60">This is shown to your classmates and teachers.</p>
+                      </div>
+                    {:else}
+                      <div class="grid gap-4 sm:grid-cols-2">
+                        <div class="space-y-1">
+                          <span class="text-xs uppercase tracking-[0.08em] text-base-content/60">Display name</span>
+                          <p class="font-medium text-base-content">{user?.name ?? 'Not set'}</p>
+                        </div>
+                        {#if user?.email}
+                          <div class="space-y-1">
+                            <span class="text-xs uppercase tracking-[0.08em] text-base-content/60">Email</span>
+                            <p class="font-medium text-base-content">{user.email}</p>
+                          </div>
+                        {/if}
+                      </div>
+                      {#if user && user.bk_uid != null}
+                        <p class="text-xs text-base-content/60">Your name is managed by Bakaláři.</p>
+                      {/if}
+                    {/if}
+                  </div>
+                </section>
+
+                {#if user?.role === 'student'}
+                  <section class="card border border-base-300/60 bg-base-100 shadow-sm">
+                    <div class="card-body gap-4">
+                      <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <h4 class="card-title text-lg">Email notifications</h4>
+                          <p class="text-sm text-base-content/70">Choose how CodEdu keeps you in the loop.</p>
+                        </div>
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-outline"
+                          class:btn-active={editingNotifications}
+                          on:click={() => { editingNotifications = !editingNotifications; }}
+                        >
+                          {editingNotifications ? 'Done' : 'Adjust'}
+                        </button>
+                      </div>
+                      {#if editingNotifications}
+                        <div class="space-y-4">
+                          <div class="flex flex-col gap-2 rounded-xl border border-base-300/60 bg-base-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <h5 class="font-medium text-base-content">Assignment & message alerts</h5>
+                              <p class="text-sm text-base-content/70">Receive emails for new assignments, deadlines, and direct messages.</p>
+                            </div>
+                            <input
+                              type="checkbox"
+                              class="toggle toggle-primary"
+                              bind:checked={emailNotifications}
+                              aria-label="Toggle email notifications"
+                            />
+                          </div>
+                          <div class="flex flex-col gap-2 rounded-xl border border-base-300/60 bg-base-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <h5 class="font-medium text-base-content">Daily message digest</h5>
+                              <p class="text-sm text-base-content/70">Get one digest email each day summarising new direct messages.</p>
+                            </div>
+                            <input
+                              type="checkbox"
+                              class="toggle toggle-primary"
+                              bind:checked={emailMessageDigest}
+                              aria-label="Toggle message digest emails"
+                              disabled={!emailNotifications}
+                            />
+                          </div>
+                        </div>
+                      {:else}
+                        <div class="grid gap-4 sm:grid-cols-2">
+                          <div class="space-y-1">
+                            <span class="text-xs uppercase tracking-[0.08em] text-base-content/60">Alerts</span>
+                            <span class={`badge ${emailNotifications ? 'badge-success badge-outline' : 'badge-neutral badge-outline'}`}>
+                              {emailNotifications ? 'Enabled' : 'Disabled'}
+                            </span>
+                          </div>
+                          <div class="space-y-1">
+                            <span class="text-xs uppercase tracking-[0.08em] text-base-content/60">Daily digest</span>
+                            <span class={`badge ${emailNotifications && emailMessageDigest ? 'badge-success badge-outline' : 'badge-neutral badge-outline'}`}>
+                              {emailNotifications && emailMessageDigest ? 'Enabled' : 'Disabled'}
+                            </span>
+                          </div>
+                        </div>
+                      {/if}
+                    </div>
+                  </section>
+                {/if}
+
+                {#if user && user.bk_uid == null}
+                  <section class="card border border-base-300/60 bg-base-100 shadow-sm">
+                    <div class="card-body gap-4">
+                      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <h4 class="card-title text-lg">Security</h4>
+                          <p class="text-sm text-base-content/70">Keep your account protected with a strong password.</p>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline" on:click={openPasswordDialog}>
+                          Change password
+                        </button>
+                      </div>
+                      <p class="text-xs text-base-content/60">Passwords are stored securely using industry-standard hashing.</p>
+                    </div>
+                  </section>
+
+                  {#if hasBakalari}
+                    <section class="card border border-base-300/60 bg-base-100 shadow-sm">
+                      <div class="card-body gap-4">
+                        <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div class="flex items-center gap-3">
+                            <img src="/bakalari-logo.svg" alt="Bakaláři" class="w-8 h-8" />
+                            <div>
+                              <h4 class="card-title text-lg">Link with Bakaláři</h4>
+                              <p class="text-sm text-base-content/70">Sync your school information by connecting your Bakaláři account.</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            class="btn btn-sm btn-outline"
+                            class:btn-active={showBakalariForm}
+                            on:click={() => { showBakalariForm = !showBakalariForm; }}
+                          >
+                            {showBakalariForm ? 'Cancel' : 'Link account'}
+                          </button>
+                        </div>
+                        {#if showBakalariForm}
+                          <div class="space-y-3 max-w-md">
+                            <input class="input input-bordered w-full" bind:value={bkLinkUsername} placeholder="Bakaláři username" autocomplete="username" />
+                            <input type="password" class="input input-bordered w-full" bind:value={bkLinkPassword} placeholder="Bakaláři password" autocomplete="current-password" />
+                            {#if bkLinkError}
+                              <p class="text-error text-sm">{bkLinkError}</p>
+                            {/if}
+                            <button class="btn btn-primary" on:click={linkBakalari} disabled={linkingBakalari} class:loading={linkingBakalari}>
+                              {linkingBakalari ? 'Linking...' : 'Link Bakaláři account'}
+                            </button>
+                          </div>
+                        {:else}
+                          <p class="text-xs text-base-content/60">Currently not linked.</p>
+                        {/if}
+                      </div>
+                    </section>
+                  {/if}
+                {:else if user && !isValidEmail(user.email)}
+                  <section class="card border border-base-300/60 bg-base-100 shadow-sm">
+                    <div class="card-body gap-4">
+                      <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <h4 class="card-title text-lg">Create local account</h4>
+                          <p class="text-sm text-base-content/70">Add an email and password in case Bakaláři is unavailable.</p>
+                        </div>
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-outline"
+                          class:btn-active={showLocalAccountForm}
+                          on:click={() => { showLocalAccountForm = !showLocalAccountForm; }}
+                        >
+                          {showLocalAccountForm ? 'Cancel' : 'Set up'}
+                        </button>
+                      </div>
+                      {#if showLocalAccountForm}
+                        <div class="space-y-3 max-w-md">
+                          <input type="email" class="input input-bordered w-full" bind:value={linkEmail} placeholder="Email" autocomplete="email" />
+                          <input type="password" class="input input-bordered w-full" bind:value={linkPassword} placeholder="Password" autocomplete="new-password" />
+                          <input type="password" class="input input-bordered w-full" bind:value={linkPassword2} placeholder="Repeat password" autocomplete="new-password" />
+                          {#if linkError}
+                            <p class="text-error text-sm">{linkError}</p>
+                          {/if}
+                          <button class="btn btn-primary" on:click={linkLocal}>Link account</button>
+                        </div>
+                      {:else}
+                        <p class="text-xs text-base-content/60">Set up a fallback login to access CodEdu without Bakaláři.</p>
+                      {/if}
+                    </div>
+                  </section>
+                {/if}
+              </div>
+
+              <div class="modal-action bg-base-100 px-6 py-4 border-t border-base-300/60 justify-between sticky bottom-0 z-20">
+                <button type="button" class="btn btn-ghost" on:click={() => settingsDialog.close()}>Cancel</button>
+                <button class="btn btn-primary" on:click={saveSettings}>Save changes</button>
               </div>
             </div>
             <form method="dialog" class="modal-backdrop"><button>close</button></form>
