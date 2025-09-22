@@ -27,6 +27,7 @@
   const stdoutStore = writable<string>("");
   const stderrStore = writable<string>("");
   const resultStore = writable<any>(null);
+  const resultTextStore = writable<string | null>(null);
   const imagesStore = writable<string[]>([]);
 
   onMount(() => {
@@ -34,13 +35,17 @@
     let stdout = "";
     let stderr = "";
     let result: any = null;
+    let resultText: string | null = null;
     const imgs: string[] = [];
     for (const o of cell.outputs) {
       if (o.output_type === 'stream') {
         if (o.name === 'stdout') stdout += o.text ?? '';
         if (o.name === 'stderr') stderr += o.text ?? '';
       } else if (o.output_type === 'execute_result') {
-        result = o.data?.['text/plain'] ?? result;
+        resultText = o.data?.['text/plain'] ?? resultText;
+        if (result === null) {
+          result = resultText;
+        }
       } else if (o.output_type === 'display_data') {
         if (o.data?.['image/png']) imgs.push(o.data['image/png']);
       }
@@ -48,6 +53,7 @@
     stdoutStore.set(stdout);
     stderrStore.set(stderr);
     resultStore.set(result);
+    resultTextStore.set(resultText ?? (result !== null && result !== undefined ? String(result) : null));
     imagesStore.set(imgs);
   });
 
@@ -60,10 +66,12 @@
     running.set(true);
     const py = await initPyodide();
     try {
-      const { result, stdout, stderr, images } = await py.runCell(sourceStr);
+      const { result, resultText, stdout, stderr, images } = await py.runCell(sourceStr);
       stdoutStore.set(stdout);
       stderrStore.set(stderr);
       resultStore.set(result);
+      const displayResult = resultText ?? (result !== null && result !== undefined ? String(result) : null);
+      resultTextStore.set(displayResult);
       imagesStore.set(images ?? []);
 
       // Save in a nbformat-esque shape so we can rehydrate later.
@@ -83,10 +91,10 @@
         });
       }
       // Represent result (if any) as a display_data-ish object
-      if (result !== null && result !== undefined) {
+      if (displayResult !== null && displayResult !== undefined) {
         outputs.push({
           output_type: "execute_result",
-          data: { "text/plain": String(result) },
+          data: { "text/plain": displayResult },
           metadata: {},
           execution_count: null
         });
@@ -103,6 +111,8 @@
       cell.outputs = outputs;
     } catch (err) {
       stderrStore.set(String(err));
+      resultStore.set(null);
+      resultTextStore.set(null);
       cell.outputs = [
         {
           output_type: "stream",
@@ -253,8 +263,8 @@
   {#if $stderrStore}
   <OutputBlock label="stderr" text={$stderrStore} />
   {/if}
-  {#if $resultStore !== null && $resultStore !== undefined}
-  <OutputBlock label="result" text={String($resultStore)} />
+  {#if $resultTextStore !== null && $resultTextStore !== undefined}
+  <OutputBlock label="result" text={$resultTextStore} />
   {/if}
   {#each $imagesStore as img}
   <ImageOutput src={img} />

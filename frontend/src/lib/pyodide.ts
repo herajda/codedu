@@ -24,6 +24,7 @@ export interface PythonRunResult {
   stdout: string;
   stderr: string;
   images?: string[];
+  resultText?: string;
 }
 
 type PythonAPI = {
@@ -71,7 +72,10 @@ export async function initPyodide(): Promise<PythonAPI> {
     }
 
     const api: PythonAPI = {
-      runPython: async (code) => (await runCell(code)).result,
+      runPython: async (code) => {
+        const { result, resultText } = await runCell(code);
+        return result !== undefined ? result : resultText;
+      },
       runCell,
       globals: {}
     };

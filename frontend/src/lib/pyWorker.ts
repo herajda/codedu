@@ -3,6 +3,7 @@ import { loadPyodide } from 'pyodide';
 let pyodide: any = null;
 let stdoutBuffer: string[] = [];
 let stderrBuffer: string[] = [];
+let reprHelper: any = null;
 
 async function ensurePyodide() {
   if (pyodide) return;
@@ -16,6 +17,9 @@ async function ensurePyodide() {
     }
   });
   await pyodide.loadPackage(['matplotlib', 'numpy', 'pandas']);
+  if (!reprHelper) {
+    reprHelper = pyodide.runPython('lambda value: repr(value)');
+  }
   // Use a non-GUI backend so figures can be rendered to PNG in memory.
   await pyodide.runPythonAsync(`
 import matplotlib
@@ -25,6 +29,106 @@ def _silent_show(*args, **kwargs):
     pass
 plt.show = _silent_show
   `);
+}
+
+function isPyProxy(value: any): value is { toJs: (opts?: any) => any; destroy?: () => void } {
+  return value && typeof value === 'object' && typeof value.toJs === 'function';
+}
+
+function getRepr(value: any): string | undefined {
+  if (!reprHelper) return undefined;
+  try {
+    const reprValue = reprHelper(value);
+    let text: string | undefined;
+    let destroyed = false;
+    if (typeof reprValue === 'string') {
+      text = reprValue;
+    } else if (reprValue && typeof reprValue.toJs === 'function') {
+      try {
+        text = reprValue.toJs();
+      } finally {
+        if (typeof reprValue.destroy === 'function') {
+          reprValue.destroy();
+          destroyed = true;
+        }
+      }
+    } else {
+      text = String(reprValue);
+    }
+    if (!destroyed && reprValue && typeof reprValue === 'object' && typeof reprValue.destroy === 'function') {
+      reprValue.destroy();
+    }
+    return text;
+  } catch (err) {
+    return undefined;
+  }
+}
+
+function serializeResult(raw: any): { value: any; text?: string } {
+  if (raw === undefined) {
+    return { value: undefined, text: undefined };
+  }
+  if (raw === null) {
+    return { value: null, text: undefined };
+  }
+
+  const text = getRepr(raw);
+
+  if (isPyProxy(raw)) {
+    try {
+      const converted = raw.toJs({ create_proxies: false, dict_converter: Object.fromEntries });
+      return { value: makeCloneable(converted, text), text };
+    } catch (err) {
+      return { value: makeCloneable(text ?? String(raw)), text };
+    } finally {
+      if (typeof raw.destroy === 'function') {
+        raw.destroy();
+      }
+    }
+  }
+
+  return { value: makeCloneable(raw, text ?? String(raw)), text: text ?? String(raw) };
+}
+
+function makeCloneable(value: any, fallbackText?: string, seen?: WeakMap<object, any>) {
+  if (value === null || value === undefined) return value;
+  const type = typeof value;
+  if (type === 'number' || type === 'string' || type === 'boolean') return value;
+  if (type === 'bigint') return value;
+  if (type === 'function' || type === 'symbol') {
+    return fallbackText ?? `[${type}]`;
+  }
+  if (typeof structuredClone === 'function') {
+    try {
+      return structuredClone(value);
+    } catch (err) {
+      // fall back to manual cloning below
+    }
+  }
+  try {
+    if (value && typeof value === 'object') {
+      const refMap = seen ?? new WeakMap<object, any>();
+      if (refMap.has(value)) {
+        return refMap.get(value);
+      }
+      const clone: any = Array.isArray(value) ? [] : {};
+      refMap.set(value, clone);
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          clone.push(makeCloneable(item, undefined, refMap));
+        }
+      } else {
+        for (const [key, val] of Object.entries(value)) {
+          clone[key] = makeCloneable(val, undefined, refMap);
+        }
+      }
+      return clone;
+    }
+    return fallbackText ?? String(value);
+  }
+  catch (err) {
+    return fallbackText ?? String(value);
+  }
 }
 
 self.onmessage = async (e: MessageEvent) => {
@@ -38,11 +142,15 @@ self.onmessage = async (e: MessageEvent) => {
     stdoutBuffer = [];
     stderrBuffer = [];
     let result: any = null;
+    let resultText: string | undefined;
     let images: string[] = [];
     try {
-      result = await pyodide.runPythonAsync(code!);
+      const rawResult = await pyodide.runPythonAsync(code!);
+      const serialized = serializeResult(rawResult);
+      result = serialized.value;
+      resultText = serialized.text;
       try {
-        images = pyodide.runPython(`
+        const imageProxy = pyodide.runPython(`
 import base64, io
 import matplotlib.pyplot as plt
 _imgs = []
@@ -52,7 +160,14 @@ for _num in plt.get_fignums():
     _imgs.append(base64.b64encode(_buf.getvalue()).decode('utf-8'))
 plt.close('all')
 _imgs
-        `).toJs();
+        `);
+        try {
+          images = imageProxy.toJs();
+        } finally {
+          if (typeof imageProxy.destroy === 'function') {
+            imageProxy.destroy();
+          }
+        }
       } catch (err) {
         // ignore figure extraction errors
       }
@@ -61,12 +176,25 @@ _imgs
         stderrBuffer.push(String(err));
       }
     }
-    self.postMessage({
+    const message = {
       id,
       result,
+      resultText,
       stdout: stdoutBuffer.join('\n'),
       stderr: stderrBuffer.join('\n'),
       images
-    });
+    };
+    if (typeof structuredClone === 'function') {
+      try {
+        structuredClone(message);
+      } catch (cloneErr) {
+        console.warn('Dropping non-transferable result from Pyodide worker:', cloneErr);
+        message.result = undefined;
+        if (!message.resultText) {
+          message.resultText = '[unserializable result]';
+        }
+      }
+    }
+    self.postMessage(message);
   }
 };
