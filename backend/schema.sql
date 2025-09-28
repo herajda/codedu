@@ -70,6 +70,20 @@ ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_teacher_baseline_json TEXT;
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS second_deadline TIMESTAMPTZ; -- optional second deadline for late submissions
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS late_penalty_ratio NUMERIC NOT NULL DEFAULT 0.5 CHECK (late_penalty_ratio >= 0 AND late_penalty_ratio <= 1); -- points multiplier for second deadline submissions
 
+-- Per-student deadline override (extensions)
+CREATE TABLE IF NOT EXISTS assignment_deadline_overrides (
+  assignment_id UUID NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+  student_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  new_deadline TIMESTAMPTZ NOT NULL,
+  note TEXT,
+  created_by UUID NOT NULL REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (assignment_id, student_id)
+);
+CREATE INDEX IF NOT EXISTS idx_ado_assignment ON assignment_deadline_overrides(assignment_id);
+CREATE INDEX IF NOT EXISTS idx_ado_student ON assignment_deadline_overrides(student_id);
+
 CREATE TABLE IF NOT EXISTS test_cases (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   assignment_id UUID NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,

@@ -243,21 +243,25 @@ func getAssignment(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-	role := c.GetString("role")
-	if role == "student" {
-		if ok, err := IsStudentOfAssignment(id, getUserID(c)); err != nil || !ok {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-			return
-		}
-		if !a.Published {
-			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
-			return
-		}
-		subs, _ := ListSubmissionsForAssignmentAndStudent(id, getUserID(c))
-		tests, _ := ListTestCases(id)
-		c.JSON(http.StatusOK, gin.H{"assignment": a, "submissions": subs, "tests_count": len(tests)})
-		return
-	} else if role == "teacher" {
+    role := c.GetString("role")
+    if role == "student" {
+        if ok, err := IsStudentOfAssignment(id, getUserID(c)); err != nil || !ok {
+            c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+            return
+        }
+        if !a.Published {
+            c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+            return
+        }
+        // If a per-student override exists, surface it as the effective deadline
+        if o, err := GetDeadlineOverride(id, getUserID(c)); err == nil && o != nil {
+            a.Deadline = o.NewDeadline
+        }
+        subs, _ := ListSubmissionsForAssignmentAndStudent(id, getUserID(c))
+        tests, _ := ListTestCases(id)
+        c.JSON(http.StatusOK, gin.H{"assignment": a, "submissions": subs, "tests_count": len(tests)})
+        return
+    } else if role == "teacher" {
 		if ok, err := IsTeacherOfAssignment(id, getUserID(c)); err != nil || !ok {
 			// Allow preview if the assignment is shared in Teachers' group
 			var x int
@@ -720,6 +724,100 @@ func getTemplate(c *gin.Context) {
 		}
 	}
 	c.FileAttachment(*a.TemplatePath, filepath.Base(*a.TemplatePath))
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Per-student deadline extensions
+// ──────────────────────────────────────────────────────────────────────────────
+
+// listAssignmentExtensions: GET /api/assignments/:id/extensions
+func listAssignmentExtensions(c *gin.Context) {
+    aid, err := uuid.Parse(c.Param("id"))
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+        return
+    }
+    // Only the owning teacher/admin may view
+    if c.GetString("role") == "teacher" {
+        if ok, err := IsTeacherOfAssignment(aid, getUserID(c)); err != nil || !ok {
+            c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+            return
+        }
+    }
+    list, err := ListDeadlineOverridesForAssignment(aid)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+        return
+    }
+    c.JSON(http.StatusOK, list)
+}
+
+// upsertAssignmentExtension: PUT /api/assignments/:id/extensions/:student_id
+func upsertAssignmentExtension(c *gin.Context) {
+    aid, err := uuid.Parse(c.Param("id"))
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+        return
+    }
+    sid, err := uuid.Parse(c.Param("student_id"))
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student id"})
+        return
+    }
+    if c.GetString("role") == "teacher" {
+        if ok, err := IsTeacherOfAssignment(aid, getUserID(c)); err != nil || !ok {
+            c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+            return
+        }
+    }
+    // Ensure student is enrolled in assignment's class
+    if ok, err := IsStudentOfAssignment(aid, sid); err != nil || !ok {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "student not in class"})
+        return
+    }
+    var req struct {
+        NewDeadline string  `json:"new_deadline" binding:"required"`
+        Note        *string `json:"note"`
+    }
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+    dl, err := time.Parse(time.RFC3339Nano, req.NewDeadline)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid deadline"})
+        return
+    }
+    if err := UpsertDeadlineOverride(aid, sid, dl, req.Note, getUserID(c)); err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+        return
+    }
+    c.Status(http.StatusNoContent)
+}
+
+// deleteAssignmentExtension: DELETE /api/assignments/:id/extensions/:student_id
+func deleteAssignmentExtension(c *gin.Context) {
+    aid, err := uuid.Parse(c.Param("id"))
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+        return
+    }
+    sid, err := uuid.Parse(c.Param("student_id"))
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student id"})
+        return
+    }
+    if c.GetString("role") == "teacher" {
+        if ok, err := IsTeacherOfAssignment(aid, getUserID(c)); err != nil || !ok {
+            c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+            return
+        }
+    }
+    if err := DeleteDeadlineOverride(aid, sid); err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+        return
+    }
+    c.Status(http.StatusNoContent)
 }
 
 // createTestCase: POST /api/assignments/:id/tests

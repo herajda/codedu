@@ -27,6 +27,8 @@ $: role = $auth?.role ?? '';
   let teacherRuns:any[]=[] // persisted teacher submissions
   let students:any[]=[]    // class roster for teacher
   let progress:any[]=[]    // computed progress per student
+  let overrides:any[]=[]   // per-student deadline overrides (teacher view)
+  let overrideMap: Record<string, any> = {}
   let expanded:number|null=null
   let pointsEarned=0
   let done=false
@@ -173,6 +175,12 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         try { testsCount = Array.isArray((data as any).tests) ? (data as any).tests.length : 0 } catch { testsCount = 0 }
         const cls = await apiJSON(`/api/classes/${assignment.class_id}`)
         students = cls.students ?? []
+        // Fetch current extensions
+        try {
+          overrides = await apiJSON(`/api/assignments/${id}/extensions`)
+        } catch {}
+        overrideMap = {}
+        for (const o of overrides) overrideMap[o.student_id] = o
         progress = students.map((s:any)=>{
           const subs = allSubs.filter((x:any)=>x.student_id===s.id)
           const latest = subs[0]
@@ -460,6 +468,39 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
   function setTab(tab: TabKey){
     activeTab = tab
     saveTabToUrl()
+  }
+
+  // Extension dialog state (teacher)
+  let extendDialog: HTMLDialogElement
+  let extStudent: any = null
+  let extDeadline = ''
+  let extNote = ''
+  function openExtendDialog(student: any){
+    extStudent = student
+    const cur = overrideMap[student.id]
+    extDeadline = cur ? String(cur.new_deadline).slice(0,16) : (assignment.deadline?.slice(0,16) || '')
+    extNote = cur?.note || ''
+    extendDialog.showModal()
+  }
+  async function saveExtension(){
+    if(!extStudent || !extDeadline) return
+    try{
+      await apiFetch(`/api/assignments/${id}/extensions/${extStudent.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_deadline: new Date(extDeadline).toISOString(), note: extNote.trim() ? extNote : null })
+      })
+      extendDialog.close()
+      await load()
+    }catch(e:any){ err = e.message }
+  }
+  async function clearExtension(){
+    if(!extStudent) return
+    try{
+      await apiFetch(`/api/assignments/${id}/extensions/${extStudent.id}`, { method: 'DELETE' })
+      extendDialog.close()
+      await load()
+    }catch(e:any){ err = e.message }
   }
 </script>
 
@@ -918,7 +959,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
               <div class="overflow-x-auto mt-3">
                 <table class="table table-zebra">
                   <thead>
-                    <tr><th>Student</th><th>Status</th><th>Deadline</th><th>Last submission</th></tr>
+                    <tr><th>Student</th><th>Status</th><th>Deadline</th><th>Last submission</th><th class="w-40">Extension</th></tr>
                   </thead>
                   <tbody>
                     {#each progress as p (p.student.id)}
@@ -941,10 +982,20 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                           {/if}
                         </td>
                         <td>{p.latest ? formatDateTime(p.latest.created_at) : '-'}</td>
+                        <td>
+                          {#if overrideMap[p.student.id]}
+                            <div class="flex items-center gap-2 flex-nowrap">
+                              <span class="badge badge-info badge-sm whitespace-nowrap" title={overrideMap[p.student.id].note || ''}>Until {formatDateTime(overrideMap[p.student.id].new_deadline)}</span>
+                              <button class="btn btn-ghost btn-xs whitespace-nowrap" on:click|stopPropagation={() => openExtendDialog(p.student)}>Edit</button>
+                            </div>
+                          {:else}
+                            <button class="btn btn-ghost btn-xs whitespace-nowrap" on:click|stopPropagation={() => openExtendDialog(p.student)}>Extend…</button>
+                          {/if}
+                        </td>
                       </tr>
                       {#if expanded === p.student.id}
                         <tr>
-                          <td colspan="4">
+                          <td colspan="5">
                             {#if p.all && p.all.length}
                               <ul class="timeline timeline-vertical timeline-compact m-0 p-0">
                                 {#each p.all as s, i}
@@ -1108,6 +1159,32 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
       {/if}
       <div class="modal-action">
         <button class="btn" on:click={submit} disabled={!files.length || (assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline)}>Upload</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>
+
+  <!-- Extend deadline dialog (teacher) -->
+  <dialog bind:this={extendDialog} class="modal">
+    <div class="modal-box w-11/12 max-w-md space-y-4">
+      <h3 class="font-bold text-lg">Extend deadline</h3>
+      <div class="form-control">
+        <label class="label"><span class="label-text">Student</span></label>
+        <div class="input input-bordered">{extStudent?.name ?? extStudent?.email}</div>
+      </div>
+      <div class="form-control">
+        <label class="label"><span class="label-text">New deadline</span></label>
+        <input type="datetime-local" class="input input-bordered w-full" bind:value={extDeadline} required />
+      </div>
+      <div class="form-control">
+        <label class="label"><span class="label-text">Note (optional)</span></label>
+        <input type="text" class="input input-bordered w-full" placeholder="Reason or context" bind:value={extNote} />
+      </div>
+      <div class="modal-action">
+        {#if overrideMap[extStudent?.id]}
+          <button class="btn btn-error btn-outline" on:click={clearExtension}>Clear</button>
+        {/if}
+        <button class="btn" on:click={saveExtension} disabled={!extStudent || !extDeadline}>Save</button>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>

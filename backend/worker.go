@@ -650,16 +650,23 @@ func runSubmission(id uuid.UUID) {
 			}
 		}
 
-		// Handle late submission logic with second deadline
-		if sub.CreatedAt.After(a.Deadline) {
+		// Handle late submission logic with per-student extension and second deadline
+		effDeadline := a.Deadline
+		effSecond := a.SecondDeadline
+		if o, err := GetDeadlineOverride(sub.AssignmentID, sub.StudentID); err == nil && o != nil {
+			// override main deadline
+			effDeadline = o.NewDeadline
+			// allow late period up to max(second_deadline, new_deadline)
+			if effSecond == nil || o.NewDeadline.After(*effSecond) {
+				tmp := o.NewDeadline
+				effSecond = &tmp
+			}
+		}
+		if sub.CreatedAt.After(effDeadline) {
 			_ = SetSubmissionLate(id, true)
-
-			// Check if there's a second deadline and submission is within it
-			if a.SecondDeadline != nil && sub.CreatedAt.Before(*a.SecondDeadline) {
-				// Apply penalty ratio for second deadline submissions
+			if effSecond != nil && sub.CreatedAt.Before(*effSecond) {
 				score = score * a.LatePenaltyRatio
 			} else {
-				// No second deadline or submission is after second deadline - no points
 				score = 0.0
 			}
 		}
@@ -905,16 +912,21 @@ func runLLMInteractive(sub *Submission, a *Assignment) {
 		if a.LLMAutoAward {
 			score := float64(a.MaxPoints)
 
-			// Handle late submission logic with second deadline
-			if sub.CreatedAt.After(a.Deadline) {
+			// Handle late submission logic with per-student extension and second deadline
+			effDeadline := a.Deadline
+			effSecond := a.SecondDeadline
+			if o, err := GetDeadlineOverride(sub.AssignmentID, sub.StudentID); err == nil && o != nil {
+				effDeadline = o.NewDeadline
+				if effSecond == nil || o.NewDeadline.After(*effSecond) {
+					tmp := o.NewDeadline
+					effSecond = &tmp
+				}
+			}
+			if sub.CreatedAt.After(effDeadline) {
 				_ = SetSubmissionLate(sub.ID, true)
-
-				// Check if there's a second deadline and submission is within it
-				if a.SecondDeadline != nil && sub.CreatedAt.Before(*a.SecondDeadline) {
-					// Apply penalty ratio for second deadline submissions
+				if effSecond != nil && sub.CreatedAt.Before(*effSecond) {
 					score = score * a.LatePenaltyRatio
 				} else {
-					// No second deadline or submission is after second deadline - no points
 					score = 0.0
 				}
 			}

@@ -27,6 +27,7 @@
     typeof localStorage !== 'undefined' && localStorage.getItem('notesViewMode') === 'list' ? 'list' : 'grid';
   let confirmModal: InstanceType<typeof ConfirmModal>;
   let promptModal: InstanceType<typeof PromptModal>;
+  let uploadInput: HTMLInputElement;
   
   function toggleView() {
     viewMode = viewMode === 'grid' ? 'list' : 'grid';
@@ -120,6 +121,31 @@
     await createNotebook(notebookName);
   }
 
+  function promptUpload() {
+    uploadInput?.click();
+  }
+
+  async function handleUploadChange(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      const name = file.name.toLowerCase();
+      if (!name.endsWith('.ipynb')) {
+        alert('Please select a .ipynb notebook file.');
+        return;
+      }
+      const fd = new FormData();
+      fd.append('file', file);
+      await apiJSON(`/api/classes/${id}/files`, { method: 'POST', body: fd });
+      await load();
+    } catch (e:any) {
+      alert(e?.message || 'Upload failed');
+    } finally {
+      if (input) input.value = '';
+    }
+  }
+
   async function del(n:any){
     const confirmed = await confirmModal.open({
       title: 'Delete notebook',
@@ -178,7 +204,9 @@
       {/if}
     </button>
     {#if role==='teacher' || role==='admin'}
+      <button class="btn btn-sm" on:click={promptUpload} title="Upload notebook"><i class="fa-solid fa-file-arrow-up mr-2"></i>Upload</button>
       <button class="btn btn-sm btn-primary" on:click={promptNotebook}><i class="fa-solid fa-book-medical mr-2"></i>New notebook</button>
+      <input bind:this={uploadInput} type="file" accept=".ipynb,application/x-ipynb+json,application/json" class="hidden" on:change={handleUploadChange} />
     {/if}
   </div>
 </nav>

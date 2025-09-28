@@ -204,6 +204,10 @@ func main() {
 		api.DELETE("/tests/:id", RoleGuard("teacher", "admin"), deleteTestCase)
 		api.POST("/assignments/:id/solution-run", RoleGuard("teacher", "admin"), runTeacherSolution)
 		api.POST("/assignments/:id/submissions", RoleGuard("student"), createSubmission)
+		// per-student deadline extensions
+		api.GET("/assignments/:id/extensions", RoleGuard("teacher", "admin"), listAssignmentExtensions)
+		api.PUT("/assignments/:id/extensions/:student_id", RoleGuard("teacher", "admin"), upsertAssignmentExtension)
+		api.DELETE("/assignments/:id/extensions/:student_id", RoleGuard("teacher", "admin"), deleteAssignmentExtension)
 		api.GET("/submissions/:id", RoleGuard("student", "teacher", "admin"), getSubmission)
 		api.PUT("/submissions/:id/points", RoleGuard("teacher", "admin"), overrideSubmissionPoints)
 		api.PUT("/submissions/:id/accept", RoleGuard("teacher", "admin"), acceptSubmission)

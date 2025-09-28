@@ -5,7 +5,8 @@ let stdoutBuffer: string[] = [];
 let stderrBuffer: string[] = [];
 let reprHelper: any = null;
 let inputBuffer: string[] = [];
-let inputPatched = false;
+let inputPatchVersion = 0;
+const CURRENT_INPUT_PATCH_VERSION = 2;
 
 function setInputBuffer(stdin?: string | null) {
   if (!stdin) {
@@ -21,47 +22,61 @@ function setInputBuffer(stdin?: string | null) {
   inputBuffer = pieces;
 }
 
-async function ensurePyodide() {
-  if (pyodide) return;
-  pyodide = await loadPyodide({
-    indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.28.0/full/',
-    stdout: (msg: string) => {
-      stdoutBuffer.push(msg);
-    },
-    stderr: (msg: string) => {
-      stderrBuffer.push(msg);
+function exposeInputBridge() {
+  // Expose a function on the JS global (Worker scope) so Python can import it via `from js import ...`.
+  (self as any)._codex_pop_input = (prompt?: any) => {
+    if (!inputBuffer.length) {
+      return '';
     }
-  });
-  await pyodide.loadPackage(['matplotlib', 'numpy', 'pandas']);
-  if (!reprHelper) {
-    reprHelper = pyodide.runPython('lambda value: repr(value)');
-  }
-  // Use a non-GUI backend so figures can be rendered to PNG in memory.
+    return inputBuffer.shift() ?? '';
+  };
+  (self as any)._codex_has_input = () => inputBuffer.length > 0;
+}
+
+async function patchPythonInput() {
+  if (inputPatchVersion === CURRENT_INPUT_PATCH_VERSION) return;
+  exposeInputBridge();
   await pyodide.runPythonAsync(`
+import builtins, base64
+from js import _codex_pop_input, _codex_has_input
+def _codex_input(prompt=""):
+    _p = str(prompt) if prompt is not None else ""
+    if not _codex_has_input():
+        _enc = base64.b64encode(_p.encode('utf-8')).decode('ascii')
+        raise RuntimeError('__INPUT_REQUIRED__:' + _enc)
+    return _codex_pop_input(_p)
+builtins.input = _codex_input
+  `);
+  inputPatchVersion = CURRENT_INPUT_PATCH_VERSION;
+}
+
+async function ensurePyodide() {
+  if (!pyodide) {
+    pyodide = await loadPyodide({
+      indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.28.0/full/',
+      stdout: (msg: string) => {
+        stdoutBuffer.push(msg);
+      },
+      stderr: (msg: string) => {
+        stderrBuffer.push(msg);
+      }
+    });
+    await pyodide.loadPackage(['matplotlib', 'numpy', 'pandas']);
+    if (!reprHelper) {
+      reprHelper = pyodide.runPython('lambda value: repr(value)');
+    }
+    // Use a non-GUI backend so figures can be rendered to PNG in memory.
+    await pyodide.runPythonAsync(`
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 def _silent_show(*args, **kwargs):
     pass
 plt.show = _silent_show
-  `);
-
-  if (!inputPatched) {
-    pyodide.globals.set('_codex_pop_input', (prompt?: any) => {
-      if (!inputBuffer.length) {
-        return '';
-      }
-      return inputBuffer.shift() ?? '';
-    });
-    await pyodide.runPythonAsync(`
-import builtins
-from js import _codex_pop_input
-def _codex_input(prompt=""):
-    return _codex_pop_input(prompt)
-builtins.input = _codex_input
     `);
-    inputPatched = true;
   }
+  // Always ensure input() is patched, even if Pyodide was already initialized earlier.
+  await patchPythonInput();
 }
 
 function isPyProxy(value: any): value is { toJs: (opts?: any) => any; destroy?: () => void } {
@@ -206,8 +221,34 @@ _imgs
         // ignore figure extraction errors
       }
     } catch (err) {
+      const errStr = String(err ?? '');
+      if (errStr.includes('__INPUT_REQUIRED__')) {
+        // Extract optional base64-encoded prompt: match contiguous base64 after the marker
+        let promptText = '';
+        try {
+          const m = errStr.match(/__INPUT_REQUIRED__:\s*([A-Za-z0-9+/=]+)/);
+          if (m && m[1]) {
+            const bin = atob(m[1]);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            promptText = new TextDecoder('utf-8').decode(bytes);
+          }
+        } catch {}
+        const message = {
+          id,
+          result: undefined,
+          resultText: undefined,
+          stdout: stdoutBuffer.join('\n'),
+          stderr: '',
+          images: [],
+          inputRequired: true,
+          prompt: promptText,
+        } as any;
+        self.postMessage(message);
+        return;
+      }
       if (stderrBuffer.length === 0) {
-        stderrBuffer.push(String(err));
+        stderrBuffer.push(errStr);
       }
     }
     const message = {

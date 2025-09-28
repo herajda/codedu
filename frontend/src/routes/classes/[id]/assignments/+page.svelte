@@ -1,11 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { auth } from '$lib/auth';
-  import { apiJSON } from '$lib/api';
+  import { apiJSON, apiFetch } from '$lib/api';
   import { formatDateTime } from '$lib/date';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { Filter, Search, AlertTriangle, Clock, CheckCircle2 } from 'lucide-svelte';
+  import { Filter, Search, AlertTriangle, Clock, CheckCircle2, Copy } from 'lucide-svelte';
+  import { TEACHER_GROUP_ID } from '$lib/teacherGroup';
 
   let id = $page.params.id;
   $: if ($page.params.id !== id) {
@@ -113,6 +114,86 @@
       err = e.message;
     }
   }
+
+  // Copy assignment from Teachers' group
+  let copyDialog: HTMLDialogElement;
+  let teacherFiles: any[] = [];
+  let copyLoading = false;
+  let copyErr = '';
+  let selectedAssignmentId = '';
+  let copyBreadcrumbs: { id: string | null; name: string }[] = [{ id: null, name: '🏠' }];
+  let copyCurrentParent: string | null = null;
+
+  async function openCopyFromTeachers() {
+    copyErr = '';
+    selectedAssignmentId = '';
+    copyLoading = true;
+    copyBreadcrumbs = [{ id: null, name: '🏠' }];
+    copyCurrentParent = null;
+    try {
+      // Get files from Teachers' group root
+      await loadTeacherFiles(null);
+    } catch (e: any) {
+      copyErr = e.message;
+    }
+    copyLoading = false;
+    copyDialog.showModal();
+  }
+
+  async function loadTeacherFiles(parent: string | null) {
+    copyLoading = true;
+    copyErr = '';
+    try {
+      const q = parent === null ? '' : `?parent=${parent}`;
+      const files = await apiJSON(`/api/classes/${TEACHER_GROUP_ID}/files${q}`);
+      teacherFiles = files.filter((f: any) => f.is_dir || f.assignment_id);
+      copyCurrentParent = parent;
+    } catch (e: any) {
+      copyErr = e.message;
+    }
+    copyLoading = false;
+  }
+
+  async function openTeacherFolder(item: any) {
+    if (!item.is_dir) return;
+    copyBreadcrumbs = [...copyBreadcrumbs, { id: item.id, name: item.name }];
+    await loadTeacherFiles(item.id);
+  }
+
+  function copyCrumbTo(i: number) {
+    const b = copyBreadcrumbs[i];
+    copyBreadcrumbs = copyBreadcrumbs.slice(0, i + 1);
+    loadTeacherFiles(b.id);
+  }
+
+  async function doCopyFromTeachers() {
+    if (!selectedAssignmentId) {
+      copyErr = 'Please select an assignment';
+      return;
+    }
+    try {
+      const res = await apiFetch(`/api/classes/${id}/assignments/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source_assignment_id: selectedAssignmentId })
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        copyErr = result.error || 'Failed to copy assignment';
+        return;
+      }
+      copyDialog.close();
+      // Navigate to the copied assignment
+      if (result.assignment_id) {
+        goto(`/assignments/${result.assignment_id}?new=1`);
+      } else {
+        // Refresh the page to show the new assignment
+        load();
+      }
+    } catch (e: any) {
+      copyErr = e.message;
+    }
+  }
 </script>
 
 {#if loading}
@@ -148,6 +229,10 @@
           </select>
           {#if role === 'teacher' || role === 'admin'}
             <button class="btn btn-sm" type="button" on:click={quickCreateAssignment}>New assignment</button>
+            <button class="btn btn-sm btn-outline" type="button" on:click={openCopyFromTeachers}>
+              <Copy class="w-4 h-4 mr-2" aria-hidden="true" />
+              Copy from Teachers' group
+            </button>
           {/if}
         </div>
       </div>
@@ -202,4 +287,111 @@
       </ul>
     </div>
   </div>
+
+  <!-- Copy from Teachers' group modal -->
+  <dialog bind:this={copyDialog} class="modal">
+    <div class="modal-box max-w-4xl">
+      <h3 class="font-bold mb-3">Copy assignment from Teachers' group</h3>
+      
+      <!-- Breadcrumb navigation -->
+      <div class="mb-4">
+        <nav class="text-sm">
+          <ul class="flex flex-wrap gap-1 items-center">
+            {#each copyBreadcrumbs as b, i}
+              <li class="after:mx-1 after:content-['/'] last:after:hidden">
+                <button 
+                  type="button" 
+                  class="link px-2 py-1 rounded hover:bg-base-300" 
+                  on:click={() => copyCrumbTo(i)} 
+                  aria-label={`Open ${b.name}`}
+                >
+                  {b.name}
+                </button>
+              </li>
+            {/each}
+          </ul>
+        </nav>
+      </div>
+
+      {#if copyLoading}
+        <p>Loading...</p>
+      {:else if copyErr}
+        <p class="text-error">{copyErr}</p>
+      {:else}
+        <!-- File structure -->
+        <div class="max-h-96 overflow-y-auto border border-base-300 rounded-lg">
+          <table class="table table-zebra w-full">
+            <thead>
+              <tr>
+                <th class="text-left">Name</th>
+                <th class="text-left">Type</th>
+                <th class="text-right">Modified</th>
+                <th class="w-32 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each teacherFiles as item}
+                <tr class="hover:bg-base-200">
+                  <td>
+                    {#if item.is_dir}
+                      <button 
+                        class="link flex items-center" 
+                        on:click={() => openTeacherFolder(item)}
+                      >
+                        <i class="fa-solid fa-folder text-warning mr-2"></i>
+                        {item.name}
+                      </button>
+                    {:else}
+                      <div class="flex items-center">
+                        <i class="fa-solid fa-file-circle-check text-primary mr-2"></i>
+                        {item.name}
+                      </div>
+                    {/if}
+                    <div class="text-xs text-gray-500">{item.path}</div>
+                  </td>
+                  <td>{item.is_dir ? 'Folder' : 'Assignment'}</td>
+                  <td class="text-right">{formatDateTime(item.updated_at)}</td>
+                  <td class="text-right">
+                    {#if !item.is_dir && item.assignment_id}
+                      <button 
+                        class="btn btn-xs btn-primary" 
+                        on:click={() => selectedAssignmentId = item.assignment_id}
+                        class:btn-active={selectedAssignmentId === item.assignment_id}
+                      >
+                        {selectedAssignmentId === item.assignment_id ? 'Selected' : 'Select'}
+                      </button>
+                    {/if}
+                  </td>
+                </tr>
+              {/each}
+              {#if !teacherFiles.length}
+                <tr><td colspan="4"><i>No items in this folder</i></td></tr>
+              {/if}
+            </tbody>
+          </table>
+        </div>
+
+        {#if selectedAssignmentId}
+          <div class="mt-4 p-3 bg-primary/10 rounded-lg">
+            <p class="text-sm">
+              <i class="fa-solid fa-check-circle text-primary mr-2"></i>
+              Assignment selected for copying
+            </p>
+          </div>
+        {/if}
+
+        <div class="modal-action">
+          <form method="dialog"><button class="btn">Cancel</button></form>
+          <button 
+            class="btn btn-primary" 
+            on:click|preventDefault={doCopyFromTeachers} 
+            disabled={!selectedAssignmentId}
+          >
+            Copy assignment
+          </button>
+        </div>
+      {/if}
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>
 {/if}

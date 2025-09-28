@@ -26,6 +26,10 @@
   let awaitingInput = false;
   let inputValue = '';
   let inputTextarea: HTMLTextAreaElement | null = null;
+  let inputPrompt: string = '';
+  // Accumulate provided input lines across multiple submissions so that
+  // re-executions (which start from the top) get all prior inputs.
+  let accumulatedInputs: string[] = [];
 
   const running = writable(false);
   const stdoutStore = writable<string>("");
@@ -66,6 +70,8 @@
     cell.source = sourceStr; // keep store canonical
   }
 
+  // Simple heuristic for UI affordance; actual runtime input needs are
+  // detected by the worker and reported back via `inputRequired`.
   $: expectsInput = /\binput\s*\(/.test(sourceStr);
 
   async function executeCell(stdin?: string) {
@@ -73,7 +79,14 @@
     running.set(true);
     const py = await initPyodide();
     try {
-      const { result, resultText, stdout, stderr, images } = await py.runCell(sourceStr, stdin);
+      const { result, resultText, stdout, stderr, images, inputRequired, prompt } = await py.runCell(sourceStr, stdin);
+      if (inputRequired) {
+        // Runtime requested input. Open the UI and return without mutating outputs.
+        awaitingInput = true;
+        inputPrompt = prompt ?? '';
+        running.set(false);
+        return;
+      }
       stdoutStore.set(stdout);
       stderrStore.set(stderr);
       resultStore.set(result);
@@ -134,35 +147,73 @@
     }
   }
 
+  // If called by parent (Run All), try executing; if runtime reports
+  // that input is required, open the input UI and wait for user.
+  let parentAwaitResolve: (() => void) | null = null;
+  let waitingForParent = false;
   /** Allow parent components to trigger execution. */
-  export async function runFromParent() {
+  export async function runFromParent(interactive: boolean = true) {
+    // Attempt to execute; if runtime signals input is required, open the UI
+    // and pause until the user provides it. Do not move focus for Run All.
     await executeCell();
+    if (interactive && awaitingInput) {
+      waitingForParent = true;
+      await new Promise<void>((resolve) => {
+        parentAwaitResolve = resolve;
+      });
+      waitingForParent = false;
+    }
   }
 
   async function handleRunClick() {
-    if (expectsInput) {
-      inputValue = '';
-      awaitingInput = true;
+    await executeCell();
+    if (awaitingInput) {
       await tick();
       inputTextarea?.focus();
-      return;
     }
-    await executeCell();
   }
 
   async function submitInput() {
-    await executeCell(inputValue);
+    // Normalize new lines (CRLF -> LF), split, drop trailing empty line
+    const normalized = (inputValue ?? '').replace(/\r\n/g, '\n');
+    const pieces = normalized.split('\n');
+    if (pieces.length && pieces[pieces.length - 1] === '') pieces.pop();
+    accumulatedInputs.push(...pieces);
+
+    const toSend = accumulatedInputs.join('\n');
+    await executeCell(toSend);
     inputValue = '';
+    // If more input is still required, stay in awaiting state and keep accumulating.
+    if (!awaitingInput) {
+      // Completed successfully; clear accumulation and resolve Run All if waiting.
+      accumulatedInputs = [];
+      inputPrompt = '';
+      if (parentAwaitResolve) {
+        const resolve = parentAwaitResolve;
+        parentAwaitResolve = null;
+        resolve();
+      }
+    }
   }
 
   function cancelInput() {
     awaitingInput = false;
     inputValue = '';
+    inputPrompt = '';
+    accumulatedInputs = [];
+    if (waitingForParent && parentAwaitResolve) {
+      const resolve = parentAwaitResolve;
+      parentAwaitResolve = null;
+      waitingForParent = false;
+      resolve();
+    }
   }
 
   function stop() {
     terminatePyodide();
     running.set(false);
+    accumulatedInputs = [];
+    inputPrompt = '';
   }
 </script>
 
@@ -287,11 +338,15 @@
   {#if awaitingInput}
     <div class="border border-dashed rounded-lg p-3 bg-gray-50 space-y-2">
       <div class="text-sm font-medium text-gray-700">Input for this run</div>
+      {#if inputPrompt}
+        <div class="text-xs text-gray-600">{inputPrompt}</div>
+      {/if}
       <textarea
         class="w-full border rounded-md p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
         rows="3"
         bind:this={inputTextarea}
         bind:value={inputValue}
+        tabindex={waitingForParent ? -1 : 0}
         placeholder="Each line is returned by a separate input() call"
       ></textarea>
       <div class="flex items-center gap-2">
@@ -300,7 +355,7 @@
           class="btn btn-sm btn-primary"
           on:click={submitInput}
         >
-          Run with input
+          Send
         </button>
         <button
           type="button"

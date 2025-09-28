@@ -37,10 +37,10 @@ import { preloadPyodide } from '$lib/pyodide';
     checkHeight();
   });
 
-  async function runAllCells() {
+  async function runAllCells(interactive: boolean = true) {
     for (const ref of cellRefs) {
       if (ref && typeof ref.runFromParent === 'function') {
-        await ref.runFromParent();
+        await ref.runFromParent(interactive);
       }
     }
   }
@@ -55,8 +55,8 @@ import { preloadPyodide } from '$lib/pyodide';
   }
 
   async function saveNotebook() {
-    // run all cells so outputs are included in the saved notebook
-    await runAllCells();
+    // Run all cells to include outputs; avoid blocking on input for save.
+    await runAllCells(false);
 
     const json = serializeNotebook(nb);
     if (fileId && $auth?.role === 'teacher') {
@@ -145,4 +145,3 @@ import { preloadPyodide } from '$lib/pyodide';
 {:else}
   <p>Loading…</p>
 {/if}
-

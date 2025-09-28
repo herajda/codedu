@@ -25,6 +25,8 @@ export interface PythonRunResult {
   stderr: string;
   images?: string[];
   resultText?: string;
+  inputRequired?: boolean;
+  prompt?: string;
 }
 
 type PythonAPI = {
