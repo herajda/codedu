@@ -10,6 +10,7 @@ import DOMPurify from 'dompurify'
 import { goto } from '$app/navigation'
 import { page } from '$app/stores'
 import ConfirmModal from '$lib/components/ConfirmModal.svelte'
+import { DeadlinePicker } from '$lib'
 
 
 
@@ -59,6 +60,19 @@ $: testsPercent = results.length ? Math.round(testsPassed / results.length * 100
   let eLLMStrictness:number=50
   let eLLMRubric=''
   let eSecondDeadline=''
+  // Enhanced date/time UX state (derived from the above strings)
+  let eDeadlineDate=''
+  let eDeadlineTime=''
+  let eSecondDeadlineDate=''
+  let eSecondDeadlineTime=''
+  const quickTimes = ['08:00','12:00','17:00','23:59']
+  function timeLabel(t:string){
+    // Always show 24h format HH:mm in UI labels
+    const [hh, mm] = (t || '').split(':')
+    const h = String(parseInt(hh||'0', 10)).padStart(2,'0')
+    const m = String(parseInt(mm||'0', 10)).padStart(2,'0')
+    return `${h}:${m}`
+  }
   let eLatePenaltyRatio:number=0.5
   let showAdvancedOptions=false
   let showAiOptions=false
@@ -287,6 +301,9 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     eTitle=assignment.title
     eDesc=assignment.description
     eDeadline=assignment.deadline.slice(0,16)
+    // split deadline to date/time for nicer UI
+    eDeadlineDate = eDeadline ? eDeadline.slice(0,10) : ''
+    eDeadlineTime = eDeadline ? eDeadline.slice(11,16) : ''
     ePoints=assignment.max_points
     ePolicy=assignment.grading_policy
     eShowTraceback=assignment.show_traceback
@@ -298,12 +315,30 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     eLLMStrictness = typeof assignment.llm_strictness === 'number' ? assignment.llm_strictness : 50
     eLLMRubric = assignment.llm_rubric ?? ''
     eSecondDeadline = assignment.second_deadline ? assignment.second_deadline.slice(0,16) : ''
+    eSecondDeadlineDate = eSecondDeadline ? eSecondDeadline.slice(0,10) : ''
+    eSecondDeadlineTime = eSecondDeadline ? eSecondDeadline.slice(11,16) : ''
     eLatePenaltyRatio = assignment.late_penalty_ratio ?? 0.5
     showAdvancedOptions = !!assignment.second_deadline
     if (assignment.manual_review) testMode = 'manual'
     else if (assignment.llm_interactive) testMode = 'ai'
     else testMode = 'automatic'
   }
+
+  // keep combined strings in sync with split date/time inputs
+  $: {
+    if(eDeadlineDate && eDeadlineTime) eDeadline = `${eDeadlineDate}T${eDeadlineTime}`
+    else if (!eDeadlineDate) eDeadline = ''
+  }
+  $: { if (eDeadlineDate && !eDeadlineTime) eDeadlineTime = '23:59' }
+  $: {
+    if(showAdvancedOptions){
+      if(eSecondDeadlineDate && eSecondDeadlineTime) eSecondDeadline = `${eSecondDeadlineDate}T${eSecondDeadlineTime}`
+      else if(!eSecondDeadlineDate) eSecondDeadline = ''
+    } else {
+      eSecondDeadline = ''
+    }
+  }
+  $: { if (eSecondDeadlineDate && !eSecondDeadlineTime) eSecondDeadlineTime = '23:59' }
 
   async function saveEdit(){
     try{
@@ -474,11 +509,15 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
   let extendDialog: HTMLDialogElement
   let extStudent: any = null
   let extDeadline = ''
+  let extDeadlineDate = ''
+  let extDeadlineTime = ''
   let extNote = ''
   function openExtendDialog(student: any){
     extStudent = student
     const cur = overrideMap[student.id]
     extDeadline = cur ? String(cur.new_deadline).slice(0,16) : (assignment.deadline?.slice(0,16) || '')
+    extDeadlineDate = extDeadline ? extDeadline.slice(0,10) : ''
+    extDeadlineTime = extDeadline ? extDeadline.slice(11,16) : ''
     extNote = cur?.note || ''
     extendDialog.showModal()
   }
@@ -501,6 +540,39 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
       extendDialog.close()
       await load()
     }catch(e:any){ err = e.message }
+  }
+
+  // keep combined extension string synced with date/time parts
+  $: {
+    if(extDeadlineDate && extDeadlineTime) extDeadline = `${extDeadlineDate}T${extDeadlineTime}`
+    else if(!extDeadlineDate) extDeadline = ''
+  }
+  $: { if (extDeadlineDate && !extDeadlineTime) extDeadlineTime = '23:59' }
+
+  // ───────────────────────────
+  // Deadline picker modal (reusable)
+  // ───────────────────────────
+  let deadlinePicker: InstanceType<typeof DeadlinePicker>;
+  function euLabelFromParts(d: string, t: string): string {
+    if (!d || !t) return '';
+    // d: yyyy-mm-dd
+    const day = d.slice(8,10); const mon = d.slice(5,7); const y = d.slice(0,4);
+    return `${day}/${mon}/${y} ${t}`;
+  }
+  async function pickMainDeadline(){
+    const initial = eDeadlineDate && eDeadlineTime ? `${eDeadlineDate}T${eDeadlineTime}` : (assignment?.deadline ?? null);
+    const picked = await deadlinePicker.open({ title: 'Select main deadline', initial });
+    if (picked) { eDeadlineDate = picked.slice(0,10); eDeadlineTime = picked.slice(11,16); }
+  }
+  async function pickSecondDeadline(){
+    const initial = eSecondDeadlineDate && eSecondDeadlineTime ? `${eSecondDeadlineDate}T${eSecondDeadlineTime}` : (assignment?.second_deadline ?? null);
+    const picked = await deadlinePicker.open({ title: 'Select second deadline', initial });
+    if (picked) { eSecondDeadlineDate = picked.slice(0,10); eSecondDeadlineTime = picked.slice(11,16); }
+  }
+  async function pickExtensionDeadline(){
+    const initial = extDeadlineDate && extDeadlineTime ? `${extDeadlineDate}T${extDeadlineTime}` : (assignment?.deadline ?? null);
+    const picked = await deadlinePicker.open({ title: 'Select new deadline', initial });
+    if (picked) { extDeadlineDate = picked.slice(0,10); extDeadlineTime = picked.slice(11,16); }
   }
 </script>
 
@@ -558,14 +630,27 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                 </label>
               </div>
               <div class="grid sm:grid-cols-2 gap-3">
+                <!-- Main deadline: open picker modal -->
                 <div class="form-control">
-                  <label class="label" for="deadline-input"><span class="label-text">Main deadline</span></label>
-                  <input id="deadline-input" type="datetime-local" class="input input-bordered w-full" bind:value={eDeadline} required>
+                  <label class="label"><span class="label-text">Main deadline</span></label>
+                  <div class="flex items-center gap-2">
+                    <input class="input input-bordered w-full" readonly placeholder="dd/mm/yyyy hh:mm" value={euLabelFromParts(eDeadlineDate, eDeadlineTime)}>
+                    <button type="button" class="btn" on:click={pickMainDeadline}>Pick</button>
+                    {#if eDeadlineDate}
+                      <button type="button" class="btn btn-ghost" title="Clear" on:click={() => { eDeadlineDate=''; eDeadlineTime=''; }}>Clear</button>
+                    {/if}
+                  </div>
                 </div>
                 {#if showAdvancedOptions}
                   <div class="form-control">
-                    <label class="label" for="second-deadline-input"><span class="label-text">Second deadline</span></label>
-                    <input id="second-deadline-input" type="datetime-local" class="input input-bordered w-full" bind:value={eSecondDeadline} placeholder="Leave empty to disable">
+                    <label class="label"><span class="label-text">Second deadline</span></label>
+                    <div class="flex items-center gap-2">
+                      <input class="input input-bordered w-full" readonly placeholder="dd/mm/yyyy hh:mm" value={euLabelFromParts(eSecondDeadlineDate, eSecondDeadlineTime)}>
+                      <button type="button" class="btn" on:click={pickSecondDeadline}>Pick</button>
+                      {#if eSecondDeadlineDate}
+                        <button type="button" class="btn btn-ghost" title="Clear" on:click={() => { eSecondDeadlineDate=''; eSecondDeadlineTime=''; }}>Clear</button>
+                      {/if}
+                    </div>
                   </div>
                 {/if}
               </div>
@@ -1174,7 +1259,13 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
       </div>
       <div class="form-control">
         <label class="label"><span class="label-text">New deadline</span></label>
-        <input type="datetime-local" class="input input-bordered w-full" bind:value={extDeadline} required />
+        <div class="flex items-center gap-2">
+          <input class="input input-bordered w-full" readonly placeholder="dd/mm/yyyy hh:mm" value={euLabelFromParts(extDeadlineDate, extDeadlineTime)}>
+          <button class="btn" on:click|preventDefault={pickExtensionDeadline}>Pick</button>
+          {#if extDeadlineDate}
+            <button class="btn btn-ghost" on:click|preventDefault={() => { extDeadlineDate=''; extDeadlineTime=''; }}>Clear</button>
+          {/if}
+        </div>
       </div>
       <div class="form-control">
         <label class="label"><span class="label-text">Note (optional)</span></label>
@@ -1223,6 +1314,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     <div class="alert alert-error mt-4"><span>{err}</span></div>
   {/if}
   <ConfirmModal bind:this={confirmModal} />
+  <DeadlinePicker bind:this={deadlinePicker} />
 {/if}
 
 <style>
