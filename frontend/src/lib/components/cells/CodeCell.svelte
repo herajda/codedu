@@ -7,7 +7,7 @@
     deleteCell
   } from "$lib/stores/notebookStore";
   import { initPyodide, terminatePyodide } from "$lib/pyodide";
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { writable } from "svelte/store";
   import { cellSourceToString } from "$lib/notebook";
   import { python } from "@codemirror/lang-python";
@@ -22,6 +22,10 @@
 
   // always keep a local string copy
   let sourceStr = cellSourceToString(cell.source);
+
+  let awaitingInput = false;
+  let inputValue = '';
+  let inputTextarea: HTMLTextAreaElement | null = null;
 
   const running = writable(false);
   const stdoutStore = writable<string>("");
@@ -62,11 +66,14 @@
     cell.source = sourceStr; // keep store canonical
   }
 
-  async function run() {
+  $: expectsInput = /\binput\s*\(/.test(sourceStr);
+
+  async function executeCell(stdin?: string) {
+    awaitingInput = false;
     running.set(true);
     const py = await initPyodide();
     try {
-      const { result, resultText, stdout, stderr, images } = await py.runCell(sourceStr);
+      const { result, resultText, stdout, stderr, images } = await py.runCell(sourceStr, stdin);
       stdoutStore.set(stdout);
       stderrStore.set(stderr);
       resultStore.set(result);
@@ -129,7 +136,28 @@
 
   /** Allow parent components to trigger execution. */
   export async function runFromParent() {
-    await run();
+    await executeCell();
+  }
+
+  async function handleRunClick() {
+    if (expectsInput) {
+      inputValue = '';
+      awaitingInput = true;
+      await tick();
+      inputTextarea?.focus();
+      return;
+    }
+    await executeCell();
+  }
+
+  async function submitInput() {
+    await executeCell(inputValue);
+    inputValue = '';
+  }
+
+  function cancelInput() {
+    awaitingInput = false;
+    inputValue = '';
   }
 
   function stop() {
@@ -150,7 +178,7 @@
       size="sm"
       aria-label="Run cell"
       title="Run cell"
-      on:click={run}
+      on:click={handleRunClick}
       disabled={$running}
       class="p-1 rounded text-green-600 hover:text-white hover:bg-green-600 hover:scale-110 transition-transform disabled:opacity-50"
     >
@@ -255,6 +283,36 @@
       </div>
     </div>
   </div>
+
+  {#if awaitingInput}
+    <div class="border border-dashed rounded-lg p-3 bg-gray-50 space-y-2">
+      <div class="text-sm font-medium text-gray-700">Input for this run</div>
+      <textarea
+        class="w-full border rounded-md p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+        rows="3"
+        bind:this={inputTextarea}
+        bind:value={inputValue}
+        placeholder="Each line is returned by a separate input() call"
+      ></textarea>
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          class="btn btn-sm btn-primary"
+          on:click={submitInput}
+        >
+          Run with input
+        </button>
+        <button
+          type="button"
+          class="btn btn-sm btn-secondary"
+          on:click={cancelInput}
+        >
+          Cancel
+        </button>
+        <span class="text-xs text-gray-500 ml-auto">Leave blank to send an empty line.</span>
+      </div>
+    </div>
+  {/if}
 
   <!-- Outputs -->
   {#if $stdoutStore}

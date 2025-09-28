@@ -4,6 +4,22 @@ let pyodide: any = null;
 let stdoutBuffer: string[] = [];
 let stderrBuffer: string[] = [];
 let reprHelper: any = null;
+let inputBuffer: string[] = [];
+let inputPatched = false;
+
+function setInputBuffer(stdin?: string | null) {
+  if (!stdin) {
+    inputBuffer = [];
+    return;
+  }
+  const normalized = stdin.replace(/\r\n/g, '\n');
+  const pieces = normalized.split('\n');
+  // Drop a trailing empty record caused by a terminal newline to emulate stdin behaviour.
+  if (pieces.length && pieces[pieces.length - 1] === '') {
+    pieces.pop();
+  }
+  inputBuffer = pieces;
+}
 
 async function ensurePyodide() {
   if (pyodide) return;
@@ -29,6 +45,23 @@ def _silent_show(*args, **kwargs):
     pass
 plt.show = _silent_show
   `);
+
+  if (!inputPatched) {
+    pyodide.globals.set('_codex_pop_input', (prompt?: any) => {
+      if (!inputBuffer.length) {
+        return '';
+      }
+      return inputBuffer.shift() ?? '';
+    });
+    await pyodide.runPythonAsync(`
+import builtins
+from js import _codex_pop_input
+def _codex_input(prompt=""):
+    return _codex_pop_input(prompt)
+builtins.input = _codex_input
+    `);
+    inputPatched = true;
+  }
 }
 
 function isPyProxy(value: any): value is { toJs: (opts?: any) => any; destroy?: () => void } {
@@ -132,13 +165,14 @@ function makeCloneable(value: any, fallbackText?: string, seen?: WeakMap<object,
 }
 
 self.onmessage = async (e: MessageEvent) => {
-  const { id, type, code } = e.data as { id?: number; type: string; code?: string };
+  const { id, type, code, stdin } = e.data as { id?: number; type: string; code?: string; stdin?: string | null };
   if (type === 'init') {
     await ensurePyodide();
     return;
   }
   if (type === 'run') {
     await ensurePyodide();
+    setInputBuffer(stdin ?? null);
     stdoutBuffer = [];
     stderrBuffer = [];
     let result: any = null;

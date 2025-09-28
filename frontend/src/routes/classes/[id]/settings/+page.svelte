@@ -21,8 +21,12 @@
   let search = '';
   let addDialog: HTMLDialogElement;
   let deleteDialog: HTMLDialogElement;
+  let existingStudentIds: Set<number> = new Set();
+  $: existingStudentIds = new Set(students.map((s) => s.id));
   // reactive filtered students for add modal
-  $: filtered = allStudents.filter((s) => (s.name ?? s.email).toLowerCase().includes(search.toLowerCase()));
+  $: filtered = allStudents.filter(
+    (s) => !existingStudentIds.has(s.id) && (s.name ?? s.email).toLowerCase().includes(search.toLowerCase())
+  );
   let err = '';
   let newName = '';
   let renaming = false;

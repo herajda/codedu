@@ -65,10 +65,19 @@
           },0);
         } else if (role === 'teacher') {
           c.progress = [];
+          const studentIds = new Set((c.students ?? []).map((s: any) => s.id));
           for (const a of c.assignments) {
             const data = await apiJSON(`/api/assignments/${a.id}`);
             const subs = Array.isArray(data.submissions) ? data.submissions : [];
-            const done = new Set(subs.filter((s:any)=>s.status==='completed').map((s:any)=>s.student_id)).size;
+            const done = new Set(
+              subs
+                .filter((s: any) =>
+                  s.status === 'completed' &&
+                  !s.is_teacher_run &&
+                  (s.student_id ? studentIds.has(s.student_id) : false)
+                )
+                .map((s: any) => s.student_id)
+            ).size;
             c.progress.push({ id:a.id, title:a.title, done });
           }
           c.assignments.sort((a:any,b:any)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime());

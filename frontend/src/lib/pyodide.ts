@@ -31,7 +31,7 @@ type PythonAPI = {
   /** Legacy: raw pyodide.runPythonAsync passthrough (no captured IO). */
   runPython: (code: string) => Promise<any>;
   /** Preferred: run + capture stdout/stderr. */
-  runCell: (code: string) => Promise<PythonRunResult>;
+  runCell: (code: string, stdin?: string) => Promise<PythonRunResult>;
   globals: any;
 };
 
@@ -63,11 +63,11 @@ export async function initPyodide(): Promise<PythonAPI> {
       preloadPosted = true;
     }
 
-    async function runCell(code: string): Promise<PythonRunResult> {
+    async function runCell(code: string, stdin?: string): Promise<PythonRunResult> {
       return new Promise((resolve) => {
         const id = msgId++;
         pending.set(id, resolve);
-        worker!.postMessage({ id, type: 'run', code });
+        worker!.postMessage({ id, type: 'run', code, stdin });
       });
     }
 

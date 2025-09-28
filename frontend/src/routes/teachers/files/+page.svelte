@@ -55,6 +55,13 @@ function iconClass(name: string) {
   }
 }
 
+function displayName(name: string | null | undefined) {
+  if (!name) return '';
+  const lastDot = name.lastIndexOf('.');
+  if (lastDot <= 0) return name;
+  return name.slice(0, lastDot);
+}
+
 function open(item: any) {
   if (item.is_dir) openDir(item);
   else if (item.name.toLowerCase().endsWith('.ipynb') || isImage(item.name)) goto(`/files/${item.id}`);
@@ -333,7 +340,7 @@ onMount(() => {
               <i class="fa-solid {iconClass(it.name)}"></i>
             {/if}
           </div>
-          <span class="text-sm text-center break-all">{it.name}</span>
+          <span class="text-sm text-center break-all">{it.is_dir ? it.name : displayName(it.name)}</span>
           <div class="mt-1 text-xs text-gray-500">
             {#if !it.is_dir}
               <span>{fmtSize(it.size)}</span>

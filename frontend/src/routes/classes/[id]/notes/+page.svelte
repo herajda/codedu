@@ -46,6 +46,11 @@
     return `${bytes.toFixed(decimals)} ${units[i]}`;
   }
 
+  function displayName(name: string | null | undefined) {
+    if (!name) return '';
+    return name.replace(/\.ipynb$/i, '');
+  }
+
   // Compute the list of notes to display based on search and sorting
   $: {
     let arr = [...notes];
@@ -186,9 +191,9 @@
   {#if viewMode === 'grid'}
     <div class="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
       {#each displayedNotes as n (n.id)}
-        <div role="button" tabindex="0" class="relative border rounded-box p-3 flex flex-col items-center group hover:shadow-lg hover:-translate-y-0.5 transition cursor-pointer" on:click={() => open(n)} on:keydown={(e)=> (e.key==='Enter'||e.key===' ') && open(n)} aria-label={`Open ${n.name}`}> 
+        <div role="button" tabindex="0" class="relative border rounded-box p-3 flex flex-col items-center group hover:shadow-lg hover:-translate-y-0.5 transition cursor-pointer" on:click={() => open(n)} on:keydown={(e)=> (e.key==='Enter'||e.key===' ') && open(n)} aria-label={`Open ${displayName(n.name)}`}>
           <div class="text-4xl mb-2 text-secondary"><i class="fa-solid fa-book"></i></div>
-          <div class="text-sm font-medium break-all text-center">{n.name}</div>
+          <div class="text-sm font-medium break-all text-center">{displayName(n.name)}</div>
           <div class="mt-1 text-xs text-gray-500 text-center">
             <span>{fmtSize(n.size)}</span>
             <span class="mx-1">·</span>
@@ -225,7 +230,7 @@
           {#each displayedNotes as n (n.id)}
             <tr class="hover:bg-base-200 cursor-pointer group" on:click={() => open(n)}>
               <td class="whitespace-nowrap">
-                <i class="fa-solid fa-book text-secondary mr-2"></i>{n.name}
+                <i class="fa-solid fa-book text-secondary mr-2"></i>{displayName(n.name)}
               </td>
               <td class="text-right">{fmtSize(n.size)}</td>
               <td class="text-right">{formatDateTime(n.updated_at)}</td>
