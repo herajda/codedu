@@ -60,3 +60,7 @@ tmp/
 # Temporary files 
 uploads/
 /backend/templates
+
+
+.gocache/
+*.pyc
