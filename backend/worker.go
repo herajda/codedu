@@ -31,16 +31,17 @@ var taskQueue chan Job
 
 // execution/runtime configuration (overridable via env for DinD setup)
 var (
-    // shared exec root between backend and docker-engine sidecar
-    execRoot = getenvOr("EXECUTION_ROOT", "/sandbox")
-    // runner image used for student code
-    pythonImage  = getenvOr("PYTHON_RUNNER_IMAGE", "python:3.11")
-    // container user and resource limits (string forms acceptable by docker)
-    dockerUser   = getenvOr("DOCKER_USER", "65534:65534") // nobody:nogroup
-    dockerCPUs   = getenvOr("DOCKER_CPUS", "0.5")
-    dockerMemory = getenvOr("DOCKER_MEMORY", "256m")
-    // additional grace period for docker startup/shutdown
-    dockerExtraTime = 10 * time.Second
+	// shared exec root between backend and docker-engine sidecar
+	execRoot = getenvOr("EXECUTION_ROOT", "/sandbox")
+	// runner image used for student code
+	pythonImage = getenvOr("PYTHON_RUNNER_IMAGE", "python:3.11")
+	// container user and resource limits (string forms acceptable by docker)
+	dockerUser      = getenvOr("DOCKER_USER", "65534:65534") // nobody:nogroup
+	dockerCPUs      = getenvOr("DOCKER_CPUS", "0.5")
+	dockerMemory    = getenvOr("DOCKER_MEMORY", "256m")
+	runnerTmpfsSize = getenvOr("RUNNER_TMPFS_SIZE", "32m")
+	// additional grace period for docker startup/shutdown
+	dockerExtraTime = 10 * time.Second
 )
 
 // ==== LLM typed outputs ====
@@ -76,6 +77,21 @@ type Planned struct {
 		Rationale string              `json:"rationale"`
 		Steps     []map[string]string `json:"steps"` // {send, expect_regex?}
 	} `json:"scenarios"`
+}
+
+type agentEvalResult struct {
+	Verdict         string          `json:"verdict"`
+	Reason          string          `json:"reason"`
+	Summary         string          `json:"summary"`
+	Recommendations []string        `json:"recommendations"`
+	Transcript      string          `json:"transcript"`
+	Interactive     json.RawMessage `json:"interactive"`
+	Model           string          `json:"model"`
+	ToolCalls       int             `json:"tool_calls"`
+	WallTimeMS      int             `json:"wall_time_ms"`
+	OutputSize      int             `json:"output_size"`
+	RawOutput       json.RawMessage `json:"raw_output"`
+	Error           string          `json:"error"`
 }
 
 // Internal runner type (you already have)
@@ -414,22 +430,22 @@ var mainGuard = regexp.MustCompile(`(?m)^\s*if\s+__name__\s*==\s*["']__main__["'
 
 // StartWorker starts n workers processing the grading queue.
 func StartWorker(n int) {
-    taskQueue = make(chan Job, 100)
-    if err := ensureDockerImage(pythonImage); err != nil {
-        fmt.Println("[worker] warn: pre-pull failed; will retry in background:", err)
-        go func() {
-            for {
-                if err := ensureDockerImage(pythonImage); err == nil {
-                    fmt.Println("[worker] runner image available")
-                    return
-                }
-                time.Sleep(10 * time.Second)
-            }
-        }()
-    }
-    for i := 0; i < n; i++ {
-        go workerLoop()
-    }
+	taskQueue = make(chan Job, 100)
+	if err := ensureDockerImage(pythonImage); err != nil {
+		fmt.Println("[worker] warn: pre-pull failed; will retry in background:", err)
+		go func() {
+			for {
+				if err := ensureDockerImage(pythonImage); err == nil {
+					fmt.Println("[worker] runner image available")
+					return
+				}
+				time.Sleep(10 * time.Second)
+			}
+		}()
+	}
+	for i := 0; i < n; i++ {
+		go workerLoop()
+	}
 
 	// Start presence cleanup task
 	go presenceCleanupTask()
@@ -479,7 +495,7 @@ func runSubmission(id uuid.UUID) {
 	UpdateSubmissionStatus(id, "running")
 
 	// Recreate submitted files from the stored archive
-    tmpDir, err := os.MkdirTemp(execRoot, "job-")
+	tmpDir, err := os.MkdirTemp(execRoot, "job-")
 	if err != nil {
 		UpdateSubmissionStatus(id, "failed")
 		return
@@ -522,19 +538,19 @@ func runSubmission(id uuid.UUID) {
 		rc.Close()
 	}
 
-    // enforce permissions and ownership after extraction
-    _ = filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
-        if err != nil {
-            return nil
-        }
-        if info.IsDir() {
-            _ = os.Chmod(path, 0755)
-        } else {
-            _ = os.Chmod(path, 0644)
-        }
-        return nil
-    })
-    _ = ensureSandboxPerms(tmpDir)
+	// enforce permissions and ownership after extraction
+	_ = filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			_ = os.Chmod(path, 0755)
+		} else {
+			_ = os.Chmod(path, 0644)
+		}
+		return nil
+	})
+	_ = ensureSandboxPerms(tmpDir)
 	var mainFile string
 	var firstPy string
 	filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
@@ -660,13 +676,15 @@ func runSubmission(id uuid.UUID) {
 
 // LLM-interactive flow
 func runLLMInteractive(sub *Submission, a *Assignment) {
-	// Recreate submitted files from the stored archive
-	tmpDir, err := os.MkdirTemp("", "grader-llm-")
-	if err != nil {
-		UpdateSubmissionStatus(sub.ID, "failed")
-		return
-	}
-	defer os.RemoveAll(tmpDir)
+    // Recreate submitted files from the stored archive
+    // IMPORTANT: place under execRoot so the Docker daemon can bind-mount it
+    // when called from within a container (docker-outside-of-docker setup).
+    tmpDir, err := os.MkdirTemp(execRoot, "grader-llm-")
+    if err != nil {
+        UpdateSubmissionStatus(sub.ID, "failed")
+        return
+    }
+    defer os.RemoveAll(tmpDir)
 
 	data, err := base64.StdEncoding.DecodeString(sub.CodeContent)
 	if err != nil {
@@ -702,17 +720,8 @@ func runLLMInteractive(sub *Submission, a *Assignment) {
 		os.Chmod(fpath, 0644)
 		rc.Close()
 	}
-	filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		if info.IsDir() {
-			os.Chmod(path, 0755)
-		} else {
-			os.Chmod(path, 0644)
-		}
-		return nil
-	})
+    // Normalize permissions for sandbox readability (and best-effort chown)
+    _ = ensureSandboxPerms(tmpDir)
 
 	// Detect main file
 	var mainFile, firstPy string
@@ -783,26 +792,89 @@ func runLLMInteractive(sub *Submission, a *Assignment) {
 		}
 	}
 
-	// Stage 3: scenario planning (LLM) + optional teacher scenarios
-	planScen, planJSON := llmPlanScenarios(a, tmpDir, review)
-	// merge teacher-provided scenarios if any
-	var merged []interactiveScenario
-	if len(planScen) > 0 {
-		merged = append(merged, planScen...)
-	}
-	if a.LLMScenariosRaw != nil && strings.TrimSpace(*a.LLMScenariosRaw) != "" {
-		var teacherScen []interactiveScenario
-		_ = json.Unmarshal([]byte(*a.LLMScenariosRaw), &teacherScen)
-		if len(teacherScen) > 0 {
-			merged = append(merged, teacherScen...)
-		}
-	}
-	if len(merged) == 0 {
-		// generic minimal scenario (non-opinionated)
-		merged = []interactiveScenario{{Name: "smoke", Steps: []map[string]string{{"send": ""}}}}
-	}
+	// Stage 3: interactive evaluation via MCP agent (fallback to legacy scenarios)
+	var (
+		pass            bool
+		interactiveJSON string
+		transcript      string
+		verdict         string
+		reason          string
+	)
 
-	pass, resultsJSON, transcript, verdict, reason := runInteractiveScenarios(tmpDir, mainFile, merged)
+	agentResult, agentErr := runAgentEvaluation(tmpDir, mainFile, a, review)
+	if agentErr != nil {
+		fmt.Printf("[llm] agent evaluator error: %v\n", agentErr)
+	}
+	if agentResult != nil {
+		verdict = strings.ToUpper(strings.TrimSpace(agentResult.Verdict))
+		if verdict == "" {
+			verdict = "ERROR"
+		}
+		pass = verdict == "PASS"
+		reason = strings.TrimSpace(agentResult.Reason)
+		transcript = agentResult.Transcript
+		if len(agentResult.Interactive) > 0 {
+			var sessions any
+			if err := json.Unmarshal(agentResult.Interactive, &sessions); err == nil {
+				comb := map[string]any{"agent": sessions}
+				if a.LLMTeacherBaseline != nil && strings.TrimSpace(*a.LLMTeacherBaseline) != "" {
+					comb["baseline"] = json.RawMessage(*a.LLMTeacherBaseline)
+				}
+				if combBytes, err := json.Marshal(comb); err == nil {
+					interactiveJSON = string(combBytes)
+				}
+			}
+		} else if a.LLMTeacherBaseline != nil && strings.TrimSpace(*a.LLMTeacherBaseline) != "" {
+			if combBytes, err := json.Marshal(map[string]any{"baseline": json.RawMessage(*a.LLMTeacherBaseline)}); err == nil {
+				interactiveJSON = string(combBytes)
+			}
+		}
+		if agentResult.Model != "" {
+			llm.ModelName = strPtr(agentResult.Model)
+		}
+		llm.ToolCalls = new(int)
+		*llm.ToolCalls = agentResult.ToolCalls
+		llm.WallTimeMS = new(int)
+		*llm.WallTimeMS = agentResult.WallTimeMS
+		llm.OutputSize = new(int)
+		*llm.OutputSize = agentResult.OutputSize
+	} else {
+		planScen, planJSON := llmPlanScenarios(a, tmpDir, review)
+		// merge teacher-provided scenarios if any
+		var merged []interactiveScenario
+		if len(planScen) > 0 {
+			merged = append(merged, planScen...)
+		}
+		if a.LLMScenariosRaw != nil && strings.TrimSpace(*a.LLMScenariosRaw) != "" {
+			var teacherScen []interactiveScenario
+			_ = json.Unmarshal([]byte(*a.LLMScenariosRaw), &teacherScen)
+			if len(teacherScen) > 0 {
+				merged = append(merged, teacherScen...)
+			}
+		}
+		if len(merged) == 0 {
+			// generic minimal scenario (non-opinionated)
+			merged = []interactiveScenario{{Name: "smoke", Steps: []map[string]string{{"send": ""}}}}
+		}
+
+		passLegacy, resultsJSON, transcriptLegacy, verdictLegacy, reasonLegacy := runInteractiveScenarios(tmpDir, mainFile, merged)
+		pass = passLegacy
+		transcript = transcriptLegacy
+		verdict = verdictLegacy
+		reason = reasonLegacy
+		var plan any
+		if strings.TrimSpace(planJSON) != "" {
+			_ = json.Unmarshal([]byte(planJSON), &plan)
+		}
+		var res any
+		_ = json.Unmarshal([]byte(resultsJSON), &res)
+		comb := map[string]any{"plan": plan, "results": res}
+		if a.LLMTeacherBaseline != nil && strings.TrimSpace(*a.LLMTeacherBaseline) != "" {
+			comb["baseline"] = json.RawMessage(*a.LLMTeacherBaseline)
+		}
+		combBytes, _ := json.Marshal(comb)
+		interactiveJSON = string(combBytes)
+	}
 
 	// Apply acceptance gate: explicit rejection from static review forces failure
 	if acceptancePresent && !acceptanceOK {
@@ -814,25 +886,18 @@ func runLLMInteractive(sub *Submission, a *Assignment) {
 			reason = acceptanceReason
 		}
 	}
-	// Combine plan + results for nicer printing
-	var plan any
-	if strings.TrimSpace(planJSON) != "" {
-		_ = json.Unmarshal([]byte(planJSON), &plan)
-	}
-	var res any
-	_ = json.Unmarshal([]byte(resultsJSON), &res)
-	comb := map[string]any{"plan": plan, "results": res}
-	if a.LLMTeacherBaseline != nil && strings.TrimSpace(*a.LLMTeacherBaseline) != "" {
-		comb["baseline"] = json.RawMessage(*a.LLMTeacherBaseline)
-	}
-	combBytes, _ := json.Marshal(comb)
-	combStr := string(combBytes)
 
-	llm.InteractiveJSON = &combStr
-	llm.Transcript = &transcript
-	llm.Verdict = &verdict
-	if reason != "" {
-		llm.Reason = &reason
+	if strings.TrimSpace(interactiveJSON) != "" {
+		llm.InteractiveJSON = &interactiveJSON
+	}
+	if strings.TrimSpace(transcript) != "" {
+		llm.Transcript = &transcript
+	}
+	if verdict != "" {
+		llm.Verdict = strPtr(verdict)
+	}
+	if strings.TrimSpace(reason) != "" {
+		llm.Reason = strPtr(reason)
 	}
 	_ = CreateLLMRun(llm)
 
@@ -877,7 +942,7 @@ func smokePythonProgram(dir, file string) (bool, string) {
 	abs, _ := filepath.Abs(dir)
 	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond+dockerExtraTime)
 	defer cancel()
-    cmd := exec.CommandContext(ctx, "docker", "run", "--rm", "-i",
+	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", "-i",
 		"--network=none",
 		"--user", dockerUser,
 		"--cpus", dockerCPUs,
@@ -889,7 +954,7 @@ func smokePythonProgram(dir, file string) (bool, string) {
 		"--security-opt", "no-new-privileges",
 		"--security-opt", "label=disable",
 		"--mount", "type=tmpfs,destination=/tmp,tmpfs-size=16m",
-    "-v", fmt.Sprintf("%s:/code:ro", abs),
+		"-v", fmt.Sprintf("%s:/code:ro", abs),
 		pythonImage, "bash", "-lc", fmt.Sprintf("PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 python -u /code/%s", strings.ReplaceAll(file, "'", "'\\''")))
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
@@ -1219,7 +1284,7 @@ func runInteractiveScenarios(dir, mainFile string, scenarios []interactiveScenar
 		ctx, cancel := context.WithTimeout(context.Background(), remaining+dockerExtraTime)
 
 		script := fmt.Sprintf("start=$(date +%%s%%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 python -u /code/%s", strings.ReplaceAll(mainFile, "'", "'\\''"))
-        cmd := exec.CommandContext(ctx, "docker", "run", "--rm", "-i",
+		cmd := exec.CommandContext(ctx, "docker", "run", "--rm", "-i",
 			"--network=none",
 			"--user", dockerUser,
 			"--cpus", dockerCPUs,
@@ -1231,7 +1296,7 @@ func runInteractiveScenarios(dir, mainFile string, scenarios []interactiveScenar
 			"--security-opt", "no-new-privileges",
 			"--security-opt", "label=disable",
 			"--mount", "type=tmpfs,destination=/tmp,tmpfs-size=16m",
-    "-v", fmt.Sprintf("%s:/code:ro", abs),
+			"-v", fmt.Sprintf("%s:/code:ro", abs),
 			pythonImage, "bash", "-lc", script)
 		stdoutPipe, _ := cmd.StdoutPipe()
 		stderrPipe, _ := cmd.StderrPipe()
@@ -1469,27 +1534,254 @@ func runInteractiveScenarios(dir, mainFile string, scenarios []interactiveScenar
 	return overallPass, string(interJSON), tr, verdict, reason
 }
 
+func runAgentEvaluation(workspace, mainFile string, a *Assignment, review map[string]any) (*agentEvalResult, error) {
+	assignmentMeta := map[string]any{
+		"title":            a.Title,
+		"description":      a.Description,
+		"rubric":           stringOrEmpty(a.LLMRubric),
+		"teacher_baseline": stringOrEmpty(a.LLMTeacherBaseline),
+		"strictness":       a.LLMStrictness,
+		"max_points":       a.MaxPoints,
+	}
+	assignmentFile := filepath.Join(workspace, "assignment_meta.json")
+	if err := writeJSONFile(assignmentFile, assignmentMeta); err != nil {
+		return nil, fmt.Errorf("write assignment metadata: %w", err)
+	}
+
+	var reviewFile string
+	if review != nil {
+		reviewFile = filepath.Join(workspace, "static_review.json")
+		if err := writeJSONFile(reviewFile, review); err != nil {
+			return nil, fmt.Errorf("write review: %w", err)
+		}
+	}
+
+	script := findEvaluatorScript()
+	if script == "" {
+		return nil, fmt.Errorf("llm evaluator script not found; set LLM_EVALUATOR_SCRIPT")
+	}
+	absScript, err := filepath.Abs(script)
+	if err == nil {
+		script = absScript
+	}
+
+	modelName := getenvOr("OPENAI_LLM_MODEL", getenvOr("OPENAI_MODEL", "gpt-4.1"))
+	maxTurns := getenvOr("LLM_AGENT_MAX_TURNS", "128")
+
+	evalPython := getenvOr("LLM_EVALUATOR_PYTHON", "python3")
+
+	args := []string{
+		script,
+		"--workspace", workspace,
+		"--main-file", mainFile,
+		"--python-image", pythonImage,
+		"--docker-user", dockerUser,
+		"--docker-cpus", dockerCPUs,
+		"--docker-memory", dockerMemory,
+		"--tmpfs-size", runnerTmpfsSize,
+		"--output-limit", "65536",
+		"--session-timeout", "90",
+		"--idle-timeout", "20",
+		"--model", modelName,
+		"--default-command", fmt.Sprintf("python -u %s", mainFile),
+		"--assignment-json", assignmentFile,
+		"--max-turns", maxTurns,
+	}
+	if reviewFile != "" {
+		args = append(args, "--review-json", reviewFile)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute+dockerExtraTime)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, evalPython, args...)
+	cmd.Dir = workspace
+	env := os.Environ()
+	pythonPath := filepath.Dir(filepath.Dir(script))
+	if filepath.Base(filepath.Dir(script)) != "llm_agent" {
+		pythonPath = filepath.Dir(script)
+	}
+	if existing := os.Getenv("PYTHONPATH"); existing != "" {
+		pythonPath = existing + ":" + pythonPath
+	}
+	env = append(env, fmt.Sprintf("PYTHONPATH=%s", pythonPath))
+	cmd.Env = env
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("agent evaluator stdout pipe: %w", err)
+	}
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, fmt.Errorf("agent evaluator stderr pipe: %w", err)
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("agent evaluator start: %w", err)
+	}
+    // Keep stdout and stderr separate; we'll parse only stdout for JSON.
+    var evalStdout bytes.Buffer
+    var evalStderr bytes.Buffer
+    var ioMu sync.Mutex
+	var wg sync.WaitGroup
+	labelBase := fmt.Sprintf("[llm-eval][%s][%s]", filepath.Base(workspace), mainFile)
+    if stdoutPipe != nil {
+        wg.Add(1)
+        go streamAgentOutput(&wg, stdoutPipe, &ioMu, &evalStdout, labelBase+" stdout")
+    }
+    if stderrPipe != nil {
+        wg.Add(1)
+        go streamAgentOutput(&wg, stderrPipe, &ioMu, &evalStderr, labelBase+" stderr")
+    }
+	waitErr := cmd.Wait()
+	wg.Wait()
+	if ctx.Err() == context.DeadlineExceeded {
+		return nil, fmt.Errorf("agent evaluator timed out")
+	}
+    output := bytes.TrimSpace(evalStdout.Bytes())
+    if waitErr != nil {
+        preview := string(output)
+        if len(preview) > 512 {
+            preview = preview[:512] + "..."
+        }
+        errTail := evalStderr.String()
+        if errTail != "" {
+            if len(errTail) > 512 { errTail = errTail[:512] + "..." }
+            preview = preview + " | stderr: " + errTail
+        }
+        return nil, fmt.Errorf("agent evaluator failed: %w (output: %s)", waitErr, preview)
+    }
+    if len(output) == 0 {
+        errTail := strings.TrimSpace(evalStderr.String())
+        if errTail != "" {
+            if len(errTail) > 512 { errTail = errTail[:512] + "..." }
+            return nil, fmt.Errorf("agent evaluator returned empty output (stderr: %s)", errTail)
+        }
+        return nil, fmt.Errorf("agent evaluator returned empty output")
+    }
+	res, jsonErr := parseAgentEvalOutput(output)
+	if jsonErr != nil {
+		preview := string(output)
+		if len(preview) > 512 {
+			preview = preview[:512] + "..."
+		}
+		return nil, fmt.Errorf("parse agent output: %w (output: %s)", jsonErr, preview)
+	}
+	return res, nil
+}
+
+func streamAgentOutput(wg *sync.WaitGroup, pipe io.ReadCloser, mu *sync.Mutex, combined *bytes.Buffer, label string) {
+	defer wg.Done()
+	defer pipe.Close()
+	reader := bufio.NewReader(pipe)
+	for {
+		chunk, err := reader.ReadString('\n')
+		if len(chunk) > 0 {
+			line := strings.TrimRight(chunk, "\r\n")
+			if line == "" {
+				fmt.Printf("%s\n", label)
+			} else {
+				fmt.Printf("%s %s\n", label, line)
+			}
+			mu.Lock()
+			combined.WriteString(chunk)
+			mu.Unlock()
+		}
+		if err != nil {
+			if !errors.Is(err, io.EOF) {
+				fmt.Printf("%s read error: %v\n", label, err)
+			}
+			break
+		}
+	}
+}
+
+func writeJSONFile(path string, payload any) error {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
+}
+
+func findEvaluatorScript() string {
+    if custom := strings.TrimSpace(os.Getenv("LLM_EVALUATOR_SCRIPT")); custom != "" {
+        return custom
+    }
+    candidates := []string{
+        // Prefer repository-local copies first so patches take effect without rebuilding images
+        filepath.Join("backend", "llm_agent", "evaluate.py"),
+        filepath.Join("llm_agent", "evaluate.py"),
+        "/app/llm_agent/evaluate.py",
+    }
+    for _, c := range candidates {
+        if _, err := os.Stat(c); err == nil {
+            return c
+        }
+	}
+	return ""
+}
+
+func parseAgentEvalOutput(out []byte) (*agentEvalResult, error) {
+    trimmed := bytes.TrimSpace(out)
+    var res agentEvalResult
+    if err := json.Unmarshal(trimmed, &res); err == nil {
+        return &res, nil
+    }
+    // Heuristic: scan backwards for the start of the FINAL top-level JSON object
+    // The evaluator prints the final result as a single JSON object on stdout.
+    // Logs from stdout/stderr may precede it; nested JSON blocks (e.g., ai_message)
+    // may also appear. We iterate over '{' candidates from the end until a valid
+    // parse succeeds.
+    for idx := bytes.LastIndexByte(trimmed, '{'); idx >= 0; idx = bytes.LastIndexByte(trimmed[:idx], '{') {
+        tail := bytes.TrimSpace(trimmed[idx:])
+        var candidate agentEvalResult
+        if err := json.Unmarshal(tail, &candidate); err == nil && strings.TrimSpace(candidate.Verdict) != "" {
+            preface := bytes.TrimSpace(trimmed[:idx])
+            if len(preface) > 0 {
+                msg := strings.TrimSpace(string(preface))
+                if candidate.Error != "" {
+                    candidate.Error = msg + "; " + candidate.Error
+                } else {
+                    candidate.Error = msg
+                }
+            }
+            return &candidate, nil
+        }
+    }
+    msg := strings.TrimSpace(string(trimmed))
+    if msg == "" {
+        msg = "agent evaluator produced no output"
+    }
+    return &agentEvalResult{
+		Verdict:     "ERROR",
+		Reason:      msg,
+		Summary:     "Interactive agent run failed",
+		Transcript:  "",
+		Interactive: json.RawMessage(`{"sessions": []}`),
+		Error:       msg,
+	}, nil
+}
+
 // lastN helper removed (unused)
 
 func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, string, int, bool, time.Duration) {
-    // Best-effort ensure image exists; ignore error so we don't misattribute infra issues to student
-    _ = ensureDockerImage(pythonImage)
-    // Ensure staged files are readable by the unprivileged container user.
-    _ = ensureSandboxPerms(dir)
-    abs, _ := filepath.Abs(dir)
-    fmt.Printf("[worker] Running: %s/%s with timeout %v\n", abs, file, timeout)
+	// Best-effort ensure image exists; ignore error so we don't misattribute infra issues to student
+	_ = ensureDockerImage(pythonImage)
+	// Ensure staged files are readable by the unprivileged container user.
+	_ = ensureSandboxPerms(dir)
+	abs, _ := filepath.Abs(dir)
+	fmt.Printf("[worker] Running: %s/%s with timeout %v\n", abs, file, timeout)
 	// allow some extra time for container startup and shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), timeout+dockerExtraTime)
 	defer cancel()
 
-    mount := fmt.Sprintf("%s:/code:ro", abs)
+	mount := fmt.Sprintf("%s:/code:ro", abs)
 
 	// Measure runtime inside the container. A shell script records timestamps
 	// before and after executing the Python program and prints the elapsed
 	// milliseconds as the last line of stdout with a unique prefix.
 	script := fmt.Sprintf("start=$(date +%%s%%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 python -u /code/%s; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status", file)
 
-    cmd := exec.CommandContext(ctx, "docker", "run",
+	cmd := exec.CommandContext(ctx, "docker", "run",
 		"--rm",
 		"-i",
 		"--network=none",
@@ -1545,10 +1837,10 @@ func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, s
 }
 
 func executePythonUnit(dir, mainFile, testCode, testName string, timeout time.Duration) (string, string, int, bool, time.Duration) {
-    // Best-effort ensure image exists; ignore error so we don't misattribute infra issues to student
-    _ = ensureDockerImage(pythonImage)
-    abs, _ := filepath.Abs(dir)
-    testPath := filepath.Join(dir, "run_test.py")
+	// Best-effort ensure image exists; ignore error so we don't misattribute infra issues to student
+	_ = ensureDockerImage(pythonImage)
+	abs, _ := filepath.Abs(dir)
+	testPath := filepath.Join(dir, "run_test.py")
 	content := fmt.Sprintf(`import sys, unittest, builtins, io
 
 # patch assertEqual so comparisons use string values
@@ -1593,16 +1885,16 @@ if __name__ == '__main__':
     sys.exit(0 if ok else 1)
 `, "/code/"+mainFile, testCode, testName)
 	os.WriteFile(testPath, []byte(content), 0644)
-    // Ensure permissions are readable by container user (nobody)
-    _ = os.Chmod(dir, 0755)
-    _ = os.Chmod(testPath, 0644)
-    _ = ensureSandboxPerms(dir)
+	// Ensure permissions are readable by container user (nobody)
+	_ = os.Chmod(dir, 0755)
+	_ = os.Chmod(testPath, 0644)
+	_ = ensureSandboxPerms(dir)
 
-    ctx, cancel := context.WithTimeout(context.Background(), timeout+dockerExtraTime)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout+dockerExtraTime)
 	defer cancel()
-    mount := fmt.Sprintf("%s:/code:ro", abs)
+	mount := fmt.Sprintf("%s:/code:ro", abs)
 	script := fmt.Sprintf("start=$(date +%%s%%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 python -u /code/run_test.py; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status")
-    cmd := exec.CommandContext(ctx, "docker", "run",
+	cmd := exec.CommandContext(ctx, "docker", "run",
 		"--rm", "-i", "--network=none", "--user", dockerUser,
 		"--cpus", dockerCPUs, "--memory", dockerMemory,
 		"--memory-swap", dockerMemory,

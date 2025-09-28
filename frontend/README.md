@@ -5,6 +5,21 @@ This app includes a small, built-in set of SVG avatars in `static/avatars/` whic
 
 To change or add avatars, drop additional SVG or PNG files into `static/avatars/` and rebuild the frontend.
 
+## Internationalization
+
+CodEdu ships with an extensible i18n layer. Browser `Accept-Language` headers (or the `codex_locale` cookie) decide which locale is used at runtime. Strings live in `src/lib/i18n/locales/en.json`; consume them via the `$t('namespace.key')` helper exported from `$lib/i18n`.
+
+To create or refresh a locale file, run the translation helper from the repository root:
+
+```bash
+OPENAI_API_KEY=sk-... scripts/translate_app.py \
+  --source frontend/src/lib/i18n/locales/en.json \
+  --target frontend/src/lib/i18n/locales/cs.json \
+  --locale cs
+```
+
+Add `--all` to retranslate every key or `--dry-run` to inspect the generated prompt before calling the API. The script only overwrites keys that are missing or still match the English source.
+
 # sv
 
 Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
