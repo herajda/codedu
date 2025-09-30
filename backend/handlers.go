@@ -1359,7 +1359,10 @@ func getSubmission(c *gin.Context) {
 			}
 		}
 	}
-	allowTestDetails := assignment != nil && assignment.ShowTestDetails && role != "student"
+	allowTestDetails := role != "student"
+	if role == "student" {
+		allowTestDetails = assignment != nil && assignment.ShowTestDetails
+	}
 	if !allowTestDetails {
 		for i := range results {
 			results[i].Stdin = nil

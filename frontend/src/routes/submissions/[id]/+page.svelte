@@ -177,7 +177,7 @@ $: id = $page.params.id
   $: showLLM = assignmentLLMInteractive
   // Allow detailed LLM artifacts for students only if teacher enabled feedback
   $: allowLLMDetails = (role !== 'student') || assignmentLLMFeedback
-  $: allowTestDetails = role !== 'student' && assignmentShowTestDetails
+  $: allowTestDetails = role !== 'student' || assignmentShowTestDetails
   // Show Auto-tests only when NOT LLM mode and there are tests configured
   $: showAutoUI = (!assignmentLLMInteractive) && (assignmentTestsCount > 0)
   // Keep legacy meaning of hideAutoUI: specifically, when no auto tests exist
@@ -483,15 +483,15 @@ $: id = $page.params.id
                     </div>
                   </summary>
                   <div class="collapse-content space-y-4">
-                    <section class="rounded-2xl border border-base-300/70 bg-base-100 p-4 shadow-sm">
-                      <header class="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-base-content/70">
-                        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                          <rect x="3" y="4" width="18" height="16" rx="2" ry="2"/>
-                          <path d="M7 8h10"/>
-                        </svg>
-                        Test definition
-                      </header>
-                      {#if allowTestDetails}
+                    {#if allowTestDetails}
+                      <section class="rounded-2xl border border-base-300/70 bg-base-100 p-4 shadow-sm">
+                        <header class="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-base-content/70">
+                          <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="3" y="4" width="18" height="16" rx="2" ry="2"/>
+                            <path d="M7 8h10"/>
+                          </svg>
+                          Test definition
+                        </header>
                         {#if r.unittest_code}
                           {#if r.unittest_name}
                             <div class="badge badge-outline badge-primary mb-3">{r.unittest_name}</div>
@@ -527,14 +527,8 @@ $: id = $page.params.id
                         {:else}
                           <div class="text-sm opacity-70">No metadata available for this test.</div>
                         {/if}
-                      {:else}
-                        <div class="text-sm italic opacity-60">
-                          {role === 'student'
-                            ? 'Test details are hidden for students on this assignment.'
-                            : 'Enable “Reveal test definitions in teacher review” in assignment settings to view detailed inputs and unit tests.'}
-                        </div>
-                      {/if}
-                    </section>
+                      </section>
+                    {/if}
                     <section class="rounded-2xl border border-base-300/70 bg-base-100 p-4 shadow-sm">
                       <header class="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-base-content/70">
                         <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
