@@ -8,6 +8,7 @@
   import { formatDateTime } from '$lib/date'
   import { goto } from '$app/navigation'
   import { auth } from '$lib/auth'
+  import { extractMethodFromUnittest } from '$lib/unittests'
 
 $: id = $page.params.id
 
@@ -198,6 +199,13 @@ $: id = $page.params.id
     } catch {
       return null
     }
+  }
+
+  function viewableUnitTestSnippet(code: string | null | undefined, name: string | null | undefined): string {
+    if (code == null) return ''
+    if (!name) return String(code)
+    const snippet = extractMethodFromUnittest(String(code), String(name))
+    return snippet.trim().length ? snippet : String(code)
   }
 
   // Parsed review JSON (typed in backend as Review)
@@ -483,7 +491,7 @@ $: id = $page.params.id
                         {#if r.unittest_name}
                           <div class="badge badge-outline badge-primary mb-3">{r.unittest_name}</div>
                         {/if}
-                        <pre class="max-h-80 overflow-auto rounded-xl bg-base-200/80 p-4 text-sm leading-relaxed"><code class="font-mono whitespace-pre-wrap">{r.unittest_code}</code></pre>
+                        <pre class="max-h-80 overflow-auto rounded-xl bg-base-200/80 p-4 text-sm leading-relaxed"><code class="font-mono whitespace-pre-wrap">{viewableUnitTestSnippet(r.unittest_code, r.unittest_name)}</code></pre>
                       {:else if typeof r.stdin !== 'undefined' || typeof r.expected_stdout !== 'undefined'}
                         <div class="grid gap-3 md:grid-cols-2">
                           <div class="rounded-xl border border-base-300/60 bg-base-200/70 p-3">

@@ -4,6 +4,7 @@
   import { page } from '$app/stores'
   import { apiFetch, apiJSON } from '$lib/api'
   import { auth } from '$lib/auth'
+  import { extractMethodFromUnittest, leadingIndent, parseUnitTestQualifiedName } from '$lib/unittests'
   import CodeMirror from '$lib/components/ui/CodeMirror.svelte'
   import { python } from '@codemirror/lang-python'
   import { Plus, Save, Trash2, Eye, FlaskConical, FileUp, Code, Copy, Clock, Scale, Upload as UploadIcon } from 'lucide-svelte'
@@ -80,67 +81,6 @@
   let editingTest: any = null
   let editingMethodCode = ''
 
-  function parseQN(qn: string): { cls: string; method: string } {
-    const parts = String(qn || '').split('.')
-    return { cls: parts[0] || 'TestCase', method: parts[1] || 'test_case' }
-  }
-
-  function leadingIndent(s: string): string {
-    const m = s.match(/^[\t ]*/)
-    return m ? m[0] : ''
-  }
-
-  function extractMethodFromUnittest(src: string, qn: string): string {
-    try {
-      const { cls, method } = parseQN(qn)
-      const lines = String(src || '').split('\n')
-      const classRE = new RegExp(`^([\\\t ]*)class\\s+${cls}\\s*\\(.*unittest\\.TestCase.*\\):`)
-      const methodRE = new RegExp(`^([\\\t ]*)def\\s+${method}\\s*\\(`)
-      let classIdx = -1
-      let classIndent = ''
-      for (let i = 0; i < lines.length; i++) {
-        const m = lines[i].match(classRE)
-        if (m) {
-          classIdx = i
-          classIndent = m[1] || ''
-          break
-        }
-      }
-      if (classIdx === -1) return ''
-      let start = -1
-      let startIndent = ''
-      for (let i = classIdx + 1; i < lines.length; i++) {
-        const l = lines[i]
-        if (l.trim() === '') continue
-        if (!l.startsWith(classIndent) && leadingIndent(l).length <= classIndent.length) break
-        const m = l.match(methodRE)
-        if (m) {
-          start = i
-          startIndent = m[1] || ''
-          while (start - 1 > classIdx && lines[start - 1].trim().startsWith('@') && leadingIndent(lines[start - 1]) === startIndent) {
-            start--
-          }
-          break
-        }
-      }
-      if (start === -1) return ''
-      let end = lines.length
-      for (let i = start + 1; i < lines.length; i++) {
-        const l = lines[i]
-        if (l.trim() === '') continue
-        const ind = leadingIndent(l)
-        const t = l.trimStart()
-        if (ind.length <= startIndent.length && (t.startsWith('def ') || t.startsWith('class '))) {
-          end = i
-          break
-        }
-      }
-      return lines.slice(start, end).join('\n')
-    } catch (e) {
-      return ''
-    }
-  }
-
   function normalizeIndent(block: string): { lines: string[]; base: number } {
     const raw = String(block || '').replace(/\r\n?/g, '\n')
     const lines = raw.split('\n')
@@ -156,10 +96,12 @@
   }
 
   function replaceMethodInUnittest(src: string, qn: string, newMethod: string): string {
-    const { cls, method } = parseQN(qn)
+    const { cls, method } = parseUnitTestQualifiedName(qn)
     const lines = String(src || '').split('\n')
-    const classRE = new RegExp(`^([\\\t ]*)class\\s+${cls}\\s*\\(.*unittest\\.TestCase.*\\):`)
-    const methodRE = new RegExp(`^([\\\t ]*)def\\s+${method}\\s*\\(`)
+    const escapedClass = cls.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const escapedMethod = method.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const classRE = new RegExp(`^([\\t ]*)class\\s+${escapedClass}\\s*\\(.*unittest\\.TestCase.*\\):`)
+    const methodRE = new RegExp(`^([\\t ]*)def\\s+${escapedMethod}\\s*\\(`)
     let classIdx = -1
     let classIndent = ''
     for (let i = 0; i < lines.length; i++) {
@@ -227,7 +169,7 @@
       let newQN = qn
       const m = editingMethodCode.match(/def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/)
       if (m) {
-        const { cls } = parseQN(qn)
+        const { cls } = parseUnitTestQualifiedName(qn)
         newQN = `${cls}.${m[1]}`
       }
       const testData: any = {
