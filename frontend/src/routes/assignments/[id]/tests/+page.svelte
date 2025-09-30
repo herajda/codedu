@@ -9,6 +9,7 @@
   import { python } from '@codemirror/lang-python'
   import { Plus, Save, Trash2, Eye, FlaskConical, FileUp, Code, Copy, Clock, Scale, Upload as UploadIcon } from 'lucide-svelte'
   import ConfirmModal from '$lib/components/ConfirmModal.svelte'
+  import { strictnessGuidance } from '$lib/llmStrictness'
 
   $: id = $page.params.id
   $: role = ($auth as any)?.role ?? ''
@@ -24,6 +25,7 @@
   let llmScenarios = ''
   let llmStrictness = 50
   let llmRubric = ''
+  $: llmStrictnessMessage = strictnessGuidance(llmStrictness)
   const exampleScenario = '[{"name":"calc","steps":[{"send":"2 + 2","expect_after":"4"}]}]'
 
   // local inputs for creating/uploading tests
@@ -727,17 +729,12 @@
               </label>
               <div class="sm:col-span-2 grid gap-3">
                 <label class="form-control w-full">
-                  <div class="flex items-center justify-between">
-                    <span class="label-text">Strictness level</span>
-                    <div class="text-sm opacity-70">{llmStrictness} / 100</div>
+                  <div class="label">
+                    <span class="label-text">Strictness</span>
+                    <span class="label-text-alt">{llmStrictness}%</span>
                   </div>
-                  <input type="range" min="0" max="100" step="10" class="range range-primary" bind:value={llmStrictness}>
-                  <div class="flex justify-between text-xs opacity-70 mt-1">
-                    <span>Beginner</span>
-                    <span>Intermediate</span>
-                    <span>Advanced</span>
-                    <span>PRO</span>
-                  </div>
+                  <input type="range" min="0" max="100" step="5" class="range range-primary" bind:value={llmStrictness}>
+                  <p class="text-xs opacity-70 mt-2">{llmStrictnessMessage}</p>
                 </label>
                 <label class="form-control w-full">
                   <span class="label-text">Teacher rubric (what is OK vs WRONG)</span>
