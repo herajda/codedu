@@ -20,46 +20,56 @@ function percent(done:number,total:number){
 async function load(){
   loading = true; err = '';
   try {
-    cls = await apiJSON(`/api/classes/${id}`);
-    submissions = await apiJSON('/api/my-submissions');
-    // Normalize potentially null/undefined payloads
-    const assignments:any[] = Array.isArray(cls?.assignments) ? cls.assignments : [];
-    submissions = Array.isArray(submissions) ? submissions : [];
-    cls.assignments = assignments;
-    cls.pointsTotal = assignments.reduce((s:any,a:any)=>s+a.max_points,0);
-    cls.assignmentProgress = assignments.map((a:any)=>{
-      const best = submissions
-        .filter((s:any)=>s.assignment_id===a.id)
-        .reduce((m:number,s:any)=>{
-          const p = s.override_points ?? s.points ?? 0;
-          return p>m ? p : m;
-        },0);
-      return { ...a, best };
-    });
-    cls.completed = cls.assignmentProgress.filter((p:any)=>p.best>=p.max_points).length;
-    cls.pointsEarned = cls.assignmentProgress.reduce((tot:any,a:any)=>tot+a.best,0);
-    const now = new Date();
-    cls.upcoming = assignments
-      .filter((a:any)=>new Date(a.deadline) > now)
-      .sort((a:any,b:any)=>new Date(a.deadline).getTime()-new Date(b.deadline).getTime());
-    cls = { ...cls };
-  } catch(e:any){ err = e.message; }
+    const [classData, submissionData] = await Promise.all([
+      apiJSON(`/api/classes/${id}`),
+      apiJSON('/api/my-submissions')
+    ]);
+    const normalizedClass = classData ?? null;
+    const assignments:any[] = Array.isArray(normalizedClass?.assignments)
+      ? normalizedClass.assignments
+      : [];
+    cls = normalizedClass ? { ...normalizedClass, assignments } : null;
+    submissions = Array.isArray(submissionData) ? submissionData : [];
+  } catch(e:any){ err = e.message; cls = null; submissions = []; }
   loading = false;
 }
 
 onMount(load);
 
 // Derived helpers for UI
-$: totalAssignments = cls?.assignments?.length ?? 0;
-$: progressPercent = percent(cls?.completed ?? 0, totalAssignments);
-$: upcomingCount = cls?.upcoming?.length ?? 0;
+$: assignments = Array.isArray(cls?.assignments) ? cls.assignments : [];
+$: normalizedAssignments = assignments.map((a: any) => ({
+  ...a,
+  max_points: Number(a?.max_points ?? 0)
+}));
+$: assignmentProgress = normalizedAssignments.map((a: any) => {
+  const best = (submissions ?? [])
+    .filter((s: any) => s.assignment_id === a.id)
+    .reduce((m: number, s: any) => {
+      const p = Number(s.override_points ?? s.points ?? 0);
+      return p > m ? p : m;
+    }, 0);
+  return { ...a, best };
+});
+$: totalAssignments = assignmentProgress.length;
+$: completedAssignments = assignmentProgress.filter((p: any) => p.best >= p.max_points).length;
+$: pointsTotal = assignmentProgress.reduce((sum: number, a: any) => sum + a.max_points, 0);
+$: pointsEarned = assignmentProgress.reduce((sum: number, a: any) => sum + a.best, 0);
+$: progressPercent = percent(completedAssignments, totalAssignments);
+$: upcomingAssignments = assignmentProgress
+  .filter((a: any) => new Date(a.deadline) > new Date())
+  .slice()
+  .sort((a: any, b: any) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime());
+$: upcomingCount = upcomingAssignments.length;
 $: nextAssignment = (() => {
-  if (!cls) return null;
-  const incomplete = cls.assignments.filter((a: any) => (cls.assignmentProgress.find((p: any) => p.id === a.id)?.best ?? 0) < a.max_points);
-  incomplete.sort((a: any, b: any) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime());
+  if (!assignmentProgress.length) return null;
+  const incomplete = assignmentProgress
+    .filter((a: any) => a.best < a.max_points)
+    .slice()
+    .sort((a: any, b: any) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime());
   return incomplete[0] ?? null;
 })();
-$: classAssignmentIds = new Set((cls?.assignments ?? []).map((a: any) => a.id));
+$: classAssignmentIds = new Set(assignmentProgress.map((a: any) => a.id));
 $: recentSubmissions = (submissions ?? [])
   .filter((s: any) => classAssignmentIds.has(s.assignment_id))
   .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
@@ -82,7 +92,7 @@ $: teacherMessageQuery = (() => {
 $: teacherMessageUrl = teacherId ? `/messages/${teacherId}${teacherMessageQuery}` : '';
 
 function badgeFor(a: any) {
-  const best = cls.assignmentProgress.find((p: any) => p.id === a.id)?.best ?? 0;
+  const best = assignmentProgress.find((p: any) => p.id === a.id)?.best ?? 0;
   const complete = best >= a.max_points;
   const late = new Date(a.deadline) < new Date() && !complete;
   if (complete) return { text: 'Completed', cls: 'badge-success' };
@@ -113,14 +123,14 @@ function badgeFor(a: any) {
       <div>
         <div class="text-xs uppercase opacity-70">Progress</div>
         <div class="text-xl font-semibold">{progressPercent}%</div>
-        <div class="text-xs opacity-70">{cls.completed}/{totalAssignments} assignments</div>
+        <div class="text-xs opacity-70">{completedAssignments}/{totalAssignments} assignments</div>
       </div>
     </div>
     <div class="card-elevated p-4 flex items-center gap-3">
       <Target class="w-5 h-5 opacity-70" aria-hidden="true" />
       <div>
         <div class="text-xs uppercase opacity-70">Points</div>
-        <div class="text-xl font-semibold">{cls.pointsEarned}/{cls.pointsTotal}</div>
+        <div class="text-xl font-semibold">{pointsEarned}/{pointsTotal}</div>
       </div>
     </div>
     <div class="card-elevated p-4 flex items-center gap-3">
@@ -186,7 +196,7 @@ function badgeFor(a: any) {
           <h2 class="font-semibold">Your assignments</h2>
         </div>
         <ul class="space-y-3">
-          {#each cls.assignmentProgress as a}
+          {#each assignmentProgress as a}
             <li>
               <a href={`/assignments/${a.id}`} class="block no-underline text-current">
                 <div class="card-elevated p-4 hover:shadow-md transition">
@@ -209,7 +219,7 @@ function badgeFor(a: any) {
               </a>
             </li>
           {/each}
-          {#if !cls.assignmentProgress.length}
+          {#if !assignmentProgress.length}
             <li class="text-sm opacity-70">No assignments</li>
           {/if}
         </ul>
@@ -222,7 +232,7 @@ function badgeFor(a: any) {
           <h3 class="font-semibold">Upcoming deadlines</h3>
         </div>
         <ul class="divide-y divide-base-300/60">
-          {#each cls.upcoming as a}
+          {#each upcomingAssignments as a}
             <li>
               <a href={`/assignments/${a.id}`} class="flex items-center justify-between py-3 hover:opacity-90">
                 <div class="min-w-0">
@@ -233,7 +243,7 @@ function badgeFor(a: any) {
               </a>
             </li>
           {/each}
-          {#if !cls.upcoming.length}
+          {#if !upcomingAssignments.length}
             <li class="py-3 text-sm opacity-70">No upcoming deadlines</li>
           {/if}
         </ul>
