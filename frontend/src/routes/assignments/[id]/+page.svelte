@@ -894,7 +894,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
 
         {#if activeTab==='overview'}
           <article class="card-elevated p-6 space-y-4">
-            <div class="markdown">{@html safeDesc}</div>
+            <div class="markdown assignment-description">{@html safeDesc}</div>
             {#if role==='student' && assignment.second_deadline && new Date() > assignment.deadline && new Date() <= assignment.second_deadline}
               <div class="alert alert-warning">
                 <span>

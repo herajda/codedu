@@ -457,7 +457,7 @@ onMount(() => {
         </div>
 
         {#if safeDesc}
-          <div class="mt-3 text-sm prose max-w-none">{@html safeDesc}</div>
+          <div class="mt-3 text-sm prose max-w-none assignment-description">{@html safeDesc}</div>
         {/if}
 
         <div class="grid md:grid-cols-2 gap-4 mt-4">
