@@ -229,7 +229,7 @@ onMount(load);
   </section>
 
   <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-    <div class="lg:col-span-8">
+    <div class="lg:col-span-12">
       <div class="tabs tabs-boxed w-full mb-4">
         <button class="tab tab-active" aria-current="page" on:click={(e)=>activateTab(e.currentTarget as HTMLElement, 'overview')}>Overview</button>
         <button class="tab" on:click={(e)=>activateTab(e.currentTarget as HTMLElement, 'runs')}>Teacher runs</button>
