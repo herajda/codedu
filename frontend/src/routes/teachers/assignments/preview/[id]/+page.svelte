@@ -236,7 +236,7 @@ onMount(load);
       </div>
 
       <section id="pv-overview" class="card-elevated p-6 space-y-4">
-        <div class="markdown">{@html safeDesc}</div>
+        <div class="markdown assignment-description">{@html safeDesc}</div>
         <div class="grid sm:grid-cols-3 gap-3">
           <div class="stat bg-base-100 rounded-xl border border-base-300/60">
             <div class="stat-title">Max points</div>

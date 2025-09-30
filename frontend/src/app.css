@@ -36,6 +36,10 @@
   --grid-color: 0 0% 6%;
   --grid-opacity: 0.06;
   --glow: 255 255 255;
+
+  --assignment-code-bg: #f4f4f5;
+  --assignment-inline-code-bg: #ededee;
+  --assignment-code-border: rgba(15, 23, 42, 0.08);
 }
 
 [data-theme='dark'] {
@@ -47,6 +51,10 @@
   --grid-color: 200 10% 98%;
   --grid-opacity: 0.06;
   --glow: 120 230 255;
+
+  --assignment-code-bg: rgba(148, 163, 184, 0.22);
+  --assignment-inline-code-bg: rgba(148, 163, 184, 0.18);
+  --assignment-code-border: rgba(148, 163, 184, 0.35);
 }
 
 html, body {
@@ -133,7 +141,8 @@ img { max-width: 100%; height: auto; }
 }
 .markdown pre,
 .editor-preview pre,
-.editor-preview-side pre {
+.editor-preview-side pre,
+.prose pre {
   background: #f0f0f0;
   border: 1px solid hsl(var(--bc) / 0.12);
   border-radius: 0.75rem;
@@ -146,7 +155,8 @@ img { max-width: 100%; height: auto; }
 }
 .markdown pre code,
 .editor-preview pre code,
-.editor-preview-side pre code {
+.editor-preview-side pre code,
+.prose pre code {
   background: none;
   padding: 0;
   border-radius: 0;
@@ -154,7 +164,8 @@ img { max-width: 100%; height: auto; }
 }
 .markdown :not(pre) > code,
 .editor-preview :not(pre) > code,
-.editor-preview-side :not(pre) > code {
+.editor-preview-side :not(pre) > code,
+.prose :not(pre) > code {
   background: #f0f0f0;
   border: 1px solid hsl(var(--bc) / 0.12);
   border-radius: 0.5rem;
@@ -172,14 +183,16 @@ body.hide-navbar .navbar {
 @media (prefers-color-scheme: dark) {
   .markdown pre,
   .editor-preview pre,
-  .editor-preview-side pre {
+  .editor-preview-side pre,
+  .prose pre {
     background: rgba(255, 255, 255, 0.04);
     border-color: rgba(255, 255, 255, 0.14);
     box-shadow: none;
   }
   .markdown :not(pre) > code,
   .editor-preview :not(pre) > code,
-  .editor-preview-side :not(pre) > code {
+  .editor-preview-side :not(pre) > code,
+  .prose :not(pre) > code {
     background: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.18);
   }
