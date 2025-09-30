@@ -209,43 +209,29 @@
   }
 
   function dayButtonClass(c: { inMonth: boolean; disabled: boolean; today: boolean; selected: boolean; explicit: boolean }): string {
-    const base = [
-      'h-9',
-      'w-full',
-      'rounded-md',
-      'text-sm',
-      'font-medium',
-      'transition-colors',
-      'focus-visible:outline-none',
-      'focus-visible:ring-2',
-      'focus-visible:ring-blue-500',
-      'focus-visible:ring-offset-2',
-      'focus-visible:ring-offset-white',
-      'flex',
-      'items-center',
-      'justify-center'
-    ];
+    const base = ['btn', 'btn-sm', 'min-h-0', 'h-10', 'w-full', 'font-semibold'];
 
     if (c.disabled) {
-      base.push('text-gray-300', 'cursor-not-allowed', 'opacity-50');
+      base.push('btn-disabled', 'opacity-60');
       return base.join(' ');
     }
 
     if (c.explicit) {
-      base.push('bg-blue-600', 'text-white', 'shadow');
+      base.push('btn-primary', 'text-primary-content', 'shadow');
+      return base.join(' ');
+    }
+
+    if (c.today && c.inMonth) {
+      base.push('btn-neutral', 'btn-active', 'text-neutral-content');
       return base.join(' ');
     }
 
     if (!c.inMonth) {
-      base.push('text-gray-400');
-    } else {
-      base.push('text-gray-700', 'hover:bg-gray-100');
+      base.push('btn-ghost', 'text-base-content/40');
+      return base.join(' ');
     }
 
-    if (c.today && c.inMonth) {
-      base.push('bg-gray-200', 'text-gray-800');
-    }
-
+    base.push('btn-ghost', 'text-base-content', 'hover:bg-base-200');
     return base.join(' ');
   }
 
@@ -280,50 +266,47 @@
   }
 </script>
 
-<dialog bind:this={dialog} class="deadline-picker-dialog" on:close={handleClose} on:cancel|preventDefault={handleCancel}>
-  <div class="deadline-picker-container w-full max-w-3xl rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
-    <div class="flex items-start justify-between gap-4 border-b border-gray-200 pb-4">
-      <div>
-        <h3 class="text-lg font-semibold text-gray-900">{title}</h3>
-        <div class="text-sm text-gray-500">{manual}</div>
+<dialog bind:this={dialog} class="modal" on:close={handleClose} on:cancel|preventDefault={handleCancel}>
+  <div class="modal-box w-full max-w-4xl space-y-6 bg-base-100">
+    <div class="flex flex-col gap-1">
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <h3 class="text-lg font-semibold text-base-content">{title}</h3>
+          <div class="text-sm text-base-content/60">{manual}</div>
+        </div>
+        <button type="button" class="btn btn-sm btn-circle btn-ghost" aria-label="Close" on:click={handleCancel}>
+          ✕
+        </button>
       </div>
-      <button
-        type="button"
-        class="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-        aria-label="Close"
-        on:click={handleCancel}
-      >
-        ✕
-      </button>
     </div>
 
-    <div class="mt-6 grid gap-6 md:grid-cols-2">
+    <div class="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
       <!-- Calendar -->
-      <div>
+      <section class="calendar calendar-bordered rounded-box border border-base-300 bg-base-200/50 p-4">
         <div class="mb-4 flex items-center justify-between">
           <button
             type="button"
-            class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            class="btn btn-sm btn-square btn-ghost"
             on:click={() => changeMonth(-1)}
             aria-label="Previous month"
           >
             «
           </button>
-          <div class="text-base font-semibold text-gray-900">
+          <div class="text-base font-semibold text-base-content">
             {new Date(viewYear, viewMonth, 1).toLocaleString(undefined, { month: 'long', year: 'numeric' })}
           </div>
           <button
             type="button"
-            class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            class="btn btn-sm btn-square btn-ghost"
             on:click={() => changeMonth(1)}
             aria-label="Next month"
           >
             »
           </button>
         </div>
-        <div class="mb-2 grid grid-cols-7 gap-2 text-center text-xs font-semibold text-gray-500">
+        <div class="mb-2 grid grid-cols-7 gap-2 text-center text-xs font-semibold text-base-content/60">
           {#each dowShort as d}
-            <div>{d}</div>
+            <div class="uppercase">{d}</div>
           {/each}
         </div>
         <div class="grid grid-cols-7 gap-2">
@@ -340,19 +323,19 @@
             </button>
           {/each}
         </div>
-      </div>
+      </section>
 
       <!-- Time & shortcuts -->
-      <div class="space-y-6">
-        <div>
-          <div class="mb-2 flex items-center justify-between text-sm font-medium text-gray-600">
+      <section class="space-y-6">
+        <div class="rounded-box border border-base-300 bg-base-200/40 p-4">
+          <div class="mb-3 flex items-center justify-between text-sm font-medium text-base-content/70">
             <span>Time (24h)</span>
-            <span class="text-xs font-normal text-gray-400">Adjust hours & minutes</span>
+            <span class="text-xs font-normal text-base-content/50">Adjust hours & minutes</span>
           </div>
           <div class="flex items-center gap-3">
-            <div class="flex items-center gap-1">
+            <div class="join">
               <button
-                class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 text-gray-600 transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                class="btn btn-sm join-item"
                 type="button"
                 on:click={() => hour = clamp0_23(hour - 1)}
                 aria-label="Decrease hour"
@@ -360,13 +343,13 @@
                 -
               </button>
               <input
-                class="h-8 w-16 rounded-md border border-gray-300 text-center text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                class="input input-sm join-item w-16 text-center"
                 value={formatTwo(hour)}
                 on:input={onHourInput}
                 aria-label="Hours"
               />
               <button
-                class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 text-gray-600 transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                class="btn btn-sm join-item"
                 type="button"
                 on:click={() => hour = clamp0_23(hour + 1)}
                 aria-label="Increase hour"
@@ -374,10 +357,10 @@
                 +
               </button>
             </div>
-            <span class="text-lg font-semibold text-gray-400">:</span>
-            <div class="flex items-center gap-1">
+            <span class="text-lg font-semibold text-base-content/40">:</span>
+            <div class="join">
               <button
-                class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 text-gray-600 transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                class="btn btn-sm join-item"
                 type="button"
                 on:click={() => minute = clamp0_59(minute - 5)}
                 aria-label="Decrease minutes"
@@ -385,13 +368,13 @@
                 -
               </button>
               <input
-                class="h-8 w-16 rounded-md border border-gray-300 text-center text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                class="input input-sm join-item w-16 text-center"
                 value={formatTwo(minute)}
                 on:input={onMinuteInput}
                 aria-label="Minutes"
               />
               <button
-                class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 text-gray-600 transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                class="btn btn-sm join-item"
                 type="button"
                 on:click={() => minute = clamp0_59(minute + 5)}
                 aria-label="Increase minutes"
@@ -401,52 +384,32 @@
             </div>
           </div>
           <div class="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              class="inline-flex items-center rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-              on:click={() => applyPresetTime(8, 0)}
-            >
+            <button type="button" class="btn btn-xs btn-outline" on:click={() => applyPresetTime(8, 0)}>
               08:00
             </button>
-            <button
-              type="button"
-              class="inline-flex items-center rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-              on:click={() => applyPresetTime(12, 0)}
-            >
+            <button type="button" class="btn btn-xs btn-outline" on:click={() => applyPresetTime(12, 0)}>
               12:00
             </button>
-            <button
-              type="button"
-              class="inline-flex items-center rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-              on:click={() => applyPresetTime(17, 0)}
-            >
+            <button type="button" class="btn btn-xs btn-outline" on:click={() => applyPresetTime(17, 0)}>
               17:00
             </button>
-            <button
-              type="button"
-              class="inline-flex items-center rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-              on:click={() => applyPresetTime(23, 59)}
-            >
+            <button type="button" class="btn btn-xs btn-outline" on:click={() => applyPresetTime(23, 59)}>
               23:59
             </button>
           </div>
         </div>
 
-        <div>
-          <div class="mb-2 text-sm font-medium text-gray-600">Shortcuts</div>
+        <div class="rounded-box border border-base-300 bg-base-200/40 p-4">
+          <div class="mb-3 text-sm font-medium text-base-content/70">Shortcuts</div>
           <div class="flex flex-wrap gap-2">
             {#each shortcuts as s}
-              <button
-                type="button"
-                class="inline-flex items-center rounded-md border border-gray-300 px-3 py-1 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                on:click={() => applyShortcut(s)}
-              >
+              <button type="button" class="btn btn-sm btn-outline" on:click={() => applyShortcut(s)}>
                 {s.label}
               </button>
             {/each}
             <button
               type="button"
-              class="inline-flex items-center rounded-md border border-gray-300 px-3 py-1 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              class="btn btn-sm btn-outline"
               on:click={() => {
                 const d = new Date();
                 selected = d;
@@ -462,7 +425,7 @@
             </button>
             <button
               type="button"
-              class="inline-flex items-center rounded-md border border-gray-300 px-3 py-1 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              class="btn btn-sm btn-outline"
               on:click={() => {
                 const d = new Date();
                 d.setHours(23, 59, 0, 0);
@@ -480,61 +443,29 @@
           </div>
         </div>
 
-        <div>
-          <div class="mb-2 flex items-center justify-between text-sm font-medium text-gray-600">
+        <div class="rounded-box border border-base-300 bg-base-200/40 p-4">
+          <div class="mb-2 flex items-center justify-between text-sm font-medium text-base-content/70">
             <span>Manual entry</span>
-            <span class="text-xs font-normal text-gray-400">dd/mm/yyyy hh:mm</span>
+            <span class="text-xs font-normal text-base-content/50">dd/mm/yyyy hh:mm</span>
           </div>
           <input
-            class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="input input-bordered input-sm w-full"
             placeholder="e.g. 25/12/2025 16:30"
             bind:value={manual}
             on:input={() => parseManualInput(manual)}
             on:blur={() => manual = currentLabel()}
           />
         </div>
-      </div>
+      </section>
     </div>
 
-    <div class="mt-8 flex justify-end gap-3 border-t border-gray-200 pt-4">
-      <button
-        class="inline-flex items-center justify-center rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-        type="button"
-        on:click={handleCancel}
-      >
+    <div class="modal-action">
+      <button class="btn btn-ghost" type="button" on:click={handleCancel}>
         Cancel
       </button>
-      <button
-        class="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow transition-colors hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-        type="button"
-        on:click={confirm}
-      >
+      <button class="btn btn-primary" type="button" on:click={confirm}>
         Set deadline
       </button>
     </div>
   </div>
 </dialog>
-
-<style>
-  .deadline-picker-dialog {
-    border: none;
-    padding: 0;
-    background: transparent;
-  }
-
-  .deadline-picker-dialog[open] {
-    display: grid;
-    place-items: center;
-    width: 100%;
-    height: 100%;
-  }
-
-  .deadline-picker-dialog::backdrop {
-    background: rgba(15, 23, 42, 0.45);
-    backdrop-filter: blur(2px);
-  }
-
-  .deadline-picker-container {
-    width: min(100vw - 2rem, 48rem);
-  }
-</style>
