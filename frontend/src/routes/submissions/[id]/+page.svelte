@@ -27,6 +27,7 @@ $: id = $page.params.id
   let assignmentLLMInteractive: boolean = false
   let assignmentLLMFeedback: boolean = false
   let assignmentShowTestDetails = false
+  let assignmentShowTraceback = false
   let sid: number = 0
   let role = ''
   $: role = $auth?.role ?? ''
@@ -116,6 +117,7 @@ $: id = $page.params.id
           assignmentLLMInteractive = !!ad.assignment?.llm_interactive
           assignmentLLMFeedback = !!ad.assignment?.llm_feedback
           assignmentShowTestDetails = !!ad.assignment?.show_test_details
+          assignmentShowTraceback = !!ad.assignment?.show_traceback
           // Prefer aggregate tests_count when present (student view), fallback to tests array (teacher/admin)
           try {
             assignmentTestsCount = typeof ad.tests_count === 'number'
@@ -178,6 +180,7 @@ $: id = $page.params.id
   // Allow detailed LLM artifacts for students only if teacher enabled feedback
   $: allowLLMDetails = (role !== 'student') || assignmentLLMFeedback
   $: allowTestDetails = role !== 'student' || assignmentShowTestDetails
+  $: allowTraceback = role !== 'student' || assignmentShowTraceback
   // Show Auto-tests only when NOT LLM mode and there are tests configured
   $: showAutoUI = (!assignmentLLMInteractive) && (assignmentTestsCount > 0)
   // Keep legacy meaning of hideAutoUI: specifically, when no auto tests exist
@@ -449,102 +452,136 @@ $: id = $page.params.id
           {#if Array.isArray(results) && results.length}
             <div class="space-y-2">
               {#each results as r, i}
-                <details class="collapse collapse-arrow bg-base-200">
-                  <summary class="collapse-title">
-                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <div class="flex flex-wrap items-center gap-2 text-sm sm:text-base font-medium">
-                        <span class="rounded-full bg-base-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-base-content/70">
-                          Test {r.test_number ?? i + 1}
-                        </span>
-                        {#if allowTestDetails && r.unittest_name}
-                          <span class="badge badge-outline badge-primary text-xs font-semibold tracking-wide uppercase">{r.unittest_name}</span>
-                        {:else if allowTestDetails && (typeof r.stdin !== 'undefined' || typeof r.expected_stdout !== 'undefined')}
-                          <span class="badge badge-outline text-xs font-semibold tracking-wide uppercase">I/O test</span>
-                        {/if}
+                {#if allowTestDetails || allowTraceback}
+                  <details class="collapse collapse-arrow rounded-box bg-base-200">
+                    <summary class="collapse-title">
+                      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="flex flex-wrap items-center gap-2 text-sm sm:text-base font-medium">
+                          <span class="rounded-full bg-base-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-base-content/70">
+                            Test {r.test_number ?? i + 1}
+                          </span>
+                          {#if allowTestDetails && r.unittest_name}
+                            <span class="badge badge-outline badge-primary text-xs font-semibold tracking-wide uppercase">{r.unittest_name}</span>
+                          {:else if allowTestDetails && (typeof r.stdin !== 'undefined' || typeof r.expected_stdout !== 'undefined')}
+                            <span class="badge badge-outline text-xs font-semibold tracking-wide uppercase">I/O test</span>
+                          {/if}
+                        </div>
+                        <div class="flex items-center flex-wrap gap-3 text-xs sm:text-sm">
+                          <span class={`badge ${statusColor(r.status)}`}>{r.status}</span>
+                          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-base-300">
+                            <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                              <circle cx="12" cy="12" r="9"/>
+                              <path d="M12 7v5l3 2"/>
+                            </svg>
+                            {r.runtime_ms} ms
+                          </span>
+                          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-base-300">
+                            <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                              <rect x="3" y="5" width="18" height="14" rx="2" ry="2"/>
+                              <path d="M7 9l3 3-3 3"/>
+                              <path d="M13 15h4"/>
+                            </svg>
+                            exit {r.exit_code}
+                          </span>
+                        </div>
                       </div>
-                      <div class="flex items-center flex-wrap gap-3 text-xs sm:text-sm">
-                        <span class={`badge ${statusColor(r.status)}`}>{r.status}</span>
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-base-300">
-                          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <circle cx="12" cy="12" r="9"/>
-                            <path d="M12 7v5l3 2"/>
-                          </svg>
-                          {r.runtime_ms} ms
-                        </span>
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-base-300">
-                          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <rect x="3" y="5" width="18" height="14" rx="2" ry="2"/>
-                            <path d="M7 9l3 3-3 3"/>
-                            <path d="M13 15h4"/>
-                          </svg>
-                          exit {r.exit_code}
-                        </span>
+                    </summary>
+                    <div class="collapse-content space-y-4">
+                      {#if allowTestDetails}
+                        <section class="rounded-2xl border border-base-300/70 bg-base-100 p-4 shadow-sm">
+                          <header class="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-base-content/70">
+                            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                              <rect x="3" y="4" width="18" height="16" rx="2" ry="2"/>
+                              <path d="M7 8h10"/>
+                            </svg>
+                            Test definition
+                          </header>
+                          {#if r.unittest_code}
+                            {#if r.unittest_name}
+                              <div class="badge badge-outline badge-primary mb-3">{r.unittest_name}</div>
+                            {/if}
+                            <pre class="max-h-80 overflow-auto rounded-xl bg-base-200/80 p-4 text-sm leading-relaxed"><code class="font-mono whitespace-pre-wrap">{viewableUnitTestSnippet(r.unittest_code, r.unittest_name)}</code></pre>
+                          {:else if typeof r.stdin !== 'undefined' || typeof r.expected_stdout !== 'undefined'}
+                            <div class="grid gap-3 md:grid-cols-2">
+                              <div class="rounded-xl border border-base-300/60 bg-base-200/70 p-3">
+                                <div class="text-xs font-semibold uppercase tracking-wide text-base-content/70">Input</div>
+                                {#if typeof r.stdin !== 'undefined'}
+                                  {#if r.stdin?.length}
+                                    <pre class="mt-2 whitespace-pre-wrap font-mono text-sm leading-relaxed">{r.stdin}</pre>
+                                  {:else}
+                                    <div class="mt-2 text-sm italic opacity-60">Empty input</div>
+                                  {/if}
+                                {:else}
+                                  <div class="mt-2 text-sm italic opacity-60">Not provided</div>
+                                {/if}
+                              </div>
+                              <div class="rounded-xl border border-base-300/60 bg-base-200/70 p-3">
+                                <div class="text-xs font-semibold uppercase tracking-wide text-base-content/70">Expected output</div>
+                                {#if typeof r.expected_stdout !== 'undefined'}
+                                  {#if r.expected_stdout?.length}
+                                    <pre class="mt-2 whitespace-pre-wrap font-mono text-sm leading-relaxed">{r.expected_stdout}</pre>
+                                  {:else}
+                                    <div class="mt-2 text-sm italic opacity-60">Empty output</div>
+                                  {/if}
+                                {:else}
+                                  <div class="mt-2 text-sm italic opacity-60">Not provided</div>
+                                {/if}
+                              </div>
+                            </div>
+                          {:else}
+                            <div class="text-sm opacity-70">No metadata available for this test.</div>
+                          {/if}
+                        </section>
+                      {/if}
+                      {#if allowTraceback}
+                        <section class="rounded-2xl border border-base-300/70 bg-base-100 p-4 shadow-sm">
+                          <header class="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-base-content/70">
+                            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                              <path d="M4 17l6-6 4 4 6-6"/>
+                              <path d="M2 19h20"/>
+                            </svg>
+                            Execution log
+                          </header>
+                          {#if r.stderr}
+                            <pre class="max-h-80 overflow-auto whitespace-pre-wrap rounded-xl bg-base-200/80 p-4 text-sm leading-relaxed">{r.stderr}</pre>
+                          {:else}
+                            <div class="text-sm italic opacity-60">No stderr output</div>
+                          {/if}
+                        </section>
+                      {/if}
+                    </div>
+                  </details>
+                {:else}
+                  <div class="collapse rounded-box bg-base-200">
+                    <div class="collapse-title">
+                      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="flex flex-wrap items-center gap-2 text-sm sm:text-base font-medium">
+                          <span class="rounded-full bg-base-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-base-content/70">
+                            Test {r.test_number ?? i + 1}
+                          </span>
+                        </div>
+                        <div class="flex items-center flex-wrap gap-3 text-xs sm:text-sm">
+                          <span class={`badge ${statusColor(r.status)}`}>{r.status}</span>
+                          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-base-300">
+                            <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                              <circle cx="12" cy="12" r="9"/>
+                              <path d="M12 7v5l3 2"/>
+                            </svg>
+                            {r.runtime_ms} ms
+                          </span>
+                          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-base-300">
+                            <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                              <rect x="3" y="5" width="18" height="14" rx="2" ry="2"/>
+                              <path d="M7 9l3 3-3 3"/>
+                              <path d="M13 15h4"/>
+                            </svg>
+                            exit {r.exit_code}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </summary>
-                  <div class="collapse-content space-y-4">
-                    {#if allowTestDetails}
-                      <section class="rounded-2xl border border-base-300/70 bg-base-100 p-4 shadow-sm">
-                        <header class="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-base-content/70">
-                          <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <rect x="3" y="4" width="18" height="16" rx="2" ry="2"/>
-                            <path d="M7 8h10"/>
-                          </svg>
-                          Test definition
-                        </header>
-                        {#if r.unittest_code}
-                          {#if r.unittest_name}
-                            <div class="badge badge-outline badge-primary mb-3">{r.unittest_name}</div>
-                          {/if}
-                          <pre class="max-h-80 overflow-auto rounded-xl bg-base-200/80 p-4 text-sm leading-relaxed"><code class="font-mono whitespace-pre-wrap">{viewableUnitTestSnippet(r.unittest_code, r.unittest_name)}</code></pre>
-                        {:else if typeof r.stdin !== 'undefined' || typeof r.expected_stdout !== 'undefined'}
-                          <div class="grid gap-3 md:grid-cols-2">
-                            <div class="rounded-xl border border-base-300/60 bg-base-200/70 p-3">
-                              <div class="text-xs font-semibold uppercase tracking-wide text-base-content/70">Input</div>
-                              {#if typeof r.stdin !== 'undefined'}
-                                {#if r.stdin?.length}
-                                  <pre class="mt-2 whitespace-pre-wrap font-mono text-sm leading-relaxed">{r.stdin}</pre>
-                                {:else}
-                                  <div class="mt-2 text-sm italic opacity-60">Empty input</div>
-                                {/if}
-                              {:else}
-                                <div class="mt-2 text-sm italic opacity-60">Not provided</div>
-                              {/if}
-                            </div>
-                            <div class="rounded-xl border border-base-300/60 bg-base-200/70 p-3">
-                              <div class="text-xs font-semibold uppercase tracking-wide text-base-content/70">Expected output</div>
-                              {#if typeof r.expected_stdout !== 'undefined'}
-                                {#if r.expected_stdout?.length}
-                                  <pre class="mt-2 whitespace-pre-wrap font-mono text-sm leading-relaxed">{r.expected_stdout}</pre>
-                                {:else}
-                                  <div class="mt-2 text-sm italic opacity-60">Empty output</div>
-                                {/if}
-                              {:else}
-                                <div class="mt-2 text-sm italic opacity-60">Not provided</div>
-                              {/if}
-                            </div>
-                          </div>
-                        {:else}
-                          <div class="text-sm opacity-70">No metadata available for this test.</div>
-                        {/if}
-                      </section>
-                    {/if}
-                    <section class="rounded-2xl border border-base-300/70 bg-base-100 p-4 shadow-sm">
-                      <header class="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-base-content/70">
-                        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                          <path d="M4 17l6-6 4 4 6-6"/>
-                          <path d="M2 19h20"/>
-                        </svg>
-                        Execution log
-                      </header>
-                      {#if r.stderr}
-                        <pre class="max-h-80 overflow-auto whitespace-pre-wrap rounded-xl bg-base-200/80 p-4 text-sm leading-relaxed">{r.stderr}</pre>
-                      {:else}
-                        <div class="text-sm italic opacity-60">No stderr output</div>
-                      {/if}
-                    </section>
                   </div>
-                </details>
+                {/if}
               {/each}
             </div>
           {:else}
