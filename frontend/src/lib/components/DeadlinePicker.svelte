@@ -231,7 +231,7 @@
       return base.join(' ');
     }
 
-    if (c.explicit) {
+    if (c.selected) {
       base.push('bg-blue-600', 'text-white', 'shadow');
       return base.join(' ');
     }
@@ -333,7 +333,7 @@
               class={dayButtonClass(c)}
               disabled={c.disabled}
               on:click={() => pickDay(c.date, c.disabled)}
-              aria-pressed={c.explicit}
+              aria-pressed={c.selected}
               aria-current={c.today ? 'date' : undefined}
             >
               {c.date.getDate()}
