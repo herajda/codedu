@@ -207,24 +207,23 @@
 
     if (c.disabled) {
       classes.push('btn-disabled', 'opacity-40');
+      return classes.join(' ');
+    }
+
+    const isExplicitSelection = c.selected && hasSelected;
+
+    if (isExplicitSelection) {
+      classes.push('btn-primary', 'text-primary-content');
     } else {
       classes.push('btn-ghost');
-    }
 
-    // Fade out days from adjacent months (unless selected)
-    if (!c.inMonth && !c.selected) {
-      classes.push('opacity-50');
-    }
+      if (!c.inMonth) {
+        classes.push('opacity-50');
+      }
 
-    // Selected date = BLUE (use DaisyUI primary so it overrides correctly)
-    if (c.selected && hasSelected) {
-      const ghostIdx = classes.indexOf('btn-ghost');
-      if (ghostIdx !== -1) classes.splice(ghostIdx, 1);
-      classes.push('btn-primary', 'btn-active', 'text-primary-content');
-    }
-    // Today (when not selected) = grey-ish chip
-    else if (c.today && c.inMonth) {
-      classes.push('bg-base-200', 'text-base-content/60', 'ring-1', 'ring-base-300');
+      if (c.today && c.inMonth) {
+        classes.push('bg-base-200', 'text-base-content/60', 'ring-1', 'ring-base-300');
+      }
     }
 
     return classes.join(' ');
