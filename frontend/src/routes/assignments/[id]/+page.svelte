@@ -887,7 +887,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             {/if}
           {/if}
           {#if role==='teacher' || role==='admin'}
-          <button class={`tab ${activeTab==='instructor' ? 'tab-active' : ''}`} on:click={() => setTab('instructor')}>Instructor</button>
+          <button class={`tab ${activeTab==='instructor' ? 'tab-active' : ''}`} on:click={() => setTab('instructor')}>Student progress</button>
           <button class={`tab ${activeTab==='teacher-runs' ? 'tab-active' : ''}`} on:click={() => setTab('teacher-runs')}>Teacher runs</button>
           {/if}
         </div>
