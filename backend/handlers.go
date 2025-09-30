@@ -1152,11 +1152,17 @@ func runTeacherSolution(c *gin.Context) {
 	})
 	_ = ensureSandboxPerms(tmpDir)
 
-	tests, err := ListTestCases(aid)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-		return
-	}
+        tests, err := ListTestCases(aid)
+        if err != nil {
+                c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+                return
+        }
+
+        assignment, err := GetAssignment(aid)
+        if err != nil {
+                c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+                return
+        }
 
 	// Execute all tests and gather results without persisting
 	results := make([]map[string]any, 0, len(tests))
@@ -1254,43 +1260,43 @@ func runTeacherSolution(c *gin.Context) {
 		_ = CreateResult(r)
 	}
 
-	// Compute and persist overall status and points similar to worker
-	allPass := passed == len(tests)
-	if a, err := GetAssignment(aid); err == nil {
-		score := 0.0
-		switch a.GradingPolicy {
-		case "all_or_nothing":
-			if allPass {
-				score = float64(a.MaxPoints)
-			}
-		case "weighted":
-			// normalize to MaxPoints
-			if totalWeight > 0 {
-				score = earnedWeight * (float64(a.MaxPoints) / totalWeight)
-			}
-		}
+        // Compute and persist overall status and points similar to worker
+        allPass := passed == len(tests)
+        if !assignment.LLMInteractive {
+                score := 0.0
+                switch assignment.GradingPolicy {
+                case "all_or_nothing":
+                        if allPass {
+                                score = float64(assignment.MaxPoints)
+                        }
+                case "weighted":
+                        // normalize to MaxPoints
+                        if totalWeight > 0 {
+                                score = earnedWeight * (float64(assignment.MaxPoints) / totalWeight)
+                        }
+                }
 
-		// Handle late submission logic with second deadline
-		if sub.CreatedAt.After(a.Deadline) {
-			_ = SetSubmissionLate(sub.ID, true)
+                // Handle late submission logic with second deadline
+                if sub.CreatedAt.After(assignment.Deadline) {
+                        _ = SetSubmissionLate(sub.ID, true)
 
-			// Check if there's a second deadline and submission is within it
-			if a.SecondDeadline != nil && sub.CreatedAt.Before(*a.SecondDeadline) {
-				// Apply penalty ratio for second deadline submissions
-				score = score * a.LatePenaltyRatio
-			} else {
-				// No second deadline or submission is after second deadline - no points
-				score = 0.0
-			}
-		}
+                        // Check if there's a second deadline and submission is within it
+                        if assignment.SecondDeadline != nil && sub.CreatedAt.Before(*assignment.SecondDeadline) {
+                                // Apply penalty ratio for second deadline submissions
+                                score = score * assignment.LatePenaltyRatio
+                        } else {
+                                // No second deadline or submission is after second deadline - no points
+                                score = 0.0
+                        }
+                }
 
-		_ = SetSubmissionPoints(sub.ID, score)
-	}
-	if allPass {
-		_ = UpdateSubmissionStatus(sub.ID, "completed")
-	} else {
-		_ = UpdateSubmissionStatus(sub.ID, "failed")
-	}
+                _ = SetSubmissionPoints(sub.ID, score)
+                if allPass {
+                        _ = UpdateSubmissionStatus(sub.ID, "completed")
+                } else {
+                        _ = UpdateSubmissionStatus(sub.ID, "failed")
+                }
+        }
 
 	// Save teacher baseline (plan+results) on assignment so student runs can use it as standard
 	baseline := map[string]any{
@@ -1298,21 +1304,29 @@ func runTeacherSolution(c *gin.Context) {
 		"summary":    map[string]any{"total": len(tests), "passed": passed},
 		"created_at": time.Now().Format(time.RFC3339Nano),
 	}
-	if a, err := GetAssignment(aid); err == nil {
-		if b, e := json.Marshal(baseline); e == nil {
-			s := string(b)
-			a.LLMTeacherBaseline = &s
-			_ = UpdateAssignment(a)
-		}
-	}
+        if b, e := json.Marshal(baseline); e == nil {
+                s := string(b)
+                assignment.LLMTeacherBaseline = &s
+                _ = UpdateAssignment(assignment)
+        }
 
-	c.JSON(http.StatusOK, gin.H{
-		"submission_id": sub.ID,
-		"total":         len(tests),
-		"passed":        passed,
-		"failed":        len(tests) - passed,
-		"results":       results,
-	})
+        resp := gin.H{
+                "submission_id": sub.ID,
+                "total":         len(tests),
+                "passed":        passed,
+                "failed":        len(tests) - passed,
+                "results":       results,
+        }
+
+        if assignment.LLMInteractive {
+                UpdateSubmissionStatus(sub.ID, "running")
+                runLLMInteractive(sub, assignment)
+                if llm, err := GetLatestLLMRun(sub.ID); err == nil && llm != nil {
+                        resp["llm"] = llm
+                }
+        }
+
+        c.JSON(http.StatusOK, resp)
 }
 
 // getSubmission: GET /api/submissions/:id
