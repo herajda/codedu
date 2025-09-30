@@ -1,25 +1,26 @@
 package main
 
 import (
-	"archive/zip"
-	"bufio"
-	"bytes"
-	"context"
-	"encoding/base64"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
-	"net/http"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"regexp"
-	"strconv"
-	"strings"
-	"sync"
-	"syscall"
-	"time"
+        "archive/zip"
+        "bufio"
+        "bytes"
+        "context"
+        "encoding/base64"
+        "encoding/json"
+        "errors"
+        "fmt"
+        "io"
+        "net/http"
+        "os"
+        "os/exec"
+        "path/filepath"
+        "reflect"
+        "regexp"
+        "strconv"
+        "strings"
+        "sync"
+        "syscall"
+        "time"
 
 	"github.com/google/uuid"
 )
@@ -524,18 +525,19 @@ func runSubmission(id uuid.UUID) {
 	if sub.ManuallyAccepted {
 		return
 	}
-	// Determine assignment mode
-	if a, err := GetAssignment(sub.AssignmentID); err == nil {
-		if a.LLMInteractive {
-			UpdateSubmissionStatus(id, "running")
-			runLLMInteractive(sub, a)
-			return
-		}
-		// Early exit for manual-review assignments when not using LLM
-		if a.ManualReview {
-			return
-		}
-	}
+        var assignment *Assignment
+        if a, err := GetAssignment(sub.AssignmentID); err == nil {
+                assignment = a
+                if a.LLMInteractive {
+                        UpdateSubmissionStatus(id, "running")
+                        runLLMInteractive(sub, a)
+                        return
+                }
+                // Early exit for manual-review assignments when not using LLM
+                if a.ManualReview {
+                        return
+                }
+        }
 
 	UpdateSubmissionStatus(id, "running")
 
@@ -633,91 +635,131 @@ func runSubmission(id uuid.UUID) {
 		return
 	}
 
-	allPass := true
-	totalWeight := 0.0
-	earnedWeight := 0.0
-	for _, tc := range tests {
-		timeout := time.Duration(tc.TimeLimitSec * float64(time.Second))
-		var stdout, stderr string
-		var exitCode int
-		var timedOut bool
-		var runtime time.Duration
-		if tc.UnittestCode != nil && tc.UnittestName != nil {
-			stdout, stderr, exitCode, timedOut, runtime = executePythonUnit(tmpDir, mainFile, *tc.UnittestCode, *tc.UnittestName, timeout)
-		} else {
-			stdout, stderr, exitCode, timedOut, runtime = executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
-		}
+        allPass := true
+        totalWeight := 0.0
+        earnedWeight := 0.0
+        functionMode := false
+        functionName := ""
+        if assignment != nil && assignment.TestMode == "function" && assignment.FunctionName != nil {
+                fn := strings.TrimSpace(*assignment.FunctionName)
+                if fn != "" {
+                        functionMode = true
+                        functionName = fn
+                }
+        }
+        for _, tc := range tests {
+                timeout := time.Duration(tc.TimeLimitSec * float64(time.Second))
+                var stdout, stderr string
+                var exitCode int
+                var timedOut bool
+                var runtime time.Duration
+                var returnJSON *string
+                if tc.UnittestCode != nil && tc.UnittestName != nil {
+                        stdout, stderr, exitCode, timedOut, runtime = executePythonUnit(tmpDir, mainFile, *tc.UnittestCode, *tc.UnittestName, timeout)
+                } else if functionMode {
+                        argsJSON := "[]"
+                        if tc.CallArgsJSON != nil && strings.TrimSpace(*tc.CallArgsJSON) != "" {
+                                argsJSON = *tc.CallArgsJSON
+                        }
+                        kwargsJSON := "{}"
+                        if tc.CallKwargsJSON != nil && strings.TrimSpace(*tc.CallKwargsJSON) != "" {
+                                kwargsJSON = *tc.CallKwargsJSON
+                        }
+                        stdout, stderr, exitCode, timedOut, runtime, returnJSON = executePythonFunction(tmpDir, mainFile, functionName, argsJSON, kwargsJSON, timeout)
+                } else {
+                        stdout, stderr, exitCode, timedOut, runtime = executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
+                }
 
-		status := "passed"
-		if tc.UnittestCode != nil && tc.UnittestName != nil {
-			if timedOut {
-				status = "time_limit_exceeded"
-			} else if exitCode != 0 {
-				if strings.Contains(stdout, "===JUDGE:ASSERT_FAIL===") {
-					status = "wrong_output"
-				} else {
-					status = "runtime_error"
-				}
-			}
-		} else {
-			switch {
-			case timedOut:
-				status = "time_limit_exceeded"
-			case exitCode != 0:
-				status = "runtime_error"
-			case strings.TrimSpace(stdout) != strings.TrimSpace(tc.ExpectedStdout):
-				status = "wrong_output"
-			}
-		}
+                status := "passed"
+                if tc.UnittestCode != nil && tc.UnittestName != nil {
+                        if timedOut {
+                                status = "time_limit_exceeded"
+                        } else if exitCode != 0 {
+                                if strings.Contains(stdout, "===JUDGE:ASSERT_FAIL===") {
+                                        status = "wrong_output"
+                                } else {
+                                        status = "runtime_error"
+                                }
+                        }
+                } else if functionMode {
+                        if timedOut {
+                                status = "time_limit_exceeded"
+                        } else if exitCode != 0 {
+                                status = "runtime_error"
+                        } else if tc.ExpectedReturn != nil {
+                                var expected any
+                                if err := json.Unmarshal([]byte(*tc.ExpectedReturn), &expected); err != nil {
+                                        status = "runtime_error"
+                                } else if returnJSON == nil {
+                                        status = "runtime_error"
+                                } else {
+                                        var actual any
+                                        if err := json.Unmarshal([]byte(*returnJSON), &actual); err != nil {
+                                                status = "runtime_error"
+                                        } else if !reflect.DeepEqual(expected, actual) {
+                                                status = "wrong_output"
+                                        }
+                                }
+                        }
+                } else {
+                        switch {
+                        case timedOut:
+                                status = "time_limit_exceeded"
+                        case exitCode != 0:
+                                status = "runtime_error"
+                        case strings.TrimSpace(stdout) != strings.TrimSpace(tc.ExpectedStdout):
+                                status = "wrong_output"
+                        }
+                }
 
-		res := &Result{SubmissionID: id, TestCaseID: tc.ID, Status: status, ActualStdout: stdout, Stderr: stderr, ExitCode: exitCode, RuntimeMS: int(runtime.Milliseconds())}
-		CreateResult(res)
-		totalWeight += tc.Weight
-		if status != "passed" {
-			allPass = false
-		} else {
-			earnedWeight += tc.Weight
-		}
-	}
+                res := &Result{SubmissionID: id, TestCaseID: tc.ID, Status: status, ActualStdout: stdout, Stderr: stderr, ExitCode: exitCode, RuntimeMS: int(runtime.Milliseconds()), ActualReturn: returnJSON}
+                CreateResult(res)
+                totalWeight += tc.Weight
+                if status != "passed" {
+                        allPass = false
+                } else {
+                        earnedWeight += tc.Weight
+                }
+        }
 
-	a, err := GetAssignment(sub.AssignmentID)
-	if err == nil {
-		score := 0.0
-		switch a.GradingPolicy {
-		case "all_or_nothing":
-			if allPass {
-				score = float64(a.MaxPoints)
-			}
-		case "weighted":
-			// normalize to MaxPoints
-			if totalWeight > 0 {
-				score = earnedWeight * (float64(a.MaxPoints) / totalWeight)
-			}
-		}
+        if assignment == nil {
+                assignment, _ = GetAssignment(sub.AssignmentID)
+        }
+        if assignment != nil {
+                score := 0.0
+                switch assignment.GradingPolicy {
+                case "all_or_nothing":
+                        if allPass {
+                                score = float64(assignment.MaxPoints)
+                        }
+                case "weighted":
+                        // normalize to MaxPoints
+                        if totalWeight > 0 {
+                                score = earnedWeight * (float64(assignment.MaxPoints) / totalWeight)
+                        }
+                }
 
-		// Handle late submission logic with per-student extension and second deadline
-		effDeadline := a.Deadline
-		effSecond := a.SecondDeadline
-		if o, err := GetDeadlineOverride(sub.AssignmentID, sub.StudentID); err == nil && o != nil {
-			// override main deadline
-			effDeadline = o.NewDeadline
-			// allow late period up to max(second_deadline, new_deadline)
-			if effSecond == nil || o.NewDeadline.After(*effSecond) {
-				tmp := o.NewDeadline
-				effSecond = &tmp
-			}
-		}
-		if sub.CreatedAt.After(effDeadline) {
-			_ = SetSubmissionLate(id, true)
-			if effSecond != nil && sub.CreatedAt.Before(*effSecond) {
-				score = score * a.LatePenaltyRatio
-			} else {
-				score = 0.0
-			}
-		}
+                // Handle late submission logic with per-student extension and second deadline
+                effDeadline := assignment.Deadline
+                effSecond := assignment.SecondDeadline
+                if o, err := GetDeadlineOverride(sub.AssignmentID, sub.StudentID); err == nil && o != nil {
+                        effDeadline = o.NewDeadline
+                        if effSecond == nil || o.NewDeadline.After(*effSecond) {
+                                tmp := o.NewDeadline
+                                effSecond = &tmp
+                        }
+                }
+                if sub.CreatedAt.After(effDeadline) {
+                        _ = SetSubmissionLate(id, true)
+                        if effSecond != nil && sub.CreatedAt.Before(*effSecond) {
+                                score = score * assignment.LatePenaltyRatio
+                        } else {
+                                score = 0.0
+                        }
+                }
 
-		SetSubmissionPoints(id, score)
-	}
+                SetSubmissionPoints(id, score)
+        }
 
 	if allPass {
 		UpdateSubmissionStatus(id, "completed")
@@ -1815,10 +1857,10 @@ func parseAgentEvalOutput(out []byte) (*agentEvalResult, error) {
 // lastN helper removed (unused)
 
 func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, string, int, bool, time.Duration) {
-	// Best-effort ensure image exists; ignore error so we don't misattribute infra issues to student
-	_ = ensureDockerImage(pythonImage)
-	// Ensure staged files are readable by the unprivileged container user.
-	_ = ensureSandboxPerms(dir)
+        // Best-effort ensure image exists; ignore error so we don't misattribute infra issues to student
+        _ = ensureDockerImage(pythonImage)
+        // Ensure staged files are readable by the unprivileged container user.
+        _ = ensureSandboxPerms(dir)
 	abs, _ := filepath.Abs(dir)
 	fmt.Printf("[worker] Running: %s/%s with timeout %v\n", abs, file, timeout)
 	// allow some extra time for container startup and shutdown
@@ -1884,14 +1926,143 @@ func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, s
 		}
 	}
 
-	return out, strings.TrimSpace(stderrBuf.String()), exitCode, timedOut, runtime
+        return out, strings.TrimSpace(stderrBuf.String()), exitCode, timedOut, runtime
+}
+
+func executePythonFunction(dir, mainFile, functionName, argsJSON, kwargsJSON string, timeout time.Duration) (string, string, int, bool, time.Duration, *string) {
+        _ = ensureDockerImage(pythonImage)
+        abs, _ := filepath.Abs(dir)
+        scriptPath := filepath.Join(dir, "call_func.py")
+        content := fmt.Sprintf(`import sys, json, io, traceback
+
+def load_function():
+    ns = {'__name__': '__student__'}
+    with open(%s, 'r', encoding='utf-8') as f:
+        source = f.read()
+    exec(compile(source, %s, 'exec'), ns)
+    fn = ns.get(%s)
+    if fn is None:
+        raise AttributeError('Function %s not found')
+    if not callable(fn):
+        raise TypeError('%s is not callable')
+    return fn
+
+def main():
+    try:
+        fn = load_function()
+        args = json.loads(%s)
+        if not isinstance(args, list):
+            raise TypeError('call_args_json must decode to a list')
+        kwargs = json.loads(%s)
+        if not isinstance(kwargs, dict):
+            raise TypeError('call_kwargs_json must decode to an object')
+        buf = io.StringIO()
+        old_stdout = sys.stdout
+        try:
+            sys.stdout = buf
+            result = fn(*args, **kwargs)
+        finally:
+            sys.stdout = old_stdout
+        payload = {"ok": True, "stdout": buf.getvalue(), "return": result}
+        print(json.dumps(payload, ensure_ascii=False))
+    except Exception:
+        payload = {"ok": False, "error": traceback.format_exc()}
+        print(json.dumps(payload, ensure_ascii=False))
+        sys.exit(1)
+
+if __name__ == '__main__':
+    main()
+`, strconv.Quote("/code/"+mainFile), strconv.Quote("<student>"), strconv.Quote(functionName), functionName, functionName, strconv.Quote(argsJSON), strconv.Quote(kwargsJSON))
+        _ = os.WriteFile(scriptPath, []byte(content), 0644)
+        _ = os.Chmod(scriptPath, 0644)
+        _ = ensureSandboxPerms(dir)
+
+        ctx, cancel := context.WithTimeout(context.Background(), timeout+dockerExtraTime)
+        defer cancel()
+        mount := fmt.Sprintf("%s:/code:ro", abs)
+        script := fmt.Sprintf("start=$(date +%%s%%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 python -u /code/%s; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status", strings.ReplaceAll("call_func.py", "'", "'\\''"))
+        cmd := exec.CommandContext(ctx, "docker", "run",
+                "--rm", "-i", "--network=none", "--user", dockerUser,
+                "--cpus", dockerCPUs, "--memory", dockerMemory,
+                "--memory-swap", dockerMemory,
+                "--pids-limit", "128",
+                "--read-only",
+                "--cap-drop=ALL",
+                "--security-opt", "no-new-privileges",
+                "--mount", "type=tmpfs,destination=/tmp,tmpfs-size=16m",
+                "-v", mount, pythonImage, "bash", "-c", script)
+
+        var stdoutBuf, stderrBuf bytes.Buffer
+        cmd.Stdout = &stdoutBuf
+        cmd.Stderr = &stderrBuf
+
+        start := time.Now()
+        err := cmd.Run()
+        duration := time.Since(start)
+
+        ctxTimedOut := ctx.Err() == context.DeadlineExceeded
+
+        out := strings.TrimSpace(stdoutBuf.String())
+        var runtime time.Duration
+        if lines := strings.Split(out, "\n"); len(lines) > 0 && strings.HasPrefix(lines[len(lines)-1], "===RUNTIME_MS===") {
+                rstr := strings.TrimSpace(strings.TrimPrefix(lines[len(lines)-1], "===RUNTIME_MS==="))
+                if ms, perr := strconv.Atoi(rstr); perr == nil {
+                        runtime = time.Duration(ms) * time.Millisecond
+                        out = strings.Join(lines[:len(lines)-1], "\n")
+                } else {
+                        runtime = duration
+                }
+        } else {
+                runtime = duration
+        }
+
+        timedOut := ctxTimedOut || runtime > timeout
+
+        exitCode := 0
+        if err != nil {
+                if ee, ok := err.(*exec.ExitError); ok {
+                        exitCode = ee.ExitCode()
+                } else {
+                        exitCode = -1
+                }
+        }
+
+        raw := strings.TrimSpace(out)
+        stdout := raw
+        var returnJSON *string
+        if raw != "" {
+                var payload struct {
+                        OK     bool        `json:"ok"`
+                        Stdout string      `json:"stdout"`
+                        Return interface{} `json:"return"`
+                        Error  string      `json:"error"`
+                }
+                if jerr := json.Unmarshal([]byte(raw), &payload); jerr == nil {
+                        stdout = payload.Stdout
+                        if payload.Error != "" {
+                                if stderrBuf.Len() > 0 {
+                                        stderrBuf.WriteByte('\n')
+                                }
+                                stderrBuf.WriteString(payload.Error)
+                        }
+                        if payload.OK {
+                                if b, merr := json.Marshal(payload.Return); merr == nil {
+                                        s := string(b)
+                                        returnJSON = &s
+                                }
+                        }
+                }
+        }
+
+        stderr := strings.TrimSpace(stderrBuf.String())
+        return stdout, stderr, exitCode, timedOut, runtime, returnJSON
 }
 
 func executePythonUnit(dir, mainFile, testCode, testName string, timeout time.Duration) (string, string, int, bool, time.Duration) {
-	// Best-effort ensure image exists; ignore error so we don't misattribute infra issues to student
-	_ = ensureDockerImage(pythonImage)
-	abs, _ := filepath.Abs(dir)
-	testPath := filepath.Join(dir, "run_test.py")
+        // Best-effort ensure image exists; ignore error so we don't misattribute infra issues to student
+        _ = ensureDockerImage(pythonImage)
+        abs, _ := filepath.Abs(dir)
+        testPath := filepath.Join(dir, "run_test.py")
 	content := fmt.Sprintf(`import sys, unittest, builtins, io
 
 # patch assertEqual so comparisons use string values

@@ -33,6 +33,9 @@
   let tStdout = ''
   let tLimit = ''
   let tWeight = '1'
+  let tCallArgs = '[]'
+  let tCallKwargs = '{}'
+  let tExpectedReturn = ''
   let unittestFile: File | null = null
 
   // ──────────────────────────────────────────────────────
@@ -249,7 +252,20 @@
     try {
       const data = await apiJSON(`/api/assignments/${id}`)
       assignment = data.assignment
-      tests = data.tests ?? []
+      const functionMode = assignment?.test_mode === 'function'
+      tests = (data.tests ?? []).map((t: any) => ({
+        ...t,
+        stdin: t.stdin ?? '',
+        expected_stdout: t.expected_stdout ?? '',
+        time_limit_sec: typeof t.time_limit_sec === 'number' ? String(t.time_limit_sec) : (t.time_limit_sec ?? ''),
+        weight:
+          assignment?.grading_policy === 'weighted'
+            ? (typeof t.weight === 'number' ? String(t.weight) : String(parseFloat(t.weight || '1') || 1))
+            : t.weight,
+        call_args_json: functionMode ? (t.call_args_json ?? '[]') : (t.call_args_json ?? ''),
+        call_kwargs_json: functionMode ? (t.call_kwargs_json ?? '{}') : (t.call_kwargs_json ?? ''),
+        expected_return_json: functionMode ? (t.expected_return_json ?? '') : (t.expected_return_json ?? '')
+      }))
       // init llm state
       llmFeedback = !!assignment.llm_feedback
       llmAutoAward = assignment.llm_auto_award ?? true
@@ -265,14 +281,56 @@
     await load()
   })
 
+  function normalizeJSONInput(
+    raw: string,
+    kind: 'array' | 'object' | 'value',
+    label: string,
+    opts: { optional?: boolean; defaultValue?: string } = {}
+  ): string {
+    const { optional = false, defaultValue } = opts
+    const trimmed = String(raw ?? '').trim()
+    if (!trimmed) {
+      if (kind === 'array') return defaultValue ?? '[]'
+      if (kind === 'object') return defaultValue ?? '{}'
+      if (optional) return ''
+      throw new Error(`${label} is required`)
+    }
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (kind === 'array' && !Array.isArray(parsed)) throw new Error('type')
+      if (kind === 'object' && (parsed === null || Array.isArray(parsed) || typeof parsed !== 'object')) throw new Error('type')
+      return JSON.stringify(parsed)
+    } catch (e: any) {
+      if (e?.message === 'type') {
+        const typeMessage = kind === 'array' ? 'a JSON array' : 'a JSON object'
+        throw new Error(`${label} must be ${typeMessage}`)
+      }
+      throw new Error(`${label} must be valid JSON`)
+    }
+  }
+
   async function addTest() {
     try {
-      const testData: any = {
-        stdin: tStdin,
-        expected_stdout: tStdout,
-        time_limit_sec: parseFloat(tLimit) || undefined
+      const isFunctionMode = assignment?.test_mode === 'function'
+      const testData: any = {}
+      if (isFunctionMode) {
+        const normalizedArgs = normalizeJSONInput(tCallArgs, 'array', 'Positional arguments', { defaultValue: '[]' })
+        const normalizedKwargs = normalizeJSONInput(tCallKwargs, 'object', 'Keyword arguments', { defaultValue: '{}' })
+        const normalizedReturn = normalizeJSONInput(tExpectedReturn, 'value', 'Expected return value')
+        if (tLimit.trim()) {
+          const parsedLimit = parseFloat(tLimit)
+          if (!Number.isNaN(parsedLimit)) testData.time_limit_sec = parsedLimit
+        }
+        testData.call_args_json = normalizedArgs
+        testData.call_kwargs_json = normalizedKwargs
+        testData.expected_return_json = normalizedReturn
+      } else {
+        const parsedLimit = parseFloat(tLimit)
+        testData.stdin = tStdin
+        testData.expected_stdout = tStdout
+        testData.time_limit_sec = !Number.isNaN(parsedLimit) ? parsedLimit : undefined
       }
-      
+
       // Only include weight for weighted assignments
       if (assignment?.grading_policy === 'weighted') {
         testData.weight = parseFloat(tWeight) || 1
@@ -284,6 +342,9 @@
         body: JSON.stringify(testData)
       })
       tStdin = tStdout = tLimit = ''
+      tCallArgs = '[]'
+      tCallKwargs = '{}'
+      tExpectedReturn = ''
       tWeight = '1'
       await load()
     } catch (e: any) {
@@ -631,12 +692,24 @@
 
   async function updateTest(t: any) {
     try {
-      const testData: any = {
-        stdin: t.stdin,
-        expected_stdout: t.expected_stdout,
-        time_limit_sec: parseFloat(t.time_limit_sec) || undefined
+      const isFunctionMode = assignment?.test_mode === 'function'
+      const testData: any = {}
+      if (isFunctionMode) {
+        const normalizedArgs = normalizeJSONInput(t.call_args_json ?? '', 'array', 'Positional arguments', { defaultValue: '[]' })
+        const normalizedKwargs = normalizeJSONInput(t.call_kwargs_json ?? '', 'object', 'Keyword arguments', { defaultValue: '{}' })
+        const normalizedReturn = normalizeJSONInput(t.expected_return_json ?? '', 'value', 'Expected return value')
+        const parsedLimit = parseFloat(t.time_limit_sec)
+        testData.call_args_json = normalizedArgs
+        testData.call_kwargs_json = normalizedKwargs
+        testData.expected_return_json = normalizedReturn
+        testData.time_limit_sec = !Number.isNaN(parsedLimit) ? parsedLimit : undefined
+      } else {
+        const parsedLimit = parseFloat(t.time_limit_sec)
+        testData.stdin = t.stdin
+        testData.expected_stdout = t.expected_stdout
+        testData.time_limit_sec = !Number.isNaN(parsedLimit) ? parsedLimit : undefined
       }
-      
+
       // Only include weight for weighted assignments
       if (assignment?.grading_policy === 'weighted') {
         testData.weight = parseFloat(t.weight) || 1
@@ -748,12 +821,22 @@
           </div>
         </div>
       {:else}
-        <div class="alert">
-          <div>
-            <span class="font-medium">Tip:</span>
-            Use <code>student_code(...)</code> in assertions to run the student's program with inputs.
+        {#if assignment?.test_mode === 'function'}
+          <div class="alert">
+            <div>
+              <span class="font-medium">Tip:</span>
+              Provide JSON for positional and keyword arguments. Each test will import the student's code and call
+              <code>{assignment.function_name || 'your_function'}(...)</code>. Expected return must also be valid JSON.
+            </div>
           </div>
-        </div>
+        {:else}
+          <div class="alert">
+            <div>
+              <span class="font-medium">Tip:</span>
+              Use <code>student_code(...)</code> in assertions to run the student's program with inputs.
+            </div>
+          </div>
+        {/if}
 
         <!-- Tabs -->
         <div role="tablist" class="tabs tabs-lifted">
@@ -785,16 +868,33 @@
                   </div>
                 </div>
                 {#if !t.unittest_name}
-                  <div class="grid sm:grid-cols-2 gap-2">
-                    <label class="form-control w-full space-y-1">
-                      <span class="label-text">Input</span>
-                      <input class="input input-bordered w-full" placeholder="stdin" bind:value={t.stdin}>
-                    </label>
-                    <label class="form-control w-full space-y-1">
-                      <span class="label-text">Expected output</span>
-                      <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={t.expected_stdout}>
-                    </label>
-                  </div>
+                  {#if assignment?.test_mode === 'function'}
+                    <div class="grid gap-3">
+                      <label class="form-control w-full space-y-1">
+                        <span class="label-text">Positional arguments (JSON array)</span>
+                        <textarea class="textarea textarea-bordered w-full min-h-[4.5rem]" bind:value={t.call_args_json} placeholder='e.g. [2, 3]'></textarea>
+                      </label>
+                      <label class="form-control w-full space-y-1">
+                        <span class="label-text">Keyword arguments (JSON object)</span>
+                        <textarea class="textarea textarea-bordered w-full min-h-[4.5rem]" bind:value={t.call_kwargs_json} placeholder='e.g. {"round": 2}'></textarea>
+                      </label>
+                      <label class="form-control w-full space-y-1">
+                        <span class="label-text">Expected return (JSON value)</span>
+                        <textarea class="textarea textarea-bordered w-full min-h-[4.5rem]" bind:value={t.expected_return_json} placeholder='Required, e.g. 6'></textarea>
+                      </label>
+                    </div>
+                  {:else}
+                    <div class="grid sm:grid-cols-2 gap-2">
+                      <label class="form-control w-full space-y-1">
+                        <span class="label-text">Input</span>
+                        <input class="input input-bordered w-full" placeholder="stdin" bind:value={t.stdin}>
+                      </label>
+                      <label class="form-control w-full space-y-1">
+                        <span class="label-text">Expected output</span>
+                        <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={t.expected_stdout}>
+                      </label>
+                    </div>
+                  {/if}
                 {:else}
                   {#if t.unittest_code && t.unittest_name}
                     <details class="mt-1">
@@ -821,36 +921,79 @@
           </div>
         </div>
 
-        <input type="radio" name="tests-tab" role="tab" class="tab" aria-label="Add IO test">
+        <input
+          type="radio"
+          name="tests-tab"
+          role="tab"
+          class="tab"
+          aria-label={assignment?.test_mode === 'function' ? 'Add function test' : 'Add IO test'}
+        >
         <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4">
           <div class="border-base-300/60 space-y-2">
-            <h4 class="font-semibold flex items-center gap-2"><Code size={18}/> Add IO test</h4>
-            <div class="grid gap-2" class:sm:grid-cols-2={assignment?.grading_policy === 'weighted'}>
-              <label class="form-control w-full space-y-1">
-                <span class="label-text">Input</span>
-                <input class="input input-bordered w-full" placeholder="stdin" bind:value={tStdin}>
-              </label>
-              <label class="form-control w-full space-y-1">
-                <span class="label-text">Expected output</span>
-                <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={tStdout}>
-              </label>
-              <label class="form-control w-full space-y-1">
-                <span class="label-text flex items-center gap-1"><Clock size={14}/> <span>Time limit (s)</span></span>
-                <input class="input input-bordered w-full" placeholder="seconds" bind:value={tLimit}>
-              </label>
-              {#if assignment?.grading_policy === 'weighted'}
-                <label class="form-control w-full space-y-1">
-                  <span class="label-text flex items-center gap-1"><Scale size={14}/> <span>Points</span></span>
-                  <input class="input input-bordered w-full" placeholder="points" bind:value={tWeight}>
+            <h4 class="font-semibold flex items-center gap-2">
+              <Code size={18}/>
+              {assignment?.test_mode === 'function' ? 'Add function test' : 'Add IO test'}
+            </h4>
+            {#if assignment?.test_mode === 'function'}
+              <div class="grid gap-3" class:sm:grid-cols-2={assignment?.grading_policy === 'weighted'}>
+                <label class="form-control w-full space-y-1 sm:col-span-2">
+                  <span class="label-text">Positional arguments (JSON array)</span>
+                  <textarea class="textarea textarea-bordered w-full min-h-[4.5rem]" bind:value={tCallArgs} placeholder='[]'></textarea>
                 </label>
-              {/if}
-            </div>
-            <div>
-              <button class="btn btn-primary" on:click={addTest} disabled={!tStdin || !tStdout}><Plus size={16}/> Add</button>
-            </div>
+                <label class="form-control w-full space-y-1 sm:col-span-2">
+                  <span class="label-text">Keyword arguments (JSON object)</span>
+                  <textarea class="textarea textarea-bordered w-full min-h-[4.5rem]" bind:value={tCallKwargs} placeholder='{}'></textarea>
+                </label>
+                <label class="form-control w-full space-y-1 sm:col-span-2">
+                  <span class="label-text">Expected return (JSON value)</span>
+                  <textarea class="textarea textarea-bordered w-full min-h-[4.5rem]" bind:value={tExpectedReturn} placeholder='Required'></textarea>
+                </label>
+                <label class="form-control w-full space-y-1">
+                  <span class="label-text flex items-center gap-1"><Clock size={14}/> <span>Time limit (s)</span></span>
+                  <input class="input input-bordered w-full" placeholder="seconds" bind:value={tLimit}>
+                </label>
+                {#if assignment?.grading_policy === 'weighted'}
+                  <label class="form-control w-full space-y-1">
+                    <span class="label-text flex items-center gap-1"><Scale size={14}/> <span>Points</span></span>
+                    <input class="input input-bordered w-full" placeholder="points" bind:value={tWeight}>
+                  </label>
+                {/if}
+              </div>
+              <div class="text-xs opacity-70">
+                Leave arguments empty for no positional/keyword args. Expected return must be valid JSON (e.g. <code>"hello"</code>, <code>42</code>, <code>[1,2]</code>).
+              </div>
+              <div>
+                <button class="btn btn-primary" on:click={addTest} disabled={!tExpectedReturn.trim()}><Plus size={16}/> Add</button>
+              </div>
+            {:else}
+              <div class="grid gap-2" class:sm:grid-cols-2={assignment?.grading_policy === 'weighted'}>
+                <label class="form-control w-full space-y-1">
+                  <span class="label-text">Input</span>
+                  <input class="input input-bordered w-full" placeholder="stdin" bind:value={tStdin}>
+                </label>
+                <label class="form-control w-full space-y-1">
+                  <span class="label-text">Expected output</span>
+                  <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={tStdout}>
+                </label>
+                <label class="form-control w-full space-y-1">
+                  <span class="label-text flex items-center gap-1"><Clock size={14}/> <span>Time limit (s)</span></span>
+                  <input class="input input-bordered w-full" placeholder="seconds" bind:value={tLimit}>
+                </label>
+                {#if assignment?.grading_policy === 'weighted'}
+                  <label class="form-control w-full space-y-1">
+                    <span class="label-text flex items-center gap-1"><Scale size={14}/> <span>Points</span></span>
+                    <input class="input input-bordered w-full" placeholder="points" bind:value={tWeight}>
+                  </label>
+                {/if}
+              </div>
+              <div>
+                <button class="btn btn-primary" on:click={addTest} disabled={!tStdin || !tStdout}><Plus size={16}/> Add</button>
+              </div>
+            {/if}
           </div>
         </div>
 
+        {#if assignment?.test_mode !== 'function'}
         <input type="radio" name="tests-tab" role="tab" class="tab" aria-label="Unittest builder">
         <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4 space-y-4">
           <div class="grid sm:grid-cols-2 gap-3">
@@ -997,44 +1140,50 @@
 
         <input type="radio" name="tests-tab" role="tab" class="tab" aria-label="AI generate">
         <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4 space-y-4">
-          <div class="grid sm:grid-cols-3 gap-3">
-            <label class="form-control w-full space-y-1">
-              <span class="label-text">Test count mode</span>
-              <div class="join">
-                <button type="button" class="btn join-item {aiAuto ? 'btn-primary' : 'btn-outline'}" on:click={() => aiAuto = true}>Auto</button>
-                <button type="button" class="btn join-item {aiAuto ? 'btn-outline' : 'btn-primary'}" on:click={() => aiAuto = false}>Manual</button>
-              </div>
-              {#if !aiAuto}
-                <div class="mt-2">
-                  <input type="number" min="1" class="input input-bordered w-full" bind:value={aiNumTests} placeholder="How many tests?">
-                </div>
-              {/if}
-              <span class="text-xs opacity-70">Auto lets the model decide the right number of tests.</span>
-            </label>
-            <div class="sm:col-span-2">
+          {#if assignment?.test_mode === 'function'}
+            <div class="alert alert-info">
+              <span>AI test generation is currently unavailable for function-call tests. Configure cases manually below.</span>
+            </div>
+          {:else}
+            <div class="grid sm:grid-cols-3 gap-3">
               <label class="form-control w-full space-y-1">
-                <span class="label-text">Additional instructions (optional)</span>
-                <input class="input input-bordered w-full" bind:value={aiInstructions} placeholder="Edge cases to cover, constraints, etc.">
+                <span class="label-text">Test count mode</span>
+                <div class="join">
+                  <button type="button" class={`btn join-item ${aiAuto ? 'btn-primary' : 'btn-outline'}`} on:click={() => aiAuto = true}>Auto</button>
+                  <button type="button" class={`btn join-item ${aiAuto ? 'btn-outline' : 'btn-primary'}`} on:click={() => aiAuto = false}>Manual</button>
+                </div>
+                {#if !aiAuto}
+                  <div class="mt-2">
+                    <input type="number" min="1" class="input input-bordered w-full" bind:value={aiNumTests} placeholder="How many tests?">
+                  </div>
+                {/if}
+                <span class="text-xs opacity-70">Auto lets the model decide the right number of tests.</span>
               </label>
-            </div>
-          </div>
-          <div class="flex gap-2">
-            <button class="btn btn-primary" on:click={generateWithAI} disabled={aiGenerating}><FlaskConical size={16}/> {aiGenerating ? 'Generating…' : 'Generate with AI'}</button>
-            <button class="btn" on:click={uploadAIUnitTestsCode} disabled={!aiCode}><UploadIcon size={16}/> Save as tests</button>
-          </div>
-          {#if aiCode}
-            <div class="space-y-2">
-              <div class="flex items-center justify-between">
-                <h4 class="font-semibold">AI Python (editable)</h4>
-                <span class="text-xs opacity-70">You can edit this before saving.</span>
+              <div class="sm:col-span-2">
+                <label class="form-control w-full space-y-1">
+                  <span class="label-text">Additional instructions (optional)</span>
+                  <input class="input input-bordered w-full" bind:value={aiInstructions} placeholder="Edge cases to cover, constraints, etc.">
+                </label>
               </div>
-              <CodeMirror bind:value={aiCode} lang={python()} readOnly={false} />
             </div>
-          {/if}
-          {#if hasAIBuilder}
-            <div class="alert">
-              <span>AI also prepared a builder structure below. You can tweak it in the Unittest builder tab and upload from there.</span>
+            <div class="flex gap-2">
+              <button class="btn btn-primary" on:click={generateWithAI} disabled={aiGenerating}><FlaskConical size={16}/> {aiGenerating ? 'Generating…' : 'Generate with AI'}</button>
+              <button class="btn" on:click={uploadAIUnitTestsCode} disabled={!aiCode}><UploadIcon size={16}/> Save as tests</button>
             </div>
+            {#if aiCode}
+              <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                  <h4 class="font-semibold">AI Python (editable)</h4>
+                  <span class="text-xs opacity-70">You can edit this before saving.</span>
+                </div>
+                <CodeMirror bind:value={aiCode} lang={python()} readOnly={false} />
+              </div>
+            {/if}
+            {#if hasAIBuilder}
+              <div class="alert">
+                <span>AI also prepared a builder structure below. You can tweak it in the Unittest builder tab and upload from there.</span>
+              </div>
+            {/if}
           {/if}
 
           <div class="divider">Optional: test on teacher solution</div>
@@ -1057,9 +1206,27 @@
                       <div>
                         <span class="badge mr-2">#{r.test_case_id}</span>
                         {#if r.unittest_name}<span class="badge badge-primary">{r.unittest_name}</span>{/if}
+                        {#if !r.unittest_name && assignment?.test_mode === 'function'}
+                          <div class="mt-1 text-xs opacity-70">
+                            <div>Args: <code class="break-words">{r.call_args_json ?? '[]'}</code></div>
+                            <div>Kwargs: <code class="break-words">{r.call_kwargs_json ?? '{}'}</code></div>
+                          </div>
+                        {/if}
                       </div>
                       <span class="badge {r.status === 'passed' ? 'badge-success' : 'badge-error'}">{r.status}</span>
                     </div>
+                    {#if assignment?.test_mode === 'function' && !r.unittest_name}
+                      <div class="mt-2 grid gap-2">
+                        <div>
+                          <span class="font-medium">Expected return:</span>
+                          <code class="block break-words bg-base-200/70 px-2 py-1 rounded">{r.expected_return_json ?? '—'}</code>
+                        </div>
+                        <div>
+                          <span class="font-medium">Actual return:</span>
+                          <code class="block break-words bg-base-200/70 px-2 py-1 rounded">{typeof r.actual_return_json !== 'undefined' ? (r.actual_return_json ?? 'null') : '—'}</code>
+                        </div>
+                      </div>
+                    {/if}
                     {#if r.stderr}
                       <pre class="mt-1 whitespace-pre-wrap opacity-80">{r.stderr}</pre>
                     {/if}
@@ -1079,6 +1246,14 @@
           </div>
           <p class="text-xs opacity-70 mt-2">Each method named <code>test_*</code> in classes derived from <code>unittest.TestCase</code> will become a separate test. Use <code>student_code(...)</code> to run the student's program with inputs.</p>
         </div>
+        {:else}
+        <input type="radio" name="tests-tab" role="tab" class="tab" aria-label="Upload .py" disabled>
+        <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4">
+          <div class="alert alert-info">
+            <span>Unittest uploads are not available when using function-call tests.</span>
+          </div>
+        </div>
+        {/if}
         </div>
       {/if}
     </div>

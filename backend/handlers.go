@@ -75,6 +75,49 @@ type RunSession struct {
 var runSessionsMu sync.Mutex
 var runSessions = map[string]*RunSession{}
 
+var pythonIdentifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+func stringPtr(v string) *string {
+        s := v
+        return &s
+}
+
+func normalizeJSONArray(src string) (string, error) {
+        var arr []any
+        if err := json.Unmarshal([]byte(src), &arr); err != nil {
+                return "", err
+        }
+        b, err := json.Marshal(arr)
+        if err != nil {
+                return "", err
+        }
+        return string(b), nil
+}
+
+func normalizeJSONObject(src string) (string, error) {
+        var obj map[string]any
+        if err := json.Unmarshal([]byte(src), &obj); err != nil {
+                return "", err
+        }
+        b, err := json.Marshal(obj)
+        if err != nil {
+                return "", err
+        }
+        return string(b), nil
+}
+
+func normalizeJSONValue(src string) (string, error) {
+        var v any
+        if err := json.Unmarshal([]byte(src), &v); err != nil {
+                return "", err
+        }
+        b, err := json.Marshal(v)
+        if err != nil {
+                return "", err
+        }
+        return string(b), nil
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // utilities
 // ──────────────────────────────────────────────────────────────────────────────
@@ -201,21 +244,22 @@ func createAssignment(c *gin.Context) {
 		return
 	}
 
-	a := &Assignment{
-		ClassID:          classID,
-		Title:            req.Title,
-		Description:      req.Description,
-		Deadline:         time.Now().Add(24 * time.Hour),
-		MaxPoints:        100,
-		GradingPolicy:    "all_or_nothing",
-		Published:        false,
-		ShowTraceback:    req.ShowTraceback,
-		ShowTestDetails:  req.ShowTestDetails,
-		ManualReview:     req.ManualReview,
-		CreatedBy:        getUserID(c),
-		SecondDeadline:   nil,
-		LatePenaltyRatio: 0.5,
-	}
+        a := &Assignment{
+                ClassID:          classID,
+                Title:            req.Title,
+                Description:      req.Description,
+                Deadline:         time.Now().Add(24 * time.Hour),
+                MaxPoints:        100,
+                GradingPolicy:    "all_or_nothing",
+                Published:        false,
+                ShowTraceback:    req.ShowTraceback,
+                ShowTestDetails:  req.ShowTestDetails,
+                ManualReview:     req.ManualReview,
+                TestMode:         "stdin",
+                CreatedBy:        getUserID(c),
+                SecondDeadline:   nil,
+                LatePenaltyRatio: 0.5,
+        }
 	if err := CreateAssignment(a); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create assignment"})
 		return
@@ -318,50 +362,79 @@ func updateAssignment(c *gin.Context) {
 	// Re-inject the body for ShouldBindJSON
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
-	var req struct {
-		Title              string   `json:"title" binding:"required"`
-		Description        string   `json:"description"`
-		Deadline           string   `json:"deadline" binding:"required"`
-		MaxPoints          int      `json:"max_points" binding:"required"`
-		GradingPolicy      string   `json:"grading_policy" binding:"required"`
-		ShowTraceback      bool     `json:"show_traceback"`
-		ShowTestDetails    bool     `json:"show_test_details"`
-		ManualReview       bool     `json:"manual_review"`
-		LLMInteractive     bool     `json:"llm_interactive"`
-		LLMFeedback        bool     `json:"llm_feedback"`
-		LLMAutoAward       bool     `json:"llm_auto_award"`
-		LLMScenariosRaw    *string  `json:"llm_scenarios_json"`
-		LLMStrictness      *int     `json:"llm_strictness"`
-		LLMRubric          *string  `json:"llm_rubric"`
-		LLMTeacherBaseline *string  `json:"llm_teacher_baseline_json"`
-		SecondDeadline     *string  `json:"second_deadline"`
-		LatePenaltyRatio   *float64 `json:"late_penalty_ratio"`
-	}
+        var req struct {
+                Title              string   `json:"title" binding:"required"`
+                Description        string   `json:"description"`
+                Deadline           string   `json:"deadline" binding:"required"`
+                MaxPoints          int      `json:"max_points" binding:"required"`
+                GradingPolicy      string   `json:"grading_policy" binding:"required"`
+                ShowTraceback      bool     `json:"show_traceback"`
+                ShowTestDetails    bool     `json:"show_test_details"`
+                ManualReview       bool     `json:"manual_review"`
+                TestMode           string   `json:"test_mode"`
+                FunctionName       *string  `json:"function_name"`
+                LLMInteractive     bool     `json:"llm_interactive"`
+                LLMFeedback        bool     `json:"llm_feedback"`
+                LLMAutoAward       bool     `json:"llm_auto_award"`
+                LLMScenariosRaw    *string  `json:"llm_scenarios_json"`
+                LLMStrictness      *int     `json:"llm_strictness"`
+                LLMRubric          *string  `json:"llm_rubric"`
+                LLMTeacherBaseline *string  `json:"llm_teacher_baseline_json"`
+                SecondDeadline     *string  `json:"second_deadline"`
+                LatePenaltyRatio   *float64 `json:"late_penalty_ratio"`
+        }
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	dl, err := time.Parse(time.RFC3339Nano, req.Deadline)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid deadline"})
-		return
-	}
+        mode := strings.TrimSpace(req.TestMode)
+        if mode == "" {
+                mode = "stdin"
+        }
+        if mode != "stdin" && mode != "function" {
+                c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test mode"})
+                return
+        }
+        var fnPtr *string
+        if req.FunctionName != nil {
+                trimmed := strings.TrimSpace(*req.FunctionName)
+                if trimmed != "" {
+                        if !pythonIdentifier.MatchString(trimmed) {
+                                c.JSON(http.StatusBadRequest, gin.H{"error": "invalid function name"})
+                                return
+                        }
+                        v := trimmed
+                        fnPtr = &v
+                }
+        }
+        if mode == "function" && fnPtr == nil {
+                c.JSON(http.StatusBadRequest, gin.H{"error": "function_name required for function tests"})
+                return
+        }
 
-	a := &Assignment{
-		ID:              id,
-		Title:           req.Title,
-		Description:     req.Description,
-		Deadline:        dl,
-		MaxPoints:       req.MaxPoints,
-		GradingPolicy:   req.GradingPolicy,
-		ShowTraceback:   req.ShowTraceback,
-		ShowTestDetails: req.ShowTestDetails,
-		ManualReview:    req.ManualReview,
-		LLMInteractive:  req.LLMInteractive,
-		LLMFeedback:     req.LLMFeedback,
-		LLMAutoAward:    req.LLMAutoAward,
-		LLMScenariosRaw: req.LLMScenariosRaw,
-	}
+        dl, err := time.Parse(time.RFC3339Nano, req.Deadline)
+        if err != nil {
+                c.JSON(http.StatusBadRequest, gin.H{"error": "invalid deadline"})
+                return
+        }
+
+        a := &Assignment{
+                ID:              id,
+                Title:           req.Title,
+                Description:     req.Description,
+                Deadline:        dl,
+                MaxPoints:       req.MaxPoints,
+                GradingPolicy:   req.GradingPolicy,
+                ShowTraceback:   req.ShowTraceback,
+                ShowTestDetails: req.ShowTestDetails,
+                ManualReview:    req.ManualReview,
+                TestMode:        mode,
+                FunctionName:    fnPtr,
+                LLMInteractive:  req.LLMInteractive,
+                LLMFeedback:     req.LLMFeedback,
+                LLMAutoAward:    req.LLMAutoAward,
+                LLMScenariosRaw: req.LLMScenariosRaw,
+        }
 	if req.LLMStrictness != nil {
 		a.LLMStrictness = *req.LLMStrictness
 	} else {
@@ -826,66 +899,217 @@ func deleteAssignmentExtension(c *gin.Context) {
 
 // createTestCase: POST /api/assignments/:id/tests
 func createTestCase(c *gin.Context) {
-	aid, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-		return
-	}
-	var req struct {
-		Stdin          string  `json:"stdin" binding:"required"`
-		ExpectedStdout string  `json:"expected_stdout" binding:"required"`
-		Weight         float64 `json:"weight"`
-		TimeLimitSec   float64 `json:"time_limit_sec"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	if req.Weight == 0 {
-		req.Weight = 1
-	}
-	tc := &TestCase{
-		AssignmentID:   aid,
-		Stdin:          req.Stdin,
-		ExpectedStdout: req.ExpectedStdout,
-		Weight:         req.Weight,
-		TimeLimitSec:   req.TimeLimitSec,
-	}
-	if err := CreateTestCase(tc); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-		return
-	}
-	c.JSON(http.StatusCreated, tc)
+        aid, err := uuid.Parse(c.Param("id"))
+        if err != nil {
+                c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+                return
+        }
+        assignment, err := GetAssignment(aid)
+        if err != nil {
+                c.JSON(http.StatusNotFound, gin.H{"error": "assignment not found"})
+                return
+        }
+        var req struct {
+                Stdin          string  `json:"stdin"`
+                ExpectedStdout string  `json:"expected_stdout"`
+                Weight         float64 `json:"weight"`
+                TimeLimitSec   float64 `json:"time_limit_sec"`
+                CallArgsJSON   *string `json:"call_args_json"`
+                CallKwargsJSON *string `json:"call_kwargs_json"`
+                ExpectedReturn *string `json:"expected_return_json"`
+        }
+        if err := c.ShouldBindJSON(&req); err != nil {
+                c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+                return
+        }
+        if req.Weight == 0 {
+                req.Weight = 1
+        }
+        if assignment.TestMode == "stdin" {
+                if strings.TrimSpace(req.Stdin) == "" && strings.TrimSpace(req.ExpectedStdout) == "" {
+                        c.JSON(http.StatusBadRequest, gin.H{"error": "stdin or expected_stdout required"})
+                        return
+                }
+        }
+
+        var callArgsPtr, callKwargsPtr, expectedReturnPtr *string
+        if req.CallArgsJSON != nil {
+                trimmed := strings.TrimSpace(*req.CallArgsJSON)
+                if trimmed != "" {
+                        norm, nerr := normalizeJSONArray(trimmed)
+                        if nerr != nil {
+                                c.JSON(http.StatusBadRequest, gin.H{"error": "call_args_json must be a JSON array"})
+                                return
+                        }
+                        callArgsPtr = stringPtr(norm)
+                }
+        }
+        if req.CallKwargsJSON != nil {
+                trimmed := strings.TrimSpace(*req.CallKwargsJSON)
+                if trimmed != "" {
+                        norm, nerr := normalizeJSONObject(trimmed)
+                        if nerr != nil {
+                                c.JSON(http.StatusBadRequest, gin.H{"error": "call_kwargs_json must be a JSON object"})
+                                return
+                        }
+                        callKwargsPtr = stringPtr(norm)
+                }
+        }
+        if req.ExpectedReturn != nil {
+                trimmed := strings.TrimSpace(*req.ExpectedReturn)
+                if trimmed != "" {
+                        norm, nerr := normalizeJSONValue(trimmed)
+                        if nerr != nil {
+                                c.JSON(http.StatusBadRequest, gin.H{"error": "expected_return_json must be valid JSON"})
+                                return
+                        }
+                        expectedReturnPtr = stringPtr(norm)
+                }
+        }
+        if assignment.TestMode == "function" {
+                if callArgsPtr == nil {
+                        callArgsPtr = stringPtr("[]")
+                }
+                if callKwargsPtr == nil {
+                        callKwargsPtr = stringPtr("{}")
+                }
+                if req.ExpectedReturn == nil || strings.TrimSpace(*req.ExpectedReturn) == "" {
+                        c.JSON(http.StatusBadRequest, gin.H{"error": "expected_return_json required for function tests"})
+                        return
+                }
+                if expectedReturnPtr == nil {
+                        trimmed := strings.TrimSpace(*req.ExpectedReturn)
+                        norm, nerr := normalizeJSONValue(trimmed)
+                        if nerr != nil {
+                                c.JSON(http.StatusBadRequest, gin.H{"error": "expected_return_json must be valid JSON"})
+                                return
+                        }
+                        expectedReturnPtr = stringPtr(norm)
+                }
+        } else {
+                callArgsPtr = nil
+                callKwargsPtr = nil
+                expectedReturnPtr = nil
+        }
+
+        tc := &TestCase{
+                AssignmentID:   aid,
+                Stdin:          req.Stdin,
+                ExpectedStdout: req.ExpectedStdout,
+                Weight:         req.Weight,
+                TimeLimitSec:   req.TimeLimitSec,
+                CallArgsJSON:   callArgsPtr,
+                CallKwargsJSON: callKwargsPtr,
+                ExpectedReturn: expectedReturnPtr,
+        }
+        if err := CreateTestCase(tc); err != nil {
+                c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+                return
+        }
+        c.JSON(http.StatusCreated, tc)
 }
 
 // updateTestCase: PUT /api/tests/:id
 func updateTestCase(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-		return
-	}
-	var req struct {
-		Stdin          string  `json:"stdin"`
-		ExpectedStdout string  `json:"expected_stdout"`
-		Weight         float64 `json:"weight"`
-		TimeLimitSec   float64 `json:"time_limit_sec"`
-		UnittestCode   *string `json:"unittest_code"`
-		UnittestName   *string `json:"unittest_name"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	if req.Weight == 0 {
-		req.Weight = 1
-	}
-	tc := &TestCase{ID: id, Stdin: req.Stdin, ExpectedStdout: req.ExpectedStdout, Weight: req.Weight, TimeLimitSec: req.TimeLimitSec, UnittestCode: req.UnittestCode, UnittestName: req.UnittestName}
-	if err := UpdateTestCase(tc); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-		return
-	}
-	c.JSON(http.StatusOK, tc)
+        id, err := uuid.Parse(c.Param("id"))
+        if err != nil {
+                c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+                return
+        }
+        var assignmentID uuid.UUID
+        if err := DB.Get(&assignmentID, `SELECT assignment_id FROM test_cases WHERE id=$1`, id); err != nil {
+                c.JSON(http.StatusNotFound, gin.H{"error": "test not found"})
+                return
+        }
+        assignment, err := GetAssignment(assignmentID)
+        if err != nil {
+                c.JSON(http.StatusInternalServerError, gin.H{"error": "assignment lookup failed"})
+                return
+        }
+        var req struct {
+                Stdin          string  `json:"stdin"`
+                ExpectedStdout string  `json:"expected_stdout"`
+                Weight         float64 `json:"weight"`
+                TimeLimitSec   float64 `json:"time_limit_sec"`
+                UnittestCode   *string `json:"unittest_code"`
+                UnittestName   *string `json:"unittest_name"`
+                CallArgsJSON   *string `json:"call_args_json"`
+                CallKwargsJSON *string `json:"call_kwargs_json"`
+                ExpectedReturn *string `json:"expected_return_json"`
+        }
+        if err := c.ShouldBindJSON(&req); err != nil {
+                c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+                return
+        }
+        if req.Weight == 0 {
+                req.Weight = 1
+        }
+        var callArgsPtr, callKwargsPtr, expectedReturnPtr *string
+        if req.CallArgsJSON != nil {
+                trimmed := strings.TrimSpace(*req.CallArgsJSON)
+                if trimmed != "" {
+                        norm, nerr := normalizeJSONArray(trimmed)
+                        if nerr != nil {
+                                c.JSON(http.StatusBadRequest, gin.H{"error": "call_args_json must be a JSON array"})
+                                return
+                        }
+                        callArgsPtr = stringPtr(norm)
+                }
+        }
+        if req.CallKwargsJSON != nil {
+                trimmed := strings.TrimSpace(*req.CallKwargsJSON)
+                if trimmed != "" {
+                        norm, nerr := normalizeJSONObject(trimmed)
+                        if nerr != nil {
+                                c.JSON(http.StatusBadRequest, gin.H{"error": "call_kwargs_json must be a JSON object"})
+                                return
+                        }
+                        callKwargsPtr = stringPtr(norm)
+                }
+        }
+        if req.ExpectedReturn != nil {
+                trimmed := strings.TrimSpace(*req.ExpectedReturn)
+                if trimmed != "" {
+                        norm, nerr := normalizeJSONValue(trimmed)
+                        if nerr != nil {
+                                c.JSON(http.StatusBadRequest, gin.H{"error": "expected_return_json must be valid JSON"})
+                                return
+                        }
+                        expectedReturnPtr = stringPtr(norm)
+                }
+        }
+        if assignment.TestMode == "function" {
+                if callArgsPtr == nil {
+                        callArgsPtr = stringPtr("[]")
+                }
+                if callKwargsPtr == nil {
+                        callKwargsPtr = stringPtr("{}")
+                }
+                if req.ExpectedReturn == nil || strings.TrimSpace(*req.ExpectedReturn) == "" {
+                        c.JSON(http.StatusBadRequest, gin.H{"error": "expected_return_json required for function tests"})
+                        return
+                }
+                if expectedReturnPtr == nil {
+                        trimmed := strings.TrimSpace(*req.ExpectedReturn)
+                        norm, nerr := normalizeJSONValue(trimmed)
+                        if nerr != nil {
+                                c.JSON(http.StatusBadRequest, gin.H{"error": "expected_return_json must be valid JSON"})
+                                return
+                        }
+                        expectedReturnPtr = stringPtr(norm)
+                }
+        } else {
+                callArgsPtr = nil
+                callKwargsPtr = nil
+                expectedReturnPtr = nil
+        }
+
+        tc := &TestCase{ID: id, Stdin: req.Stdin, ExpectedStdout: req.ExpectedStdout, Weight: req.Weight, TimeLimitSec: req.TimeLimitSec, UnittestCode: req.UnittestCode, UnittestName: req.UnittestName, CallArgsJSON: callArgsPtr, CallKwargsJSON: callKwargsPtr, ExpectedReturn: expectedReturnPtr}
+        if err := UpdateTestCase(tc); err != nil {
+                c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+                return
+        }
+        c.JSON(http.StatusOK, tc)
 }
 
 // deleteTestCase: DELETE /api/tests/:id
@@ -1168,59 +1392,115 @@ func runTeacherSolution(c *gin.Context) {
 		return
 	}
 
-	// Execute all tests and gather results without persisting
-	results := make([]map[string]any, 0, len(tests))
-	passed := 0
-	totalWeight := 0.0
-	earnedWeight := 0.0
-	for _, tc := range tests {
-		timeout := time.Duration(tc.TimeLimitSec * float64(time.Second))
-		var stdout, stderr string
-		var exitCode int
-		var timedOut bool
-		var runtime time.Duration
-		if tc.UnittestCode != nil && tc.UnittestName != nil {
-			stdout, stderr, exitCode, timedOut, runtime = executePythonUnit(tmpDir, mainFile, *tc.UnittestCode, *tc.UnittestName, timeout)
-		} else {
-			stdout, stderr, exitCode, timedOut, runtime = executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
-		}
+        // Execute all tests and gather results without persisting
+        results := make([]map[string]any, 0, len(tests))
+        passed := 0
+        totalWeight := 0.0
+        earnedWeight := 0.0
+        functionMode := assignment.TestMode == "function" && assignment.FunctionName != nil && strings.TrimSpace(*assignment.FunctionName) != ""
+        functionName := ""
+        if functionMode {
+                functionName = strings.TrimSpace(*assignment.FunctionName)
+        }
+        for _, tc := range tests {
+                timeout := time.Duration(tc.TimeLimitSec * float64(time.Second))
+                var stdout, stderr string
+                var exitCode int
+                var timedOut bool
+                var runtime time.Duration
+                var returnJSON *string
+                if tc.UnittestCode != nil && tc.UnittestName != nil {
+                        stdout, stderr, exitCode, timedOut, runtime = executePythonUnit(tmpDir, mainFile, *tc.UnittestCode, *tc.UnittestName, timeout)
+                } else if functionMode {
+                        argsJSON := "[]"
+                        if tc.CallArgsJSON != nil && strings.TrimSpace(*tc.CallArgsJSON) != "" {
+                                argsJSON = *tc.CallArgsJSON
+                        }
+                        kwargsJSON := "{}"
+                        if tc.CallKwargsJSON != nil && strings.TrimSpace(*tc.CallKwargsJSON) != "" {
+                                kwargsJSON = *tc.CallKwargsJSON
+                        }
+                        stdout, stderr, exitCode, timedOut, runtime, returnJSON = executePythonFunction(tmpDir, mainFile, functionName, argsJSON, kwargsJSON, timeout)
+                } else {
+                        stdout, stderr, exitCode, timedOut, runtime = executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
+                }
 
-		status := "passed"
-		if tc.UnittestCode != nil && tc.UnittestName != nil {
-			if timedOut {
-				status = "time_limit_exceeded"
-			} else if exitCode != 0 {
-				status = "wrong_output"
-			}
-		} else {
-			switch {
-			case timedOut:
-				status = "time_limit_exceeded"
-			case exitCode != 0:
-				status = "runtime_error"
-			case strings.TrimSpace(stdout) != strings.TrimSpace(tc.ExpectedStdout):
-				status = "wrong_output"
-			}
-		}
+                status := "passed"
+                if tc.UnittestCode != nil && tc.UnittestName != nil {
+                        if timedOut {
+                                status = "time_limit_exceeded"
+                        } else if exitCode != 0 {
+                                status = "wrong_output"
+                        }
+                } else if functionMode {
+                        if timedOut {
+                                status = "time_limit_exceeded"
+                        } else if exitCode != 0 {
+                                status = "runtime_error"
+                        } else if tc.ExpectedReturn != nil {
+                                var expected any
+                                if err := json.Unmarshal([]byte(*tc.ExpectedReturn), &expected); err != nil {
+                                        status = "runtime_error"
+                                } else if returnJSON == nil {
+                                        status = "runtime_error"
+                                } else {
+                                        var actual any
+                                        if err := json.Unmarshal([]byte(*returnJSON), &actual); err != nil {
+                                                status = "runtime_error"
+                                        } else if !reflect.DeepEqual(expected, actual) {
+                                                status = "wrong_output"
+                                        }
+                                }
+                        }
+                } else {
+                        switch {
+                        case timedOut:
+                                status = "time_limit_exceeded"
+                        case exitCode != 0:
+                                status = "runtime_error"
+                        case strings.TrimSpace(stdout) != strings.TrimSpace(tc.ExpectedStdout):
+                                status = "wrong_output"
+                        }
+                }
 
-		if status == "passed" {
-			passed++
-			earnedWeight += tc.Weight
-		}
-		totalWeight += tc.Weight
+                if status == "passed" {
+                        passed++
+                        earnedWeight += tc.Weight
+                }
+                totalWeight += tc.Weight
 
-		item := map[string]any{
-			"test_case_id":    tc.ID,
-			"unittest_name":   tc.UnittestName,
-			"status":          status,
-			"runtime_ms":      int(runtime.Milliseconds()),
-			"exit_code":       exitCode,
-			"actual_stdout":   stdout,
-			"expected_stdout": tc.ExpectedStdout,
-			"stderr":          stderr,
-		}
-		results = append(results, item)
-	}
+                item := map[string]any{
+                        "test_case_id":    tc.ID,
+                        "unittest_name":   tc.UnittestName,
+                        "status":          status,
+                        "runtime_ms":      int(runtime.Milliseconds()),
+                        "exit_code":       exitCode,
+                        "actual_stdout":   stdout,
+                        "expected_stdout": tc.ExpectedStdout,
+                        "stderr":          stderr,
+                }
+                if functionMode {
+                        if returnJSON != nil {
+                                item["actual_return_json"] = *returnJSON
+                        } else {
+                                item["actual_return_json"] = nil
+                        }
+                        if tc.ExpectedReturn != nil {
+                                item["expected_return_json"] = *tc.ExpectedReturn
+                        }
+                        if tc.CallArgsJSON != nil {
+                                item["call_args_json"] = *tc.CallArgsJSON
+                        }
+                        if tc.CallKwargsJSON != nil {
+                                item["call_kwargs_json"] = *tc.CallKwargsJSON
+                        }
+                }
+                results = append(results, item)
+
+                // Persist for later display
+                r := &Result{SubmissionID: sub.ID, TestCaseID: tc.ID, Status: status, ActualStdout: stdout, Stderr: stderr, ExitCode: exitCode, RuntimeMS: int(runtime.Milliseconds()), ActualReturn: returnJSON}
+                CreateResult(r)
+        }
 
 	// Persist this run as a teacher submission for later viewing
 	// Zip uploaded files in-memory similar to student submission
@@ -1257,16 +1537,9 @@ func runTeacherSolution(c *gin.Context) {
 	} else {
 		_ = CreateSubmission(sub)
 	}
-	// Save per-test results to DB (so later details are available)
-	for i, tc := range tests {
-		item := results[i]
-		r := &Result{SubmissionID: sub.ID, TestCaseID: tc.ID, Status: item["status"].(string), ActualStdout: fmt.Sprint(item["actual_stdout"]), Stderr: fmt.Sprint(item["stderr"]), ExitCode: item["exit_code"].(int), RuntimeMS: item["runtime_ms"].(int)}
-		_ = CreateResult(r)
-	}
-
-	// Compute and persist overall status and points similar to worker
-	allPass := passed == len(tests)
-	if !assignment.LLMInteractive {
+        // Compute and persist overall status and points similar to worker
+        allPass := passed == len(tests)
+        if !assignment.LLMInteractive {
 		score := 0.0
 		switch assignment.GradingPolicy {
 		case "all_or_nothing":

@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS assignments (
   show_traceback BOOLEAN NOT NULL DEFAULT FALSE,
   show_test_details BOOLEAN NOT NULL DEFAULT FALSE,
   manual_review BOOLEAN NOT NULL DEFAULT FALSE,
+  test_mode TEXT NOT NULL DEFAULT 'stdin' CHECK (test_mode IN ('stdin','function')),
+  function_name TEXT,
   template_path TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -58,6 +60,8 @@ ALTER TABLE assignments ADD COLUMN IF NOT EXISTS template_path TEXT;
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS show_traceback BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS show_test_details BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS manual_review BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS test_mode TEXT NOT NULL DEFAULT 'stdin' CHECK (test_mode IN ('stdin','function'));
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS function_name TEXT;
 -- LLM interactive testing configuration
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_interactive BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_feedback BOOLEAN NOT NULL DEFAULT FALSE; -- show LLM feedback to students
@@ -96,12 +100,18 @@ CREATE TABLE IF NOT EXISTS test_cases (
   memory_limit_kb INTEGER NOT NULL DEFAULT 65536,
   unittest_code TEXT,
   unittest_name TEXT,
+  call_args_json TEXT,
+  call_kwargs_json TEXT,
+  expected_return_json TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS unittest_code TEXT;
 ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS unittest_name TEXT;
+ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS call_args_json TEXT;
+ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS call_kwargs_json TEXT;
+ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS expected_return_json TEXT;
 
 DO $$ BEGIN
     CREATE TYPE submission_status AS ENUM ('pending','running','completed','failed');
@@ -146,6 +156,7 @@ CREATE TABLE IF NOT EXISTS results (
 );
 ALTER TABLE results ADD COLUMN IF NOT EXISTS stderr TEXT;
 ALTER TABLE results ADD COLUMN IF NOT EXISTS exit_code INTEGER;
+ALTER TABLE results ADD COLUMN IF NOT EXISTS actual_return_json TEXT;
 
 -- LLM run artifacts per submission attempt
 CREATE TABLE IF NOT EXISTS llm_runs (

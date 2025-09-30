@@ -28,6 +28,8 @@ $: id = $page.params.id
   let assignmentLLMFeedback: boolean = false
   let assignmentShowTestDetails = false
   let assignmentShowTraceback = false
+  let assignmentTestMode: string = 'stdin'
+  let assignmentFunctionName = ''
   let sid: number = 0
   let role = ''
   $: role = $auth?.role ?? ''
@@ -118,6 +120,8 @@ $: id = $page.params.id
           assignmentLLMFeedback = !!ad.assignment?.llm_feedback
           assignmentShowTestDetails = !!ad.assignment?.show_test_details
           assignmentShowTraceback = !!ad.assignment?.show_traceback
+          assignmentTestMode = ad.assignment?.test_mode || 'stdin'
+          assignmentFunctionName = ad.assignment?.function_name || ''
           // Prefer aggregate tests_count when present (student view), fallback to tests array (teacher/admin)
           try {
             assignmentTestsCount = typeof ad.tests_count === 'number'
@@ -501,6 +505,33 @@ $: id = $page.params.id
                               <div class="badge badge-outline badge-primary mb-3">{r.unittest_name}</div>
                             {/if}
                             <pre class="max-h-80 overflow-auto rounded-xl bg-base-200/80 p-4 text-sm leading-relaxed"><code class="font-mono whitespace-pre-wrap">{viewableUnitTestSnippet(r.unittest_code, r.unittest_name)}</code></pre>
+                          {:else if assignmentTestMode === 'function'}
+                            <div class="space-y-3">
+                              <div class="rounded-xl border border-base-300/60 bg-base-200/70 p-3">
+                                <div class="text-xs font-semibold uppercase tracking-wide text-base-content/70">Function</div>
+                                <div class="mt-2 font-mono text-sm">{assignmentFunctionName || 'function'}()</div>
+                              </div>
+                              <div class="grid gap-3 md:grid-cols-2">
+                                <div class="rounded-xl border border-base-300/60 bg-base-200/70 p-3">
+                                  <div class="text-xs font-semibold uppercase tracking-wide text-base-content/70">Positional args</div>
+                                  <code class="mt-2 block break-words rounded bg-base-100/80 px-2 py-1 text-sm">{r.call_args_json ?? '[]'}</code>
+                                </div>
+                                <div class="rounded-xl border border-base-300/60 bg-base-200/70 p-3">
+                                  <div class="text-xs font-semibold uppercase tracking-wide text-base-content/70">Keyword args</div>
+                                  <code class="mt-2 block break-words rounded bg-base-100/80 px-2 py-1 text-sm">{r.call_kwargs_json ?? '{}'}</code>
+                                </div>
+                              </div>
+                              <div class="grid gap-3 md:grid-cols-2">
+                                <div class="rounded-xl border border-base-300/60 bg-base-200/70 p-3">
+                                  <div class="text-xs font-semibold uppercase tracking-wide text-base-content/70">Expected return</div>
+                                  <code class="mt-2 block break-words rounded bg-base-100/80 px-2 py-1 text-sm">{r.expected_return_json ?? '—'}</code>
+                                </div>
+                                <div class="rounded-xl border border-base-300/60 bg-base-200/70 p-3">
+                                  <div class="text-xs font-semibold uppercase tracking-wide text-base-content/70">Actual return</div>
+                                  <code class="mt-2 block break-words rounded bg-base-100/80 px-2 py-1 text-sm">{typeof r.actual_return_json !== 'undefined' ? (r.actual_return_json ?? 'null') : '—'}</code>
+                                </div>
+                              </div>
+                            </div>
                           {:else if typeof r.stdin !== 'undefined' || typeof r.expected_stdout !== 'undefined'}
                             <div class="grid gap-3 md:grid-cols-2">
                               <div class="rounded-xl border border-base-300/60 bg-base-200/70 p-3">

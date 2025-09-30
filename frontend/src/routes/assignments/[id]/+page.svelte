@@ -83,9 +83,11 @@ $: testsPercent = results.length ? Math.round(testsPassed / results.length * 100
   let safeDesc=''
 $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.description) as string) : ''
 
-  // Testing model selector (automatic | manual | ai)
-  type TestMode = 'automatic' | 'manual' | 'ai'
+  // Testing model selector (automatic | function | manual | ai)
+  type TestMode = 'automatic' | 'function' | 'manual' | 'ai'
   let testMode: TestMode = 'automatic'
+  const pythonIdentifier = /^[A-Za-z_][A-Za-z0-9_]*$/
+  let eFunctionName = ''
   $: {
     if (testMode === 'manual') { eManualReview = true; eLLMInteractive = false }
     else if (testMode === 'ai') { eManualReview = false; eLLMInteractive = true }
@@ -94,7 +96,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
   
   // Auto-switch to automatic testing when weighted policy is selected
   $: {
-    if (ePolicy === 'weighted' && testMode !== 'automatic') {
+    if (ePolicy === 'weighted' && (testMode === 'manual' || testMode === 'ai')) {
       testMode = 'automatic'
       eManualReview = false
       eLLMInteractive = false
@@ -322,6 +324,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     eLLMScenarios=assignment.llm_scenarios_json ?? ''
     eLLMStrictness = typeof assignment.llm_strictness === 'number' ? assignment.llm_strictness : 50
     eLLMRubric = assignment.llm_rubric ?? ''
+    eFunctionName = assignment.function_name ?? ''
     eSecondDeadline = assignment.second_deadline ? assignment.second_deadline.slice(0,16) : ''
     eSecondDeadlineDate = eSecondDeadline ? eSecondDeadline.slice(0,10) : ''
     eSecondDeadlineTime = eSecondDeadline ? eSecondDeadline.slice(11,16) : ''
@@ -329,6 +332,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     showAdvancedOptions = !!assignment.second_deadline
     if (assignment.manual_review) testMode = 'manual'
     else if (assignment.llm_interactive) testMode = 'ai'
+    else if ((assignment as any).test_mode === 'function') testMode = 'function'
     else testMode = 'automatic'
   }
 
@@ -375,27 +379,44 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
       // For weighted assignments, max_points is calculated from test weights
       const maxPoints = ePolicy === 'weighted' ? (assignment.max_points || 100) : Number(ePoints)
       
-      await apiFetch(`/api/assignments/${id}`,{
-        method:'PUT',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-          title:eTitle,
-          description:eDesc,
-          deadline:new Date(eDeadline).toISOString(),
-          max_points:maxPoints,
-          grading_policy:ePolicy,
-          show_traceback:eShowTraceback,
-          show_test_details:eShowTestDetails,
-          manual_review:eManualReview,
-          llm_interactive:eLLMInteractive,
-          llm_feedback:eLLMFeedback,
-          llm_auto_award:eLLMAutoAward,
-          llm_scenarios_json:eLLMScenarios.trim() ? eLLMScenarios : null,
-          llm_strictness: Number.isFinite(eLLMStrictness) ? Math.min(100, Math.max(0, Number(eLLMStrictness))) : 50,
-          llm_rubric: eLLMRubric.trim() ? eLLMRubric : null,
-          second_deadline: eSecondDeadline.trim() ? new Date(eSecondDeadline).toISOString() : null,
-          late_penalty_ratio: Number.isFinite(eLatePenaltyRatio) ? Math.min(1, Math.max(0, Number(eLatePenaltyRatio))) : 0.5
-        })
+      if (testMode === 'function') {
+        const trimmed = eFunctionName.trim()
+        if (!pythonIdentifier.test(trimmed)) {
+          err = 'Enter a valid Python function name (letters, numbers, underscores; cannot start with a number).'
+          return
+        }
+      }
+
+      const payload: Record<string, any> = {
+        title: eTitle,
+        description: eDesc,
+        deadline: new Date(eDeadline).toISOString(),
+        max_points: maxPoints,
+        grading_policy: ePolicy,
+        show_traceback: eShowTraceback,
+        show_test_details: eShowTestDetails,
+        manual_review: testMode === 'manual',
+        llm_interactive: testMode === 'ai',
+        llm_feedback: eLLMFeedback,
+        llm_auto_award: eLLMAutoAward,
+        llm_scenarios_json: eLLMScenarios.trim() ? eLLMScenarios : null,
+        llm_strictness: Number.isFinite(eLLMStrictness) ? Math.min(100, Math.max(0, Number(eLLMStrictness))) : 50,
+        llm_rubric: eLLMRubric.trim() ? eLLMRubric : null,
+        second_deadline: eSecondDeadline.trim() ? new Date(eSecondDeadline).toISOString() : null,
+        late_penalty_ratio: Number.isFinite(eLatePenaltyRatio) ? Math.min(1, Math.max(0, Number(eLatePenaltyRatio))) : 0.5
+      }
+      if (testMode === 'function') {
+        payload.test_mode = 'function'
+        payload.function_name = eFunctionName.trim()
+      } else {
+        payload.test_mode = 'stdin'
+        payload.function_name = null
+      }
+
+      await apiFetch(`/api/assignments/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       })
       editing=false
       await load()
@@ -692,11 +713,12 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                 <label class="form-control w-full max-w-xs">
                   <select class="select select-bordered select-sm" bind:value={testMode} disabled={ePolicy === 'weighted'}>
                     <option value="automatic">Automatic tests</option>
+                    <option value="function">Function call tests</option>
                     <option value="manual" disabled={ePolicy === 'weighted'}>Manual teacher review</option>
                     <option value="ai" disabled={ePolicy === 'weighted'}>AI testing (LLM-Interactive)</option>
                   </select>
                 </label>
-                {#if testMode === 'automatic'}
+                {#if testMode === 'automatic' || testMode === 'function'}
                   <div class="flex flex-col gap-2">
                     <label class="flex items-center gap-2">
                       <input type="checkbox" class="checkbox" bind:checked={eShowTraceback}>
@@ -716,10 +738,20 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                   Use IO/unittest tests (including AI-generated tests) to grade automatically.
                 {:else if testMode === 'manual'}
                   Teacher reviews submissions and assigns points. No automated tests run.
+                {:else if testMode === 'function'}
+                  Provide a function name students must implement. Tests call it directly with JSON-defined arguments and expect a return value.
                 {:else}
                   Grade using LLM-driven interactive scenarios.
                 {/if}
               </p>
+
+              {#if testMode === 'function'}
+                <div class="form-control">
+                  <label class="label"><span class="label-text">Required function name</span></label>
+                  <input class="input input-bordered" placeholder="e.g. multiply" bind:value={eFunctionName}>
+                  <p class="text-xs opacity-70 mt-1">Tests will import the student's code and call this function. Arguments and expected return values are configured per test.</p>
+                </div>
+              {/if}
 
               {#if testMode==='ai'}
                 <div class="divider my-2"></div>
@@ -828,6 +860,12 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             {#if assignment.manual_review}
               <span class="badge badge-info">Manual review</span>
             {/if}
+            {#if assignment.test_mode === 'function'}
+              <span class="badge badge-secondary">Function tests</span>
+              {#if assignment.function_name}
+                <span class="badge badge-outline">{assignment.function_name}()</span>
+              {/if}
+            {/if}
             {#if role!=='student'}
               {#if assignment.published}
                 <span class="badge badge-success">Published</span>
@@ -870,6 +908,11 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         {/if}
       </div>
     </section>
+    {#if assignment.test_mode === 'function'}
+      <div class="alert alert-secondary mb-4">
+        <span>This assignment uses function-call tests. Implement <code>{assignment.function_name || 'the required function'}</code> so it can be imported and called directly.</span>
+      </div>
+    {/if}
     {#if role==='student' && assignment.manual_review}
       <div class="alert alert-info mb-4">
         <span>This assignment is graded by teacher review. Automatic tests will not run; points will appear after review.</span>

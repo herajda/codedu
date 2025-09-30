@@ -473,6 +473,10 @@ onMount(() => {
               <li><b>LLM feedback:</b> {preview.assignment.llm_feedback ? 'Yes' : 'No'}</li>
               <li><b>LLM auto‑award:</b> {preview.assignment.llm_auto_award ? 'Yes' : 'No'}</li>
               <li><b>LLM strictness:</b> {typeof preview.assignment.llm_strictness === 'number' ? preview.assignment.llm_strictness : 50}</li>
+              <li><b>Test mode:</b> {preview.assignment.test_mode === 'function' ? 'Function call' : 'STDIN / stdout'}</li>
+              {#if preview.assignment.test_mode === 'function' && preview.assignment.function_name}
+                <li><b>Function name:</b> <code>{preview.assignment.function_name}</code></li>
+              {/if}
               <li><b>Template:</b> {preview.assignment.template_path ? 'Present' : 'None'}</li>
               <li><b>Created:</b> {formatDateTime(preview.assignment.created_at)}</li>
               <li><b>Updated:</b> {formatDateTime(preview.assignment.updated_at)}</li>
@@ -491,8 +495,14 @@ onMount(() => {
                   {#if t.unittest_name}
                     <div><b>Unit:</b> {t.unittest_name}</div>
                   {:else}
-                    <div><b>Stdin:</b> <code class="text-xs whitespace-pre-wrap">{t.stdin}</code></div>
-                    <div><b>Expected:</b> <code class="text-xs whitespace-pre-wrap">{t.expected_stdout}</code></div>
+                    {#if preview.assignment.test_mode === 'function'}
+                      <div><b>Args:</b> <code class="text-xs whitespace-pre-wrap break-words">{t.call_args_json ?? '[]'}</code></div>
+                      <div><b>Kwargs:</b> <code class="text-xs whitespace-pre-wrap break-words">{t.call_kwargs_json ?? '{}'}</code></div>
+                      <div><b>Expected return:</b> <code class="text-xs whitespace-pre-wrap break-words">{t.expected_return_json ?? '—'}</code></div>
+                    {:else}
+                      <div><b>Stdin:</b> <code class="text-xs whitespace-pre-wrap">{t.stdin}</code></div>
+                      <div><b>Expected:</b> <code class="text-xs whitespace-pre-wrap">{t.expected_stdout}</code></div>
+                    {/if}
                   {/if}
                   <div class="opacity-70 text-xs">Weight: {t.weight} · Time limit: {t.time_limit_sec}s</div>
                 </li>
