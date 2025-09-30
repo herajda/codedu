@@ -25,6 +25,7 @@
   let minute = selected.getMinutes();
   let manual = '';
   let hasSelected = false;
+  let explicitSelectionKey: string | null = null;
 
   const dowShort = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -50,6 +51,7 @@
     viewMonth = selected.getMonth();
     shortcuts = options.shortcuts && options.shortcuts.length ? options.shortcuts : defaultShortcuts;
     hasSelected = !!initDate;
+    explicitSelectionKey = hasSelected ? dateKey(selected) : null;
 
     syncManual();
     await tick();
@@ -127,6 +129,7 @@
       viewYear = selected.getFullYear();
       viewMonth = selected.getMonth();
       hasSelected = true;
+      explicitSelectionKey = dateKey(selected);
       // keep open and just update UI
       return;
     }
@@ -152,6 +155,7 @@
     viewYear = d.getFullYear();
     viewMonth = d.getMonth();
     hasSelected = true;
+    explicitSelectionKey = dateKey(selected);
     syncManual();
   }
 
@@ -161,28 +165,34 @@
     viewMonth = d.getMonth();
   }
 
-  function daysGrid(): { date: Date; inMonth: boolean; disabled: boolean; today: boolean; selected: boolean }[] {
+  function daysGrid(): { date: Date; inMonth: boolean; disabled: boolean; today: boolean; selected: boolean; explicit: boolean }[] {
     const firstOfMonth = new Date(viewYear, viewMonth, 1);
     const firstDow = (firstOfMonth.getDay() + 6) % 7; // 0=Mon .. 6=Sun
-    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
     const prevDays = firstDow;
     const totalCells = 42; // 6 weeks
     const startDate = new Date(viewYear, viewMonth, 1 - prevDays);
-    const cells: { date: Date; inMonth: boolean; disabled: boolean; today: boolean; selected: boolean }[] = [];
+    const selectedKey = dateKey(selected);
+    const cells: { date: Date; inMonth: boolean; disabled: boolean; today: boolean; selected: boolean; explicit: boolean }[] = [];
     for (let i = 0; i < totalCells; i++) {
       const d = new Date(startDate);
       d.setDate(startDate.getDate() + i);
       const inMonth = d.getMonth() === viewMonth;
       const isToday = sameDate(d, new Date());
-      const isSelected = sameDate(d, selected);
+      const key = dateKey(d);
+      const isSelected = key === selectedKey;
+      const isExplicit = explicitSelectionKey === key;
       const disabled = !!minDate && trimTime(d) < trimTime(minDate);
-      cells.push({ date: d, inMonth, disabled, today: isToday, selected: isSelected });
+      cells.push({ date: d, inMonth, disabled, today: isToday, selected: isSelected, explicit: isExplicit });
     }
     return cells;
   }
 
   function sameDate(a: Date, b: Date): boolean {
     return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+
+  function dateKey(d: Date): string {
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
   }
   function trimTime(d: Date): number {
     const c = new Date(d);
@@ -199,10 +209,11 @@
     viewYear = selected.getFullYear();
     viewMonth = selected.getMonth();
     hasSelected = true;
+    explicitSelectionKey = dateKey(selected);
     syncManual();
   }
 
-  function dayButtonClass(c: { inMonth: boolean; disabled: boolean; today: boolean; selected: boolean }): string {
+  function dayButtonClass(c: { inMonth: boolean; disabled: boolean; today: boolean; selected: boolean; explicit: boolean }): string {
     const classes = ['btn', 'btn-sm', 'h-9', 'transition-none'];
 
     if (c.disabled) {
@@ -210,7 +221,7 @@
       return classes.join(' ');
     }
 
-    const isExplicitSelection = c.selected && hasSelected;
+    const isExplicitSelection = c.explicit;
 
     if (isExplicitSelection) {
       classes.push(
@@ -219,7 +230,10 @@
         'text-primary-content',
         'border-primary',
         'hover:border-primary',
-        'hover:bg-primary'
+        'hover:bg-primary',
+        'bg-primary',
+        'focus-visible:ring-2',
+        'focus-visible:ring-primary/60'
       );
     } else {
       classes.push('btn-ghost');
@@ -263,6 +277,7 @@
       viewYear = d.getFullYear();
       viewMonth = d.getMonth();
       hasSelected = true;
+      explicitSelectionKey = dateKey(selected);
     }
   }
 </script>
@@ -295,7 +310,7 @@
               class={dayButtonClass(c)}
               disabled={c.disabled}
               on:click={() => pickDay(c.date, c.disabled)}
-              aria-pressed={c.selected && hasSelected}
+              aria-pressed={c.explicit}
               aria-current={c.today ? 'date' : undefined}
             >
               {c.date.getDate()}
@@ -341,8 +356,41 @@
             {#each shortcuts as s}
               <button type="button" class="btn btn-ghost btn-sm" on:click={() => applyShortcut(s)}>{s.label}</button>
             {/each}
-            <button type="button" class="btn btn-ghost btn-sm" on:click={() => { const d=new Date(); selected=d; hour=d.getHours(); minute=d.getMinutes(); viewYear=d.getFullYear(); viewMonth=d.getMonth(); hasSelected = true; syncManual(); }}>Now</button>
-            <button type="button" class="btn btn-ghost btn-sm" on:click={() => { const d=new Date(); d.setHours(23,59,0,0); selected=d; hour=23; minute=59; viewYear=d.getFullYear(); viewMonth=d.getMonth(); hasSelected = true; syncManual(); }}>Today 23:59</button>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              on:click={() => {
+                const d = new Date();
+                selected = d;
+                hour = d.getHours();
+                minute = d.getMinutes();
+                viewYear = d.getFullYear();
+                viewMonth = d.getMonth();
+                hasSelected = true;
+                explicitSelectionKey = dateKey(selected);
+                syncManual();
+              }}
+            >
+              Now
+            </button>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              on:click={() => {
+                const d = new Date();
+                d.setHours(23, 59, 0, 0);
+                selected = d;
+                hour = 23;
+                minute = 59;
+                viewYear = d.getFullYear();
+                viewMonth = d.getMonth();
+                hasSelected = true;
+                explicitSelectionKey = dateKey(selected);
+                syncManual();
+              }}
+            >
+              Today 23:59
+            </button>
           </div>
         </div>
 
