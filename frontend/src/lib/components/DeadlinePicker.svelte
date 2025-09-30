@@ -203,7 +203,7 @@
   }
 
   function dayButtonClass(c: { inMonth: boolean; disabled: boolean; today: boolean; selected: boolean }): string {
-    const classes = ['btn', 'btn-sm', 'h-9'];
+    const classes = ['btn', 'btn-sm', 'h-9', 'transition-none'];
 
     if (c.disabled) {
       classes.push('btn-disabled', 'opacity-40');
@@ -213,7 +213,14 @@
     const isExplicitSelection = c.selected && hasSelected;
 
     if (isExplicitSelection) {
-      classes.push('btn-primary', 'text-primary-content');
+      classes.push(
+        'btn-primary',
+        'btn-active',
+        'text-primary-content',
+        'border-primary',
+        'hover:border-primary',
+        'hover:bg-primary'
+      );
     } else {
       classes.push('btn-ghost');
 
@@ -288,7 +295,7 @@
               class={dayButtonClass(c)}
               disabled={c.disabled}
               on:click={() => pickDay(c.date, c.disabled)}
-              aria-pressed={c.selected}
+              aria-pressed={c.selected && hasSelected}
               aria-current={c.today ? 'date' : undefined}
             >
               {c.date.getDate()}
