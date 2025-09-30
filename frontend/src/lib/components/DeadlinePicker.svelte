@@ -220,7 +220,7 @@
     if (c.selected && hasSelected) {
       const ghostIdx = classes.indexOf('btn-ghost');
       if (ghostIdx !== -1) classes.splice(ghostIdx, 1);
-      classes.push('btn-primary'); // <-- key change
+      classes.push('btn-primary', 'btn-active', 'text-primary-content');
     }
     // Today (when not selected) = grey-ish chip
     else if (c.today && c.inMonth) {
