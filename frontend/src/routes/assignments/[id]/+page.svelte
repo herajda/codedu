@@ -1067,15 +1067,15 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                           {#if p.latest}
                             {#if p.latest.created_at > assignment.deadline}
                               {#if assignment.second_deadline && p.latest.created_at <= assignment.second_deadline}
-                                <span class="badge badge-warning badge-sm flex-wrap whitespace-normal text-center">Second deadline ({Math.round(assignment.late_penalty_ratio * 100)}%)</span>
+                                <span class="badge badge-warning flex-wrap whitespace-normal break-words text-center h-auto py-1 leading-tight">Second deadline ({Math.round(assignment.late_penalty_ratio * 100)}%)</span>
                               {:else}
-                                <span class="badge badge-error badge-sm flex-wrap whitespace-normal text-center">Late (no points)</span>
+                                <span class="badge badge-error flex-wrap whitespace-normal break-words text-center h-auto py-1 leading-tight">Late (no points)</span>
                               {/if}
                             {:else}
-                              <span class="badge badge-success badge-sm flex-wrap whitespace-normal text-center">On time</span>
+                              <span class="badge badge-success flex-wrap whitespace-normal break-words text-center h-auto py-1 leading-tight">On time</span>
                             {/if}
                           {:else}
-                            <span class="badge badge-ghost badge-sm flex-wrap whitespace-normal text-center">No submission</span>
+                            <span class="badge badge-ghost flex-wrap whitespace-normal break-words text-center h-auto py-1 leading-tight">No submission</span>
                           {/if}
                         </td>
                         <td>{p.latest ? formatDateTime(p.latest.created_at) : '-'}</td>
