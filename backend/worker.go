@@ -29,6 +29,51 @@ type Job struct{ SubmissionID uuid.UUID }
 
 var taskQueue chan Job
 
+var strictnessMessages = []struct {
+	threshold int
+	message   string
+}{
+	{0, "Focus only on the most basic happy-path scenario; ignore edge cases."},
+	{5, "Focus on the main happy-path scenario; minimal error handling."},
+	{10, "Test happy-path scenarios and basic error handling."},
+	{15, "Test happy-path scenarios and a few common error cases."},
+	{20, "Test happy-path scenarios and some error handling."},
+	{25, "Test happy-path scenarios and check for basic robustness."},
+	{30, "Focus on representative happy-path scenarios while checking fundamental error handling."},
+	{35, "Test typical flows and some important edge cases."},
+	{40, "Test typical flows and several edge cases."},
+	{45, "Balance typical flows with a few edge cases and robustness checks."},
+	{50, "Balance typical flows with important edge cases and robustness checks."},
+	{55, "Balance typical flows with more edge cases and robustness checks."},
+	{60, "Balance typical flows with thorough edge cases and robustness checks."},
+	{65, "Balance typical flows with comprehensive edge cases and robustness checks."},
+	{70, "Balance typical flows with important edge cases and robustness checks."},
+	{75, "Be strict and adversarial, probing tricky edge cases and robustness."},
+	{80, "Be strict and adversarial, probing more tricky edge cases and robustness."},
+	{85, "Be strict and adversarial, probing all tricky edge cases and robustness."},
+	{90, "Be strict and adversarial, probing tricky edge cases and robustness."},
+	{95, "Be maximally adversarial and exhaustive across edge cases."},
+	{100, "Be maximally adversarial and exhaustive across edge cases."},
+}
+
+func strictnessMessage(level int) string {
+	if level < 0 {
+		level = 0
+	}
+	if level > 100 {
+		level = 100
+	}
+	message := strictnessMessages[0].message
+	for _, descriptor := range strictnessMessages {
+		if level >= descriptor.threshold {
+			message = descriptor.message
+		} else {
+			break
+		}
+	}
+	return message
+}
+
 // execution/runtime configuration (overridable via env for DinD setup)
 var (
 	// shared exec root between backend and docker-engine sidecar
@@ -683,15 +728,15 @@ func runSubmission(id uuid.UUID) {
 
 // LLM-interactive flow
 func runLLMInteractive(sub *Submission, a *Assignment) {
-    // Recreate submitted files from the stored archive
-    // IMPORTANT: place under execRoot so the Docker daemon can bind-mount it
-    // when called from within a container (docker-outside-of-docker setup).
-    tmpDir, err := os.MkdirTemp(execRoot, "grader-llm-")
-    if err != nil {
-        UpdateSubmissionStatus(sub.ID, "failed")
-        return
-    }
-    defer os.RemoveAll(tmpDir)
+	// Recreate submitted files from the stored archive
+	// IMPORTANT: place under execRoot so the Docker daemon can bind-mount it
+	// when called from within a container (docker-outside-of-docker setup).
+	tmpDir, err := os.MkdirTemp(execRoot, "grader-llm-")
+	if err != nil {
+		UpdateSubmissionStatus(sub.ID, "failed")
+		return
+	}
+	defer os.RemoveAll(tmpDir)
 
 	data, err := base64.StdEncoding.DecodeString(sub.CodeContent)
 	if err != nil {
@@ -727,8 +772,8 @@ func runLLMInteractive(sub *Submission, a *Assignment) {
 		os.Chmod(fpath, 0644)
 		rc.Close()
 	}
-    // Normalize permissions for sandbox readability (and best-effort chown)
-    _ = ensureSandboxPerms(tmpDir)
+	// Normalize permissions for sandbox readability (and best-effort chown)
+	_ = ensureSandboxPerms(tmpDir)
 
 	// Detect main file
 	var mainFile, firstPy string
@@ -1042,17 +1087,7 @@ func llmStaticReview(a *Assignment, dir string) map[string]any {
 	if level > 100 {
 		level = 100
 	}
-	var stance string
-	switch {
-	case level <= 20:
-		stance = "Be lenient and supportive for beginners. Minor style or small edge-case omissions are acceptable unless they break core functionality."
-	case level <= 50:
-		stance = "Be moderately critical and practical. Focus on correctness and key edge cases."
-	case level <= 80:
-		stance = "Be strict and thorough. Edge cases and robustness matter."
-	default:
-		stance = "Be very strict and professional (PRO level). Do not accept any incorrect handling or deviations from requirements."
-	}
+	stance := strictnessMessage(level)
 	rubric := stringOrEmpty(a.LLMRubric)
 	rubricPart := ""
 	if rubric != "" {
@@ -1629,46 +1664,50 @@ func runAgentEvaluation(workspace, mainFile string, a *Assignment, review map[st
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("agent evaluator start: %w", err)
 	}
-    // Keep stdout and stderr separate; we'll parse only stdout for JSON.
-    var evalStdout bytes.Buffer
-    var evalStderr bytes.Buffer
-    var ioMu sync.Mutex
+	// Keep stdout and stderr separate; we'll parse only stdout for JSON.
+	var evalStdout bytes.Buffer
+	var evalStderr bytes.Buffer
+	var ioMu sync.Mutex
 	var wg sync.WaitGroup
 	labelBase := fmt.Sprintf("[llm-eval][%s][%s]", filepath.Base(workspace), mainFile)
-    if stdoutPipe != nil {
-        wg.Add(1)
-        go streamAgentOutput(&wg, stdoutPipe, &ioMu, &evalStdout, labelBase+" stdout")
-    }
-    if stderrPipe != nil {
-        wg.Add(1)
-        go streamAgentOutput(&wg, stderrPipe, &ioMu, &evalStderr, labelBase+" stderr")
-    }
+	if stdoutPipe != nil {
+		wg.Add(1)
+		go streamAgentOutput(&wg, stdoutPipe, &ioMu, &evalStdout, labelBase+" stdout")
+	}
+	if stderrPipe != nil {
+		wg.Add(1)
+		go streamAgentOutput(&wg, stderrPipe, &ioMu, &evalStderr, labelBase+" stderr")
+	}
 	waitErr := cmd.Wait()
 	wg.Wait()
 	if ctx.Err() == context.DeadlineExceeded {
 		return nil, fmt.Errorf("agent evaluator timed out")
 	}
-    output := bytes.TrimSpace(evalStdout.Bytes())
-    if waitErr != nil {
-        preview := string(output)
-        if len(preview) > 512 {
-            preview = preview[:512] + "..."
-        }
-        errTail := evalStderr.String()
-        if errTail != "" {
-            if len(errTail) > 512 { errTail = errTail[:512] + "..." }
-            preview = preview + " | stderr: " + errTail
-        }
-        return nil, fmt.Errorf("agent evaluator failed: %w (output: %s)", waitErr, preview)
-    }
-    if len(output) == 0 {
-        errTail := strings.TrimSpace(evalStderr.String())
-        if errTail != "" {
-            if len(errTail) > 512 { errTail = errTail[:512] + "..." }
-            return nil, fmt.Errorf("agent evaluator returned empty output (stderr: %s)", errTail)
-        }
-        return nil, fmt.Errorf("agent evaluator returned empty output")
-    }
+	output := bytes.TrimSpace(evalStdout.Bytes())
+	if waitErr != nil {
+		preview := string(output)
+		if len(preview) > 512 {
+			preview = preview[:512] + "..."
+		}
+		errTail := evalStderr.String()
+		if errTail != "" {
+			if len(errTail) > 512 {
+				errTail = errTail[:512] + "..."
+			}
+			preview = preview + " | stderr: " + errTail
+		}
+		return nil, fmt.Errorf("agent evaluator failed: %w (output: %s)", waitErr, preview)
+	}
+	if len(output) == 0 {
+		errTail := strings.TrimSpace(evalStderr.String())
+		if errTail != "" {
+			if len(errTail) > 512 {
+				errTail = errTail[:512] + "..."
+			}
+			return nil, fmt.Errorf("agent evaluator returned empty output (stderr: %s)", errTail)
+		}
+		return nil, fmt.Errorf("agent evaluator returned empty output")
+	}
 	res, jsonErr := parseAgentEvalOutput(output)
 	if jsonErr != nil {
 		preview := string(output)
@@ -1715,55 +1754,55 @@ func writeJSONFile(path string, payload any) error {
 }
 
 func findEvaluatorScript() string {
-    if custom := strings.TrimSpace(os.Getenv("LLM_EVALUATOR_SCRIPT")); custom != "" {
-        return custom
-    }
-    candidates := []string{
-        // Prefer repository-local copies first so patches take effect without rebuilding images
-        filepath.Join("backend", "llm_agent", "evaluate.py"),
-        filepath.Join("llm_agent", "evaluate.py"),
-        "/app/llm_agent/evaluate.py",
-    }
-    for _, c := range candidates {
-        if _, err := os.Stat(c); err == nil {
-            return c
-        }
+	if custom := strings.TrimSpace(os.Getenv("LLM_EVALUATOR_SCRIPT")); custom != "" {
+		return custom
+	}
+	candidates := []string{
+		// Prefer repository-local copies first so patches take effect without rebuilding images
+		filepath.Join("backend", "llm_agent", "evaluate.py"),
+		filepath.Join("llm_agent", "evaluate.py"),
+		"/app/llm_agent/evaluate.py",
+	}
+	for _, c := range candidates {
+		if _, err := os.Stat(c); err == nil {
+			return c
+		}
 	}
 	return ""
 }
 
 func parseAgentEvalOutput(out []byte) (*agentEvalResult, error) {
-    trimmed := bytes.TrimSpace(out)
-    var res agentEvalResult
-    if err := json.Unmarshal(trimmed, &res); err == nil {
-        return &res, nil
-    }
-    // Heuristic: scan backwards for the start of the FINAL top-level JSON object
-    // The evaluator prints the final result as a single JSON object on stdout.
-    // Logs from stdout/stderr may precede it; nested JSON blocks (e.g., ai_message)
-    // may also appear. We iterate over '{' candidates from the end until a valid
-    // parse succeeds.
-    for idx := bytes.LastIndexByte(trimmed, '{'); idx >= 0; idx = bytes.LastIndexByte(trimmed[:idx], '{') {
-        tail := bytes.TrimSpace(trimmed[idx:])
-        var candidate agentEvalResult
-        if err := json.Unmarshal(tail, &candidate); err == nil && strings.TrimSpace(candidate.Verdict) != "" {
-            preface := bytes.TrimSpace(trimmed[:idx])
-            if len(preface) > 0 {
-                msg := strings.TrimSpace(string(preface))
-                if candidate.Error != "" {
-                    candidate.Error = msg + "; " + candidate.Error
-                } else {
-                    candidate.Error = msg
-                }
-            }
-            return &candidate, nil
-        }
-    }
-    msg := strings.TrimSpace(string(trimmed))
-    if msg == "" {
-        msg = "agent evaluator produced no output"
-    }
-    return &agentEvalResult{
+	trimmed := bytes.TrimSpace(out)
+	var res agentEvalResult
+	if err := json.Unmarshal(trimmed, &res); err == nil {
+		return &res, nil
+	}
+	// Heuristic: scan backwards for the start of the FINAL top-level JSON object
+	// The evaluator prints the final result as a single JSON object on stdout.
+	// Logs from stdout/stderr may precede it; nested JSON blocks (e.g., ai_message)
+	// may also appear. We iterate over '{' candidates from the end until a valid
+	// parse succeeds.
+	for idx := bytes.LastIndexByte(trimmed, '{'); idx >= 0; idx = bytes.LastIndexByte(trimmed[:idx], '{') {
+		tail := bytes.TrimSpace(trimmed[idx:])
+		var candidate agentEvalResult
+		if err := json.Unmarshal(tail, &candidate); err == nil && strings.TrimSpace(candidate.Verdict) != "" {
+			preface := bytes.TrimSpace(trimmed[:idx])
+			if len(preface) > 0 {
+				msg := strings.TrimSpace(string(preface))
+				if candidate.Error != "" {
+					candidate.Error = msg + "; " + candidate.Error
+				} else {
+					candidate.Error = msg
+				}
+			}
+			return &candidate, nil
+		}
+	}
+	msg := strings.TrimSpace(string(trimmed))
+	if msg == "" {
+		msg = "agent evaluator produced no output"
+	}
+	return &agentEvalResult{
 		Verdict:     "ERROR",
 		Reason:      msg,
 		Summary:     "Interactive agent run failed",

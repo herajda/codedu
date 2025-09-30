@@ -11,6 +11,7 @@ import { goto } from '$app/navigation'
 import { page } from '$app/stores'
 import ConfirmModal from '$lib/components/ConfirmModal.svelte'
 import { DeadlinePicker } from '$lib'
+import { strictnessGuidance } from '$lib/llmStrictness'
 
 
 
@@ -59,6 +60,7 @@ $: testsPercent = results.length ? Math.round(testsPassed / results.length * 100
   let eLLMScenarios=''
   let eLLMStrictness:number=50
   let eLLMRubric=''
+  $: eLLMStrictnessMessage = strictnessGuidance(eLLMStrictness)
   let eSecondDeadline=''
   // Enhanced date/time UX state (derived from the above strings)
   let eDeadlineDate=''
@@ -734,6 +736,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                         <span class="label-text-alt">{eLLMStrictness}%</span>
                       </label>
                       <input id="ai-strictness-range" type="range" min="0" max="100" step="5" class="range range-primary" bind:value={eLLMStrictness}>
+                      <p class="text-xs opacity-70 mt-2">{eLLMStrictnessMessage}</p>
                     </div>
 
                     <div class="form-control">
