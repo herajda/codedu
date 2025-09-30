@@ -877,7 +877,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
 
     <!-- Content with tabs and optional sidebar for students -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      <div class="lg:col-span-8">
+      <div class={`lg:col-span-${role==='student' ? '8' : '12'}`}>
         <div class="tabs tabs-boxed w-full mb-4">
           <button class={`tab ${activeTab==='overview' ? 'tab-active' : ''}`} on:click={() => setTab('overview')}>Overview</button>
           {#if role==='student'}
