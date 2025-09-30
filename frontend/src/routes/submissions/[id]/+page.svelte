@@ -18,6 +18,7 @@ $: id = $page.params.id
   let tree: FileNode[] = []
   let selected: { name: string; content: string } | null = null
   let highlighted = ''
+  let manualConsoleVisible = false
   let esCtrl: { close: () => void } | null = null
   let assignmentTitle: string = ''
   let assignmentManual: boolean = false
@@ -177,6 +178,8 @@ $: id = $page.params.id
   $: showAutoUI = (!assignmentLLMInteractive) && (assignmentTestsCount > 0)
   // Keep legacy meaning of hideAutoUI: specifically, when no auto tests exist
   $: hideAutoUI = assignmentTestsCount === 0
+  $: forceManualConsole = assignmentManual || hideAutoUI
+  $: if (forceManualConsole) manualConsoleVisible = true
 
   function bgFromBadge(badgeClass: string){
     return badgeClass.replace('badge','bg')
@@ -586,12 +589,26 @@ $: id = $page.params.id
       </div>
     {/if}
 
-    {#if (role==='teacher' || role==='admin') && (assignmentManual || hideAutoUI)}
+    {#if role==='teacher' || role==='admin'}
       <div class="card bg-base-100 shadow">
         <div class="card-body space-y-3">
-          <h3 class="card-title">Manual testing</h3>
-          <p class="text-sm opacity-70">Run the student's script in an isolated container with live I/O.</p>
-          <RunConsole submissionId={sid} />
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 class="card-title">Manual testing</h3>
+              <p class="text-sm opacity-70">Run the student's script in an isolated container with live I/O.</p>
+            </div>
+            {#if !forceManualConsole}
+              <button class="btn btn-sm btn-outline" on:click={() => (manualConsoleVisible = !manualConsoleVisible)}>
+                {manualConsoleVisible ? 'Hide console' : 'Show console'}
+              </button>
+            {/if}
+          </div>
+
+          {#if forceManualConsole || manualConsoleVisible}
+            <RunConsole submissionId={sid} />
+          {:else}
+            <div class="text-sm opacity-70 italic">Use the button above to open the manual console.</div>
+          {/if}
         </div>
       </div>
     {/if}
