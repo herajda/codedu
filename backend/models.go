@@ -1089,16 +1089,20 @@ func DeleteAllTestCasesForAssignment(assignmentID uuid.UUID) error {
 
 // Result represents outcome of one test case execution.
 type Result struct {
-	ID           uuid.UUID `db:"id" json:"id"`
-	SubmissionID uuid.UUID `db:"submission_id" json:"submission_id"`
-	TestCaseID   uuid.UUID `db:"test_case_id" json:"test_case_id"`
-	Status       string    `db:"status" json:"status"`
-	ActualStdout string    `db:"actual_stdout" json:"actual_stdout"`
-	Stderr       string    `db:"stderr" json:"stderr"`
-	ExitCode     int       `db:"exit_code" json:"exit_code"`
-	RuntimeMS    int       `db:"runtime_ms" json:"runtime_ms"`
-	TestNumber   *int      `db:"test_number" json:"test_number,omitempty"`
-	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	SubmissionID   uuid.UUID `db:"submission_id" json:"submission_id"`
+	TestCaseID     uuid.UUID `db:"test_case_id" json:"test_case_id"`
+	Status         string    `db:"status" json:"status"`
+	ActualStdout   string    `db:"actual_stdout" json:"actual_stdout"`
+	Stderr         string    `db:"stderr" json:"stderr"`
+	ExitCode       int       `db:"exit_code" json:"exit_code"`
+	RuntimeMS      int       `db:"runtime_ms" json:"runtime_ms"`
+	Stdin          *string   `db:"stdin" json:"stdin,omitempty"`
+	ExpectedStdout *string   `db:"expected_stdout" json:"expected_stdout,omitempty"`
+	UnittestCode   *string   `db:"unittest_code" json:"unittest_code,omitempty"`
+	UnittestName   *string   `db:"unittest_name" json:"unittest_name,omitempty"`
+	TestNumber     *int      `db:"test_number" json:"test_number,omitempty"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 }
 
 // LLMRun stores artifacts from an LLM-interactive testing run for a submission.
@@ -1211,12 +1215,19 @@ func ListResultsForSubmission(subID uuid.UUID) ([]Result, error) {
             SELECT assignment_id FROM submissions WHERE id = $1
         ),
         ordered_tests AS (
-            SELECT id, ROW_NUMBER() OVER (ORDER BY id) AS test_number
+            SELECT id,
+                   ROW_NUMBER() OVER (ORDER BY id) AS test_number,
+                   stdin,
+                   expected_stdout,
+                   unittest_code,
+                   unittest_name
               FROM test_cases
              WHERE assignment_id = (SELECT assignment_id FROM sub)
         )
         SELECT r.id, r.submission_id, r.test_case_id, r.status, r.actual_stdout, r.stderr,
-               r.exit_code, r.runtime_ms, r.created_at, ot.test_number
+               r.exit_code, r.runtime_ms, r.created_at,
+               ot.stdin, ot.expected_stdout, ot.unittest_code, ot.unittest_name,
+               ot.test_number
           FROM results r
           LEFT JOIN ordered_tests ot ON r.test_case_id = ot.id
          WHERE r.submission_id=$1
