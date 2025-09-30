@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -1281,8 +1282,8 @@ func createSubmission(c *gin.Context) {
 }
 
 // runTeacherSolution: POST /api/assignments/:id/solution-run
-// Allows a teacher/admin to upload a reference solution and run all tests.
-// Does not persist a submission or results; returns a summary JSON immediately.
+// Allows a teacher/admin to upload a reference solution, run all tests, and
+// persist the resulting submission/results for later viewing.
 func runTeacherSolution(c *gin.Context) {
 	aid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -1392,7 +1393,48 @@ func runTeacherSolution(c *gin.Context) {
 		return
 	}
 
-        // Execute all tests and gather results without persisting
+        // Persist this run as a teacher submission for later viewing
+        buf := new(bytes.Buffer)
+        zw := zip.NewWriter(buf)
+        _ = filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
+                if err != nil || info.IsDir() {
+                        return nil
+                }
+                rel := filepath.Base(path)
+                w, e := zw.Create(rel)
+                if e != nil {
+                        return e
+                }
+                data, e := os.ReadFile(path)
+                if e != nil {
+                        return e
+                }
+                _, e = w.Write(data)
+                return e
+        })
+        _ = zw.Close()
+        _ = os.MkdirAll("uploads", 0755)
+        name := fmt.Sprintf("%d_%d_%d_teacher.zip", aid, getUserID(c), time.Now().UnixNano())
+        path := filepath.Join("uploads", name)
+        _ = os.WriteFile(path, buf.Bytes(), 0644)
+        sub := &Submission{
+                AssignmentID: aid,
+                StudentID:    getUserID(c),
+                CodePath:     path,
+                CodeContent:  base64.StdEncoding.EncodeToString(buf.Bytes()),
+                IsTeacherRun: true,
+        }
+        // Insert without enrollment requirement by bypassing CreateSubmission if teacher
+        if c.GetString("role") == "teacher" || c.GetString("role") == "admin" {
+                // direct insert
+                _ = DB.QueryRow(`INSERT INTO submissions (assignment_id, student_id, code_path, code_content, is_teacher_run)
+                          VALUES ($1,$2,$3,$4,TRUE) RETURNING id, status, created_at, updated_at`,
+                        sub.AssignmentID, sub.StudentID, sub.CodePath, sub.CodeContent).Scan(&sub.ID, &sub.Status, &sub.CreatedAt, &sub.UpdatedAt)
+        } else {
+                _ = CreateSubmission(sub)
+        }
+
+        // Execute all tests and gather results
         results := make([]map[string]any, 0, len(tests))
         passed := 0
         totalWeight := 0.0
@@ -1502,41 +1544,6 @@ func runTeacherSolution(c *gin.Context) {
                 CreateResult(r)
         }
 
-	// Persist this run as a teacher submission for later viewing
-	// Zip uploaded files in-memory similar to student submission
-	buf := new(bytes.Buffer)
-	zw := zip.NewWriter(buf)
-	_ = filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			return nil
-		}
-		rel := filepath.Base(path)
-		w, e := zw.Create(rel)
-		if e != nil {
-			return e
-		}
-		data, e := os.ReadFile(path)
-		if e != nil {
-			return e
-		}
-		_, e = w.Write(data)
-		return e
-	})
-	_ = zw.Close()
-	_ = os.MkdirAll("uploads", 0755)
-	name := fmt.Sprintf("%d_%d_%d_teacher.zip", aid, getUserID(c), time.Now().UnixNano())
-	path := filepath.Join("uploads", name)
-	_ = os.WriteFile(path, buf.Bytes(), 0644)
-	sub := &Submission{AssignmentID: aid, StudentID: getUserID(c), CodePath: path, CodeContent: base64.StdEncoding.EncodeToString(buf.Bytes()), IsTeacherRun: true}
-	// Insert without enrollment requirement by bypassing CreateSubmission if teacher
-	if c.GetString("role") == "teacher" || c.GetString("role") == "admin" {
-		// direct insert
-		_ = DB.QueryRow(`INSERT INTO submissions (assignment_id, student_id, code_path, code_content, is_teacher_run)
-                          VALUES ($1,$2,$3,$4,TRUE) RETURNING id, status, created_at, updated_at`,
-			sub.AssignmentID, sub.StudentID, sub.CodePath, sub.CodeContent).Scan(&sub.ID, &sub.Status, &sub.CreatedAt, &sub.UpdatedAt)
-	} else {
-		_ = CreateSubmission(sub)
-	}
         // Compute and persist overall status and points similar to worker
         allPass := passed == len(tests)
         if !assignment.LLMInteractive {
