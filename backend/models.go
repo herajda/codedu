@@ -65,13 +65,13 @@ type Assignment struct {
 
 // AssignmentDeadlineOverride stores a per-student custom deadline for an assignment
 type AssignmentDeadlineOverride struct {
-    AssignmentID uuid.UUID `db:"assignment_id" json:"assignment_id"`
-    StudentID    uuid.UUID `db:"student_id" json:"student_id"`
-    NewDeadline  time.Time `db:"new_deadline" json:"new_deadline"`
-    Note         *string   `db:"note" json:"note"`
-    CreatedBy    uuid.UUID `db:"created_by" json:"created_by"`
-    CreatedAt    time.Time `db:"created_at" json:"created_at"`
-    UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
+	AssignmentID uuid.UUID `db:"assignment_id" json:"assignment_id"`
+	StudentID    uuid.UUID `db:"student_id" json:"student_id"`
+	NewDeadline  time.Time `db:"new_deadline" json:"new_deadline"`
+	Note         *string   `db:"note" json:"note"`
+	CreatedBy    uuid.UUID `db:"created_by" json:"created_by"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
 }
 type Class struct {
 	ID        uuid.UUID `db:"id"        json:"id"`
@@ -215,12 +215,12 @@ func CreateAssignment(a *Assignment) error {
 
 // ListAssignments returns all assignments.
 func ListAssignments(role string, userID uuid.UUID) ([]Assignment, error) {
-    list := []Assignment{}
-    // Select deadline expression varies by role to reflect per-student overrides
-    deadlineExpr := "a.deadline"
-    joins := ""
-    var args []any
-    query := `
+	list := []Assignment{}
+	// Select deadline expression varies by role to reflect per-student overrides
+	deadlineExpr := "a.deadline"
+	joins := ""
+	var args []any
+	query := `
     SELECT a.id, a.title, a.description, a.created_by, ` + deadlineExpr + ` AS deadline,
            a.max_points, a.grading_policy, a.published, a.show_traceback, a.manual_review, a.template_path,
            a.created_at, a.updated_at, a.class_id,
@@ -234,17 +234,17 @@ func ListAssignments(role string, userID uuid.UUID) ([]Assignment, error) {
            a.second_deadline,
            COALESCE(a.late_penalty_ratio,0.5) AS late_penalty_ratio
       FROM assignments a`
-    switch role {
-    case "teacher":
-        query += ` JOIN classes c ON c.id = a.class_id
+	switch role {
+	case "teacher":
+		query += ` JOIN classes c ON c.id = a.class_id
                 WHERE c.teacher_id = $1`
-        args = append(args, userID)
-    case "student":
-        // Left join per-student override, and coalesce deadline
-        joins = ` LEFT JOIN assignment_deadline_overrides ado
+		args = append(args, userID)
+	case "student":
+		// Left join per-student override, and coalesce deadline
+		joins = ` LEFT JOIN assignment_deadline_overrides ado
                      ON ado.assignment_id = a.id AND ado.student_id = $1`
-        // rebuild query with override-aware deadline
-        query = `
+		// rebuild query with override-aware deadline
+		query = `
     SELECT a.id, a.title, a.description, a.created_by, COALESCE(ado.new_deadline, a.deadline) AS deadline,
            a.max_points, a.grading_policy, a.published, a.show_traceback, a.manual_review, a.template_path,
            a.created_at, a.updated_at, a.class_id,
@@ -259,21 +259,21 @@ func ListAssignments(role string, userID uuid.UUID) ([]Assignment, error) {
            COALESCE(a.late_penalty_ratio,0.5) AS late_penalty_ratio
       FROM assignments a` + joins + ` JOIN class_students cs ON cs.class_id = a.class_id
      WHERE cs.student_id = $1 AND a.published = true`
-        args = append(args, userID)
-    default:
-        // admin gets everything
-    }
-    if role != "student" {
-        query += joins
-    }
-    query += " ORDER BY a.created_at DESC"
-    err := DB.Select(&list, query, args...)
-    return list, err
+		args = append(args, userID)
+	default:
+		// admin gets everything
+	}
+	if role != "student" {
+		query += joins
+	}
+	query += " ORDER BY a.created_at DESC"
+	err := DB.Select(&list, query, args...)
+	return list, err
 }
 
 // UpsertDeadlineOverride creates or updates a per-student deadline override
 func UpsertDeadlineOverride(aid, studentID uuid.UUID, newDeadline time.Time, note *string, createdBy uuid.UUID) error {
-    _, err := DB.Exec(`
+	_, err := DB.Exec(`
         INSERT INTO assignment_deadline_overrides (assignment_id, student_id, new_deadline, note, created_by)
         VALUES ($1,$2,$3,$4,$5)
         ON CONFLICT (assignment_id, student_id) DO UPDATE
@@ -281,51 +281,51 @@ func UpsertDeadlineOverride(aid, studentID uuid.UUID, newDeadline time.Time, not
                note = EXCLUDED.note,
                created_by = EXCLUDED.created_by,
                updated_at = now()`,
-        aid, studentID, newDeadline, note, createdBy,
-    )
-    return err
+		aid, studentID, newDeadline, note, createdBy,
+	)
+	return err
 }
 
 // GetDeadlineOverride returns the override for one student if present
 func GetDeadlineOverride(aid, studentID uuid.UUID) (*AssignmentDeadlineOverride, error) {
-    var o AssignmentDeadlineOverride
-    if err := DB.Get(&o, `SELECT assignment_id, student_id, new_deadline, note, created_by, created_at, updated_at
+	var o AssignmentDeadlineOverride
+	if err := DB.Get(&o, `SELECT assignment_id, student_id, new_deadline, note, created_by, created_at, updated_at
                             FROM assignment_deadline_overrides
                            WHERE assignment_id=$1 AND student_id=$2`, aid, studentID); err != nil {
-        return nil, err
-    }
-    return &o, nil
+		return nil, err
+	}
+	return &o, nil
 }
 
 // ListDeadlineOverridesForAssignment returns overrides with student identity for UI
 type DeadlineOverrideWithStudent struct {
-    AssignmentID uuid.UUID `db:"assignment_id" json:"assignment_id"`
-    StudentID    uuid.UUID `db:"student_id" json:"student_id"`
-    NewDeadline  time.Time `db:"new_deadline" json:"new_deadline"`
-    Note         *string   `db:"note" json:"note"`
-    CreatedBy    uuid.UUID `db:"created_by" json:"created_by"`
-    CreatedAt    time.Time `db:"created_at" json:"created_at"`
-    UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
-    Email        string    `db:"email" json:"email"`
-    Name         *string   `db:"name" json:"name"`
+	AssignmentID uuid.UUID `db:"assignment_id" json:"assignment_id"`
+	StudentID    uuid.UUID `db:"student_id" json:"student_id"`
+	NewDeadline  time.Time `db:"new_deadline" json:"new_deadline"`
+	Note         *string   `db:"note" json:"note"`
+	CreatedBy    uuid.UUID `db:"created_by" json:"created_by"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
+	Email        string    `db:"email" json:"email"`
+	Name         *string   `db:"name" json:"name"`
 }
 
 func ListDeadlineOverridesForAssignment(aid uuid.UUID) ([]DeadlineOverrideWithStudent, error) {
-    list := []DeadlineOverrideWithStudent{}
-    err := DB.Select(&list, `
+	list := []DeadlineOverrideWithStudent{}
+	err := DB.Select(&list, `
         SELECT ado.assignment_id, ado.student_id, ado.new_deadline, ado.note, ado.created_by, ado.created_at, ado.updated_at,
                u.email, u.name
           FROM assignment_deadline_overrides ado
           JOIN users u ON u.id = ado.student_id
          WHERE ado.assignment_id = $1
          ORDER BY ado.new_deadline ASC`, aid)
-    return list, err
+	return list, err
 }
 
 // DeleteDeadlineOverride removes a per-student override
 func DeleteDeadlineOverride(aid, studentID uuid.UUID) error {
-    _, err := DB.Exec(`DELETE FROM assignment_deadline_overrides WHERE assignment_id=$1 AND student_id=$2`, aid, studentID)
-    return err
+	_, err := DB.Exec(`DELETE FROM assignment_deadline_overrides WHERE assignment_id=$1 AND student_id=$2`, aid, studentID)
+	return err
 }
 
 // GetAssignment looks up one assignment by ID.
@@ -863,10 +863,10 @@ func GetClassDetail(id uuid.UUID, role string, userID uuid.UUID) (*ClassDetail, 
 	}
 
 	// 4) Assignments (many) ----------------------------------------------------
-    var asg []Assignment
-    if role == "student" {
-        // For students, reflect personal overrides in the returned deadline
-        query := `
+	var asg []Assignment
+	if role == "student" {
+		// For students, reflect personal overrides in the returned deadline
+		query := `
                 SELECT a.id, a.title, a.description, a.created_by, COALESCE(ado.new_deadline, a.deadline) AS deadline,
                        a.max_points, a.grading_policy, a.published, a.template_path,
                        a.created_at, a.updated_at, a.class_id,
@@ -878,11 +878,11 @@ func GetClassDetail(id uuid.UUID, role string, userID uuid.UUID) (*ClassDetail, 
              LEFT JOIN assignment_deadline_overrides ado ON ado.assignment_id=a.id AND ado.student_id=$2
                  WHERE a.class_id = $1 AND a.published = true
               ORDER BY deadline ASC`
-        if err := DB.Select(&asg, query, id, userID); err != nil {
-            return nil, err
-        }
-    } else {
-        query := `
+		if err := DB.Select(&asg, query, id, userID); err != nil {
+			return nil, err
+		}
+	} else {
+		query := `
                 SELECT id, title, description, created_by, deadline,
                        max_points, grading_policy, published, template_path,
                        created_at, updated_at, class_id,
@@ -893,11 +893,11 @@ func GetClassDetail(id uuid.UUID, role string, userID uuid.UUID) (*ClassDetail, 
                   FROM assignments
                  WHERE class_id = $1
               ORDER BY deadline ASC`
-        if err := DB.Select(&asg, query, id); err != nil {
-            return nil, err
-        }
-    }
-    // end assignments selection
+		if err := DB.Select(&asg, query, id); err != nil {
+			return nil, err
+		}
+	}
+	// end assignments selection
 
 	// 5) Assemble --------------------------------------------------------------
 	return &ClassDetail{
@@ -1097,6 +1097,7 @@ type Result struct {
 	Stderr       string    `db:"stderr" json:"stderr"`
 	ExitCode     int       `db:"exit_code" json:"exit_code"`
 	RuntimeMS    int       `db:"runtime_ms" json:"runtime_ms"`
+	TestNumber   *int      `db:"test_number" json:"test_number,omitempty"`
 	CreatedAt    time.Time `db:"created_at" json:"created_at"`
 }
 
@@ -1169,18 +1170,57 @@ func CreateResult(r *Result) error {
 	err := DB.QueryRow(q, r.SubmissionID, r.TestCaseID, r.Status, r.ActualStdout, r.Stderr, r.ExitCode, r.RuntimeMS).
 		Scan(&r.ID, &r.CreatedAt)
 	if err == nil {
+		if num, nerr := lookupTestNumber(r.TestCaseID); nerr == nil {
+			r.TestNumber = num
+		}
 		broadcast(sse.Event{Event: "result", Data: r})
 	}
 	return err
 }
 
+func lookupTestNumber(tcID uuid.UUID) (*int, error) {
+	var num sql.NullInt64
+	err := DB.Get(&num, `
+        WITH target AS (
+            SELECT assignment_id FROM test_cases WHERE id = $1
+        ),
+        ordered AS (
+            SELECT id, ROW_NUMBER() OVER (ORDER BY id) AS test_number
+              FROM test_cases
+             WHERE assignment_id = (SELECT assignment_id FROM target)
+        )
+        SELECT test_number FROM ordered WHERE id = $1
+    `, tcID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !num.Valid {
+		return nil, nil
+	}
+	v := int(num.Int64)
+	return &v, nil
+}
+
 func ListResultsForSubmission(subID uuid.UUID) ([]Result, error) {
 	list := []Result{}
 	err := DB.Select(&list, `
-        SELECT id, submission_id, test_case_id, status, actual_stdout, stderr, exit_code, runtime_ms, created_at
-          FROM results
-         WHERE submission_id=$1
-         ORDER BY id`, subID)
+        WITH sub AS (
+            SELECT assignment_id FROM submissions WHERE id = $1
+        ),
+        ordered_tests AS (
+            SELECT id, ROW_NUMBER() OVER (ORDER BY id) AS test_number
+              FROM test_cases
+             WHERE assignment_id = (SELECT assignment_id FROM sub)
+        )
+        SELECT r.id, r.submission_id, r.test_case_id, r.status, r.actual_stdout, r.stderr,
+               r.exit_code, r.runtime_ms, r.created_at, ot.test_number
+          FROM results r
+          LEFT JOIN ordered_tests ot ON r.test_case_id = ot.id
+         WHERE r.submission_id=$1
+         ORDER BY COALESCE(ot.test_number, 2147483647), r.id`, subID)
 	return list, err
 }
 

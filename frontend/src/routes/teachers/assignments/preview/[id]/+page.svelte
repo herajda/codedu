@@ -14,6 +14,8 @@ $: id = $page.params.id;
 // Data
 let assignment:any=null;
 let tests:any[]=[];
+let testsCount = 0;
+let subStats: Record<string, {passed:number, total:number}> = {};
 let allSubs:any[]=[];       // all student submissions (teacher view)
 let teacherRuns:any[]=[];   // teacher runs
 let students:any[]=[];      // class roster
@@ -126,8 +128,39 @@ function policyLabel(policy:string){
   return policy;
 }
 
-function toggleStudent(sid:number){
-  expanded = expanded===sid ? null : sid;
+async function toggleStudent(sid:number){
+  const next = expanded===sid ? null : sid;
+  expanded = next;
+  if(next !== null){
+    const entry = progress.find((p:any)=>p.student.id===next);
+    if(entry){
+      await loadSubmissionStats(entry.all);
+    }
+  }
+}
+
+async function loadSubmissionStats(list?: any[], reset=false){
+  try{
+    const source = Array.isArray(list) && list.length ? list : allSubs;
+    if(reset) subStats = {};
+    if(testsCount>0 && Array.isArray(source) && source.length){
+      const targets = reset ? source : source.filter((s:any)=>!subStats[s.id]);
+      if(!targets.length) return;
+      const pairs = await Promise.all(targets.map(async (s:any)=>{
+        try{
+          const subData = await apiJSON(`/api/submissions/${s.id}`);
+          const res = subData.results ?? [];
+          const passed = Array.isArray(res) ? res.filter((r:any)=>r.status==='passed').length : 0;
+          return [s.id, {passed, total: res.length}] as const;
+        }catch{
+          return [s.id, {passed: 0, total: 0}] as const;
+        }
+      }));
+      const nextStats: Record<string, {passed:number, total:number}> = reset ? {} : {...subStats};
+      for(const [sid, st] of pairs){ nextStats[sid] = st; }
+      subStats = nextStats;
+    }
+  }catch{}
 }
 
 async function load(){
@@ -136,6 +169,8 @@ async function load(){
     const data = await apiJSON(`/api/assignments/${id}`);
     assignment = data.assignment;
     tests = data.tests ?? [];
+    testsCount = Array.isArray(tests) ? tests.length : 0;
+    subStats = {};
     allSubs = data.submissions ?? [];
     teacherRuns = data.teacher_runs ?? [];
     try { safeDesc = DOMPurify.sanitize((marked.parse(assignment.description) as string) || ''); } catch { safeDesc=''; }
@@ -256,12 +291,26 @@ onMount(load);
                                   </svg>
                                 {/if}
                               </div>
-                              <div class="timeline-end timeline-box flex items-center m-0">
-                                <span class="mr-2 text-xs opacity-70">Attempt #{s.attempt_number ?? '?'}</span>
-                                <a class="link" href={`/submissions/${s.id}`}>{formatDateTime(s.created_at)}</a>
-                                {#if s.manually_accepted}
-                                  <span class="badge badge-xs badge-outline badge-success ml-2" title="Accepted by teacher">accepted</span>
-                                {/if}
+                              <div class="timeline-end timeline-box m-0 space-y-2">
+                                <div class="flex flex-wrap items-center gap-2">
+                                  <span class="mr-2 text-xs opacity-70">Attempt #{s.attempt_number ?? '?'}</span>
+                                  <a class="link" href={`/submissions/${s.id}`}>{formatDateTime(s.created_at)}</a>
+                                  {#if s.manually_accepted}
+                                    <span class="badge badge-xs badge-outline badge-success" title="Accepted by teacher">accepted</span>
+                                  {/if}
+                                </div>
+                                <div class="flex flex-wrap items-center gap-2 text-xs">
+                                  {#if testsCount>0}
+                                    <span class="badge badge-ghost badge-xs">
+                                      {#if subStats[s.id]}
+                                        {subStats[s.id].passed} / {subStats[s.id].total || testsCount} tests
+                                      {:else}
+                                        - / - tests
+                                      {/if}
+                                    </span>
+                                  {/if}
+                                  <span class="badge badge-outline badge-xs">{(s.override_points ?? s.points ?? 0)} pts</span>
+                                </div>
                               </div>
                               {#if i !== p.all.length - 1}<hr />{/if}
                             </li>

@@ -131,15 +131,36 @@ img { max-width: 100%; height: auto; }
   margin-left: 1.5rem;
   margin-bottom: 0.5rem;
 }
-.markdown pre, .editor-preview pre, .editor-preview-side pre {
-  background: #f5f5f5;
-  padding: 0.5rem;
+.markdown pre,
+.editor-preview pre,
+.editor-preview-side pre {
+  background: #f0f0f0;
+  border: 1px solid hsl(var(--bc) / 0.12);
+  border-radius: 0.75rem;
+  padding: 0.85rem 1rem;
   overflow-x: auto;
+  font-family: "JetBrains Mono", "Fira Code", "Source Code Pro", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  box-shadow: none;
 }
-.markdown code, .editor-preview code, .editor-preview-side code {
-  background: #f5f5f5;
-  padding: 0.2rem 0.4rem;
-  border-radius: 4px;
+.markdown pre code,
+.editor-preview pre code,
+.editor-preview-side pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  display: block;
+}
+.markdown :not(pre) > code,
+.editor-preview :not(pre) > code,
+.editor-preview-side :not(pre) > code {
+  background: #f0f0f0;
+  border: 1px solid hsl(var(--bc) / 0.12);
+  border-radius: 0.5rem;
+  padding: 0.15rem 0.4rem;
+  font-family: "JetBrains Mono", "Fira Code", "Source Code Pro", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.9rem;
 }
 
 /* Hide the top navbar when a markdown editor is in fullscreen */
@@ -150,12 +171,17 @@ body.hide-navbar .navbar {
 /* Theme tweaks for dark mode */
 @media (prefers-color-scheme: dark) {
   .markdown pre,
-  .markdown code,
   .editor-preview pre,
-  .editor-preview code,
-  .editor-preview-side pre,
-  .editor-preview-side code {
-    background: rgba(255,255,255,0.06);
+  .editor-preview-side pre {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow: none;
+  }
+  .markdown :not(pre) > code,
+  .editor-preview :not(pre) > code,
+  .editor-preview-side :not(pre) > code {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.18);
   }
 }
 

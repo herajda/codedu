@@ -181,12 +181,14 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         },0)
         pointsEarned = best
         done = best >= assignment.max_points
-        await loadSubmissionStats()
+        subStats = {}
+        await loadSubmissionStats(submissions, true)
       } else {
         allSubs = data.submissions ?? []
         teacherRuns = data.teacher_runs ?? []
         // for non-students, tests array is present
         try { testsCount = Array.isArray((data as any).tests) ? (data as any).tests.length : 0 } catch { testsCount = 0 }
+        subStats = {}
         const cls = await apiJSON(`/api/classes/${assignment.class_id}`)
         students = cls.students ?? []
         // Fetch current extensions
@@ -206,11 +208,14 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     }catch(e:any){ err=e.message }
   }
 
-  async function loadSubmissionStats(){
-    subStats = {}
+  async function loadSubmissionStats(list?: any[], reset=false){
     try{
-      if(testsCount>0 && Array.isArray(submissions) && submissions.length){
-        const pairs = await Promise.all(submissions.map(async (s:any)=>{
+      const source = Array.isArray(list) && list.length ? list : submissions
+      if(reset) subStats = {}
+      if(testsCount>0 && Array.isArray(source) && source.length){
+        const targets = reset ? source : source.filter((s:any)=>!subStats[s.id])
+        if(!targets.length) return
+        const pairs = await Promise.all(targets.map(async (s:any)=>{
           try{
             const subData = await apiJSON(`/api/submissions/${s.id}`)
             const res = subData.results ?? []
@@ -220,9 +225,9 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             return [s.id, {passed: 0, total: 0}] as const
           }
         }))
-        const map: Record<string, {passed:number, total:number}> = {}
-        for(const [sid, st] of pairs){ map[sid]=st }
-        subStats = map
+        const next: Record<string, {passed:number, total:number}> = reset ? {} : {...subStats}
+        for(const [sid, st] of pairs){ next[sid]=st }
+        subStats = next
       }
     }catch{}
   }
@@ -414,9 +419,16 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     sessionStorage.setItem(`assign-${id}-scroll`, String(window.scrollY))
   }
 
-  function toggleStudent(id:number){
-    expanded = expanded===id ? null : id
+  async function toggleStudent(id:number){
+    const next = expanded===id ? null : id
+    expanded = next
     saveState()
+    if(next!==null){
+      const entry = progress.find((p:any)=>p.student.id===next)
+      if(entry){
+        await loadSubmissionStats(entry.all)
+      }
+    }
   }
 
   function statusColor(s:string){
@@ -1097,19 +1109,33 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                                         </svg>
                                       {/if}
                                     </div>
-                                    <div class="timeline-end timeline-box flex items-center m-0">
-                                      <span class="mr-2 text-xs opacity-70">Attempt #{s.attempt_number ?? '?'}</span>
-                                      <a class="link" href={`/submissions/${s.id}?fromTab=${activeTab}`} on:click={saveState}>{formatDateTime(s.created_at)}</a>
-                                      {#if s.created_at > assignment.deadline}
-                                        {#if assignment.second_deadline && s.created_at <= assignment.second_deadline}
-                                          <span class="badge badge-xs badge-warning ml-2" title="Second deadline submission">2nd ({Math.round(assignment.late_penalty_ratio * 100)}%)</span>
-                                        {:else}
-                                          <span class="badge badge-xs badge-error ml-2" title="Late submission">Late</span>
+                                    <div class="timeline-end timeline-box m-0 space-y-2">
+                                      <div class="flex flex-wrap items-center gap-2">
+                                        <span class="mr-2 text-xs opacity-70">Attempt #{s.attempt_number ?? '?'}</span>
+                                        <a class="link" href={`/submissions/${s.id}?fromTab=${activeTab}`} on:click={saveState}>{formatDateTime(s.created_at)}</a>
+                                        {#if s.created_at > assignment.deadline}
+                                          {#if assignment.second_deadline && s.created_at <= assignment.second_deadline}
+                                            <span class="badge badge-xs badge-warning" title="Second deadline submission">2nd ({Math.round(assignment.late_penalty_ratio * 100)}%)</span>
+                                          {:else}
+                                            <span class="badge badge-xs badge-error" title="Late submission">Late</span>
+                                          {/if}
                                         {/if}
-                                      {/if}
-                                      {#if s.manually_accepted}
-                                        <span class="badge badge-xs badge-outline badge-success ml-2" title="Accepted by teacher">accepted</span>
-                                      {/if}
+                                        {#if s.manually_accepted}
+                                          <span class="badge badge-xs badge-outline badge-success" title="Accepted by teacher">accepted</span>
+                                        {/if}
+                                      </div>
+                                      <div class="flex flex-wrap items-center gap-2 text-xs">
+                                        {#if testsCount>0}
+                                          <span class="badge badge-ghost badge-xs">
+                                            {#if subStats[s.id]}
+                                              {subStats[s.id].passed} / {subStats[s.id].total || testsCount} tests
+                                            {:else}
+                                              - / - tests
+                                            {/if}
+                                          </span>
+                                        {/if}
+                                        <span class="badge badge-outline badge-xs">{(s.override_points ?? s.points ?? 0)} pts</span>
+                                      </div>
                                     </div>
                                     {#if i !== p.all.length - 1}<hr />{/if}
                                   </li>
@@ -1318,5 +1344,4 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
 {/if}
 
 <style>
-pre{display:inline;margin:0 0.5rem;padding:0.2rem;background:#eee}
 </style>
