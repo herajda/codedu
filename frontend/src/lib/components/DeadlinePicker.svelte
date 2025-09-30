@@ -24,6 +24,7 @@
   let hour = selected.getHours();
   let minute = selected.getMinutes();
   let manual = '';
+  let hasSelected = false;
 
   const dowShort = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -39,7 +40,8 @@
   // Public API
   export async function open(options: DeadlinePickerOptions = {}): Promise<string | null> {
     title = options.title ?? 'Select deadline';
-    const init = ensureDate(options.initial) ?? new Date();
+    const initDate = ensureDate(options.initial);
+    const init = initDate ?? new Date();
     minDate = ensureDate(options.min) ?? null;
     selected = new Date(init);
     hour = clamp0_23(selected.getHours());
@@ -47,6 +49,7 @@
     viewYear = selected.getFullYear();
     viewMonth = selected.getMonth();
     shortcuts = options.shortcuts && options.shortcuts.length ? options.shortcuts : defaultShortcuts;
+    hasSelected = !!initDate;
 
     syncManual();
     await tick();
@@ -123,6 +126,7 @@
       selected = new Date(md);
       viewYear = selected.getFullYear();
       viewMonth = selected.getMonth();
+      hasSelected = true;
       // keep open and just update UI
       return;
     }
@@ -147,6 +151,7 @@
     minute = d.getMinutes();
     viewYear = d.getFullYear();
     viewMonth = d.getMonth();
+    hasSelected = true;
     syncManual();
   }
 
@@ -193,35 +198,36 @@
     // If user clicked a day from adjacent month, jump view to that month
     viewYear = selected.getFullYear();
     viewMonth = selected.getMonth();
+    hasSelected = true;
     syncManual();
   }
 
   function dayButtonClass(c: { inMonth: boolean; disabled: boolean; today: boolean; selected: boolean }): string {
-  const classes = ['btn', 'btn-sm', 'h-9'];
+    const classes = ['btn', 'btn-sm', 'h-9'];
 
-  if (c.disabled) {
-    classes.push('btn-disabled', 'opacity-40');
-  } else {
-    classes.push('btn-ghost');
-  }
+    if (c.disabled) {
+      classes.push('btn-disabled', 'opacity-40');
+    } else {
+      classes.push('btn-ghost');
+    }
 
-  // Fade out days from adjacent months (unless selected)
-  if (!c.inMonth && !c.selected) {
-    classes.push('opacity-50');
-  }
+    // Fade out days from adjacent months (unless selected)
+    if (!c.inMonth && !c.selected) {
+      classes.push('opacity-50');
+    }
 
-  // Selected date = BLUE (use DaisyUI primary so it overrides correctly)
-  if (c.selected) {
-    const ghostIdx = classes.indexOf('btn-ghost');
-    if (ghostIdx !== -1) classes.splice(ghostIdx, 1);
-    classes.push('btn-primary'); // <-- key change
-  }
-  // Today (when not selected) = grey-ish chip
-  else if (c.today) {
-    classes.push('bg-base-200', 'text-base-content/60', 'ring-1', 'ring-base-300');
-  }
+    // Selected date = BLUE (use DaisyUI primary so it overrides correctly)
+    if (c.selected && hasSelected) {
+      const ghostIdx = classes.indexOf('btn-ghost');
+      if (ghostIdx !== -1) classes.splice(ghostIdx, 1);
+      classes.push('btn-primary'); // <-- key change
+    }
+    // Today (when not selected) = grey-ish chip
+    else if (c.today && c.inMonth) {
+      classes.push('bg-base-200', 'text-base-content/60', 'ring-1', 'ring-base-300');
+    }
 
-  return classes.join(' ');
+    return classes.join(' ');
   }
 
   function onHourInput(e: Event) {
@@ -250,6 +256,7 @@
       minute = clamp0_59(min);
       viewYear = d.getFullYear();
       viewMonth = d.getMonth();
+      hasSelected = true;
     }
   }
 </script>
@@ -328,8 +335,8 @@
             {#each shortcuts as s}
               <button type="button" class="btn btn-ghost btn-sm" on:click={() => applyShortcut(s)}>{s.label}</button>
             {/each}
-            <button type="button" class="btn btn-ghost btn-sm" on:click={() => { const d=new Date(); selected=d; hour=d.getHours(); minute=d.getMinutes(); viewYear=d.getFullYear(); viewMonth=d.getMonth(); syncManual(); }}>Now</button>
-            <button type="button" class="btn btn-ghost btn-sm" on:click={() => { const d=new Date(); d.setHours(23,59,0,0); selected=d; hour=23; minute=59; viewYear=d.getFullYear(); viewMonth=d.getMonth(); syncManual(); }}>Today 23:59</button>
+            <button type="button" class="btn btn-ghost btn-sm" on:click={() => { const d=new Date(); selected=d; hour=d.getHours(); minute=d.getMinutes(); viewYear=d.getFullYear(); viewMonth=d.getMonth(); hasSelected = true; syncManual(); }}>Now</button>
+            <button type="button" class="btn btn-ghost btn-sm" on:click={() => { const d=new Date(); d.setHours(23,59,0,0); selected=d; hour=23; minute=59; viewYear=d.getFullYear(); viewMonth=d.getMonth(); hasSelected = true; syncManual(); }}>Today 23:59</button>
           </div>
         </div>
 
