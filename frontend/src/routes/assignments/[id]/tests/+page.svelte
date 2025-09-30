@@ -664,6 +664,7 @@
           max_points: assignment.max_points,
           grading_policy: assignment.grading_policy,
           show_traceback: assignment.show_traceback,
+          show_test_details: !!assignment.show_test_details,
           manual_review: assignment.manual_review,
           llm_interactive: assignment.llm_interactive,
           // llm fields

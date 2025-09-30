@@ -13,6 +13,16 @@ export function leadingIndent(line: string): string {
   return match ? match[0] : ''
 }
 
+export function stripUnittestMainBlock(src: string): string {
+  const lines = String(src ?? '').split('\n')
+  const guardIndex = lines.findIndex((line) => line.trim().match(/^if\s+__name__\s*==\s*['\"]__main__['\"]\s*:/))
+  const slice = guardIndex >= 0 ? lines.slice(0, guardIndex) : lines.slice()
+  while (slice.length && slice[slice.length - 1].trim() === '') {
+    slice.pop()
+  }
+  return slice.join('\n')
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
@@ -72,7 +82,7 @@ export function extractMethodFromUnittest(src: string, qn: string): string {
       }
     }
 
-    return lines.slice(start, end).join('\n')
+    return stripUnittestMainBlock(lines.slice(start, end).join('\n'))
   } catch (e) {
     return ''
   }

@@ -468,6 +468,7 @@ onMount(() => {
               <li><b>Grading:</b> {preview.assignment.grading_policy}</li>
               <li><b>Manual review:</b> {preview.assignment.manual_review ? 'Yes' : 'No'}</li>
               <li><b>Show traceback:</b> {preview.assignment.show_traceback ? 'Yes' : 'No'}</li>
+              <li><b>Reveal test definitions:</b> {preview.assignment.show_test_details ? 'Yes' : 'No'}</li>
               <li><b>LLM interactive:</b> {preview.assignment.llm_interactive ? 'Yes' : 'No'}</li>
               <li><b>LLM feedback:</b> {preview.assignment.llm_feedback ? 'Yes' : 'No'}</li>
               <li><b>LLM auto‑award:</b> {preview.assignment.llm_auto_award ? 'Yes' : 'No'}</li>

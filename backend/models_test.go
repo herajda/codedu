@@ -58,11 +58,11 @@ func TestListAssignmentsForStudent(t *testing.T) {
 	creatorID := uuid.New()
 	assignmentID := uuid.New()
 	classID := uuid.New()
-	rows := sqlmock.NewRows([]string{"id", "title", "description", "created_by", "deadline", "max_points", "grading_policy", "published", "show_traceback", "template_path", "created_at", "updated_at", "class_id"}).
-		AddRow(assignmentID.String(), "A", "desc", creatorID.String(), now, 100, "all_or_nothing", true, false, nil, now, now, classID.String())
+        rows := sqlmock.NewRows([]string{"id", "title", "description", "created_by", "deadline", "max_points", "grading_policy", "published", "show_traceback", "show_test_details", "template_path", "created_at", "updated_at", "class_id"}).
+                AddRow(assignmentID.String(), "A", "desc", creatorID.String(), now, 100, "all_or_nothing", true, false, false, nil, now, now, classID.String())
 
 	// Relaxed regex: accept any selected columns as our query may include additional fields
-	q := `SELECT\s+.*\s+FROM assignments a JOIN class_students cs ON cs.class_id = a.class_id\s+WHERE cs.student_id = \$1 AND a.published = true ORDER BY a.created_at DESC`
+        q := `(?s)SELECT.+FROM assignments a.+JOIN class_students cs ON cs.class_id = a.class_id\s+WHERE cs.student_id = \$1 AND a.published = true ORDER BY a\.created_at DESC`
 	mock.ExpectQuery(q).WithArgs(studentID).WillReturnRows(rows)
 
 	list, err := ListAssignments("student", studentID)
@@ -95,8 +95,8 @@ func TestListAssignmentsForTeacher(t *testing.T) {
 	creatorID := uuid.New()
 	assignmentID := uuid.New()
 	classID := uuid.New()
-	rows := sqlmock.NewRows([]string{"id", "title", "description", "created_by", "deadline", "max_points", "grading_policy", "published", "show_traceback", "template_path", "created_at", "updated_at", "class_id"}).
-		AddRow(assignmentID.String(), "B", "desc", creatorID.String(), now, 100, "all_or_nothing", false, false, nil, now, now, classID.String())
+        rows := sqlmock.NewRows([]string{"id", "title", "description", "created_by", "deadline", "max_points", "grading_policy", "published", "show_traceback", "show_test_details", "template_path", "created_at", "updated_at", "class_id"}).
+                AddRow(assignmentID.String(), "B", "desc", creatorID.String(), now, 100, "all_or_nothing", false, false, false, nil, now, now, classID.String())
 
 	q := `SELECT\s+.*\s+FROM assignments a JOIN classes c ON c.id = a.class_id\s+WHERE c.teacher_id = \$1 ORDER BY a.created_at DESC`
 	mock.ExpectQuery(q).WithArgs(teacherID).WillReturnRows(rows)

@@ -107,7 +107,7 @@
       const created = await apiJSON(`/api/classes/${id}/assignments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'Untitled assignment', description: '', show_traceback: false })
+        body: JSON.stringify({ title: 'Untitled assignment', description: '', show_traceback: false, show_test_details: false })
       });
       goto(`/assignments/${created.id}?new=1`);
     } catch (e: any) {

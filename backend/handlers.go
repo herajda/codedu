@@ -190,10 +190,11 @@ func createAssignment(c *gin.Context) {
 	}
 
 	var req struct {
-		Title         string `json:"title" binding:"required"`
-		Description   string `json:"description"`
-		ShowTraceback bool   `json:"show_traceback"`
-		ManualReview  bool   `json:"manual_review"`
+		Title           string `json:"title" binding:"required"`
+		Description     string `json:"description"`
+		ShowTraceback   bool   `json:"show_traceback"`
+		ShowTestDetails bool   `json:"show_test_details"`
+		ManualReview    bool   `json:"manual_review"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -209,6 +210,7 @@ func createAssignment(c *gin.Context) {
 		GradingPolicy:    "all_or_nothing",
 		Published:        false,
 		ShowTraceback:    req.ShowTraceback,
+		ShowTestDetails:  req.ShowTestDetails,
 		ManualReview:     req.ManualReview,
 		CreatedBy:        getUserID(c),
 		SecondDeadline:   nil,
@@ -243,25 +245,25 @@ func getAssignment(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-    role := c.GetString("role")
-    if role == "student" {
-        if ok, err := IsStudentOfAssignment(id, getUserID(c)); err != nil || !ok {
-            c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-            return
-        }
-        if !a.Published {
-            c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
-            return
-        }
-        // If a per-student override exists, surface it as the effective deadline
-        if o, err := GetDeadlineOverride(id, getUserID(c)); err == nil && o != nil {
-            a.Deadline = o.NewDeadline
-        }
-        subs, _ := ListSubmissionsForAssignmentAndStudent(id, getUserID(c))
-        tests, _ := ListTestCases(id)
-        c.JSON(http.StatusOK, gin.H{"assignment": a, "submissions": subs, "tests_count": len(tests)})
-        return
-    } else if role == "teacher" {
+	role := c.GetString("role")
+	if role == "student" {
+		if ok, err := IsStudentOfAssignment(id, getUserID(c)); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+		if !a.Published {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
+		// If a per-student override exists, surface it as the effective deadline
+		if o, err := GetDeadlineOverride(id, getUserID(c)); err == nil && o != nil {
+			a.Deadline = o.NewDeadline
+		}
+		subs, _ := ListSubmissionsForAssignmentAndStudent(id, getUserID(c))
+		tests, _ := ListTestCases(id)
+		c.JSON(http.StatusOK, gin.H{"assignment": a, "submissions": subs, "tests_count": len(tests)})
+		return
+	} else if role == "teacher" {
 		if ok, err := IsTeacherOfAssignment(id, getUserID(c)); err != nil || !ok {
 			// Allow preview if the assignment is shared in Teachers' group
 			var x int
@@ -323,6 +325,7 @@ func updateAssignment(c *gin.Context) {
 		MaxPoints          int      `json:"max_points" binding:"required"`
 		GradingPolicy      string   `json:"grading_policy" binding:"required"`
 		ShowTraceback      bool     `json:"show_traceback"`
+		ShowTestDetails    bool     `json:"show_test_details"`
 		ManualReview       bool     `json:"manual_review"`
 		LLMInteractive     bool     `json:"llm_interactive"`
 		LLMFeedback        bool     `json:"llm_feedback"`
@@ -352,6 +355,7 @@ func updateAssignment(c *gin.Context) {
 		MaxPoints:       req.MaxPoints,
 		GradingPolicy:   req.GradingPolicy,
 		ShowTraceback:   req.ShowTraceback,
+		ShowTestDetails: req.ShowTestDetails,
 		ManualReview:    req.ManualReview,
 		LLMInteractive:  req.LLMInteractive,
 		LLMFeedback:     req.LLMFeedback,
@@ -732,92 +736,92 @@ func getTemplate(c *gin.Context) {
 
 // listAssignmentExtensions: GET /api/assignments/:id/extensions
 func listAssignmentExtensions(c *gin.Context) {
-    aid, err := uuid.Parse(c.Param("id"))
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-        return
-    }
-    // Only the owning teacher/admin may view
-    if c.GetString("role") == "teacher" {
-        if ok, err := IsTeacherOfAssignment(aid, getUserID(c)); err != nil || !ok {
-            c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-            return
-        }
-    }
-    list, err := ListDeadlineOverridesForAssignment(aid)
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-        return
-    }
-    c.JSON(http.StatusOK, list)
+	aid, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	// Only the owning teacher/admin may view
+	if c.GetString("role") == "teacher" {
+		if ok, err := IsTeacherOfAssignment(aid, getUserID(c)); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	list, err := ListDeadlineOverridesForAssignment(aid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, list)
 }
 
 // upsertAssignmentExtension: PUT /api/assignments/:id/extensions/:student_id
 func upsertAssignmentExtension(c *gin.Context) {
-    aid, err := uuid.Parse(c.Param("id"))
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-        return
-    }
-    sid, err := uuid.Parse(c.Param("student_id"))
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student id"})
-        return
-    }
-    if c.GetString("role") == "teacher" {
-        if ok, err := IsTeacherOfAssignment(aid, getUserID(c)); err != nil || !ok {
-            c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-            return
-        }
-    }
-    // Ensure student is enrolled in assignment's class
-    if ok, err := IsStudentOfAssignment(aid, sid); err != nil || !ok {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "student not in class"})
-        return
-    }
-    var req struct {
-        NewDeadline string  `json:"new_deadline" binding:"required"`
-        Note        *string `json:"note"`
-    }
-    if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
-    dl, err := time.Parse(time.RFC3339Nano, req.NewDeadline)
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid deadline"})
-        return
-    }
-    if err := UpsertDeadlineOverride(aid, sid, dl, req.Note, getUserID(c)); err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-        return
-    }
-    c.Status(http.StatusNoContent)
+	aid, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	sid, err := uuid.Parse(c.Param("student_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student id"})
+		return
+	}
+	if c.GetString("role") == "teacher" {
+		if ok, err := IsTeacherOfAssignment(aid, getUserID(c)); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	// Ensure student is enrolled in assignment's class
+	if ok, err := IsStudentOfAssignment(aid, sid); err != nil || !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "student not in class"})
+		return
+	}
+	var req struct {
+		NewDeadline string  `json:"new_deadline" binding:"required"`
+		Note        *string `json:"note"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	dl, err := time.Parse(time.RFC3339Nano, req.NewDeadline)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid deadline"})
+		return
+	}
+	if err := UpsertDeadlineOverride(aid, sid, dl, req.Note, getUserID(c)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // deleteAssignmentExtension: DELETE /api/assignments/:id/extensions/:student_id
 func deleteAssignmentExtension(c *gin.Context) {
-    aid, err := uuid.Parse(c.Param("id"))
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-        return
-    }
-    sid, err := uuid.Parse(c.Param("student_id"))
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student id"})
-        return
-    }
-    if c.GetString("role") == "teacher" {
-        if ok, err := IsTeacherOfAssignment(aid, getUserID(c)); err != nil || !ok {
-            c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-            return
-        }
-    }
-    if err := DeleteDeadlineOverride(aid, sid); err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-        return
-    }
-    c.Status(http.StatusNoContent)
+	aid, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	sid, err := uuid.Parse(c.Param("student_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student id"})
+		return
+	}
+	if c.GetString("role") == "teacher" {
+		if ok, err := IsTeacherOfAssignment(aid, getUserID(c)); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	if err := DeleteDeadlineOverride(aid, sid); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // createTestCase: POST /api/assignments/:id/tests
@@ -1152,17 +1156,17 @@ func runTeacherSolution(c *gin.Context) {
 	})
 	_ = ensureSandboxPerms(tmpDir)
 
-        tests, err := ListTestCases(aid)
-        if err != nil {
-                c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-                return
-        }
+	tests, err := ListTestCases(aid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
 
-        assignment, err := GetAssignment(aid)
-        if err != nil {
-                c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-                return
-        }
+	assignment, err := GetAssignment(aid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
 
 	// Execute all tests and gather results without persisting
 	results := make([]map[string]any, 0, len(tests))
@@ -1260,43 +1264,43 @@ func runTeacherSolution(c *gin.Context) {
 		_ = CreateResult(r)
 	}
 
-        // Compute and persist overall status and points similar to worker
-        allPass := passed == len(tests)
-        if !assignment.LLMInteractive {
-                score := 0.0
-                switch assignment.GradingPolicy {
-                case "all_or_nothing":
-                        if allPass {
-                                score = float64(assignment.MaxPoints)
-                        }
-                case "weighted":
-                        // normalize to MaxPoints
-                        if totalWeight > 0 {
-                                score = earnedWeight * (float64(assignment.MaxPoints) / totalWeight)
-                        }
-                }
+	// Compute and persist overall status and points similar to worker
+	allPass := passed == len(tests)
+	if !assignment.LLMInteractive {
+		score := 0.0
+		switch assignment.GradingPolicy {
+		case "all_or_nothing":
+			if allPass {
+				score = float64(assignment.MaxPoints)
+			}
+		case "weighted":
+			// normalize to MaxPoints
+			if totalWeight > 0 {
+				score = earnedWeight * (float64(assignment.MaxPoints) / totalWeight)
+			}
+		}
 
-                // Handle late submission logic with second deadline
-                if sub.CreatedAt.After(assignment.Deadline) {
-                        _ = SetSubmissionLate(sub.ID, true)
+		// Handle late submission logic with second deadline
+		if sub.CreatedAt.After(assignment.Deadline) {
+			_ = SetSubmissionLate(sub.ID, true)
 
-                        // Check if there's a second deadline and submission is within it
-                        if assignment.SecondDeadline != nil && sub.CreatedAt.Before(*assignment.SecondDeadline) {
-                                // Apply penalty ratio for second deadline submissions
-                                score = score * assignment.LatePenaltyRatio
-                        } else {
-                                // No second deadline or submission is after second deadline - no points
-                                score = 0.0
-                        }
-                }
+			// Check if there's a second deadline and submission is within it
+			if assignment.SecondDeadline != nil && sub.CreatedAt.Before(*assignment.SecondDeadline) {
+				// Apply penalty ratio for second deadline submissions
+				score = score * assignment.LatePenaltyRatio
+			} else {
+				// No second deadline or submission is after second deadline - no points
+				score = 0.0
+			}
+		}
 
-                _ = SetSubmissionPoints(sub.ID, score)
-                if allPass {
-                        _ = UpdateSubmissionStatus(sub.ID, "completed")
-                } else {
-                        _ = UpdateSubmissionStatus(sub.ID, "failed")
-                }
-        }
+		_ = SetSubmissionPoints(sub.ID, score)
+		if allPass {
+			_ = UpdateSubmissionStatus(sub.ID, "completed")
+		} else {
+			_ = UpdateSubmissionStatus(sub.ID, "failed")
+		}
+	}
 
 	// Save teacher baseline (plan+results) on assignment so student runs can use it as standard
 	baseline := map[string]any{
@@ -1304,29 +1308,29 @@ func runTeacherSolution(c *gin.Context) {
 		"summary":    map[string]any{"total": len(tests), "passed": passed},
 		"created_at": time.Now().Format(time.RFC3339Nano),
 	}
-        if b, e := json.Marshal(baseline); e == nil {
-                s := string(b)
-                assignment.LLMTeacherBaseline = &s
-                _ = UpdateAssignment(assignment)
-        }
+	if b, e := json.Marshal(baseline); e == nil {
+		s := string(b)
+		assignment.LLMTeacherBaseline = &s
+		_ = UpdateAssignment(assignment)
+	}
 
-        resp := gin.H{
-                "submission_id": sub.ID,
-                "total":         len(tests),
-                "passed":        passed,
-                "failed":        len(tests) - passed,
-                "results":       results,
-        }
+	resp := gin.H{
+		"submission_id": sub.ID,
+		"total":         len(tests),
+		"passed":        passed,
+		"failed":        len(tests) - passed,
+		"results":       results,
+	}
 
-        if assignment.LLMInteractive {
-                UpdateSubmissionStatus(sub.ID, "running")
-                runLLMInteractive(sub, assignment)
-                if llm, err := GetLatestLLMRun(sub.ID); err == nil && llm != nil {
-                        resp["llm"] = llm
-                }
-        }
+	if assignment.LLMInteractive {
+		UpdateSubmissionStatus(sub.ID, "running")
+		runLLMInteractive(sub, assignment)
+		if llm, err := GetLatestLLMRun(sub.ID); err == nil && llm != nil {
+			resp["llm"] = llm
+		}
+	}
 
-        c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, resp)
 }
 
 // getSubmission: GET /api/submissions/:id
@@ -1346,11 +1350,22 @@ func getSubmission(c *gin.Context) {
 		return
 	}
 	results, _ := ListResultsForSubmission(sid)
-	if c.GetString("role") == "student" {
-		if a, err := GetAssignmentForSubmission(sub.ID); err == nil && !a.ShowTraceback {
+	assignment, _ := GetAssignmentForSubmission(sub.ID)
+	role := c.GetString("role")
+	if role == "student" {
+		if assignment != nil && !assignment.ShowTraceback {
 			for i := range results {
 				results[i].Stderr = ""
 			}
+		}
+	}
+	allowTestDetails := assignment != nil && assignment.ShowTestDetails && role != "student"
+	if !allowTestDetails {
+		for i := range results {
+			results[i].Stdin = nil
+			results[i].ExpectedStdout = nil
+			results[i].UnittestCode = nil
+			results[i].UnittestName = nil
 		}
 	}
 	resp := gin.H{"submission": sub, "results": results}

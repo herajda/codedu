@@ -8,7 +8,7 @@
   import { formatDateTime } from '$lib/date'
   import { goto } from '$app/navigation'
   import { auth } from '$lib/auth'
-  import { extractMethodFromUnittest } from '$lib/unittests'
+  import { extractMethodFromUnittest, stripUnittestMainBlock } from '$lib/unittests'
 
 $: id = $page.params.id
 
@@ -26,6 +26,7 @@ $: id = $page.params.id
   let assignmentTestsCount: number = 0
   let assignmentLLMInteractive: boolean = false
   let assignmentLLMFeedback: boolean = false
+  let assignmentShowTestDetails = false
   let sid: number = 0
   let role = ''
   $: role = $auth?.role ?? ''
@@ -114,6 +115,7 @@ $: id = $page.params.id
           assignmentManual = !!ad.assignment?.manual_review
           assignmentLLMInteractive = !!ad.assignment?.llm_interactive
           assignmentLLMFeedback = !!ad.assignment?.llm_feedback
+          assignmentShowTestDetails = !!ad.assignment?.show_test_details
           // Prefer aggregate tests_count when present (student view), fallback to tests array (teacher/admin)
           try {
             assignmentTestsCount = typeof ad.tests_count === 'number'
@@ -175,6 +177,7 @@ $: id = $page.params.id
   $: showLLM = assignmentLLMInteractive
   // Allow detailed LLM artifacts for students only if teacher enabled feedback
   $: allowLLMDetails = (role !== 'student') || assignmentLLMFeedback
+  $: allowTestDetails = role !== 'student' && assignmentShowTestDetails
   // Show Auto-tests only when NOT LLM mode and there are tests configured
   $: showAutoUI = (!assignmentLLMInteractive) && (assignmentTestsCount > 0)
   // Keep legacy meaning of hideAutoUI: specifically, when no auto tests exist
@@ -203,9 +206,10 @@ $: id = $page.params.id
 
   function viewableUnitTestSnippet(code: string | null | undefined, name: string | null | undefined): string {
     if (code == null) return ''
-    if (!name) return String(code)
+    const sanitized = stripUnittestMainBlock(String(code))
+    if (!name) return sanitized
     const snippet = extractMethodFromUnittest(String(code), String(name))
-    return snippet.trim().length ? snippet : String(code)
+    return snippet.trim().length ? snippet : sanitized
   }
 
   // Parsed review JSON (typed in backend as Review)
@@ -452,9 +456,9 @@ $: id = $page.params.id
                         <span class="rounded-full bg-base-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-base-content/70">
                           Test {r.test_number ?? i + 1}
                         </span>
-                        {#if r.unittest_name}
+                        {#if allowTestDetails && r.unittest_name}
                           <span class="badge badge-outline badge-primary text-xs font-semibold tracking-wide uppercase">{r.unittest_name}</span>
-                        {:else if typeof r.stdin !== 'undefined' || typeof r.expected_stdout !== 'undefined'}
+                        {:else if allowTestDetails && (typeof r.stdin !== 'undefined' || typeof r.expected_stdout !== 'undefined')}
                           <span class="badge badge-outline text-xs font-semibold tracking-wide uppercase">I/O test</span>
                         {/if}
                       </div>
@@ -487,40 +491,48 @@ $: id = $page.params.id
                         </svg>
                         Test definition
                       </header>
-                      {#if r.unittest_code}
-                        {#if r.unittest_name}
-                          <div class="badge badge-outline badge-primary mb-3">{r.unittest_name}</div>
+                      {#if allowTestDetails}
+                        {#if r.unittest_code}
+                          {#if r.unittest_name}
+                            <div class="badge badge-outline badge-primary mb-3">{r.unittest_name}</div>
+                          {/if}
+                          <pre class="max-h-80 overflow-auto rounded-xl bg-base-200/80 p-4 text-sm leading-relaxed"><code class="font-mono whitespace-pre-wrap">{viewableUnitTestSnippet(r.unittest_code, r.unittest_name)}</code></pre>
+                        {:else if typeof r.stdin !== 'undefined' || typeof r.expected_stdout !== 'undefined'}
+                          <div class="grid gap-3 md:grid-cols-2">
+                            <div class="rounded-xl border border-base-300/60 bg-base-200/70 p-3">
+                              <div class="text-xs font-semibold uppercase tracking-wide text-base-content/70">Input</div>
+                              {#if typeof r.stdin !== 'undefined'}
+                                {#if r.stdin?.length}
+                                  <pre class="mt-2 whitespace-pre-wrap font-mono text-sm leading-relaxed">{r.stdin}</pre>
+                                {:else}
+                                  <div class="mt-2 text-sm italic opacity-60">Empty input</div>
+                                {/if}
+                              {:else}
+                                <div class="mt-2 text-sm italic opacity-60">Not provided</div>
+                              {/if}
+                            </div>
+                            <div class="rounded-xl border border-base-300/60 bg-base-200/70 p-3">
+                              <div class="text-xs font-semibold uppercase tracking-wide text-base-content/70">Expected output</div>
+                              {#if typeof r.expected_stdout !== 'undefined'}
+                                {#if r.expected_stdout?.length}
+                                  <pre class="mt-2 whitespace-pre-wrap font-mono text-sm leading-relaxed">{r.expected_stdout}</pre>
+                                {:else}
+                                  <div class="mt-2 text-sm italic opacity-60">Empty output</div>
+                                {/if}
+                              {:else}
+                                <div class="mt-2 text-sm italic opacity-60">Not provided</div>
+                              {/if}
+                            </div>
+                          </div>
+                        {:else}
+                          <div class="text-sm opacity-70">No metadata available for this test.</div>
                         {/if}
-                        <pre class="max-h-80 overflow-auto rounded-xl bg-base-200/80 p-4 text-sm leading-relaxed"><code class="font-mono whitespace-pre-wrap">{viewableUnitTestSnippet(r.unittest_code, r.unittest_name)}</code></pre>
-                      {:else if typeof r.stdin !== 'undefined' || typeof r.expected_stdout !== 'undefined'}
-                        <div class="grid gap-3 md:grid-cols-2">
-                          <div class="rounded-xl border border-base-300/60 bg-base-200/70 p-3">
-                            <div class="text-xs font-semibold uppercase tracking-wide text-base-content/70">Input</div>
-                            {#if typeof r.stdin !== 'undefined'}
-                              {#if r.stdin?.length}
-                                <pre class="mt-2 whitespace-pre-wrap font-mono text-sm leading-relaxed">{r.stdin}</pre>
-                              {:else}
-                                <div class="mt-2 text-sm italic opacity-60">Empty input</div>
-                              {/if}
-                            {:else}
-                              <div class="mt-2 text-sm italic opacity-60">Not provided</div>
-                            {/if}
-                          </div>
-                          <div class="rounded-xl border border-base-300/60 bg-base-200/70 p-3">
-                            <div class="text-xs font-semibold uppercase tracking-wide text-base-content/70">Expected output</div>
-                            {#if typeof r.expected_stdout !== 'undefined'}
-                              {#if r.expected_stdout?.length}
-                                <pre class="mt-2 whitespace-pre-wrap font-mono text-sm leading-relaxed">{r.expected_stdout}</pre>
-                              {:else}
-                                <div class="mt-2 text-sm italic opacity-60">Empty output</div>
-                              {/if}
-                            {:else}
-                              <div class="mt-2 text-sm italic opacity-60">Not provided</div>
-                            {/if}
-                          </div>
-                        </div>
                       {:else}
-                        <div class="text-sm opacity-70">No metadata available for this test.</div>
+                        <div class="text-sm italic opacity-60">
+                          {role === 'student'
+                            ? 'Test details are hidden for students on this assignment.'
+                            : 'Enable “Reveal test definitions in teacher review” in assignment settings to view detailed inputs and unit tests.'}
+                        </div>
                       {/if}
                     </section>
                     <section class="rounded-2xl border border-base-300/70 bg-base-100 p-4 shadow-sm">

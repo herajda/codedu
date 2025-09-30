@@ -51,7 +51,7 @@ $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100)
 $: testsPassed = results.filter((r:any) => r.status === 'passed').length;
 $: testsPercent = results.length ? Math.round(testsPassed / results.length * 100) : 0;
   let editing=false
-  let eTitle='', eDesc='', eDeadline='', ePoints=0, ePolicy='all_or_nothing', eShowTraceback=false
+  let eTitle='', eDesc='', eDeadline='', ePoints=0, ePolicy='all_or_nothing', eShowTraceback=false, eShowTestDetails=false
   let eManualReview=false
   let eLLMInteractive=false
   let eLLMFeedback=false
@@ -312,6 +312,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     ePoints=assignment.max_points
     ePolicy=assignment.grading_policy
     eShowTraceback=assignment.show_traceback
+    eShowTestDetails=!!assignment.show_test_details
     eManualReview=assignment.manual_review
     eLLMInteractive=!!assignment.llm_interactive
     eLLMFeedback=!!assignment.llm_feedback
@@ -382,6 +383,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           max_points:maxPoints,
           grading_policy:ePolicy,
           show_traceback:eShowTraceback,
+          show_test_details:eShowTestDetails,
           manual_review:eManualReview,
           llm_interactive:eLLMInteractive,
           llm_feedback:eLLMFeedback,
@@ -693,10 +695,16 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                   </select>
                 </label>
                 {#if testMode === 'automatic'}
-                  <label class="flex items-center gap-2">
-                    <input type="checkbox" class="checkbox" bind:checked={eShowTraceback}>
-                    <span class="label-text">Show traceback to students</span>
-                  </label>
+                  <div class="flex flex-col gap-2">
+                    <label class="flex items-center gap-2">
+                      <input type="checkbox" class="checkbox" bind:checked={eShowTraceback}>
+                      <span class="label-text">Show traceback to students</span>
+                    </label>
+                    <label class="flex items-center gap-2">
+                      <input type="checkbox" class="checkbox" bind:checked={eShowTestDetails}>
+                      <span class="label-text">Reveal test definitions in teacher review</span>
+                    </label>
+                  </div>
                 {/if}
               </div>
               <p class="text-xs opacity-70">
