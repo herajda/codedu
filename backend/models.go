@@ -34,20 +34,21 @@ type User struct {
 }
 
 type Assignment struct {
-	ID            uuid.UUID `db:"id" json:"id"`
-	Title         string    `db:"title" json:"title"`
-	Description   string    `db:"description" json:"description"`
-	CreatedBy     uuid.UUID `db:"created_by" json:"created_by"`
-	Deadline      time.Time `db:"deadline" json:"deadline"`
-	MaxPoints     int       `db:"max_points" json:"max_points"`
-	GradingPolicy string    `db:"grading_policy" json:"grading_policy"`
-	Published     bool      `db:"published" json:"published"`
-	ShowTraceback bool      `db:"show_traceback" json:"show_traceback"`
-	ManualReview  bool      `db:"manual_review" json:"manual_review"`
-	TemplatePath  *string   `db:"template_path" json:"template_path"`
-	CreatedAt     time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
-	ClassID       uuid.UUID `db:"class_id" json:"class_id"`
+	ID              uuid.UUID `db:"id" json:"id"`
+	Title           string    `db:"title" json:"title"`
+	Description     string    `db:"description" json:"description"`
+	CreatedBy       uuid.UUID `db:"created_by" json:"created_by"`
+	Deadline        time.Time `db:"deadline" json:"deadline"`
+	MaxPoints       int       `db:"max_points" json:"max_points"`
+	GradingPolicy   string    `db:"grading_policy" json:"grading_policy"`
+	Published       bool      `db:"published" json:"published"`
+	ShowTraceback   bool      `db:"show_traceback" json:"show_traceback"`
+	ShowTestDetails bool      `db:"show_test_details" json:"show_test_details"`
+	ManualReview    bool      `db:"manual_review" json:"manual_review"`
+	TemplatePath    *string   `db:"template_path" json:"template_path"`
+	CreatedAt       time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time `db:"updated_at" json:"updated_at"`
+	ClassID         uuid.UUID `db:"class_id" json:"class_id"`
 
 	// LLM-interactive testing configuration
 	LLMInteractive     bool    `db:"llm_interactive" json:"llm_interactive"`
@@ -203,12 +204,12 @@ func ListAllClasses() ([]Class, error) {
 // ──────────────────────────────────────────────────────────────────────────────
 func CreateAssignment(a *Assignment) error {
 	const q = `
-          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, manual_review, template_path, class_id, second_deadline, late_penalty_ratio)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, show_test_details, manual_review, template_path, class_id, second_deadline, late_penalty_ratio)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
           RETURNING id, created_at, updated_at`
 	return DB.QueryRow(q,
 		a.Title, a.Description, a.CreatedBy, a.Deadline,
-		a.MaxPoints, a.GradingPolicy, a.Published, a.ShowTraceback, a.ManualReview, a.TemplatePath, a.ClassID,
+		a.MaxPoints, a.GradingPolicy, a.Published, a.ShowTraceback, a.ShowTestDetails, a.ManualReview, a.TemplatePath, a.ClassID,
 		a.SecondDeadline, a.LatePenaltyRatio,
 	).Scan(&a.ID, &a.CreatedAt, &a.UpdatedAt)
 }
@@ -222,7 +223,7 @@ func ListAssignments(role string, userID uuid.UUID) ([]Assignment, error) {
 	var args []any
 	query := `
     SELECT a.id, a.title, a.description, a.created_by, ` + deadlineExpr + ` AS deadline,
-           a.max_points, a.grading_policy, a.published, a.show_traceback, a.manual_review, a.template_path,
+           a.max_points, a.grading_policy, a.published, a.show_traceback, a.show_test_details, a.manual_review, a.template_path,
            a.created_at, a.updated_at, a.class_id,
            COALESCE(a.llm_interactive,false) AS llm_interactive,
            COALESCE(a.llm_feedback,false) AS llm_feedback,
@@ -246,7 +247,7 @@ func ListAssignments(role string, userID uuid.UUID) ([]Assignment, error) {
 		// rebuild query with override-aware deadline
 		query = `
     SELECT a.id, a.title, a.description, a.created_by, COALESCE(ado.new_deadline, a.deadline) AS deadline,
-           a.max_points, a.grading_policy, a.published, a.show_traceback, a.manual_review, a.template_path,
+           a.max_points, a.grading_policy, a.published, a.show_traceback, a.show_test_details, a.manual_review, a.template_path,
            a.created_at, a.updated_at, a.class_id,
            COALESCE(a.llm_interactive,false) AS llm_interactive,
            COALESCE(a.llm_feedback,false) AS llm_feedback,
@@ -332,7 +333,7 @@ func DeleteDeadlineOverride(aid, studentID uuid.UUID) error {
 func GetAssignment(id uuid.UUID) (*Assignment, error) {
 	var a Assignment
 	err := DB.Get(&a, `
-    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, manual_review, template_path, created_at, updated_at, class_id,
+    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, show_test_details, manual_review, template_path, created_at, updated_at, class_id,
            COALESCE(llm_interactive,false) AS llm_interactive,
            COALESCE(llm_feedback,false) AS llm_feedback,
            COALESCE(llm_auto_award,true) AS llm_auto_award,
@@ -355,7 +356,7 @@ func GetAssignmentForSubmission(subID uuid.UUID) (*Assignment, error) {
 	var a Assignment
 	err := DB.Get(&a, `
         SELECT a.id, a.title, a.description, a.created_by, a.deadline,
-               a.max_points, a.grading_policy, a.published, a.show_traceback, a.manual_review, a.template_path,
+               a.max_points, a.grading_policy, a.published, a.show_traceback, a.show_test_details, a.manual_review, a.template_path,
                a.created_at, a.updated_at, a.class_id,
                COALESCE(a.llm_interactive,false) AS llm_interactive,
                COALESCE(a.llm_feedback,false) AS llm_feedback,
@@ -380,14 +381,14 @@ func UpdateAssignment(a *Assignment) error {
 	res, err := DB.Exec(`
     UPDATE assignments
        SET title=$1, description=$2, deadline=$3,
-           max_points=$4, grading_policy=$5, show_traceback=$6, manual_review=$7,
-           llm_interactive=$8, llm_feedback=$9, llm_auto_award=$10, llm_scenarios_json=$11,
-           llm_strictness=$12, llm_rubric=$13, llm_teacher_baseline_json=$14,
-           second_deadline=$15, late_penalty_ratio=$16,
+           max_points=$4, grading_policy=$5, show_traceback=$6, show_test_details=$7, manual_review=$8,
+           llm_interactive=$9, llm_feedback=$10, llm_auto_award=$11, llm_scenarios_json=$12,
+           llm_strictness=$13, llm_rubric=$14, llm_teacher_baseline_json=$15,
+           second_deadline=$16, late_penalty_ratio=$17,
            updated_at=now()
-     WHERE id=$17`,
+     WHERE id=$18`,
 		a.Title, a.Description, a.Deadline,
-		a.MaxPoints, a.GradingPolicy, a.ShowTraceback, a.ManualReview,
+		a.MaxPoints, a.GradingPolicy, a.ShowTraceback, a.ShowTestDetails, a.ManualReview,
 		a.LLMInteractive, a.LLMFeedback, a.LLMAutoAward, a.LLMScenariosRaw,
 		a.LLMStrictness, a.LLMRubric, a.LLMTeacherBaseline,
 		a.SecondDeadline, a.LatePenaltyRatio,
@@ -1089,16 +1090,20 @@ func DeleteAllTestCasesForAssignment(assignmentID uuid.UUID) error {
 
 // Result represents outcome of one test case execution.
 type Result struct {
-	ID           uuid.UUID `db:"id" json:"id"`
-	SubmissionID uuid.UUID `db:"submission_id" json:"submission_id"`
-	TestCaseID   uuid.UUID `db:"test_case_id" json:"test_case_id"`
-	Status       string    `db:"status" json:"status"`
-	ActualStdout string    `db:"actual_stdout" json:"actual_stdout"`
-	Stderr       string    `db:"stderr" json:"stderr"`
-	ExitCode     int       `db:"exit_code" json:"exit_code"`
-	RuntimeMS    int       `db:"runtime_ms" json:"runtime_ms"`
-	TestNumber   *int      `db:"test_number" json:"test_number,omitempty"`
-	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	SubmissionID   uuid.UUID `db:"submission_id" json:"submission_id"`
+	TestCaseID     uuid.UUID `db:"test_case_id" json:"test_case_id"`
+	Status         string    `db:"status" json:"status"`
+	ActualStdout   string    `db:"actual_stdout" json:"actual_stdout"`
+	Stderr         string    `db:"stderr" json:"stderr"`
+	ExitCode       int       `db:"exit_code" json:"exit_code"`
+	RuntimeMS      int       `db:"runtime_ms" json:"runtime_ms"`
+	Stdin          *string   `db:"stdin" json:"stdin,omitempty"`
+	ExpectedStdout *string   `db:"expected_stdout" json:"expected_stdout,omitempty"`
+	UnittestCode   *string   `db:"unittest_code" json:"unittest_code,omitempty"`
+	UnittestName   *string   `db:"unittest_name" json:"unittest_name,omitempty"`
+	TestNumber     *int      `db:"test_number" json:"test_number,omitempty"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 }
 
 // LLMRun stores artifacts from an LLM-interactive testing run for a submission.
@@ -1211,12 +1216,19 @@ func ListResultsForSubmission(subID uuid.UUID) ([]Result, error) {
             SELECT assignment_id FROM submissions WHERE id = $1
         ),
         ordered_tests AS (
-            SELECT id, ROW_NUMBER() OVER (ORDER BY id) AS test_number
+            SELECT id,
+                   ROW_NUMBER() OVER (ORDER BY id) AS test_number,
+                   stdin,
+                   expected_stdout,
+                   unittest_code,
+                   unittest_name
               FROM test_cases
              WHERE assignment_id = (SELECT assignment_id FROM sub)
         )
         SELECT r.id, r.submission_id, r.test_case_id, r.status, r.actual_stdout, r.stderr,
-               r.exit_code, r.runtime_ms, r.created_at, ot.test_number
+               r.exit_code, r.runtime_ms, r.created_at,
+               ot.stdin, ot.expected_stdout, ot.unittest_code, ot.unittest_name,
+               ot.test_number
           FROM results r
           LEFT JOIN ordered_tests ot ON r.test_case_id = ot.id
          WHERE r.submission_id=$1
