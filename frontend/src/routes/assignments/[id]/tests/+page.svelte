@@ -35,6 +35,13 @@
   let tWeight = '1'
   let unittestFile: File | null = null
 
+  let fFunction = ''
+  let fArgs = '[]'
+  let fKwargs = '{}'
+  let fExpected = ''
+  let fLimit = ''
+  let fWeight = '1'
+
   // ──────────────────────────────────────────────────────
   // AI generator state
   // ──────────────────────────────────────────────────────
@@ -43,6 +50,8 @@
   let aiGenerating = false
   let aiCode = ''
   let hasAIBuilder = false
+  let hasFunctionBuilder = false
+  let aiMode: 'unittest' | 'function' = 'unittest'
   let aiAuto = true
   // Teacher solution testing
   let teacherSolutionFile: File | null = null
@@ -75,6 +84,11 @@
   let utPreviewCode = ''
   let showAdvanced = false
   let copiedPreview = false
+
+  type FnCase = { name: string; args: string; kwargs: string; expected: string; weight: string; timeLimit: string }
+  let builderMode: 'unittest' | 'function' = 'unittest'
+  let fnBuilderFunction = ''
+  let fnCases: FnCase[] = []
 
   // ──────────────────────────────────────────────────────
   // Unittest per-method view/edit helpers
@@ -268,6 +282,7 @@
   async function addTest() {
     try {
       const testData: any = {
+        execution_mode: 'stdin_stdout',
         stdin: tStdin,
         expected_stdout: tStdout,
         time_limit_sec: parseFloat(tLimit) || undefined
@@ -285,6 +300,50 @@
       })
       tStdin = tStdout = tLimit = ''
       tWeight = '1'
+      await load()
+    } catch (e: any) {
+      err = e.message
+    }
+  }
+
+  async function addFunctionTest() {
+    try {
+      const testData: any = {
+        execution_mode: 'function',
+        function_name: fFunction.trim(),
+        stdin: '',
+        expected_stdout: '',
+        time_limit_sec: parseFloat(fLimit) || undefined
+      }
+
+      if (!testData.function_name) {
+        err = 'Function name is required'
+        return
+      }
+
+      if (assignment?.grading_policy === 'weighted') {
+        testData.weight = parseFloat(fWeight) || 1
+      }
+
+      const args = (fArgs ?? '').trim()
+      const kwargs = (fKwargs ?? '').trim()
+      const expected = (fExpected ?? '').trim()
+
+      if (args !== '') testData.function_args = args
+      if (kwargs !== '') testData.function_kwargs = kwargs
+      if (expected !== '') testData.expected_return = expected
+
+      await apiFetch(`/api/assignments/${id}/tests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(testData)
+      })
+      fFunction = ''
+      fArgs = '[]'
+      fKwargs = '{}'
+      fExpected = ''
+      fLimit = ''
+      fWeight = '1'
       await load()
     } catch (e: any) {
       err = e.message
@@ -344,6 +403,56 @@
   function removeUTAssertion(ti: number, ai: number) {
     utTests[ti].assertions = utTests[ti].assertions.filter((_, i) => i !== ai)
     utTests = [...utTests]
+  }
+
+  function addFnCase() {
+    fnCases = [
+      ...fnCases,
+      { name: `Case ${fnCases.length + 1}`, args: '[]', kwargs: '{}', expected: '', weight: assignment?.grading_policy === 'weighted' ? '1' : '0', timeLimit: '1' }
+    ]
+  }
+
+  function removeFnCase(idx: number) {
+    fnCases = fnCases.filter((_, i) => i !== idx)
+  }
+
+  async function createFunctionTestsFromBuilder() {
+    if (!fnBuilderFunction.trim()) {
+      err = 'Function name is required'
+      return
+    }
+    if (fnCases.length === 0) {
+      err = 'Add at least one case'
+      return
+    }
+    try {
+      for (const c of fnCases) {
+        const payload: any = {
+          execution_mode: 'function',
+          function_name: fnBuilderFunction.trim(),
+          function_args: (c.args ?? '').trim(),
+          function_kwargs: (c.kwargs ?? '').trim(),
+          expected_return: (c.expected ?? '').trim(),
+          stdin: '',
+          expected_stdout: '',
+          time_limit_sec: parseFloat(c.timeLimit) || undefined
+        }
+        if (assignment?.grading_policy === 'weighted') {
+          payload.weight = parseFloat(c.weight) || 1
+        }
+        await apiFetch(`/api/assignments/${id}/tests`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+      }
+      fnCases = []
+      fnBuilderFunction = ''
+      hasFunctionBuilder = false
+      await load()
+    } catch (e: any) {
+      err = e.message
+    }
   }
 
   function generateUnittestCode(): string {
@@ -484,13 +593,57 @@
       assertions: Array.isArray(t?.assertions) ? t.assertions.map(coerceUTAssertion) : []
     }
   }
+
+  function safeJSONString(value: any, fallback = ''): string {
+    if (value === undefined) return fallback
+    try {
+      return JSON.stringify(value)
+    } catch (e) {
+      return fallback
+    }
+  }
+
+  function normalizeArgs(value: any): string {
+    if (Array.isArray(value)) {
+      return safeJSONString(value, '[]')
+    }
+    if (value === undefined || value === null) {
+      return '[]'
+    }
+    return safeJSONString([value], '[]')
+  }
+
+  function normalizeKwargs(value: any): string {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      return safeJSONString(value, '{}')
+    }
+    if (value === undefined || value === null) {
+      return '{}'
+    }
+    // best effort: try to coerce strings like "{...}" into JSON
+    try {
+      const parsed = typeof value === 'string' ? JSON.parse(value) : value
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return safeJSONString(parsed, '{}')
+      }
+    } catch (err) {
+      // ignore
+    }
+    return '{}'
+  }
+
+  function normalizeExpected(value: any): string {
+    if (value === undefined) return ''
+    return safeJSONString(value, '')
+  }
   async function generateWithAI() {
     aiGenerating = true
     err = ''
     hasAIBuilder = false
+    hasFunctionBuilder = false
     teacherRun = null
     try {
-      const payload: any = { instructions: aiInstructions }
+      const payload: any = { instructions: aiInstructions, mode: aiMode }
       if (aiAuto) {
         payload.auto_tests = true
       } else {
@@ -501,17 +654,66 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
-      aiCode = res.python || ''
-      if (res.builder && res.builder.class_name) {
-        try {
-          utClassName = String(res.builder.class_name)
-          const testsRaw = Array.isArray(res.builder.tests) ? res.builder.tests : JSON.parse(res.builder.tests || '[]')
-          utTests = (testsRaw || []).map(coerceUTTest)
-          hasAIBuilder = utTests.length > 0
-        } catch (e) {
-          hasAIBuilder = false
+      const responseMode: 'unittest' | 'function' = res?.mode === 'function' ? 'function' : res?.mode === 'unittest' ? 'unittest' : aiMode
+      if (responseMode === 'function') {
+        builderMode = 'function'
+        aiCode = typeof res?.python === 'string' ? res.python : ''
+        fnBuilderFunction = String(res?.function_builder?.function_name ?? '').trim()
+        let rawCases: any = res?.function_builder?.cases ?? []
+        if (typeof rawCases === 'string') {
+          try {
+            rawCases = JSON.parse(rawCases || '[]')
+          } catch (err) {
+            rawCases = []
+          }
         }
-        refreshPreview()
+        if (!Array.isArray(rawCases)) {
+          rawCases = []
+        }
+        const defaultWeight = assignment?.grading_policy === 'weighted' ? '1' : '0'
+        fnCases = rawCases.map((rc: any, idx: number) => {
+          const name = rc?.name ? String(rc.name) : `Case ${idx + 1}`
+          const args = normalizeArgs(rc?.args)
+          const kwargs = normalizeKwargs(rc?.kwargs)
+          const expected = Object.prototype.hasOwnProperty.call(rc ?? {}, 'expected') ? normalizeExpected(rc?.expected) : ''
+          const weightSource = rc?.weight ?? rc?.points ?? rc?.score
+          const timeSource = rc?.time_limit ?? rc?.timeLimit ?? rc?.timeout ?? rc?.duration
+          let weight = defaultWeight
+          if (weightSource !== undefined && weightSource !== null && weightSource !== '') {
+            const wnum = Number(weightSource)
+            if (!Number.isNaN(wnum)) {
+              weight = String(wnum)
+            }
+          }
+          let timeLimit = '1'
+          if (timeSource !== undefined && timeSource !== null && timeSource !== '') {
+            const tnum = Number(timeSource)
+            if (!Number.isNaN(tnum)) {
+              timeLimit = String(tnum)
+            }
+          }
+          return { name, args, kwargs, expected, weight, timeLimit }
+        })
+        hasFunctionBuilder = fnCases.length > 0
+        if (!hasFunctionBuilder) {
+          fnCases = []
+        }
+      } else {
+        builderMode = 'unittest'
+        aiCode = res.python || ''
+        if (res.builder && res.builder.class_name) {
+          try {
+            utClassName = String(res.builder.class_name)
+            const testsRaw = Array.isArray(res.builder.tests) ? res.builder.tests : JSON.parse(res.builder.tests || '[]')
+            utTests = (testsRaw || []).map(coerceUTTest)
+            hasAIBuilder = utTests.length > 0
+          } catch (e) {
+            hasAIBuilder = false
+          }
+          if (hasAIBuilder) {
+            refreshPreview()
+          }
+        }
       }
     } catch (e: any) {
       err = e.message
@@ -520,6 +722,10 @@
     }
   }
   async function uploadAIUnitTestsCode() {
+    if (builderMode !== 'unittest') {
+      err = 'AI Python upload is only available in unittest mode.'
+      return
+    }
     if (!aiCode.trim()) return
     try {
       const blob = new Blob([aiCode], { type: 'text/x-python' })
@@ -631,17 +837,35 @@
 
   async function updateTest(t: any) {
     try {
+      const mode = (t.execution_mode ?? (t.unittest_name ? 'unittest' : t.function_name ? 'function' : 'stdin_stdout')) as string
       const testData: any = {
-        stdin: t.stdin,
-        expected_stdout: t.expected_stdout,
+        execution_mode: mode,
+        stdin: t.stdin ?? '',
+        expected_stdout: t.expected_stdout ?? '',
         time_limit_sec: parseFloat(t.time_limit_sec) || undefined
       }
-      
-      // Only include weight for weighted assignments
+
       if (assignment?.grading_policy === 'weighted') {
         testData.weight = parseFloat(t.weight) || 1
       }
-      
+
+      if (mode === 'unittest') {
+        testData.unittest_code = t.unittest_code ?? ''
+        testData.unittest_name = t.unittest_name ?? ''
+      } else if (mode === 'function') {
+        const fn = String(t.function_name ?? '').trim()
+        if (!fn) {
+          err = 'Function name is required'
+          return
+        }
+        testData.function_name = fn
+        testData.function_args = typeof t.function_args === 'string' ? t.function_args : ''
+        testData.function_kwargs = typeof t.function_kwargs === 'string' ? t.function_kwargs : ''
+        testData.expected_return = typeof t.expected_return === 'string' ? t.expected_return : ''
+        testData.stdin = ''
+        testData.expected_stdout = ''
+      }
+
       await apiFetch(`/api/tests/${t.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -765,11 +989,17 @@
           </div>
           <div class="grid gap-3 max-h-[32rem] overflow-y-auto">
             {#each tests as t, i}
+              {@const mode = t.execution_mode ?? (t.unittest_name ? 'unittest' : t.function_name ? 'function' : 'stdin_stdout')}
               <div class="rounded-xl border border-base-300/60 p-3 space-y-2">
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-2 font-semibold">
                     <span class="opacity-70">#{i + 1}</span>
-                    {#if t.unittest_name}
+                    {#if mode === 'function'}
+                      <span class="badge badge-info gap-1">Function</span>
+                      {#if t.function_name}
+                        <span class="badge badge-outline ml-1">{t.function_name}</span>
+                      {/if}
+                    {:else if t.unittest_name}
                       <span class="badge badge-primary gap-1"><FlaskConical size={14}/> unittest</span>
                       <span class="badge badge-outline ml-1">{t.unittest_name}</span>
                     {:else}
@@ -784,7 +1014,33 @@
                     <button class="btn btn-xs btn-error" on:click={() => delTest(t.id)}><Trash2 size={14}/> Delete</button>
                   </div>
                 </div>
-                {#if !t.unittest_name}
+                {#if mode === 'function'}
+                  <div class="grid gap-2 md:grid-cols-2">
+                    <label class="form-control w-full space-y-1">
+                      <span class="label-text">Function name</span>
+                      <input class="input input-bordered w-full" placeholder="e.g. multiply" bind:value={t.function_name}>
+                    </label>
+                    <label class="form-control w-full space-y-1">
+                      <span class="label-text">Expected return (JSON)</span>
+                      <textarea class="textarea textarea-bordered w-full" rows="2" placeholder="e.g. 6" bind:value={t.expected_return}></textarea>
+                    </label>
+                    <label class="form-control w-full space-y-1 md:col-span-1">
+                      <span class="label-text">Arguments (JSON array)</span>
+                      <textarea class="textarea textarea-bordered w-full" rows="2" placeholder="e.g. [2,3]" bind:value={t.function_args}></textarea>
+                    </label>
+                    <label class="form-control w-full space-y-1 md:col-span-1">
+                      <span class="label-text">Keyword args (JSON object)</span>
+                      <textarea class="textarea textarea-bordered w-full" rows="2" placeholder="e.g. {\"round\": 2}" bind:value={t.function_kwargs}></textarea>
+                    </label>
+                  </div>
+                {:else if t.unittest_name}
+                  {#if t.unittest_code}
+                    <details class="mt-1">
+                      <summary class="cursor-pointer text-sm opacity-70 flex items-center gap-1"><Eye size={14}/> View test method code</summary>
+                      <pre class="mt-2 whitespace-pre-wrap text-xs opacity-80 p-2 rounded-lg bg-base-200">{extractMethodFromUnittest(t.unittest_code, t.unittest_name)}</pre>
+                    </details>
+                  {/if}
+                {:else}
                   <div class="grid sm:grid-cols-2 gap-2">
                     <label class="form-control w-full space-y-1">
                       <span class="label-text">Input</span>
@@ -795,13 +1051,6 @@
                       <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={t.expected_stdout}>
                     </label>
                   </div>
-                {:else}
-                  {#if t.unittest_code && t.unittest_name}
-                    <details class="mt-1">
-                      <summary class="cursor-pointer text-sm opacity-70 flex items-center gap-1"><Eye size={14}/> View test method code</summary>
-                      <pre class="mt-2 whitespace-pre-wrap text-xs opacity-80 p-2 rounded-lg bg-base-200">{extractMethodFromUnittest(t.unittest_code, t.unittest_name)}</pre>
-                    </details>
-                  {/if}
                 {/if}
                 <div class="grid gap-2" class:sm:grid-cols-2={assignment?.grading_policy === 'weighted'}>
                   <label class="form-control w-full space-y-1">
@@ -847,6 +1096,44 @@
             </div>
             <div>
               <button class="btn btn-primary" on:click={addTest} disabled={!tStdin || !tStdout}><Plus size={16}/> Add</button>
+            </div>
+          </div>
+        </div>
+
+        <input type="radio" name="tests-tab" role="tab" class="tab" aria-label="Add function test">
+        <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4">
+          <div class="space-y-2">
+            <h4 class="font-semibold flex items-center gap-2"><Code size={18}/> Add function test</h4>
+            <div class="grid gap-2" class:md:grid-cols-2={assignment?.grading_policy === 'weighted'}>
+              <label class="form-control w-full space-y-1 md:col-span-1">
+                <span class="label-text">Function name</span>
+                <input class="input input-bordered w-full" placeholder="e.g. multiply" bind:value={fFunction}>
+              </label>
+              <label class="form-control w-full space-y-1 md:col-span-1">
+                <span class="label-text">Expected return (JSON)</span>
+                <textarea class="textarea textarea-bordered w-full" rows="2" placeholder="e.g. 6" bind:value={fExpected}></textarea>
+              </label>
+              <label class="form-control w-full space-y-1 md:col-span-1">
+                <span class="label-text">Arguments (JSON array)</span>
+                <textarea class="textarea textarea-bordered w-full" rows="2" placeholder="e.g. [2,3]" bind:value={fArgs}></textarea>
+              </label>
+              <label class="form-control w-full space-y-1 md:col-span-1">
+                <span class="label-text">Keyword args (JSON object)</span>
+                <textarea class="textarea textarea-bordered w-full" rows="2" placeholder="e.g. {\"round\": 2}" bind:value={fKwargs}></textarea>
+              </label>
+              <label class="form-control w-full space-y-1">
+                <span class="label-text flex items-center gap-1"><Clock size={14}/> <span>Time limit (s)</span></span>
+                <input class="input input-bordered w-full" placeholder="seconds" bind:value={fLimit}>
+              </label>
+              {#if assignment?.grading_policy === 'weighted'}
+                <label class="form-control w-full space-y-1">
+                  <span class="label-text flex items-center gap-1"><Scale size={14}/> <span>Points</span></span>
+                  <input class="input input-bordered w-full" placeholder="points" bind:value={fWeight}>
+                </label>
+              {/if}
+            </div>
+            <div>
+              <button class="btn btn-primary" on:click={addFunctionTest} disabled={!fFunction.trim()}><Plus size={16}/> Add function test</button>
             </div>
           </div>
         </div>
@@ -993,11 +1280,71 @@
               <CodeMirror bind:value={utPreviewCode} lang={python()} readOnly={true} />
             </div>
           {/if}
+
+          <div class="divider text-xs uppercase">Function tests builder</div>
+          <p class="text-sm opacity-70">Build function-based automatic tests without writing code.</p>
+          <div class="grid sm:grid-cols-2 gap-3 mt-3">
+            <label class="form-control w-full space-y-1">
+              <span class="label-text">Function name</span>
+              <input class="input input-bordered w-full" placeholder="e.g. multiply" bind:value={fnBuilderFunction}>
+            </label>
+            <div class="flex items-end gap-2">
+              <button class="btn btn-outline" on:click={addFnCase}><Plus size={16}/> Add case</button>
+              <button class="btn btn-primary" disabled={fnCases.length === 0} on:click={createFunctionTestsFromBuilder}><FlaskConical size={16}/> Create function tests</button>
+            </div>
+          </div>
+          <div class="space-y-3 mt-3">
+            {#each fnCases as fc, fi}
+              <div class="rounded-xl border border-base-300/60 p-3 space-y-2">
+                <div class="flex items-center justify-between gap-2">
+                  <input class="input input-bordered w-full" bind:value={fc.name} placeholder={`Case ${fi + 1}`}> 
+                  <button class="btn btn-ghost btn-xs" on:click={() => removeFnCase(fi)}><Trash2 size={14}/> Remove</button>
+                </div>
+                <div class="grid gap-2 md:grid-cols-2">
+                  <label class="form-control space-y-1">
+                    <span class="label-text">Arguments (JSON array)</span>
+                    <textarea class="textarea textarea-bordered" rows="2" bind:value={fc.args}></textarea>
+                  </label>
+                  <label class="form-control space-y-1">
+                    <span class="label-text">Keyword args (JSON object)</span>
+                    <textarea class="textarea textarea-bordered" rows="2" bind:value={fc.kwargs}></textarea>
+                  </label>
+                  <label class="form-control space-y-1">
+                    <span class="label-text">Expected return (JSON)</span>
+                    <textarea class="textarea textarea-bordered" rows="2" bind:value={fc.expected}></textarea>
+                  </label>
+                  <div class="grid gap-2">
+                    <label class="form-control space-y-1">
+                      <span class="label-text flex items-center gap-1"><Clock size={14}/> <span>Time limit (s)</span></span>
+                      <input class="input input-bordered" bind:value={fc.timeLimit}>
+                    </label>
+                    {#if assignment?.grading_policy === 'weighted'}
+                      <label class="form-control space-y-1">
+                        <span class="label-text flex items-center gap-1"><Scale size={14}/> <span>Points</span></span>
+                        <input class="input input-bordered" bind:value={fc.weight}>
+                      </label>
+                    {/if}
+                  </div>
+                </div>
+              </div>
+            {/each}
+            {#if fnCases.length === 0}
+              <div class="rounded-xl border border-dashed border-base-300/80 p-6 text-center text-sm opacity-70">No function cases yet. Add a case to build function-based tests.</div>
+            {/if}
+          </div>
         </div>
 
         <input type="radio" name="tests-tab" role="tab" class="tab" aria-label="AI generate">
         <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4 space-y-4">
-          <div class="grid sm:grid-cols-3 gap-3">
+          <div class="grid sm:grid-cols-4 gap-3">
+            <label class="form-control w-full space-y-1">
+              <span class="label-text">Test type</span>
+              <div class="join">
+                <button type="button" class={`btn btn-sm join-item ${aiMode === 'unittest' ? 'btn-primary' : 'btn-outline'}`} on:click={() => aiMode = 'unittest'}>Unittest</button>
+                <button type="button" class={`btn btn-sm join-item ${aiMode === 'function' ? 'btn-primary' : 'btn-outline'}`} on:click={() => aiMode = 'function'}>Function</button>
+              </div>
+              <span class="text-xs opacity-70">Choose whether AI should produce unittest code or direct function-call cases.</span>
+            </label>
             <label class="form-control w-full space-y-1">
               <span class="label-text">Test count mode</span>
               <div class="join">
@@ -1020,9 +1367,9 @@
           </div>
           <div class="flex gap-2">
             <button class="btn btn-primary" on:click={generateWithAI} disabled={aiGenerating}><FlaskConical size={16}/> {aiGenerating ? 'Generating…' : 'Generate with AI'}</button>
-            <button class="btn" on:click={uploadAIUnitTestsCode} disabled={!aiCode}><UploadIcon size={16}/> Save as tests</button>
+            <button class="btn" on:click={uploadAIUnitTestsCode} disabled={builderMode !== 'unittest' || !aiCode} title={builderMode !== 'unittest' ? 'Available only for unittest generation' : ''}><UploadIcon size={16}/> Save as tests</button>
           </div>
-          {#if aiCode}
+          {#if aiCode && builderMode === 'unittest'}
             <div class="space-y-2">
               <div class="flex items-center justify-between">
                 <h4 class="font-semibold">AI Python (editable)</h4>
@@ -1034,6 +1381,11 @@
           {#if hasAIBuilder}
             <div class="alert">
               <span>AI also prepared a builder structure below. You can tweak it in the Unittest builder tab and upload from there.</span>
+            </div>
+          {/if}
+          {#if hasFunctionBuilder}
+            <div class="alert">
+              <span>AI prepared function-call cases. Review them in the Function tests builder and save when ready.</span>
             </div>
           {/if}
 

@@ -452,6 +452,7 @@ $: id = $page.params.id
           {#if Array.isArray(results) && results.length}
             <div class="space-y-2">
               {#each results as r, i}
+                {@const mode = r.execution_mode ?? (r.unittest_name ? 'unittest' : r.function_name ? 'function' : 'stdin_stdout')}
                 {#if allowTestDetails || allowTraceback}
                   <details class="collapse collapse-arrow rounded-box bg-base-200">
                     <summary class="collapse-title">
@@ -460,7 +461,12 @@ $: id = $page.params.id
                           <span class="rounded-full bg-base-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-base-content/70">
                             Test {r.test_number ?? i + 1}
                           </span>
-                          {#if allowTestDetails && r.unittest_name}
+                          {#if allowTestDetails && mode === 'function'}
+                            <span class="badge badge-outline badge-info text-xs font-semibold tracking-wide uppercase">Function</span>
+                            {#if r.function_name}
+                              <span class="badge badge-outline text-xs font-semibold tracking-wide">{r.function_name}</span>
+                            {/if}
+                          {:else if allowTestDetails && r.unittest_name}
                             <span class="badge badge-outline badge-primary text-xs font-semibold tracking-wide uppercase">{r.unittest_name}</span>
                           {:else if allowTestDetails && (typeof r.stdin !== 'undefined' || typeof r.expected_stdout !== 'undefined')}
                             <span class="badge badge-outline text-xs font-semibold tracking-wide uppercase">I/O test</span>
@@ -496,7 +502,32 @@ $: id = $page.params.id
                             </svg>
                             Test definition
                           </header>
-                          {#if r.unittest_code}
+                          {#if mode === 'function'}
+                            <div class="grid gap-3 md:grid-cols-2">
+                              <div class="rounded-xl border border-base-300/60 bg-base-200/70 p-3">
+                                <div class="text-xs font-semibold uppercase tracking-wide text-base-content/70">Function</div>
+                                <div class="mt-2 font-mono text-sm">{r.function_name}</div>
+                              </div>
+                              <div class="rounded-xl border border-base-300/60 bg-base-200/70 p-3">
+                                <div class="text-xs font-semibold uppercase tracking-wide text-base-content/70">Expected return</div>
+                                <pre class="mt-2 whitespace-pre-wrap font-mono text-sm leading-relaxed">{r.expected_return ?? '∅'}</pre>
+                              </div>
+                              <div class="rounded-xl border border-base-300/60 bg-base-200/70 p-3">
+                                <div class="text-xs font-semibold uppercase tracking-wide text-base-content/70">Arguments</div>
+                                <pre class="mt-2 whitespace-pre-wrap font-mono text-sm leading-relaxed">{r.function_args ?? '[]'}</pre>
+                              </div>
+                              <div class="rounded-xl border border-base-300/60 bg-base-200/70 p-3">
+                                <div class="text-xs font-semibold uppercase tracking-wide text-base-content/70">Keyword args</div>
+                                <pre class="mt-2 whitespace-pre-wrap font-mono text-sm leading-relaxed">{r.function_kwargs ?? '{}'}</pre>
+                              </div>
+                              {#if r.actual_return}
+                                <div class="rounded-xl border border-base-300/60 bg-base-200/70 p-3 md:col-span-2">
+                                  <div class="text-xs font-semibold uppercase tracking-wide text-base-content/70">Actual return</div>
+                                  <pre class="mt-2 whitespace-pre-wrap font-mono text-sm leading-relaxed">{r.actual_return}</pre>
+                                </div>
+                              {/if}
+                            </div>
+                          {:else if r.unittest_code}
                             {#if r.unittest_name}
                               <div class="badge badge-outline badge-primary mb-3">{r.unittest_name}</div>
                             {/if}

@@ -12,6 +12,12 @@
   let inputValue = '';
   let timeoutMs: number = 60000; // default 60s
 
+  let fnName = '';
+  let fnArgs = '[]';
+  let fnKwargs = '{}';
+  let fnExpected = '';
+  let fnTimeout = '60000';
+
   type Item = { type: 'stdout'|'stderr'|'sys'|'error'|'input'; data: string };
   let items: Item[] = [];
 
@@ -77,6 +83,29 @@
               addSys(`Process exited ${msg.code === 0 ? 'successfully' : 'with code ' + msg.code}.`);
               running = false;
               break;
+            case 'function_result': {
+              const fn = (msg.function ?? 'function').toString();
+              const status = (msg.status ?? 'unknown').toString().toUpperCase();
+              addSys(`[fn] ${fn} → ${status}`);
+              if (msg.return_repr) {
+                addSys(`Return: ${msg.return_repr}`);
+              } else if (msg.return_json) {
+                addSys(`Return JSON: ${msg.return_json}`);
+              }
+              if (msg.expected_json) {
+                addSys(`Expected: ${msg.expected_json}`);
+              }
+              if (msg.error) {
+                addOut(msg.error + '\n', 'error');
+              }
+              if (msg.stdout) {
+                addOut(msg.stdout, 'stdout');
+              }
+              if (msg.stderr) {
+                addOut(msg.stderr, 'stderr');
+              }
+              break;
+            }
           }
         } catch {
           // ignore
@@ -101,6 +130,30 @@
     await ensureWS();
     if (!ws) return;
     ws.send(JSON.stringify({ type: 'execute', timeout_ms: timeoutMs }));
+  }
+
+  async function executeFunctionCall() {
+    await ensureWS();
+    if (!ws) return;
+    const payload: any = {
+      type: 'call_function',
+      function: fnName.trim()
+    };
+    if (!payload.function) {
+      addOut('Function name is required.\n', 'error');
+      return;
+    }
+    const args = fnArgs.trim();
+    const kwargs = fnKwargs.trim();
+    const expected = fnExpected.trim();
+    if (args !== '') payload.args = args;
+    if (kwargs !== '') payload.kwargs = kwargs;
+    if (expected !== '') payload.expected = expected;
+    const timeoutVal = parseInt(fnTimeout.trim() || '0', 10);
+    if (!Number.isNaN(timeoutVal) && timeoutVal > 0) {
+      payload.timeout_ms = timeoutVal;
+    }
+    ws.send(JSON.stringify(payload));
   }
 
   function stop() {
@@ -207,6 +260,41 @@
       />
       <button class="btn btn-sm" on:click={sendInput} disabled={!running}>Send</button>
     </div>
+  </div>
+</div>
+
+<div class="rounded-box overflow-hidden border border-cyan-400/30 bg-base-200/30 mt-4">
+  <div class="flex items-center justify-between px-4 py-2 bg-base-300/60">
+    <div class="flex items-center gap-2">
+      <span class="font-semibold tracking-wide">Call function</span>
+      <span class="text-xs opacity-70 ml-2">Invoke a specific function from student code</span>
+    </div>
+    <button class="btn btn-sm btn-primary" on:click={executeFunctionCall} disabled={fnName.trim().length === 0}>Run</button>
+  </div>
+  <div class="p-4 space-y-3">
+    <div class="grid gap-3 md:grid-cols-2">
+      <label class="form-control space-y-1">
+        <span class="label-text">Function name</span>
+        <input class="input input-bordered w-full" placeholder="e.g. multiply" bind:value={fnName}>
+      </label>
+      <label class="form-control space-y-1">
+        <span class="label-text">Timeout (ms)</span>
+        <input class="input input-bordered w-full" bind:value={fnTimeout}>
+      </label>
+      <label class="form-control space-y-1 md:col-span-1">
+        <span class="label-text">Arguments (JSON array)</span>
+        <textarea class="textarea textarea-bordered" rows="2" bind:value={fnArgs}></textarea>
+      </label>
+      <label class="form-control space-y-1 md:col-span-1">
+        <span class="label-text">Keyword args (JSON object)</span>
+        <textarea class="textarea textarea-bordered" rows="2" bind:value={fnKwargs}></textarea>
+      </label>
+      <label class="form-control space-y-1 md:col-span-2">
+        <span class="label-text">Expected return (JSON, optional)</span>
+        <textarea class="textarea textarea-bordered" rows="2" bind:value={fnExpected}></textarea>
+      </label>
+    </div>
+    <p class="text-xs opacity-70">Provide JSON-formatted values. Leave expected return empty if you only want to inspect the actual output.</p>
   </div>
 </div>
 

@@ -42,6 +42,7 @@ import (
 type RunSession struct {
 	ContainerName string
 	TmpDir        string
+	MainFile      string
 	StartedAt     time.Time
 	LastActive    time.Time
 	TTL           time.Duration
@@ -74,6 +75,50 @@ type RunSession struct {
 
 var runSessionsMu sync.Mutex
 var runSessions = map[string]*RunSession{}
+
+func isEmptyOrJSON(s string) bool {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return true
+	}
+	var js any
+	return json.Unmarshal([]byte(trimmed), &js) == nil
+}
+
+func detectMainFile(root string) (string, error) {
+	var mainFile, firstPy string
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(info.Name(), ".py") {
+			rel, _ := filepath.Rel(root, path)
+			if firstPy == "" {
+				firstPy = rel
+			}
+			content, _ := os.ReadFile(path)
+			if mainGuard.Match(content) {
+				mainFile = rel
+				return io.EOF
+			}
+		}
+		return nil
+	})
+	if err != nil && !errors.Is(err, io.EOF) {
+		return "", err
+	}
+	if mainFile == "" {
+		if _, err := os.Stat(filepath.Join(root, "main.py")); err == nil {
+			mainFile = "main.py"
+		} else {
+			mainFile = firstPy
+		}
+	}
+	if mainFile == "" {
+		return "", fmt.Errorf("no python files found")
+	}
+	return mainFile, nil
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // utilities
@@ -561,10 +606,19 @@ func generateAITests(c *gin.Context) {
 		Instructions string `json:"instructions"`
 		NumTests     int    `json:"num_tests"`
 		AutoTests    bool   `json:"auto_tests"`
+		Mode         string `json:"mode"`
 	}
 	_ = c.ShouldBindJSON(&req)
 	if !req.AutoTests && req.NumTests <= 0 {
 		req.NumTests = 5
+	}
+	mode := strings.ToLower(strings.TrimSpace(req.Mode))
+	if mode == "" {
+		mode = "unittest"
+	}
+	if mode != "unittest" && mode != "function" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid mode"})
+		return
 	}
 
 	apiKey := os.Getenv("OPENAI_API_KEY")
@@ -582,15 +636,64 @@ func generateAITests(c *gin.Context) {
 	}
 
 	// Build prompt
-	sys := "You are an expert Python educator and testing assistant. Generate high-quality unit tests."
-	// When auto_tests is enabled, we let the model decide how many tests are needed.
-	constraint := ""
-	if req.AutoTests {
-		constraint = "- Decide the appropriate number of test methods to ensure thorough coverage (typical cases, edge cases, and error handling)."
+	sys := "You are an expert Python educator and testing assistant. Generate high-quality automatic tests."
+	var user string
+	if mode == "function" {
+		constraint := ""
+		if req.AutoTests {
+			constraint = "- Choose an appropriate number of function-call cases (typically 4–6) that cover normal usage, edge cases, and error scenarios when applicable."
+		} else {
+			constraint = fmt.Sprintf("- Provide at least %d distinct function-call cases that cover typical behaviour and edge conditions.", req.NumTests)
+		}
+		basePrompt := `Design function-call based automatic tests for the following Python assignment.
+
+Constraints:
+- Focus on verifying a specific function that students must implement.
+- Provide concise, deterministic cases. Avoid randomness and heavyweight inputs.
+- Arguments and expected return values must be valid JSON so they can be stored directly.
+%s
+
+Return a single JSON object with fields:
+{
+  "python": "<optional helper code or empty string>",
+  "function_builder": {
+    "function_name": "<function students must implement>",
+    "description": "<optional short summary>",
+    "cases": [
+      {
+        "name": "<case identifier>",
+        "description": "<optional human-readable summary>",
+        "args": [/* positional arguments as JSON */],
+        "kwargs": {/* keyword arguments as JSON object or {} */},
+        "expected": /* JSON-serialisable expected return (use null for None) */,
+        "weight": <numeric weight such as 1>,
+        "time_limit": <numeric seconds such as 1>,
+        "notes": "<optional teacher notes>"
+      }
+    ]
+  }
+}
+
+Rules:
+- kwargs must always be a JSON object (use {} when no keyword arguments are needed).
+- Ensure cases are independent and collectively cover success paths and critical edge conditions.
+- Re-use the assignment's specified function signature exactly when provided.
+- Use null when the expected result is None and omit optional fields if not needed.
+
+Assignment title: %s
+Assignment description:\n%s
+
+Additional guidance (optional): %s
+`
+		user = fmt.Sprintf(basePrompt, constraint, assign.Title, assign.Description, req.Instructions)
 	} else {
-		constraint = fmt.Sprintf("- Cover edge cases and typical cases. Add at least %d test methods.", req.NumTests)
-	}
-	basePrompt := `Create a Python unittest module for the following programming assignment.
+		constraint := ""
+		if req.AutoTests {
+			constraint = "- Decide the appropriate number of test methods to ensure thorough coverage (typical cases, edge cases, and error handling)."
+		} else {
+			constraint = fmt.Sprintf("- Cover edge cases and typical cases. Add at least %d test methods.", req.NumTests)
+		}
+		basePrompt := `Create a Python unittest module for the following programming assignment.
 
 Constraints:
 - Use Python's unittest module and a single test class.
@@ -629,7 +732,8 @@ Assignment description:\n%s
 
 Additional guidance (optional): %s
 `
-	user := fmt.Sprintf(basePrompt, constraint, assign.Title, assign.Description, req.Instructions)
+		user = fmt.Sprintf(basePrompt, constraint, assign.Title, assign.Description, req.Instructions)
+	}
 
 	// Call OpenAI Chat Completions
 	payload := map[string]any{
@@ -675,15 +779,26 @@ Additional guidance (optional): %s
 			ClassName string          `json:"class_name"`
 			Tests     json.RawMessage `json:"tests"`
 		} `json:"builder"`
+		FunctionBuilder struct {
+			FunctionName string          `json:"function_name"`
+			Description  string          `json:"description"`
+			Cases        json.RawMessage `json:"cases"`
+		} `json:"function_builder"`
 	}
-	parsed := json.Unmarshal([]byte(content), &bundle) == nil && strings.TrimSpace(bundle.Python) != ""
+	parsed := json.Unmarshal([]byte(content), &bundle) == nil
+	if parsed {
+		hasContent := strings.TrimSpace(bundle.Python) != "" || strings.TrimSpace(bundle.Builder.ClassName) != "" || len(bundle.Builder.Tests) > 0 || strings.TrimSpace(bundle.FunctionBuilder.FunctionName) != "" || len(bundle.FunctionBuilder.Cases) > 0
+		if !hasContent {
+			parsed = false
+		}
+	}
 	if !parsed {
 		// try to extract fenced JSON``` blocks
 		start := strings.Index(content, "{")
 		end := strings.LastIndex(content, "}")
 		if start >= 0 && end > start {
 			_ = json.Unmarshal([]byte(content[start:end+1]), &bundle)
-			parsed = strings.TrimSpace(bundle.Python) != ""
+			parsed = true
 		}
 	}
 
@@ -692,15 +807,32 @@ Additional guidance (optional): %s
 		bundle.Python = content
 		bundle.Builder.ClassName = "TestAssignment"
 		bundle.Builder.Tests = json.RawMessage([]byte("[]"))
+		bundle.FunctionBuilder.Cases = json.RawMessage([]byte("[]"))
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	result := gin.H{
+		"mode":   mode,
 		"python": bundle.Python,
-		"builder": gin.H{
+	}
+	if strings.TrimSpace(bundle.Builder.ClassName) != "" || len(bundle.Builder.Tests) > 0 {
+		result["builder"] = gin.H{
 			"class_name": bundle.Builder.ClassName,
 			"tests":      json.RawMessage(bundle.Builder.Tests),
-		},
-	})
+		}
+	}
+	if mode == "function" || strings.TrimSpace(bundle.FunctionBuilder.FunctionName) != "" || strings.TrimSpace(bundle.FunctionBuilder.Description) != "" || len(bundle.FunctionBuilder.Cases) > 0 {
+		cases := bundle.FunctionBuilder.Cases
+		if cases == nil {
+			cases = json.RawMessage([]byte("[]"))
+		}
+		result["function_builder"] = gin.H{
+			"function_name": bundle.FunctionBuilder.FunctionName,
+			"description":   bundle.FunctionBuilder.Description,
+			"cases":         cases,
+		}
+	}
+
+	c.JSON(http.StatusOK, result)
 }
 
 // getTemplate: GET /api/assignments/:id/template
@@ -832,25 +964,93 @@ func createTestCase(c *gin.Context) {
 		return
 	}
 	var req struct {
-		Stdin          string  `json:"stdin" binding:"required"`
-		ExpectedStdout string  `json:"expected_stdout" binding:"required"`
-		Weight         float64 `json:"weight"`
-		TimeLimitSec   float64 `json:"time_limit_sec"`
+		ExecutionMode  string   `json:"execution_mode"`
+		Stdin          *string  `json:"stdin"`
+		ExpectedStdout *string  `json:"expected_stdout"`
+		Weight         *float64 `json:"weight"`
+		TimeLimitSec   *float64 `json:"time_limit_sec"`
+		UnittestCode   *string  `json:"unittest_code"`
+		UnittestName   *string  `json:"unittest_name"`
+		FunctionName   *string  `json:"function_name"`
+		FunctionArgs   *string  `json:"function_args"`
+		FunctionKwargs *string  `json:"function_kwargs"`
+		ExpectedReturn *string  `json:"expected_return"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if req.Weight == 0 {
-		req.Weight = 1
+	mode := strings.TrimSpace(req.ExecutionMode)
+	tc := &TestCase{AssignmentID: aid}
+	if req.Weight != nil {
+		tc.Weight = *req.Weight
+	} else {
+		tc.Weight = 1
 	}
-	tc := &TestCase{
-		AssignmentID:   aid,
-		Stdin:          req.Stdin,
-		ExpectedStdout: req.ExpectedStdout,
-		Weight:         req.Weight,
-		TimeLimitSec:   req.TimeLimitSec,
+	if req.TimeLimitSec != nil {
+		tc.TimeLimitSec = *req.TimeLimitSec
 	}
+	switch mode {
+	case "", "stdin_stdout":
+		mode = "stdin_stdout"
+		if req.Stdin == nil || req.ExpectedStdout == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "stdin and expected_stdout are required"})
+			return
+		}
+		tc.Stdin = *req.Stdin
+		tc.ExpectedStdout = *req.ExpectedStdout
+	case "unittest":
+		if req.UnittestCode == nil || req.UnittestName == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "unittest_code and unittest_name are required"})
+			return
+		}
+		tc.UnittestCode = req.UnittestCode
+		tc.UnittestName = req.UnittestName
+		tc.Stdin = ""
+		tc.ExpectedStdout = ""
+	case "function":
+		if req.FunctionName == nil || strings.TrimSpace(*req.FunctionName) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "function_name is required"})
+			return
+		}
+		tc.FunctionName = strPtr(strings.TrimSpace(*req.FunctionName))
+		if req.FunctionArgs != nil {
+			if !isEmptyOrJSON(*req.FunctionArgs) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "function_args must be valid JSON"})
+				return
+			}
+			trimmed := strings.TrimSpace(*req.FunctionArgs)
+			if trimmed != "" {
+				tc.FunctionArgs = &trimmed
+			}
+		}
+		if req.FunctionKwargs != nil {
+			if !isEmptyOrJSON(*req.FunctionKwargs) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "function_kwargs must be valid JSON"})
+				return
+			}
+			trimmed := strings.TrimSpace(*req.FunctionKwargs)
+			if trimmed != "" {
+				tc.FunctionKwargs = &trimmed
+			}
+		}
+		if req.ExpectedReturn != nil {
+			if !isEmptyOrJSON(*req.ExpectedReturn) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "expected_return must be valid JSON"})
+				return
+			}
+			trimmed := strings.TrimSpace(*req.ExpectedReturn)
+			if trimmed != "" {
+				tc.ExpectedReturn = &trimmed
+			}
+		}
+		tc.Stdin = ""
+		tc.ExpectedStdout = ""
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid execution_mode"})
+		return
+	}
+	tc.ExecutionMode = mode
 	if err := CreateTestCase(tc); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
@@ -866,12 +1066,17 @@ func updateTestCase(c *gin.Context) {
 		return
 	}
 	var req struct {
+		ExecutionMode  string  `json:"execution_mode"`
 		Stdin          string  `json:"stdin"`
 		ExpectedStdout string  `json:"expected_stdout"`
 		Weight         float64 `json:"weight"`
 		TimeLimitSec   float64 `json:"time_limit_sec"`
 		UnittestCode   *string `json:"unittest_code"`
 		UnittestName   *string `json:"unittest_name"`
+		FunctionName   *string `json:"function_name"`
+		FunctionArgs   *string `json:"function_args"`
+		FunctionKwargs *string `json:"function_kwargs"`
+		ExpectedReturn *string `json:"expected_return"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -880,7 +1085,82 @@ func updateTestCase(c *gin.Context) {
 	if req.Weight == 0 {
 		req.Weight = 1
 	}
-	tc := &TestCase{ID: id, Stdin: req.Stdin, ExpectedStdout: req.ExpectedStdout, Weight: req.Weight, TimeLimitSec: req.TimeLimitSec, UnittestCode: req.UnittestCode, UnittestName: req.UnittestName}
+	mode := strings.TrimSpace(req.ExecutionMode)
+	if mode == "" {
+		if req.UnittestName != nil && *req.UnittestName != "" {
+			mode = "unittest"
+		} else if req.FunctionName != nil && strings.TrimSpace(*req.FunctionName) != "" {
+			mode = "function"
+		} else {
+			mode = "stdin_stdout"
+		}
+	}
+	tc := &TestCase{ID: id, Stdin: req.Stdin, ExpectedStdout: req.ExpectedStdout, Weight: req.Weight, TimeLimitSec: req.TimeLimitSec, UnittestCode: req.UnittestCode, UnittestName: req.UnittestName, ExecutionMode: mode}
+	switch mode {
+	case "stdin_stdout":
+		// nothing extra
+	case "unittest":
+		if req.UnittestCode == nil || req.UnittestName == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "unittest_code and unittest_name are required"})
+			return
+		}
+		tc.Stdin = ""
+		tc.ExpectedStdout = ""
+	case "function":
+		if req.FunctionName == nil || strings.TrimSpace(*req.FunctionName) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "function_name is required"})
+			return
+		}
+		name := strings.TrimSpace(*req.FunctionName)
+		tc.FunctionName = &name
+		if req.FunctionArgs != nil {
+			if !isEmptyOrJSON(*req.FunctionArgs) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "function_args must be valid JSON"})
+				return
+			}
+			trimmed := strings.TrimSpace(*req.FunctionArgs)
+			if trimmed != "" {
+				tc.FunctionArgs = &trimmed
+			} else {
+				tc.FunctionArgs = nil
+			}
+		} else {
+			tc.FunctionArgs = nil
+		}
+		if req.FunctionKwargs != nil {
+			if !isEmptyOrJSON(*req.FunctionKwargs) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "function_kwargs must be valid JSON"})
+				return
+			}
+			trimmed := strings.TrimSpace(*req.FunctionKwargs)
+			if trimmed != "" {
+				tc.FunctionKwargs = &trimmed
+			} else {
+				tc.FunctionKwargs = nil
+			}
+		} else {
+			tc.FunctionKwargs = nil
+		}
+		if req.ExpectedReturn != nil {
+			if !isEmptyOrJSON(*req.ExpectedReturn) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "expected_return must be valid JSON"})
+				return
+			}
+			trimmed := strings.TrimSpace(*req.ExpectedReturn)
+			if trimmed != "" {
+				tc.ExpectedReturn = &trimmed
+			} else {
+				tc.ExpectedReturn = nil
+			}
+		} else {
+			tc.ExpectedReturn = nil
+		}
+		tc.Stdin = ""
+		tc.ExpectedStdout = ""
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid execution_mode"})
+		return
+	}
 	if err := UpdateTestCase(tc); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
@@ -1846,9 +2126,13 @@ func submissionRunWS(c *gin.Context) {
 			break
 		}
 		var m struct {
-			Type      string `json:"type"`
-			Data      string `json:"data,omitempty"`
-			TimeoutMs *int   `json:"timeout_ms,omitempty"`
+			Type      string  `json:"type"`
+			Data      string  `json:"data,omitempty"`
+			TimeoutMs *int    `json:"timeout_ms,omitempty"`
+			Function  string  `json:"function,omitempty"`
+			Args      *string `json:"args,omitempty"`
+			Kwargs    *string `json:"kwargs,omitempty"`
+			Expected  *string `json:"expected,omitempty"`
 		}
 		if err := json.Unmarshal(raw, &m); err != nil {
 			ch <- map[string]any{"type": "error", "message": "invalid message"}
@@ -1922,6 +2206,15 @@ func submissionRunWS(c *gin.Context) {
 			if mainFile == "" {
 				ch <- map[string]any{"type": "error", "message": "no python files found"}
 				continue
+			}
+
+			runSessionsMu.Lock()
+			s = runSessions[sessionKey]
+			runSessionsMu.Unlock()
+			if s != nil {
+				s.Mu.Lock()
+				s.MainFile = mainFile
+				s.Mu.Unlock()
 			}
 
 			// detect if submission likely uses Tkinter and needs GUI
@@ -2238,6 +2531,96 @@ func submissionRunWS(c *gin.Context) {
 				broadcast(map[string]any{"type": "exit", "code": exitCode, "timedOut": false})
 			}()
 
+		case "call_function":
+			fn := strings.TrimSpace(m.Function)
+			if fn == "" {
+				ch <- map[string]any{"type": "error", "message": "function name required"}
+				continue
+			}
+			timeoutMS := 60000
+			if m.TimeoutMs != nil && *m.TimeoutMs > 0 {
+				timeoutMS = *m.TimeoutMs
+			}
+			go func(fn string, args, kwargs, expected *string, timeoutMS int) {
+				td, terr := ensureTmp()
+				if terr != nil {
+					ch <- map[string]any{"type": "error", "message": terr.Error()}
+					return
+				}
+				runSessionsMu.Lock()
+				sess := runSessions[sessionKey]
+				runSessionsMu.Unlock()
+				if sess == nil {
+					ch <- map[string]any{"type": "error", "message": "session not found"}
+					return
+				}
+				sess.Mu.Lock()
+				mainFile := sess.MainFile
+				sess.Mu.Unlock()
+				if strings.TrimSpace(mainFile) == "" {
+					mf, derr := detectMainFile(td)
+					if derr != nil {
+						ch <- map[string]any{"type": "error", "message": derr.Error()}
+						return
+					}
+					mainFile = mf
+					sess.Mu.Lock()
+					sess.MainFile = mainFile
+					sess.Mu.Unlock()
+				}
+
+				cfg := functionCallConfig{FunctionName: fn, ArgsJSON: args, KwargsJSON: kwargs, ExpectedJSON: expected}
+				timeout := time.Duration(timeoutMS) * time.Millisecond
+				stdout, stderr, exitCode, timedOut, runtime, meta, runErr := runFunctionCall(td, mainFile, cfg, timeout)
+
+				status := "passed"
+				if runErr != nil {
+					status = "runtime_error"
+				} else if timedOut {
+					status = "time_limit_exceeded"
+				} else if meta != nil {
+					if meta.Status == "exception" {
+						status = "runtime_error"
+					} else if !meta.Passed {
+						status = "wrong_output"
+					}
+				} else if exitCode != 0 {
+					status = "runtime_error"
+				}
+
+				msg := map[string]any{
+					"type":       "function_result",
+					"function":   fn,
+					"status":     status,
+					"stdout":     stdout,
+					"stderr":     stderr,
+					"exit":       exitCode,
+					"timedOut":   timedOut,
+					"runtime_ms": int(runtime.Milliseconds()),
+				}
+				if runErr != nil {
+					msg["error"] = runErr.Error()
+				}
+				if meta != nil {
+					msg["return_repr"] = meta.ReturnRepr
+					if meta.ReturnJSON != nil {
+						msg["return_json"] = *meta.ReturnJSON
+					}
+					if meta.Exception != "" {
+						msg["exception"] = meta.Exception
+					}
+					if meta.Traceback != "" {
+						msg["traceback"] = meta.Traceback
+					}
+					if meta.ExpectedJSON != nil {
+						msg["expected_json"] = *meta.ExpectedJSON
+					}
+					if meta.ExpectedRepr != nil {
+						msg["expected_repr"] = *meta.ExpectedRepr
+					}
+				}
+				broadcast(msg)
+			}(fn, m.Args, m.Kwargs, m.Expected, timeoutMS)
 		case "input":
 			runSessionsMu.Lock()
 			s := runSessions[sessionKey]
