@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
+  import 'cally';
 
   type Offset = { label: string; minutes?: number; hours?: number; days?: number; weeks?: number };
   
@@ -19,13 +20,12 @@
 
   // Internal state
   let selected = new Date();
-  let viewYear = selected.getFullYear();
-  let viewMonth = selected.getMonth(); // 0-11
   let hour = selected.getHours();
   let minute = selected.getMinutes();
   let manual = '';
 
-  const dowShort = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  let calendarValue = '';
+  const todayValue = toCalendarValue(new Date());
 
   const defaultShortcuts: Offset[] = [
     { label: '+1 hour', hours: 1 },
@@ -44,8 +44,6 @@
     selected = new Date(init);
     hour = clamp0_23(selected.getHours());
     minute = clamp0_59(selected.getMinutes());
-    viewYear = selected.getFullYear();
-    viewMonth = selected.getMonth();
     shortcuts = options.shortcuts && options.shortcuts.length ? options.shortcuts : defaultShortcuts;
 
     syncManual();
@@ -66,6 +64,13 @@
   function formatTwo(n: number): string { return String(n).padStart(2, '0'); }
   function clamp0_23(n: number) { return Math.max(0, Math.min(23, Math.floor(n))); }
   function clamp0_59(n: number) { return Math.max(0, Math.min(59, Math.floor(n))); }
+
+  function toCalendarValue(d: Date): string {
+    const y = d.getFullYear();
+    const m = formatTwo(d.getMonth() + 1);
+    const day = formatTwo(d.getDate());
+    return `${y}-${m}-${day}`;
+  }
 
   function toLocalYMDHM(d: Date): string {
     const y = d.getFullYear();
@@ -89,6 +94,7 @@
 
   function syncManual() {
     manual = currentLabel();
+    calendarValue = toCalendarValue(selected);
   }
 
   function settle(result: string | null) {
@@ -121,8 +127,6 @@
       hour = md.getHours();
       minute = md.getMinutes();
       selected = new Date(md);
-      viewYear = selected.getFullYear();
-      viewMonth = selected.getMonth();
       // keep open and just update UI
       return;
     }
@@ -145,83 +149,7 @@
     selected = d;
     hour = d.getHours();
     minute = d.getMinutes();
-    viewYear = d.getFullYear();
-    viewMonth = d.getMonth();
     syncManual();
-  }
-
-  function changeMonth(delta: number) {
-    const d = new Date(viewYear, viewMonth + delta, 1);
-    viewYear = d.getFullYear();
-    viewMonth = d.getMonth();
-  }
-
-  function daysGrid(): { date: Date; inMonth: boolean; disabled: boolean; today: boolean; selected: boolean }[] {
-    const firstOfMonth = new Date(viewYear, viewMonth, 1);
-    const firstDow = (firstOfMonth.getDay() + 6) % 7; // 0=Mon .. 6=Sun
-    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-    const prevDays = firstDow;
-    const totalCells = 42; // 6 weeks
-    const startDate = new Date(viewYear, viewMonth, 1 - prevDays);
-    const cells: { date: Date; inMonth: boolean; disabled: boolean; today: boolean; selected: boolean }[] = [];
-    for (let i = 0; i < totalCells; i++) {
-      const d = new Date(startDate);
-      d.setDate(startDate.getDate() + i);
-      const inMonth = d.getMonth() === viewMonth;
-      const isToday = sameDate(d, new Date());
-      const isSelected = sameDate(d, selected);
-      const disabled = !!minDate && trimTime(d) < trimTime(minDate);
-      cells.push({ date: d, inMonth, disabled, today: isToday, selected: isSelected });
-    }
-    return cells;
-  }
-
-  function sameDate(a: Date, b: Date): boolean {
-    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  }
-  function trimTime(d: Date): number {
-    const c = new Date(d);
-    c.setHours(0, 0, 0, 0);
-    return c.getTime();
-  }
-
-  function pickDay(d: Date, disabled: boolean) {
-    if (disabled) return;
-    const keepH = hour, keepM = minute;
-    selected = new Date(d);
-    hour = keepH; minute = keepM;
-    // If user clicked a day from adjacent month, jump view to that month
-    viewYear = selected.getFullYear();
-    viewMonth = selected.getMonth();
-    syncManual();
-  }
-
-  function dayButtonClass(c: { inMonth: boolean; disabled: boolean; today: boolean; selected: boolean }): string {
-  const classes = ['btn', 'btn-sm', 'h-9'];
-
-  if (c.disabled) {
-    classes.push('btn-disabled', 'opacity-40');
-  } else {
-    classes.push('btn-ghost');
-  }
-
-  // Fade out days from adjacent months (unless selected)
-  if (!c.inMonth && !c.selected) {
-    classes.push('opacity-50');
-  }
-
-  // Selected date = BLUE (use DaisyUI primary so it overrides correctly)
-  if (c.selected) {
-    const ghostIdx = classes.indexOf('btn-ghost');
-    if (ghostIdx !== -1) classes.splice(ghostIdx, 1);
-    classes.push('btn-primary'); // <-- key change
-  }
-  // Today (when not selected) = grey-ish chip
-  else if (c.today) {
-    classes.push('bg-base-200', 'text-base-content/60', 'ring-1', 'ring-base-300');
-  }
-
-  return classes.join(' ');
   }
 
   function onHourInput(e: Event) {
@@ -248,9 +176,20 @@
       selected = d;
       hour = clamp0_23(hh);
       minute = clamp0_59(min);
-      viewYear = d.getFullYear();
-      viewMonth = d.getMonth();
+      calendarValue = toCalendarValue(selected);
     }
+  }
+
+  function handleCalendarChange(event: Event) {
+    const target = event.currentTarget as HTMLElement & { value?: string };
+    const value = target?.value;
+    if (!value) return;
+    const [y, m, d] = value.split('-').map((part) => parseInt(part, 10));
+    if ([y, m, d].some((part) => Number.isNaN(part))) return;
+    const next = new Date(selected);
+    next.setFullYear(y, m - 1, d);
+    selected = next;
+    syncManual();
   }
 </script>
 
@@ -267,28 +206,35 @@
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <!-- Calendar -->
       <div>
-        <div class="flex items-center justify-between mb-2">
-          <button type="button" class="btn btn-ghost btn-sm" on:click={() => changeMonth(-1)} aria-label="Previous month">«</button>
-          <div class="font-semibold">{new Date(viewYear, viewMonth, 1).toLocaleString(undefined, { month: 'long', year: 'numeric' })}</div>
-          <button type="button" class="btn btn-ghost btn-sm" on:click={() => changeMonth(1)} aria-label="Next month">»</button>
-        </div>
-        <div class="grid grid-cols-7 gap-1 text-center text-xs opacity-60 mb-1">
-          {#each dowShort as d}<div>{d}</div>{/each}
-        </div>
-        <div class="grid grid-cols-7 gap-1">
-          {#each daysGrid() as c}
-            <button
-              type="button"
-              class={dayButtonClass(c)}
-              disabled={c.disabled}
-              on:click={() => pickDay(c.date, c.disabled)}
-              aria-pressed={c.selected}
-              aria-current={c.today ? 'date' : undefined}
-            >
-              {c.date.getDate()}
-            </button>
-          {/each}
-        </div>
+        <calendar-date
+          class="cally bg-base-100 border border-base-300 shadow-lg rounded-box"
+          value={calendarValue}
+          min={minDate ? toCalendarValue(minDate) : undefined}
+          today={todayValue}
+          firstDayOfWeek={1}
+          showOutsideDays={true}
+          on:change={handleCalendarChange}
+        >
+          <svg
+            aria-label="Previous"
+            class="fill-current size-4"
+            slot="previous"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+          >
+            <path fill="currentColor" d="M15.75 19.5 8.25 12l7.5-7.5"></path>
+          </svg>
+          <svg
+            aria-label="Next"
+            class="fill-current size-4"
+            slot="next"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+          >
+            <path fill="currentColor" d="m8.25 4.5 7.5 7.5-7.5 7.5"></path>
+          </svg>
+          <calendar-month></calendar-month>
+        </calendar-date>
       </div>
 
       <!-- Time & shortcuts -->
@@ -328,8 +274,8 @@
             {#each shortcuts as s}
               <button type="button" class="btn btn-ghost btn-sm" on:click={() => applyShortcut(s)}>{s.label}</button>
             {/each}
-            <button type="button" class="btn btn-ghost btn-sm" on:click={() => { const d=new Date(); selected=d; hour=d.getHours(); minute=d.getMinutes(); viewYear=d.getFullYear(); viewMonth=d.getMonth(); syncManual(); }}>Now</button>
-            <button type="button" class="btn btn-ghost btn-sm" on:click={() => { const d=new Date(); d.setHours(23,59,0,0); selected=d; hour=23; minute=59; viewYear=d.getFullYear(); viewMonth=d.getMonth(); syncManual(); }}>Today 23:59</button>
+            <button type="button" class="btn btn-ghost btn-sm" on:click={() => { const d=new Date(); selected=d; hour=d.getHours(); minute=d.getMinutes(); syncManual(); }}>Now</button>
+            <button type="button" class="btn btn-ghost btn-sm" on:click={() => { const d=new Date(); d.setHours(23,59,0,0); selected=d; hour=23; minute=59; syncManual(); }}>Today 23:59</button>
           </div>
         </div>
 
