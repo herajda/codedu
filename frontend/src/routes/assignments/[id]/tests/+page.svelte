@@ -36,6 +36,8 @@
   let tCallArgs = '[]'
   let tCallKwargs = '{}'
   let tExpectedReturn = ''
+  const kwargsPlaceholder = 'e.g. {"round": 2}'
+  const emptyKwargsPlaceholder = '{}'
   let unittestFile: File | null = null
 
   // ──────────────────────────────────────────────────────
@@ -876,7 +878,7 @@
                       </label>
                       <label class="form-control w-full space-y-1">
                         <span class="label-text">Keyword arguments (JSON object)</span>
-                        <textarea class="textarea textarea-bordered w-full min-h-[4.5rem]" bind:value={t.call_kwargs_json} placeholder='e.g. {"round": 2}'></textarea>
+                        <textarea class="textarea textarea-bordered w-full min-h-[4.5rem]" bind:value={t.call_kwargs_json} placeholder={kwargsPlaceholder}></textarea>
                       </label>
                       <label class="form-control w-full space-y-1">
                         <span class="label-text">Expected return (JSON value)</span>
@@ -942,7 +944,7 @@
                 </label>
                 <label class="form-control w-full space-y-1 sm:col-span-2">
                   <span class="label-text">Keyword arguments (JSON object)</span>
-                  <textarea class="textarea textarea-bordered w-full min-h-[4.5rem]" bind:value={tCallKwargs} placeholder='{}'></textarea>
+                  <textarea class="textarea textarea-bordered w-full min-h-[4.5rem]" bind:value={tCallKwargs} placeholder={emptyKwargsPlaceholder}></textarea>
                 </label>
                 <label class="form-control w-full space-y-1 sm:col-span-2">
                   <span class="label-text">Expected return (JSON value)</span>
