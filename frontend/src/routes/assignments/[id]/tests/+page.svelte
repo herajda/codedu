@@ -1030,7 +1030,7 @@
                     </label>
                     <label class="form-control w-full space-y-1 md:col-span-1">
                       <span class="label-text">Keyword args (JSON object)</span>
-                      <textarea class="textarea textarea-bordered w-full" rows="2" placeholder="e.g. {\"round\": 2}" bind:value={t.function_kwargs}></textarea>
+                      <textarea class="textarea textarea-bordered w-full" rows="2" placeholder={`e.g. {"round": 2}`} bind:value={t.function_kwargs}></textarea>
                     </label>
                   </div>
                 {:else if t.unittest_name}
@@ -1119,7 +1119,7 @@
               </label>
               <label class="form-control w-full space-y-1 md:col-span-1">
                 <span class="label-text">Keyword args (JSON object)</span>
-                <textarea class="textarea textarea-bordered w-full" rows="2" placeholder="e.g. {\"round\": 2}" bind:value={fKwargs}></textarea>
+                <textarea class="textarea textarea-bordered w-full" rows="2" placeholder={`e.g. {"round": 2}`} bind:value={fKwargs}></textarea>
               </label>
               <label class="form-control w-full space-y-1">
                 <span class="label-text flex items-center gap-1"><Clock size={14}/> <span>Time limit (s)</span></span>
