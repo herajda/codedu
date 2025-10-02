@@ -85,9 +85,15 @@
   let showAdvanced = false
   let copiedPreview = false
 
-  type FnCase = { name: string; args: string; kwargs: string; expected: string; weight: string; timeLimit: string }
+  type FnParameter = { name: string; type?: string }
+  type FnReturn = { name: string; type?: string }
+  type FnCase = { name: string; args: string[]; returns: string[]; weight: string; timeLimit: string }
+  type FnMeta = { name: string; params: FnParameter[]; returns: FnReturn[] }
+
   let builderMode: 'unittest' | 'function' = 'unittest'
-  let fnBuilderFunction = ''
+  let fnSignature = ''
+  let fnSignatureError = ''
+  let fnMeta: FnMeta | null = null
   let fnCases: FnCase[] = []
 
   // ──────────────────────────────────────────────────────
@@ -405,20 +411,209 @@
     utTests = [...utTests]
   }
 
+  function parseFunctionSignatureBlock(block: string): { meta: FnMeta | null; error: string } {
+    const raw = String(block || '').replace(/\r\n?/g, '\n')
+    const lines = raw.split('\n').map((l) => l.trim()).filter((l) => l)
+    if (lines.length === 0) {
+      return { meta: null, error: '' }
+    }
+    const defLine = lines.find((l) => l.startsWith('def '))
+    if (!defLine) {
+      return { meta: null, error: 'Add a Python function definition, for example: def solve(data):' }
+    }
+    const defMatch = defLine.match(/^def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)\s*(?:->\s*([^:]+))?:/)
+    if (!defMatch) {
+      return { meta: null, error: 'Could not parse the function definition. Use Python syntax like def name(arg1, arg2) -> int:' }
+    }
+    const [, name, paramsRaw, returnRaw] = defMatch
+    const params: FnParameter[] = []
+    if (paramsRaw.trim()) {
+      const pieces = paramsRaw.split(',')
+      for (const piece of pieces) {
+        const part = piece.trim()
+        if (!part) continue
+        if (part.startsWith('*')) {
+          return { meta: null, error: 'Only positional arguments are supported in this builder.' }
+        }
+        const [namePartRaw, typePartRaw] = part.split(':').map((p) => p.trim())
+        const namePart = namePartRaw.split('=')[0].trim()
+        if (!namePart || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(namePart)) {
+          return { meta: null, error: `Argument "${namePartRaw}" is not a valid positional parameter.` }
+        }
+        const typePart = typePartRaw ? typePartRaw.trim() : undefined
+        params.push({ name: namePart, type: typePart })
+      }
+    }
+    let returns: FnReturn[] = []
+    const ret = (returnRaw ?? '').trim()
+    if (!ret) {
+      returns = [{ name: 'return', type: undefined }]
+    } else if (/^none$/i.test(ret)) {
+      returns = []
+    } else if (ret.startsWith('(') && ret.endsWith(')')) {
+      const inner = ret.slice(1, -1)
+      const parts = inner.split(',').map((p) => p.trim()).filter((p) => p)
+      if (parts.length === 0) {
+        returns = []
+      } else {
+        returns = parts.map((p, idx) => ({ name: `value${idx + 1}`, type: p }))
+      }
+    } else {
+      returns = [{ name: 'return', type: ret }]
+    }
+    return { meta: { name, params, returns }, error: '' }
+  }
+
+  function describeTypeControl(type?: string): { control: 'text' | 'textarea' | 'number' | 'integer' | 'boolean'; placeholder?: string } {
+    const t = String(type || '').toLowerCase()
+    if (!t) return { control: 'text' }
+    if (/(bool|boolean)/.test(t)) return { control: 'boolean' }
+    if (/(int|integer|long)/.test(t)) return { control: 'integer' }
+    if (/(float|double|decimal)/.test(t)) return { control: 'number' }
+    if (/(list|tuple|set|dict|map|array|json|sequence)/.test(t)) return { control: 'textarea' }
+    if (/(str|string|char)/.test(t)) return { control: 'text' }
+    return { control: 'text' }
+  }
+
+  function ensureCaseShape(c: FnCase, meta: FnMeta | null): FnCase {
+    const argCount = meta?.params.length ?? 0
+    const returnCount = meta ? meta.returns.length : 1
+    const adjustedArgs = [...(c.args ?? [])]
+    const adjustedReturns = [...(c.returns ?? [])]
+    while (adjustedArgs.length < argCount) adjustedArgs.push('')
+    if (adjustedArgs.length > argCount) adjustedArgs.length = argCount
+    const expectedReturnCount = returnCount === 0 ? 0 : Math.max(returnCount, 1)
+    while (adjustedReturns.length < expectedReturnCount) adjustedReturns.push('')
+    if (adjustedReturns.length > expectedReturnCount) adjustedReturns.length = expectedReturnCount
+    return {
+      name: c.name,
+      args: adjustedArgs,
+      returns: adjustedReturns,
+      weight: c.weight,
+      timeLimit: c.timeLimit
+    }
+  }
+
+  function arraysEqual(a: string[], b: string[]): boolean {
+    if (a.length !== b.length) return false
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return false
+    }
+    return true
+  }
+
+  function casesEqual(a: FnCase, b: FnCase): boolean {
+    return (
+      a.name === b.name &&
+      arraysEqual(a.args, b.args) &&
+      arraysEqual(a.returns, b.returns) &&
+      a.weight === b.weight &&
+      a.timeLimit === b.timeLimit
+    )
+  }
+
+  function createEmptyCase(meta: FnMeta | null, idx: number, defaultWeight: string): FnCase {
+    const argCount = meta?.params.length ?? 0
+    const returnCount = meta ? meta.returns.length : 1
+    const args = Array.from({ length: argCount }, () => '')
+    const returns = Array.from({ length: returnCount === 0 ? 0 : Math.max(returnCount, 1) }, () => '')
+    return {
+      name: `Case ${idx + 1}`,
+      args,
+      returns,
+      weight: defaultWeight,
+      timeLimit: '1'
+    }
+  }
+
+  function parseJSONish(value: string): any {
+    const text = value.trim()
+    if (!text) return null
+    const normalized = text
+      .replace(/'/g, '"')
+      .replace(/\bTrue\b/g, 'true')
+      .replace(/\bFalse\b/g, 'false')
+      .replace(/\bNone\b/g, 'null')
+    try {
+      return JSON.parse(normalized)
+    } catch (err) {
+      return undefined
+    }
+  }
+
+  function coerceValueForType(raw: string, typeHint?: string): any {
+    const value = raw.trim()
+    if (!value) return null
+    const hint = String(typeHint || '').toLowerCase()
+    if (/(bool|boolean)/.test(hint)) {
+      if (/^(true|false)$/i.test(value)) return /^true$/i.test(value)
+      if (/^[01]$/.test(value)) return value === '1'
+    }
+    if (/(int|integer|long)/.test(hint)) {
+      const parsed = parseInt(value, 10)
+      if (!Number.isNaN(parsed)) return parsed
+    }
+    if (/(float|double|decimal)/.test(hint)) {
+      const parsed = parseFloat(value)
+      if (!Number.isNaN(parsed)) return parsed
+    }
+    if (/(str|string|char)/.test(hint)) {
+      return value
+    }
+    if (/(list|tuple|set|dict|map|array|json|sequence)/.test(hint)) {
+      const parsed = parseJSONish(value)
+      if (parsed !== undefined) return parsed
+    }
+    if (hint && hint.includes('none')) {
+      return null
+    }
+    if (/^(true|false)$/i.test(value)) return /^true$/i.test(value)
+    if (/^-?\d+$/.test(value)) {
+      const parsed = parseInt(value, 10)
+      if (!Number.isNaN(parsed)) return parsed
+    }
+    if (/^-?\d*\.\d+$/.test(value)) {
+      const parsed = parseFloat(value)
+      if (!Number.isNaN(parsed)) return parsed
+    }
+    const parsedJSON = parseJSONish(value)
+    if (parsedJSON !== undefined) return parsedJSON
+    return value
+  }
+
+  $: {
+    const { meta, error } = parseFunctionSignatureBlock(fnSignature)
+    fnMeta = meta
+    fnSignatureError = error
+    if (meta && fnCases.length) {
+      const nextCases = fnCases.map((c, idx) => ensureCaseShape({ ...c, name: c.name || `Case ${idx + 1}` }, meta))
+      const changed = nextCases.some((caseItem, idx) => !casesEqual(caseItem, fnCases[idx]))
+      if (changed) {
+        fnCases = nextCases
+      }
+    }
+  }
+
   function addFnCase() {
-    fnCases = [
-      ...fnCases,
-      { name: `Case ${fnCases.length + 1}`, args: '[]', kwargs: '{}', expected: '', weight: assignment?.grading_policy === 'weighted' ? '1' : '0', timeLimit: '1' }
-    ]
+    if (!fnMeta) {
+      err = 'Define the function signature first.'
+      return
+    }
+    const defaultWeight = assignment?.grading_policy === 'weighted' ? '1' : '0'
+    fnCases = [...fnCases, createEmptyCase(fnMeta, fnCases.length, defaultWeight)]
+    hasFunctionBuilder = true
   }
 
   function removeFnCase(idx: number) {
     fnCases = fnCases.filter((_, i) => i !== idx)
+    if (fnCases.length === 0) {
+      hasFunctionBuilder = false
+    }
   }
 
   async function createFunctionTestsFromBuilder() {
-    if (!fnBuilderFunction.trim()) {
-      err = 'Function name is required'
+    if (!fnMeta) {
+      err = 'Define the function signature before creating tests.'
       return
     }
     if (fnCases.length === 0) {
@@ -427,12 +622,24 @@
     }
     try {
       for (const c of fnCases) {
+        const argsValues = fnMeta.params.map((p, idx) => coerceValueForType(c.args[idx] ?? '', p.type))
+        const returnValues = fnMeta.returns.length
+          ? fnMeta.returns.map((r, idx) => coerceValueForType(c.returns[idx] ?? '', r.type))
+          : []
+        let expectedPayload: any = null
+        if (fnMeta.returns.length === 0) {
+          expectedPayload = null
+        } else if (fnMeta.returns.length === 1) {
+          expectedPayload = returnValues[0]
+        } else {
+          expectedPayload = returnValues
+        }
         const payload: any = {
           execution_mode: 'function',
-          function_name: fnBuilderFunction.trim(),
-          function_args: (c.args ?? '').trim(),
-          function_kwargs: (c.kwargs ?? '').trim(),
-          expected_return: (c.expected ?? '').trim(),
+          function_name: fnMeta.name,
+          function_args: JSON.stringify(argsValues),
+          function_kwargs: '{}',
+          expected_return: expectedPayload === undefined ? '' : JSON.stringify(expectedPayload),
           stdin: '',
           expected_stdout: '',
           time_limit_sec: parseFloat(c.timeLimit) || undefined
@@ -447,8 +654,9 @@
         })
       }
       fnCases = []
-      fnBuilderFunction = ''
       hasFunctionBuilder = false
+      fnSignature = ''
+      fnMeta = null
       await load()
     } catch (e: any) {
       err = e.message
@@ -594,48 +802,123 @@
     }
   }
 
-  function safeJSONString(value: any, fallback = ''): string {
-    if (value === undefined) return fallback
+  function formatValueForInput(value: any): string {
+    if (value === undefined || value === null) return ''
+    if (typeof value === 'string') return value
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value)
     try {
       return JSON.stringify(value)
-    } catch (e) {
-      return fallback
-    }
-  }
-
-  function normalizeArgs(value: any): string {
-    if (Array.isArray(value)) {
-      return safeJSONString(value, '[]')
-    }
-    if (value === undefined || value === null) {
-      return '[]'
-    }
-    return safeJSONString([value], '[]')
-  }
-
-  function normalizeKwargs(value: any): string {
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      return safeJSONString(value, '{}')
-    }
-    if (value === undefined || value === null) {
-      return '{}'
-    }
-    // best effort: try to coerce strings like "{...}" into JSON
-    try {
-      const parsed = typeof value === 'string' ? JSON.parse(value) : value
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        return safeJSONString(parsed, '{}')
-      }
     } catch (err) {
-      // ignore
+      return String(value)
     }
-    return '{}'
   }
 
-  function normalizeExpected(value: any): string {
-    if (value === undefined) return ''
-    return safeJSONString(value, '')
+  function guessTypeFromValue(value: any): string {
+    if (value === null || value === undefined) return 'Any'
+    if (Array.isArray(value)) return 'list'
+    if (typeof value === 'object') return 'dict'
+    if (typeof value === 'boolean') return 'bool'
+    if (typeof value === 'number') return Number.isInteger(value) ? 'int' : 'float'
+    if (typeof value === 'string') return 'str'
+    return 'Any'
   }
+
+  function buildSignatureFromAI(name: string, sampleCase: any): string {
+    const argsSample: any[] = Array.isArray(sampleCase?.args)
+      ? sampleCase.args
+      : sampleCase?.args != null
+      ? [sampleCase.args]
+      : []
+    const expectedSample = sampleCase?.expected
+    const argNames = argsSample.map((_, idx) => `arg${idx + 1}: ${guessTypeFromValue(argsSample[idx])}`)
+    const argSection = argNames.join(', ')
+    let returnType: string | null = null
+    if (Array.isArray(expectedSample)) {
+      if (expectedSample.length > 1) {
+        const parts = expectedSample.map((v: any) => guessTypeFromValue(v)).join(', ')
+        returnType = `(${parts})`
+      } else if (expectedSample.length === 1) {
+        returnType = guessTypeFromValue(expectedSample[0])
+      }
+    } else if (expectedSample === null || expectedSample === undefined) {
+      returnType = 'None'
+    } else {
+      returnType = guessTypeFromValue(expectedSample)
+    }
+    let header = `def ${name}(${argSection})`
+    if (returnType && returnType.trim() !== '') {
+      header += ` -> ${returnType}`
+    }
+    header += ':'
+    return header
+  }
+
+  function convertAICaseToBuilder(rc: any, idx: number, meta: FnMeta | null, defaultWeight: string): FnCase {
+    const name = rc?.name ? String(rc.name) : `Case ${idx + 1}`
+    const weightSource = rc?.weight ?? rc?.points ?? rc?.score
+    const timeSource = rc?.time_limit ?? rc?.timeLimit ?? rc?.timeout ?? rc?.duration
+    let weight = defaultWeight
+    if (weightSource !== undefined && weightSource !== null && weightSource !== '') {
+      const wnum = Number(weightSource)
+      if (!Number.isNaN(wnum)) {
+        weight = String(wnum)
+      }
+    }
+    let timeLimit = '1'
+    if (timeSource !== undefined && timeSource !== null && timeSource !== '') {
+      const tnum = Number(timeSource)
+      if (!Number.isNaN(tnum)) {
+        timeLimit = String(tnum)
+      }
+    }
+    const rawArgs: any[] = Array.isArray(rc?.args)
+      ? rc.args
+      : rc?.args != null
+      ? [rc.args]
+      : []
+    const expectedRaw = rc?.expected
+    let args: string[] = rawArgs.map((v) => formatValueForInput(v))
+    let returns: string[] = []
+    if (Array.isArray(expectedRaw)) {
+      returns = expectedRaw.map((v: any) => formatValueForInput(v))
+    } else if (expectedRaw !== undefined) {
+      returns = [formatValueForInput(expectedRaw)]
+    } else {
+      returns = []
+    }
+    const base: FnCase = {
+      name,
+      args,
+      returns,
+      weight,
+      timeLimit
+    }
+    return meta ? ensureCaseShape(base, meta) : base
+  }
+
+  function updateFnArg(caseIndex: number, argIndex: number, value: string) {
+    fnCases = fnCases.map((c, idx) => {
+      if (idx !== caseIndex) return c
+      const nextArgs = [...c.args]
+      nextArgs[argIndex] = value
+      return { ...c, args: nextArgs }
+    })
+  }
+
+  function updateFnReturn(caseIndex: number, returnIndex: number, value: string) {
+    fnCases = fnCases.map((c, idx) => {
+      if (idx !== caseIndex) return c
+      const nextReturns = [...c.returns]
+      nextReturns[returnIndex] = value
+      return { ...c, returns: nextReturns }
+    })
+  }
+
+  function stringToBool(value: string): boolean {
+    const normalized = String(value ?? '').trim().toLowerCase()
+    return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on'
+  }
+
   async function generateWithAI() {
     aiGenerating = true
     err = ''
@@ -658,7 +941,7 @@
       if (responseMode === 'function') {
         builderMode = 'function'
         aiCode = typeof res?.python === 'string' ? res.python : ''
-        fnBuilderFunction = String(res?.function_builder?.function_name ?? '').trim()
+        const functionName = String(res?.function_builder?.function_name ?? '').trim() || 'function_name'
         let rawCases: any = res?.function_builder?.cases ?? []
         if (typeof rawCases === 'string') {
           try {
@@ -670,33 +953,21 @@
         if (!Array.isArray(rawCases)) {
           rawCases = []
         }
+        let signature = String(res?.function_builder?.signature ?? '').trim()
+        if (!signature) {
+          const sample = rawCases[0] ?? {}
+          signature = buildSignatureFromAI(functionName, sample)
+        }
+        fnSignature = signature
+        const { meta } = parseFunctionSignatureBlock(signature)
+        fnMeta = meta
         const defaultWeight = assignment?.grading_policy === 'weighted' ? '1' : '0'
-        fnCases = rawCases.map((rc: any, idx: number) => {
-          const name = rc?.name ? String(rc.name) : `Case ${idx + 1}`
-          const args = normalizeArgs(rc?.args)
-          const kwargs = normalizeKwargs(rc?.kwargs)
-          const expected = Object.prototype.hasOwnProperty.call(rc ?? {}, 'expected') ? normalizeExpected(rc?.expected) : ''
-          const weightSource = rc?.weight ?? rc?.points ?? rc?.score
-          const timeSource = rc?.time_limit ?? rc?.timeLimit ?? rc?.timeout ?? rc?.duration
-          let weight = defaultWeight
-          if (weightSource !== undefined && weightSource !== null && weightSource !== '') {
-            const wnum = Number(weightSource)
-            if (!Number.isNaN(wnum)) {
-              weight = String(wnum)
-            }
-          }
-          let timeLimit = '1'
-          if (timeSource !== undefined && timeSource !== null && timeSource !== '') {
-            const tnum = Number(timeSource)
-            if (!Number.isNaN(tnum)) {
-              timeLimit = String(tnum)
-            }
-          }
-          return { name, args, kwargs, expected, weight, timeLimit }
-        })
-        hasFunctionBuilder = fnCases.length > 0
-        if (!hasFunctionBuilder) {
+        fnCases = rawCases.map((rc: any, idx: number) => convertAICaseToBuilder(rc, idx, meta ?? null, defaultWeight))
+        if (!fnCases.length) {
           fnCases = []
+          hasFunctionBuilder = false
+        } else {
+          hasFunctionBuilder = true
         }
       } else {
         builderMode = 'unittest'
@@ -1282,54 +1553,130 @@
           {/if}
 
           <div class="divider text-xs uppercase">Function tests builder</div>
-          <p class="text-sm opacity-70">Build function-based automatic tests without writing code.</p>
-          <div class="grid sm:grid-cols-2 gap-3 mt-3">
-            <label class="form-control w-full space-y-1">
-              <span class="label-text">Function name</span>
-              <input class="input input-bordered w-full" placeholder="e.g. multiply" bind:value={fnBuilderFunction}>
-            </label>
-            <div class="flex items-end gap-2">
-              <button class="btn btn-outline" on:click={addFnCase}><Plus size={16}/> Add case</button>
-              <button class="btn btn-primary" disabled={fnCases.length === 0} on:click={createFunctionTestsFromBuilder}><FlaskConical size={16}/> Create function tests</button>
-            </div>
-          </div>
-          <div class="space-y-3 mt-3">
-            {#each fnCases as fc, fi}
-              <div class="rounded-xl border border-base-300/60 p-3 space-y-2">
-                <div class="flex items-center justify-between gap-2">
-                  <input class="input input-bordered w-full" bind:value={fc.name} placeholder={`Case ${fi + 1}`}> 
-                  <button class="btn btn-ghost btn-xs" on:click={() => removeFnCase(fi)}><Trash2 size={14}/> Remove</button>
+          <div class="space-y-4">
+            <div class="rounded-2xl border border-base-300/70 bg-base-200/40 p-4 space-y-3">
+              <div>
+                <h4 class="font-semibold flex items-center gap-2"><Code size={18}/> Define function signature</h4>
+                <p class="text-sm opacity-70">Write the Python function header to describe arguments and optional return types.</p>
+              </div>
+              <CodeMirror bind:value={fnSignature} lang={python()} readOnly={false} placeholder={'def my_function(arr: list, target: int) -> bool'} />
+              {#if fnSignatureError}
+                <div class="alert alert-error text-sm">{fnSignatureError}</div>
+              {:else if fnMeta}
+                <div class="flex flex-wrap gap-2 text-xs">
+                  <span class="badge badge-outline badge-sm">Function: {fnMeta.name}</span>
+                  {#if fnMeta.params.length}
+                    {#each fnMeta.params as p}
+                      <span class="badge badge-outline badge-sm">{p.name}{p.type ? `: ${p.type}` : ''}</span>
+                    {/each}
+                  {:else}
+                    <span class="badge badge-outline badge-sm">No arguments</span>
+                  {/if}
+                  {#if fnMeta.returns.length === 0}
+                    <span class="badge badge-outline badge-sm">Returns: None</span>
+                  {:else}
+                    {#each fnMeta.returns as r, ri}
+                      <span class="badge badge-outline badge-sm">{fnMeta.returns.length > 1 ? `Return ${ri + 1}` : 'Return'}{r.type ? `: ${r.type}` : ''}</span>
+                    {/each}
+                  {/if}
                 </div>
-                <div class="grid gap-2 md:grid-cols-2">
-                  <label class="form-control space-y-1">
-                    <span class="label-text">Arguments (JSON array)</span>
-                    <textarea class="textarea textarea-bordered" rows="2" bind:value={fc.args}></textarea>
-                  </label>
-                  <label class="form-control space-y-1">
-                    <span class="label-text">Keyword args (JSON object)</span>
-                    <textarea class="textarea textarea-bordered" rows="2" bind:value={fc.kwargs}></textarea>
-                  </label>
-                  <label class="form-control space-y-1">
-                    <span class="label-text">Expected return (JSON)</span>
-                    <textarea class="textarea textarea-bordered" rows="2" bind:value={fc.expected}></textarea>
-                  </label>
-                  <div class="grid gap-2">
-                    <label class="form-control space-y-1">
-                      <span class="label-text flex items-center gap-1"><Clock size={14}/> <span>Time limit (s)</span></span>
-                      <input class="input input-bordered" bind:value={fc.timeLimit}>
-                    </label>
-                    {#if assignment?.grading_policy === 'weighted'}
-                      <label class="form-control space-y-1">
-                        <span class="label-text flex items-center gap-1"><Scale size={14}/> <span>Points</span></span>
-                        <input class="input input-bordered" bind:value={fc.weight}>
-                      </label>
+              {/if}
+            </div>
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="text-sm opacity-70">{fnCases.length} {fnCases.length === 1 ? 'case' : 'cases'}</div>
+              <div class="flex items-center gap-2">
+                <button class="btn btn-outline" on:click={addFnCase} disabled={!fnMeta}><Plus size={16}/> Add case</button>
+                <button class="btn btn-primary" disabled={!fnMeta || fnCases.length === 0} on:click={createFunctionTestsFromBuilder}><FlaskConical size={16}/> Create function tests</button>
+              </div>
+            </div>
+            {#if !fnMeta}
+              <div class="rounded-xl border border-dashed border-base-300/80 p-6 text-center text-sm opacity-70">Define the function signature to start adding test cases.</div>
+            {:else}
+              <div class="space-y-3">
+                {#each fnCases as fc, fi}
+                  <div class="rounded-2xl border border-base-300/70 bg-base-100 p-4 space-y-4 shadow-sm">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                      <input class="input input-bordered w-full flex-1" bind:value={fc.name} placeholder={`Case ${fi + 1}`}>
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <label class="form-control w-32">
+                          <span class="label-text text-xs">Time limit (s)</span>
+                          <input class="input input-bordered w-full" bind:value={fc.timeLimit}>
+                        </label>
+                        {#if assignment?.grading_policy === 'weighted'}
+                          <label class="form-control w-28">
+                            <span class="label-text text-xs">Points</span>
+                            <input class="input input-bordered w-full" bind:value={fc.weight}>
+                          </label>
+                        {/if}
+                        <button class="btn btn-ghost btn-xs" on:click={() => removeFnCase(fi)}><Trash2 size={14}/> Remove</button>
+                      </div>
+                    </div>
+                    {#if fnMeta.params.length}
+                      <div class="space-y-2">
+                        <h5 class="text-sm font-semibold">Arguments</h5>
+                        <div class="grid gap-3 md:grid-cols-2">
+                          {#each fnMeta.params as param, pi}
+                            {@const control = describeTypeControl(param.type)}
+                            <div class="form-control space-y-1">
+                              <span class="label-text text-xs font-semibold uppercase tracking-wide flex items-center gap-2">
+                                {param.name}
+                                {#if param.type}
+                                  <span class="badge badge-outline badge-sm">{param.type}</span>
+                                {/if}
+                              </span>
+                              {#if control.control === 'boolean'}
+                                <label class="label cursor-pointer justify-start gap-2 rounded-lg border border-base-300/60 px-3 py-2 bg-base-200/60">
+                                  <input type="checkbox" class="toggle toggle-sm" checked={stringToBool(fc.args[pi])} on:change={(e) => updateFnArg(fi, pi, (e.target as HTMLInputElement).checked ? 'true' : 'false')}>
+                                  <span class="label-text text-sm">{stringToBool(fc.args[pi]) ? 'True' : 'False'}</span>
+                                </label>
+                              {:else if control.control === 'textarea'}
+                                <textarea class="textarea textarea-bordered h-24" value={fc.args[pi]} on:input={(e) => updateFnArg(fi, pi, (e.target as HTMLTextAreaElement).value)} placeholder={param.type ?? 'Value'}></textarea>
+                              {:else}
+                                <input class="input input-bordered w-full" type={control.control === 'integer' || control.control === 'number' ? 'number' : 'text'} step={control.control === 'integer' ? '1' : control.control === 'number' ? 'any' : undefined} value={fc.args[pi]} on:input={(e) => updateFnArg(fi, pi, (e.target as HTMLInputElement).value)} placeholder={param.type ?? 'Value'}>
+                              {/if}
+                            </div>
+                          {/each}
+                        </div>
+                      </div>
+                    {/if}
+                    {#if fnMeta.returns.length > 0}
+                      <div class="space-y-2">
+                        <h5 class="text-sm font-semibold">Expected return{fnMeta.returns.length > 1 ? ' values' : ''}</h5>
+                        <div class="grid gap-3 md:grid-cols-2">
+                          {#each fnMeta.returns as ret, ri}
+                            {@const control = describeTypeControl(ret.type)}
+                            <div class="form-control space-y-1">
+                              <span class="label-text text-xs font-semibold uppercase tracking-wide flex items-center gap-2">
+                                {fnMeta.returns.length > 1 ? `Return ${ri + 1}` : 'Return'}
+                                {#if ret.type}
+                                  <span class="badge badge-outline badge-sm">{ret.type}</span>
+                                {/if}
+                              </span>
+                              {#if control.control === 'boolean'}
+                                <label class="label cursor-pointer justify-start gap-2 rounded-lg border border-base-300/60 px-3 py-2 bg-base-200/60">
+                                  <input type="checkbox" class="toggle toggle-sm" checked={stringToBool(fc.returns[ri])} on:change={(e) => updateFnReturn(fi, ri, (e.target as HTMLInputElement).checked ? 'true' : 'false')}>
+                                  <span class="label-text text-sm">{stringToBool(fc.returns[ri]) ? 'True' : 'False'}</span>
+                                </label>
+                              {:else if control.control === 'textarea'}
+                                <textarea class="textarea textarea-bordered h-24" value={fc.returns[ri]} on:input={(e) => updateFnReturn(fi, ri, (e.target as HTMLTextAreaElement).value)} placeholder={ret.type ?? 'Value'}></textarea>
+                              {:else}
+                                <input class="input input-bordered w-full" type={control.control === 'integer' || control.control === 'number' ? 'number' : 'text'} step={control.control === 'integer' ? '1' : control.control === 'number' ? 'any' : undefined} value={fc.returns[ri]} on:input={(e) => updateFnReturn(fi, ri, (e.target as HTMLInputElement).value)} placeholder={ret.type ?? 'Value'}>
+                              {/if}
+                            </div>
+                          {/each}
+                        </div>
+                      </div>
+                    {:else}
+                      <div class="rounded-lg border border-dashed border-base-300/70 bg-base-200/50 px-4 py-3 text-xs opacity-70">
+                        This function returns <code>None</code>. You can leave the expected value blank to assert that no value is returned.
+                      </div>
                     {/if}
                   </div>
-                </div>
+                {/each}
+                {#if fnCases.length === 0}
+                  <div class="rounded-xl border border-dashed border-base-300/80 p-6 text-center text-sm opacity-70">No function cases yet. Add a case to build function-based tests.</div>
+                {/if}
               </div>
-            {/each}
-            {#if fnCases.length === 0}
-              <div class="rounded-xl border border-dashed border-base-300/80 p-6 text-center text-sm opacity-70">No function cases yet. Add a case to build function-based tests.</div>
             {/if}
           </div>
         </div>
