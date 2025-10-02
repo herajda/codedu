@@ -35,12 +35,7 @@
   let tWeight = '1'
   let unittestFile: File | null = null
 
-  let fFunction = ''
-  let fArgs = '[]'
-  let fKwargs = '{}'
-  let fExpected = ''
-  let fLimit = ''
-  let fWeight = '1'
+  // function-test inputs removed
 
   // ──────────────────────────────────────────────────────
   // AI generator state
@@ -50,8 +45,8 @@
   let aiGenerating = false
   let aiCode = ''
   let hasAIBuilder = false
-  let hasFunctionBuilder = false
-  let aiMode: 'unittest' | 'function' = 'unittest'
+  let hasFunctionBuilder = false // deprecated
+  let aiMode: 'unittest' | 'function' = 'unittest' // function mode deprecated
   let aiAuto = true
   // Teacher solution testing
   let teacherSolutionFile: File | null = null
@@ -312,49 +307,7 @@
     }
   }
 
-  async function addFunctionTest() {
-    try {
-      const testData: any = {
-        execution_mode: 'function',
-        function_name: fFunction.trim(),
-        stdin: '',
-        expected_stdout: '',
-        time_limit_sec: parseFloat(fLimit) || undefined
-      }
-
-      if (!testData.function_name) {
-        err = 'Function name is required'
-        return
-      }
-
-      if (assignment?.grading_policy === 'weighted') {
-        testData.weight = parseFloat(fWeight) || 1
-      }
-
-      const args = (fArgs ?? '').trim()
-      const kwargs = (fKwargs ?? '').trim()
-      const expected = (fExpected ?? '').trim()
-
-      if (args !== '') testData.function_args = args
-      if (kwargs !== '') testData.function_kwargs = kwargs
-      if (expected !== '') testData.expected_return = expected
-
-      await apiFetch(`/api/assignments/${id}/tests`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(testData)
-      })
-      fFunction = ''
-      fArgs = '[]'
-      fKwargs = '{}'
-      fExpected = ''
-      fLimit = ''
-      fWeight = '1'
-      await load()
-    } catch (e: any) {
-      err = e.message
-    }
-  }
+  // addFunctionTest removed (deprecated)
 
   async function uploadUnitTests() {
     if (!unittestFile) return
@@ -1371,43 +1324,7 @@
           </div>
         </div>
 
-        <input type="radio" name="tests-tab" role="tab" class="tab" aria-label="Add function test">
-        <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4">
-          <div class="space-y-2">
-            <h4 class="font-semibold flex items-center gap-2"><Code size={18}/> Add function test</h4>
-            <div class="grid gap-2" class:md:grid-cols-2={assignment?.grading_policy === 'weighted'}>
-              <label class="form-control w-full space-y-1 md:col-span-1">
-                <span class="label-text">Function name</span>
-                <input class="input input-bordered w-full" placeholder="e.g. multiply" bind:value={fFunction}>
-              </label>
-              <label class="form-control w-full space-y-1 md:col-span-1">
-                <span class="label-text">Expected return (JSON)</span>
-                <textarea class="textarea textarea-bordered w-full" rows="2" placeholder="e.g. 6" bind:value={fExpected}></textarea>
-              </label>
-              <label class="form-control w-full space-y-1 md:col-span-1">
-                <span class="label-text">Arguments (JSON array)</span>
-                <textarea class="textarea textarea-bordered w-full" rows="2" placeholder="e.g. [2,3]" bind:value={fArgs}></textarea>
-              </label>
-              <label class="form-control w-full space-y-1 md:col-span-1">
-                <span class="label-text">Keyword args (JSON object)</span>
-                <textarea class="textarea textarea-bordered w-full" rows="2" placeholder={`e.g. {"round": 2}`} bind:value={fKwargs}></textarea>
-              </label>
-              <label class="form-control w-full space-y-1">
-                <span class="label-text flex items-center gap-1"><Clock size={14}/> <span>Time limit (s)</span></span>
-                <input class="input input-bordered w-full" placeholder="seconds" bind:value={fLimit}>
-              </label>
-              {#if assignment?.grading_policy === 'weighted'}
-                <label class="form-control w-full space-y-1">
-                  <span class="label-text flex items-center gap-1"><Scale size={14}/> <span>Points</span></span>
-                  <input class="input input-bordered w-full" placeholder="points" bind:value={fWeight}>
-                </label>
-              {/if}
-            </div>
-            <div>
-              <button class="btn btn-primary" on:click={addFunctionTest} disabled={!fFunction.trim()}><Plus size={16}/> Add function test</button>
-            </div>
-          </div>
-        </div>
+
 
         <input type="radio" name="tests-tab" role="tab" class="tab" aria-label="Unittest builder">
         <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4 space-y-4">
@@ -1730,11 +1647,7 @@
               <span>AI also prepared a builder structure below. You can tweak it in the Unittest builder tab and upload from there.</span>
             </div>
           {/if}
-          {#if hasFunctionBuilder}
-            <div class="alert">
-              <span>AI prepared function-call cases. Review them in the Function tests builder and save when ready.</span>
-            </div>
-          {/if}
+          
 
           <div class="divider">Optional: test on teacher solution</div>
           <div class="grid sm:grid-cols-2 gap-3 items-end">

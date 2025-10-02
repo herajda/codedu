@@ -1459,20 +1459,91 @@ func runTeacherSolution(c *gin.Context) {
 		var exitCode int
 		var timedOut bool
 		var runtime time.Duration
-		if tc.UnittestCode != nil && tc.UnittestName != nil {
-			stdout, stderr, exitCode, timedOut, runtime = executePythonUnit(tmpDir, mainFile, *tc.UnittestCode, *tc.UnittestName, timeout)
-		} else {
+		var actualReturn *string
+		mode := strings.TrimSpace(tc.ExecutionMode)
+		if mode == "" {
+			if tc.UnittestName != nil {
+				mode = "unittest"
+			} else if tc.FunctionName != nil {
+				mode = "function"
+			} else {
+				mode = "stdin_stdout"
+			}
+		}
+
+		var funcMeta *functionCallResult
+		var funcErr error
+
+		switch mode {
+		case "unittest":
+			code := ""
+			if tc.UnittestCode != nil {
+				code = *tc.UnittestCode
+			}
+			name := ""
+			if tc.UnittestName != nil {
+				name = *tc.UnittestName
+			}
+			stdout, stderr, exitCode, timedOut, runtime = executePythonUnit(tmpDir, mainFile, code, name, timeout)
+		case "function":
+			fn := ""
+			if tc.FunctionName != nil {
+				fn = strings.TrimSpace(*tc.FunctionName)
+			}
+			cfg := functionCallConfig{FunctionName: fn, ArgsJSON: tc.FunctionArgs, KwargsJSON: tc.FunctionKwargs, ExpectedJSON: tc.ExpectedReturn}
+			stdout, stderr, exitCode, timedOut, runtime, funcMeta, funcErr = runFunctionCall(tmpDir, mainFile, cfg, timeout)
+			if funcErr != nil {
+				stderr = funcErr.Error()
+				exitCode = -1
+			}
+			if funcMeta != nil {
+				if funcMeta.Stdout != "" {
+					stdout = funcMeta.Stdout
+				}
+				if funcMeta.ReturnJSON != nil && strings.TrimSpace(*funcMeta.ReturnJSON) != "" {
+					actualReturn = funcMeta.ReturnJSON
+				} else if strings.TrimSpace(funcMeta.ReturnRepr) != "" {
+					rr := funcMeta.ReturnRepr
+					actualReturn = &rr
+				}
+				if funcMeta.Traceback != "" {
+					stderr = funcMeta.Traceback
+				}
+				if funcMeta.Status == "exception" && stderr == "" {
+					stderr = funcMeta.Exception
+				}
+			}
+		default:
 			stdout, stderr, exitCode, timedOut, runtime = executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
 		}
 
 		status := "passed"
-		if tc.UnittestCode != nil && tc.UnittestName != nil {
+		switch mode {
+		case "unittest":
 			if timedOut {
 				status = "time_limit_exceeded"
 			} else if exitCode != 0 {
-				status = "wrong_output"
+				if strings.Contains(stdout, "===JUDGE:ASSERT_FAIL===") {
+					status = "wrong_output"
+				} else {
+					status = "runtime_error"
+				}
 			}
-		} else {
+		case "function":
+			if funcErr != nil {
+				status = "runtime_error"
+			} else if timedOut {
+				status = "time_limit_exceeded"
+			} else if funcMeta != nil {
+				if funcMeta.Status == "exception" {
+					status = "runtime_error"
+				} else if !funcMeta.Passed {
+					status = "wrong_output"
+				}
+			} else if exitCode != 0 {
+				status = "runtime_error"
+			}
+		default:
 			switch {
 			case timedOut:
 				status = "time_limit_exceeded"
@@ -1498,6 +1569,19 @@ func runTeacherSolution(c *gin.Context) {
 			"actual_stdout":   stdout,
 			"expected_stdout": tc.ExpectedStdout,
 			"stderr":          stderr,
+		}
+		if mode == "function" {
+			if tc.FunctionName != nil {
+				item["function_name"] = strings.TrimSpace(*tc.FunctionName)
+			}
+			item["function_args"] = tc.FunctionArgs
+			item["function_kwargs"] = tc.FunctionKwargs
+			if tc.ExpectedReturn != nil {
+				item["expected_return"] = *tc.ExpectedReturn
+			}
+			if actualReturn != nil {
+				item["actual_return"] = *actualReturn
+			}
 		}
 		results = append(results, item)
 	}
@@ -1541,6 +1625,9 @@ func runTeacherSolution(c *gin.Context) {
 	for i, tc := range tests {
 		item := results[i]
 		r := &Result{SubmissionID: sub.ID, TestCaseID: tc.ID, Status: item["status"].(string), ActualStdout: fmt.Sprint(item["actual_stdout"]), Stderr: fmt.Sprint(item["stderr"]), ExitCode: item["exit_code"].(int), RuntimeMS: item["runtime_ms"].(int)}
+		if ar, ok := item["actual_return"].(string); ok && ar != "" {
+			r.ActualReturn = &ar
+		}
 		_ = CreateResult(r)
 	}
 

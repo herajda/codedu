@@ -69,10 +69,11 @@ func writeFunctionRunnerFiles(dir, mainFile string, cfg functionCallConfig) (str
 		return "", "", err
 	}
 
-	script := `import contextlib
+script := `import contextlib
 import importlib.util
 import io
 import json
+import pathlib
 import sys
 import traceback
 
@@ -96,7 +97,8 @@ def resolve_attr(root, dotted: str):
 
 
 def main():
-    with open('function_config.json', 'r', encoding='utf-8') as fh:
+    cfg_path = pathlib.Path(__file__).with_name('function_config.json')
+    with cfg_path.open('r', encoding='utf-8') as fh:
         cfg = json.load(fh)
 
     result = {"status": "ok", "passed": False}
