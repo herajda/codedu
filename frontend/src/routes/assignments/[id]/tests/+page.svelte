@@ -1469,7 +1469,10 @@
             </div>
           {/if}
 
-          <div class="divider text-xs uppercase">Function tests builder</div>
+        </div>
+
+        <input type="radio" name="tests-tab" role="tab" class="tab" aria-label="Function tests builder">
+        <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4 space-y-4">
           <div class="space-y-4">
             <div class="rounded-2xl border border-base-300/70 bg-base-200/40 p-4 space-y-3">
               <div>
@@ -1597,6 +1600,7 @@
             {/if}
           </div>
         </div>
+
 
         <input type="radio" name="tests-tab" role="tab" class="tab" aria-label="AI generate">
         <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4 space-y-4">
