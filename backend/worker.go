@@ -1948,7 +1948,7 @@ func executePythonUnit(dir, mainFile, testCode, testName string, timeout time.Du
 	_ = ensureDockerImage(pythonImage)
 	abs, _ := filepath.Abs(dir)
 	testPath := filepath.Join(dir, "run_test.py")
-	content := fmt.Sprintf(`import sys, unittest, builtins, io
+	content := fmt.Sprintf(`import sys, unittest, builtins, io, types
 
 # patch assertEqual so comparisons use string values
 orig_assertEqual = unittest.TestCase.assertEqual
@@ -1965,6 +1965,17 @@ unittest.main = __grader_noop__
 
 student_source = open('%s').read()
 
+def _load_student_module():
+    module = types.ModuleType('__student__')
+    exec(student_source, module.__dict__)
+    return module
+
+def _resolve_attr(root, dotted):
+    target = root
+    for part in dotted.split('.'):
+        target = getattr(target, part)
+    return target
+
 def student_code(*args):
     it = iter(str(a) for a in args)
     def _input(prompt=None):
@@ -1980,6 +1991,11 @@ def student_code(*args):
     exec(student_source, glb)
     sys.stdout = old
     return out.getvalue().strip()
+
+def student_function(function_path, *args, **kwargs):
+    module = _load_student_module()
+    func = _resolve_attr(module, function_path)
+    return func(*args, **kwargs)
 
 %s
 

@@ -697,7 +697,7 @@ Additional guidance (optional): %s
 
 Constraints:
 - Use Python's unittest module and a single test class.
-- Each test must call student_code(...) to execute the student's program, passing input values as separate arguments. student_code returns the program's stdout string without trailing newlines.
+- Each test must call student_code(...) to execute the student's program with stdin-style arguments, or student_function('function_name', ...) to import and run a specific function and inspect its return value.
 - Prefer small, independent tests. Avoid flaky or slow tests.
 %s
 
