@@ -1,6 +1,11 @@
 <script lang="ts">
-  import { tick } from 'svelte';
-  import 'cally';
+  import { tick, onMount } from 'svelte';
+  import { browser } from '$app/environment';
+
+  onMount(async () => {
+    if (!browser) return;
+    await import('cally');
+  });
 
   type Offset = { label: string; minutes?: number; hours?: number; days?: number; weeks?: number };
   
