@@ -1939,6 +1939,8 @@ func submissionRunWS(c *gin.Context) {
 				return nil
 			})
 
+			escapedMain := strings.ReplaceAll(mainFile, "'", "'\\''")
+
 			// choose mode: GUI vs headless
 			if guiWanted {
 				// Start a GUI-capable container exposing noVNC on a random localhost port
@@ -1981,7 +1983,7 @@ func submissionRunWS(c *gin.Context) {
 					"autorestart=true",
 					"",
 					"[program:app]",
-					fmt.Sprintf("command=/usr/local/bin/python /code/%s", strings.ReplaceAll(mainFile, "'", "'\\''")),
+					fmt.Sprintf("command=/usr/local/bin/python '/code/%s'", escapedMain),
 					"directory=/code",
 					"environment=DISPLAY=\":0\"",
 					"priority=40",
@@ -2125,7 +2127,7 @@ func submissionRunWS(c *gin.Context) {
 			// Headless mode (no GUI)
 			safeID := strings.ToLower(sub.ID.String())
 			containerName := fmt.Sprintf("run-%s-%d", safeID, time.Now().UnixNano())
-			script := fmt.Sprintf("cd /code && python %s", strings.ReplaceAll(mainFile, "'", "'\\''"))
+			script := fmt.Sprintf("cd /code && python '%s'", escapedMain)
 			// Ensure the image is available to avoid long pull hangs during interactive runs
 			_ = ensureDockerImage(pythonImage)
 			cmd := exec.Command("docker", "run", "--rm", "--name", containerName, "-i",
