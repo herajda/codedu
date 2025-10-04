@@ -8,7 +8,7 @@ import { v4 as uuid } from "uuid";
 import { serializeNotebook } from "$lib/notebook";
 import { apiFetch } from "$lib/api";
 import { auth } from "$lib/auth";
-import { onMount, afterUpdate } from 'svelte';
+import { onMount, afterUpdate, createEventDispatcher } from 'svelte';
 import { preloadPyodide } from '$lib/pyodide';
 
   export let fileId: string | number | undefined;
@@ -16,6 +16,7 @@ import { preloadPyodide } from '$lib/pyodide';
 
   let cellRefs: any[] = [];
   const { saveAs } = pkg;
+  const dispatch = createEventDispatcher();
 
   let container: HTMLDivElement | null = null;
   let showBottomButton = false;
@@ -66,10 +67,15 @@ import { preloadPyodide } from '$lib/pyodide';
         body: json
       });
       alert('Saved!');
+      dispatch('saved');
     } else {
       const blob = new Blob([json], { type: 'application/json' });
       saveAs(blob, 'notebook.ipynb');
     }
+  }
+
+  export async function save() {
+    await saveNotebook();
   }
 </script>
 
