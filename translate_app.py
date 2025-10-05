@@ -30,6 +30,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 # Third-party dependency provided by the OpenAI Python SDK.
 from openai import AsyncOpenAI
+from openai.types.responses import ResponseFormatTextJSONSchemaConfig, ResponseTextConfig
 
 ROOT = Path(__file__).resolve().parent
 FRONTEND_SRC = ROOT / 'frontend' / 'src'
@@ -65,13 +66,14 @@ TRANSLATION_RESPONSE_SCHEMA = {
     'required': ['updated_source', 'translations'],
 }
 
-TRANSLATION_RESPONSE_FORMAT = {
-    'type': 'json_schema',
-    'json_schema': {
-        'schema': TRANSLATION_RESPONSE_SCHEMA,
-        'strict': True,
-    },
-}
+TRANSLATION_RESPONSE_FORMAT = ResponseTextConfig(
+    format=ResponseFormatTextJSONSchemaConfig(
+        name='translation_payload',
+        schema=TRANSLATION_RESPONSE_SCHEMA,
+        strict=True,
+        type='json_schema',
+    )
+)
 
 SUPPORTED_EXTENSIONS = {'.svelte', '.ts', '.tsx'}
 IGNORED_DIRECTORIES = {'node_modules', '.svelte-kit', '.git', '__pycache__'}
