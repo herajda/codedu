@@ -1085,6 +1085,15 @@
       }
       await load()
       utShowPreview = false
+      utClassName = 'TestAssignment'
+      utSetup = ''
+      utTeardown = ''
+      utTests = []
+      utPreviewCode = ''
+      showAdvanced = false
+      copiedPreview = false
+      const existingTab = document.querySelector('input[name="tests-tab"][aria-label="Existing tests"]') as HTMLInputElement | null
+      existingTab?.click()
       err = ''
     } catch (e: any) {
       err = e.message
