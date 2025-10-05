@@ -1020,6 +1020,7 @@
   async function uploadGeneratedUnitTests() {
     try {
       const code = generateUnittestCode()
+      const normalizedCode = code.replace(/\r\n/g, '\n')
       const blob = new Blob([code], { type: 'text/x-python' })
       const file = new File([blob], 'generated_tests.py', { type: 'text/x-python' })
       const fd = new FormData()
@@ -1027,42 +1028,60 @@
       await apiFetch(`/api/assignments/${id}/tests/upload`, { method: 'POST', body: fd })
       await load()
       // After upload, adjust weights/time limits per created unittest method
-      const nameToCfg = new Map<string, { weight: number; time: number }>()
-      for (const t of utTests) {
+      const methodConfigs = utTests.map((t) => {
         const methodName = t.name.startsWith('test_') ? t.name : `test_${t.name}`
-        const fullName = `${utClassName}.${methodName}`
+        const qualified = `${utClassName}.${methodName}`
         const w = parseFloat(t.weight)
         const s = parseFloat(t.timeLimit)
-        nameToCfg.set(fullName, { weight: isNaN(w) ? 1 : w, time: isNaN(s) ? 1 : s })
-      }
-      for (const t of tests) {
-        if (t.unittest_name && nameToCfg.has(t.unittest_name)) {
-          const cfg = nameToCfg.get(t.unittest_name)!
-          const name = String(t.unittest_name ?? '').trim()
-          const code = String(t.unittest_code ?? '')
-          if (!name || !code) {
-            continue
-          }
-          const testData: any = {
-            execution_mode: 'unittest',
-            unittest_name: name,
-            unittest_code: code,
-            stdin: '',
-            expected_stdout: '',
-            time_limit_sec: cfg.time
-          }
-
-          // Only include weight for weighted assignments
-          if (assignment?.grading_policy === 'weighted') {
-            testData.weight = cfg.weight
-          }
-
-          await apiFetch(`/api/tests/${t.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(testData)
-          })
+        return {
+          qualified,
+          weight: Number.isNaN(w) ? 1 : w,
+          time: Number.isNaN(s) ? 1 : s
         }
+      })
+      const configsByName = new Map(methodConfigs.map((cfg) => [cfg.qualified, cfg]))
+      const unusedNames = new Set(configsByName.keys())
+      for (const t of tests) {
+        const mode = (t.execution_mode ?? (t.unittest_name ? 'unittest' : t.function_name ? 'function' : 'stdin_stdout')) as string
+        if (mode !== 'unittest') continue
+
+        let qualifiedName = (t.unittest_name ?? '').trim()
+        let cfg = qualifiedName ? configsByName.get(qualifiedName) : undefined
+        const rawCode = typeof t.unittest_code === 'string' ? t.unittest_code : ''
+        const normalizedExisting = rawCode.replace(/\r\n/g, '\n')
+
+        if (!cfg) {
+          let candidate = normalizedExisting === normalizedCode ? [...unusedNames][0] : undefined
+          if (!candidate && !rawCode && unusedNames.size === 1) {
+            candidate = [...unusedNames][0]
+          }
+          if (candidate) {
+            qualifiedName = candidate
+            cfg = configsByName.get(candidate)
+          }
+        }
+        if (!cfg) continue
+
+        unusedNames.delete(cfg.qualified)
+        const testData: any = {
+          execution_mode: 'unittest',
+          unittest_name: qualifiedName || cfg.qualified,
+          unittest_code: rawCode && rawCode.trim() ? rawCode : code,
+          stdin: '',
+          expected_stdout: '',
+          time_limit_sec: cfg.time
+        }
+
+        // Only include weight for weighted assignments
+        if (assignment?.grading_policy === 'weighted') {
+          testData.weight = cfg.weight
+        }
+
+        await apiFetch(`/api/tests/${t.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(testData)
+        })
       }
       await load()
       utShowPreview = false
@@ -1261,6 +1280,8 @@
           <div class="grid gap-3 max-h-[32rem] overflow-y-auto">
             {#each tests as t, i}
               {@const mode = t.execution_mode ?? (t.unittest_name ? 'unittest' : t.function_name ? 'function' : 'stdin_stdout')}
+              {@const utName = (t.unittest_name ?? '').trim()}
+              {@const hasUnittestCode = typeof t.unittest_code === 'string' && t.unittest_code.trim().length > 0}
               <div class="rounded-xl border border-base-300/60 p-3 space-y-2">
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-2 font-semibold">
@@ -1270,15 +1291,19 @@
                       {#if t.function_name}
                         <span class="badge badge-outline ml-1">{t.function_name}</span>
                       {/if}
-                    {:else if t.unittest_name}
+                    {:else if mode === 'unittest'}
                       <span class="badge badge-primary gap-1"><FlaskConical size={14}/> unittest</span>
-                      <span class="badge badge-outline ml-1">{t.unittest_name}</span>
+                      {#if utName}
+                        <span class="badge badge-outline ml-1">{utName}</span>
+                      {:else}
+                        <span class="badge badge-outline ml-1 opacity-70">Unnamed test</span>
+                      {/if}
                     {:else}
                       <span class="badge badge-secondary gap-1">IO</span>
                     {/if}
                   </div>
                   <div class="flex gap-2">
-                    {#if t.unittest_name && t.unittest_code}
+                    {#if mode === 'unittest' && hasUnittestCode}
                       <button class="btn btn-xs" on:click={() => openEditUnitTest(t)}><Code size={14}/> Edit</button>
                     {/if}
                     <button class="btn btn-xs" on:click={() => updateTest(t)}><Save size={14}/> Save</button>
