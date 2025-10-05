@@ -210,7 +210,10 @@ async def request_translation(client: AsyncOpenAI, rel_path: str, source: str, e
     response = await client.responses.create(
         model=MODEL_NAME,
         input=[
-            {'role': message['role'], 'content': [{'type': 'text', 'text': message['content']}]}  # type: ignore[arg-type]
+            {
+                'role': message['role'],
+                'content': [{'type': 'input_text', 'text': message['content']}],
+            }
             for message in messages
         ],
         temperature=0.2,
