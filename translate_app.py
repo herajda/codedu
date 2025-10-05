@@ -30,6 +30,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 # Third-party dependency provided by the OpenAI Python SDK.
 from openai import AsyncOpenAI
+from openai.types.responses import ResponseFormatTextJSONSchemaConfig
 
 ROOT = Path(__file__).resolve().parent
 FRONTEND_SRC = ROOT / 'frontend' / 'src'
@@ -45,28 +46,32 @@ MODEL_NAME = 'gpt-5-mini'
 CONCURRENCY = 50
 
 TRANSLATION_RESPONSE_SCHEMA = {
-    'name': 'translation_payload',
-    'schema': {
-        'type': 'object',
-        'additionalProperties': False,
-        'properties': {
-            'updated_source': {'type': 'string'},
-            'translations': {
+    'type': 'object',
+    'additionalProperties': False,
+    'properties': {
+        'updated_source': {'type': 'string'},
+        'translations': {
+            'type': 'object',
+            'additionalProperties': {
                 'type': 'object',
-                'additionalProperties': {
-                    'type': 'object',
-                    'additionalProperties': False,
-                    'properties': {
-                        'en': {'type': 'string'},
-                        'cs': {'type': 'string'},
-                    },
-                    'required': ['en', 'cs'],
+                'additionalProperties': False,
+                'properties': {
+                    'en': {'type': 'string'},
+                    'cs': {'type': 'string'},
                 },
+                'required': ['en', 'cs'],
             },
         },
-        'required': ['updated_source', 'translations'],
     },
+    'required': ['updated_source', 'translations'],
 }
+
+TRANSLATION_RESPONSE_FORMAT = ResponseFormatTextJSONSchemaConfig(
+    name='translation_payload',
+    type='json_schema',
+    schema=TRANSLATION_RESPONSE_SCHEMA,
+    strict=True,
+)
 
 SUPPORTED_EXTENSIONS = {'.svelte', '.ts', '.tsx'}
 IGNORED_DIRECTORIES = {'node_modules', '.svelte-kit', '.git', '__pycache__'}
@@ -241,7 +246,7 @@ async def request_translation(client: AsyncOpenAI, rel_path: str, source: str, e
             for message in messages
         ],
         max_output_tokens=4096,
-        response_format={'type': 'json_schema', 'json_schema': TRANSLATION_RESPONSE_SCHEMA},
+        text=TRANSLATION_RESPONSE_FORMAT,
     )
     output_text = response.output_text
     try:
