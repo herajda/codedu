@@ -541,10 +541,10 @@ func uploadUnitTests(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "no tests found"})
 		return
 	}
-	for _, m := range methods {
-		code := string(data)
-		name := m
-		tc := &TestCase{AssignmentID: aid, Weight: 1, Stdin: "", ExpectedStdout: "", UnittestCode: &code, UnittestName: &name}
+        for _, m := range methods {
+                code := string(data)
+                name := m
+                tc := &TestCase{AssignmentID: aid, Weight: 1, Stdin: "", ExpectedStdout: "", UnittestCode: &code, UnittestName: &name, ExecutionMode: "unittest"}
 		if err := CreateTestCase(tc); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 			return
@@ -697,7 +697,7 @@ Additional guidance (optional): %s
 
 Constraints:
 - Use Python's unittest module and a single test class.
-- Each test must call student_code(...) to execute the student's program, passing input values as separate arguments. student_code returns the program's stdout string without trailing newlines.
+- Each test must call student_code(...) to execute the student's program with stdin-style arguments, or student_function('function_name', ...) to import and run a specific function and inspect its return value.
 - Prefer small, independent tests. Avoid flaky or slow tests.
 %s
 

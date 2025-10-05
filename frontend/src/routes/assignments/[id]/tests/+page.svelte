@@ -68,6 +68,8 @@
     description?: string
     weight: string
     timeLimit: string
+    callMode: 'stdin' | 'function'
+    functionName: string
     assertions: UTAssertion[]
   }
 
@@ -328,7 +330,15 @@
   function addUTTest() {
     utTests = [
       ...utTests,
-      { name: `test_${utTests.length + 1}`, description: '', weight: assignment?.grading_policy === 'weighted' ? '1' : '0', timeLimit: '1', assertions: [] }
+      {
+        name: `test_${utTests.length + 1}`,
+        description: '',
+        weight: assignment?.grading_policy === 'weighted' ? '1' : '0',
+        timeLimit: '1',
+        callMode: 'stdin',
+        functionName: '',
+        assertions: []
+      }
     ]
   }
 
@@ -616,6 +626,30 @@
     }
   }
 
+  function pythonExpressionOrDefault(value: string, fallback = 'None'): string {
+    const trimmed = String(value ?? '').trim()
+    if (!trimmed) return fallback
+    return trimmed
+  }
+
+  function buildCallExpression(test: UTTest, args: string[]): string {
+    if (test.callMode === 'function') {
+      const fn = test.functionName?.trim() || 'function_name'
+      const formattedArgs = args.map((s) => pythonExpressionOrDefault(s, 'None'))
+      const joined = formattedArgs.length ? `, ${formattedArgs.join(', ')}` : ''
+      return `student_function(${JSON.stringify(fn)}${joined})`
+    }
+    const fmtArgs = args.map((s) => JSON.stringify(s))
+    return `student_code(${fmtArgs.join(', ')})`
+  }
+
+  function formatExpected(test: UTTest, value: string, fallback = 'None'): string {
+    if (test.callMode === 'function') {
+      return pythonExpressionOrDefault(value, fallback)
+    }
+    return JSON.stringify(value ?? '')
+  }
+
   function generateUnittestCode(): string {
     const lines: string[] = []
     lines.push('import unittest')
@@ -648,20 +682,20 @@
           lines.push(...cs)
           continue
         }
-        const fmtArgs = (a as any).args?.map((s: string) => JSON.stringify(s)) ?? []
-        const call = `student_code(${fmtArgs.join(', ')})`
+        const rawArgs = Array.isArray((a as any).args) ? (a as any).args : []
+        const call = buildCallExpression(t, rawArgs)
         switch (a.kind) {
           case 'equals':
-            lines.push(`        self.assertEqual(${call}, ${JSON.stringify((a as any).expected ?? '')})`)
+            lines.push(`        self.assertEqual(${call}, ${formatExpected(t, (a as any).expected ?? '')})`)
             break
           case 'notEquals':
-            lines.push(`        self.assertNotEqual(${call}, ${JSON.stringify((a as any).expected ?? '')})`)
+            lines.push(`        self.assertNotEqual(${call}, ${formatExpected(t, (a as any).expected ?? '')})`)
             break
           case 'contains':
-            lines.push(`        self.assertIn(${JSON.stringify((a as any).expected ?? '')}, ${call})`)
+            lines.push(`        self.assertIn(${formatExpected(t, (a as any).expected ?? '')}, ${call})`)
             break
           case 'notContains':
-            lines.push(`        self.assertNotIn(${JSON.stringify((a as any).expected ?? '')}, ${call})`)
+            lines.push(`        self.assertNotIn(${formatExpected(t, (a as any).expected ?? '')}, ${call})`)
             break
           case 'regex':
             lines.push(`        self.assertRegex(${call}, r${JSON.stringify((a as any).pattern ?? '').replace(/^"|"$/g,'"')})`)
@@ -746,11 +780,16 @@
     return { kind, args: normalized, expected: String(a?.expected ?? '') }
   }
   function coerceUTTest(t: any): UTTest {
+    const modeRaw = String(t?.callMode ?? t?.mode ?? '').toLowerCase()
+    const callMode: 'stdin' | 'function' = modeRaw === 'function' ? 'function' : 'stdin'
+    const fnName = String(t?.functionName ?? t?.function_name ?? '').trim()
     return {
       name: String(t?.name ?? 'test_case'),
       description: t?.description ? String(t?.description) : '',
       weight: String(t?.weight ?? '1'),
       timeLimit: String(t?.timeLimit ?? '1'),
+      callMode,
+      functionName: callMode === 'function' ? fnName || 'function_name' : '',
       assertions: Array.isArray(t?.assertions) ? t.assertions.map(coerceUTAssertion) : []
     }
   }
@@ -999,17 +1038,25 @@
       for (const t of tests) {
         if (t.unittest_name && nameToCfg.has(t.unittest_name)) {
           const cfg = nameToCfg.get(t.unittest_name)!
+          const name = String(t.unittest_name ?? '').trim()
+          const code = String(t.unittest_code ?? '')
+          if (!name || !code) {
+            continue
+          }
           const testData: any = {
-            stdin: t.stdin ?? '',
-            expected_stdout: t.expected_stdout ?? '',
+            execution_mode: 'unittest',
+            unittest_name: name,
+            unittest_code: code,
+            stdin: '',
+            expected_stdout: '',
             time_limit_sec: cfg.time
           }
-          
+
           // Only include weight for weighted assignments
           if (assignment?.grading_policy === 'weighted') {
             testData.weight = cfg.weight
           }
-          
+
           await apiFetch(`/api/tests/${t.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -1199,7 +1246,7 @@
         <div class="alert">
           <div>
             <span class="font-medium">Tip:</span>
-            Use <code>student_code(...)</code> in assertions to run the student's program with inputs.
+            Use <code>student_code(...)</code> in assertions to run the student's program with inputs, or <code>student_function('function_name', ...)</code> to import a function and check its return value.
           </div>
         </div>
 
@@ -1374,6 +1421,21 @@
                     <button class="btn btn-ghost btn-xs" on:click={() => removeUTTest(ti)}><Trash2 size={14}/> Remove</button>
                   </div>
                 </div>
+                <div class="grid sm:grid-cols-2 gap-2">
+                  <label class="form-control w-full space-y-1">
+                    <span class="label-text">Call mode</span>
+                    <select class="select select-bordered w-full" bind:value={ut.callMode}>
+                      <option value="stdin">student_code (stdin/stdout)</option>
+                      <option value="function">student_function (return value)</option>
+                    </select>
+                  </label>
+                  {#if ut.callMode === 'function'}
+                    <label class="form-control w-full space-y-1">
+                      <span class="label-text">Function name</span>
+                      <input class="input input-bordered w-full" bind:value={ut.functionName} placeholder="solve">
+                    </label>
+                  {/if}
+                </div>
                 <div class="grid gap-2" class:sm:grid-cols-2={assignment?.grading_policy === 'weighted'}>
                   <label class="form-control w-full space-y-1">
                     <span class="label-text flex items-center gap-1"><Clock size={14}/> <span>Time limit (s)</span></span>
@@ -1414,8 +1476,13 @@
                         {:else if a.kind === 'regex'}
                           <div class="grid sm:grid-cols-2 gap-2">
                             <label class="form-control w-full space-y-1">
-                              <span class="label-text">Inputs (one per line)</span>
-                              <textarea class="textarea textarea-bordered h-24" value={getInputs(a)} on:input={(e) => setInputs(a, (e.target as HTMLTextAreaElement).value)} placeholder="2\n3"></textarea>
+                              <span class="label-text">{ut.callMode === 'function' ? 'Arguments (Python expressions, one per line)' : 'Inputs (one per line)'}</span>
+                              <textarea
+                                class="textarea textarea-bordered h-24"
+                                value={getInputs(a)}
+                                on:input={(e) => setInputs(a, (e.target as HTMLTextAreaElement).value)}
+                                placeholder={ut.callMode === 'function' ? '[1, 2]\n3' : '2\n3'}
+                              ></textarea>
                             </label>
                             <label class="form-control w-full space-y-1">
                               <span class="label-text">Regex pattern</span>
@@ -1425,8 +1492,13 @@
                         {:else if a.kind === 'raises'}
                           <div class="grid sm:grid-cols-2 gap-2">
                             <label class="form-control w-full space-y-1">
-                              <span class="label-text">Inputs (one per line)</span>
-                              <textarea class="textarea textarea-bordered h-24" value={getInputs(a)} on:input={(e) => setInputs(a, (e.target as HTMLTextAreaElement).value)} placeholder="bad\ninput"></textarea>
+                              <span class="label-text">{ut.callMode === 'function' ? 'Arguments (Python expressions, one per line)' : 'Inputs (one per line)'}</span>
+                              <textarea
+                                class="textarea textarea-bordered h-24"
+                                value={getInputs(a)}
+                                on:input={(e) => setInputs(a, (e.target as HTMLTextAreaElement).value)}
+                                placeholder={ut.callMode === 'function' ? "invalid\nvalue" : 'bad\ninput'}
+                              ></textarea>
                             </label>
                             <label class="form-control w-full space-y-1">
                               <span class="label-text">Exception type</span>
@@ -1436,12 +1508,22 @@
                         {:else}
                           <div class="grid sm:grid-cols-2 gap-2">
                             <label class="form-control w-full space-y-1">
-                              <span class="label-text">Inputs (one per line)</span>
-                              <textarea class="textarea textarea-bordered h-24" value={getInputs(a)} on:input={(e) => setInputs(a, (e.target as HTMLTextAreaElement).value)} placeholder="2\n3"></textarea>
+                              <span class="label-text">{ut.callMode === 'function' ? 'Arguments (Python expressions, one per line)' : 'Inputs (one per line)'}</span>
+                              <textarea
+                                class="textarea textarea-bordered h-24"
+                                value={getInputs(a)}
+                                on:input={(e) => setInputs(a, (e.target as HTMLTextAreaElement).value)}
+                                placeholder={ut.callMode === 'function' ? '[1, 2]\n3' : '2\n3'}
+                              ></textarea>
                             </label>
                             <label class="form-control w-full space-y-1">
-                              <span class="label-text">Expected</span>
-                              <input class="input input-bordered w-full" value={getExpected(a)} on:input={(e) => setExpected(a, (e.target as HTMLInputElement).value)} placeholder="5">
+                              <span class="label-text">{ut.callMode === 'function' ? 'Expected return (Python expression)' : 'Expected output'}</span>
+                              <input
+                                class="input input-bordered w-full"
+                                value={getExpected(a)}
+                                on:input={(e) => setExpected(a, (e.target as HTMLInputElement).value)}
+                                placeholder={ut.callMode === 'function' ? '5' : '5'}
+                              >
                             </label>
                           </div>
                         {/if}
@@ -1693,7 +1775,7 @@
           <div class="mt-2">
             <button class="btn" on:click={uploadUnitTests} disabled={!unittestFile}><UploadIcon size={16}/> Upload</button>
           </div>
-          <p class="text-xs opacity-70 mt-2">Each method named <code>test_*</code> in classes derived from <code>unittest.TestCase</code> will become a separate test. Use <code>student_code(...)</code> to run the student's program with inputs.</p>
+          <p class="text-xs opacity-70 mt-2">Each method named <code>test_*</code> in classes derived from <code>unittest.TestCase</code> will become a separate test. Use <code>student_code(...)</code> to run the student's program with inputs or <code>student_function('function_name', ...)</code> to call a specific function and check its return value.</p>
         </div>
         </div>
       {/if}
