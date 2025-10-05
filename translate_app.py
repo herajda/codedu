@@ -66,7 +66,7 @@ TRANSLATION_RESPONSE_SCHEMA = {
     'required': ['updated_source', 'translations'],
 }
 
-TRANSLATION_RESPONSE_FORMAT = ResponseTextConfig(
+_TRANSLATION_RESPONSE_FORMAT = ResponseTextConfig(
     format=ResponseFormatTextJSONSchemaConfig(
         name='translation_payload',
         schema=TRANSLATION_RESPONSE_SCHEMA,
@@ -74,6 +74,8 @@ TRANSLATION_RESPONSE_FORMAT = ResponseTextConfig(
         type='json_schema',
     )
 )
+
+TRANSLATION_RESPONSE_FORMAT = _TRANSLATION_RESPONSE_FORMAT.model_dump(by_alias=True, exclude_none=True)
 
 SUPPORTED_EXTENSIONS = {'.svelte', '.ts', '.tsx'}
 IGNORED_DIRECTORIES = {'node_modules', '.svelte-kit', '.git', '__pycache__'}
