@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
-import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter } from '@codemirror/view';
+  import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, placeholder as cmPlaceholder } from '@codemirror/view';
   import { EditorState, type Extension, Compartment } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
@@ -20,8 +20,11 @@ import { oneDark } from '@codemirror/theme-one-dark';
   let host: HTMLDivElement;
   let view: EditorView;
   const themeCompartment = new Compartment();
+  const placeholderCompartment = new Compartment();
+  export let placeholder: string | null = null;
 
   onMount(() => {
+    const placeholderExtension: Extension = placeholder ? cmPlaceholder(placeholder) : ([] as Extension);
     const extensions: Extension[] = [
       lineNumbers(),
       highlightActiveLineGutter(),
@@ -45,7 +48,8 @@ import { oneDark } from '@codemirror/theme-one-dark';
           dispatch('change', value);
         }
       }),
-      EditorView.editable.of(!readOnly)
+      EditorView.editable.of(!readOnly),
+      placeholderCompartment.of(placeholderExtension)
     ];
     if (lang) extensions.push(lang);
     view = new EditorView({
@@ -71,6 +75,11 @@ import { oneDark } from '@codemirror/theme-one-dark';
   $: if (view && value !== view.state.doc.toString()) {
     const len = view.state.doc.length;
     view.dispatch({ changes: { from: 0, to: len, insert: value } });
+  }
+
+  $: if (view) {
+    const nextPlaceholder: Extension = placeholder ? cmPlaceholder(placeholder) : ([] as Extension);
+    view.dispatch({ effects: placeholderCompartment.reconfigure(nextPlaceholder) });
   }
 </script>
 
