@@ -96,12 +96,22 @@ CREATE TABLE IF NOT EXISTS test_cases (
   memory_limit_kb INTEGER NOT NULL DEFAULT 65536,
   unittest_code TEXT,
   unittest_name TEXT,
+  execution_mode TEXT NOT NULL DEFAULT 'stdin_stdout',
+  function_name TEXT,
+  function_args TEXT,
+  function_kwargs TEXT,
+  expected_return TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS unittest_code TEXT;
 ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS unittest_name TEXT;
+ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS execution_mode TEXT NOT NULL DEFAULT 'stdin_stdout';
+ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS function_name TEXT;
+ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS function_args TEXT;
+ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS function_kwargs TEXT;
+ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS expected_return TEXT;
 
 DO $$ BEGIN
     CREATE TYPE submission_status AS ENUM ('pending','running','completed','failed');
@@ -142,10 +152,12 @@ CREATE TABLE IF NOT EXISTS results (
   stderr TEXT,
   exit_code INTEGER,
   runtime_ms INTEGER,
+  actual_return TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE results ADD COLUMN IF NOT EXISTS stderr TEXT;
 ALTER TABLE results ADD COLUMN IF NOT EXISTS exit_code INTEGER;
+ALTER TABLE results ADD COLUMN IF NOT EXISTS actual_return TEXT;
 
 -- LLM run artifacts per submission attempt
 CREATE TABLE IF NOT EXISTS llm_runs (

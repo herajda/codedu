@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/sse"
@@ -109,6 +110,11 @@ type TestCase struct {
 	MemoryLimitKB  int       `db:"memory_limit_kb" json:"memory_limit_kb"`
 	UnittestCode   *string   `db:"unittest_code" json:"unittest_code"`
 	UnittestName   *string   `db:"unittest_name" json:"unittest_name"`
+	ExecutionMode  string    `db:"execution_mode" json:"execution_mode"`
+	FunctionName   *string   `db:"function_name" json:"function_name,omitempty"`
+	FunctionArgs   *string   `db:"function_args" json:"function_args,omitempty"`
+	FunctionKwargs *string   `db:"function_kwargs" json:"function_kwargs,omitempty"`
+	ExpectedReturn *string   `db:"expected_return" json:"expected_return,omitempty"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
 }
@@ -1034,12 +1040,25 @@ func CreateTestCase(tc *TestCase) error {
 	if tc.TimeLimitSec == 0 {
 		tc.TimeLimitSec = 1
 	}
+	if strings.TrimSpace(tc.ExecutionMode) == "" {
+		if tc.UnittestName != nil {
+			tc.ExecutionMode = "unittest"
+		} else if tc.FunctionName != nil {
+			tc.ExecutionMode = "function"
+		} else {
+			tc.ExecutionMode = "stdin_stdout"
+		}
+	}
 	const q = `
-         INSERT INTO test_cases (assignment_id, stdin, expected_stdout, weight, time_limit_sec, unittest_code, unittest_name)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)
-         RETURNING id, weight, time_limit_sec, memory_limit_kb, unittest_code, unittest_name, created_at, updated_at`
-	return DB.QueryRow(q, tc.AssignmentID, tc.Stdin, tc.ExpectedStdout, tc.Weight, tc.TimeLimitSec, tc.UnittestCode, tc.UnittestName).
-		Scan(&tc.ID, &tc.Weight, &tc.TimeLimitSec, &tc.MemoryLimitKB, &tc.UnittestCode, &tc.UnittestName, &tc.CreatedAt, &tc.UpdatedAt)
+         INSERT INTO test_cases (assignment_id, stdin, expected_stdout, weight, time_limit_sec, unittest_code, unittest_name,
+                                 execution_mode, function_name, function_args, function_kwargs, expected_return)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+         RETURNING id, weight, time_limit_sec, memory_limit_kb, unittest_code, unittest_name,
+                   execution_mode, function_name, function_args, function_kwargs, expected_return, created_at, updated_at`
+	return DB.QueryRow(q, tc.AssignmentID, tc.Stdin, tc.ExpectedStdout, tc.Weight, tc.TimeLimitSec, tc.UnittestCode, tc.UnittestName,
+		tc.ExecutionMode, tc.FunctionName, tc.FunctionArgs, tc.FunctionKwargs, tc.ExpectedReturn).
+		Scan(&tc.ID, &tc.Weight, &tc.TimeLimitSec, &tc.MemoryLimitKB, &tc.UnittestCode, &tc.UnittestName,
+			&tc.ExecutionMode, &tc.FunctionName, &tc.FunctionArgs, &tc.FunctionKwargs, &tc.ExpectedReturn, &tc.CreatedAt, &tc.UpdatedAt)
 }
 
 // UpdateTestCase modifies stdin/stdout/time limit of an existing test case.
@@ -1047,13 +1066,24 @@ func UpdateTestCase(tc *TestCase) error {
 	if tc.TimeLimitSec == 0 {
 		tc.TimeLimitSec = 1
 	}
+	if strings.TrimSpace(tc.ExecutionMode) == "" {
+		if tc.UnittestName != nil {
+			tc.ExecutionMode = "unittest"
+		} else if tc.FunctionName != nil {
+			tc.ExecutionMode = "function"
+		} else {
+			tc.ExecutionMode = "stdin_stdout"
+		}
+	}
 	res, err := DB.Exec(`
                 UPDATE test_cases
                    SET stdin=$1, expected_stdout=$2, weight=$3, time_limit_sec=$4,
-                       unittest_code=COALESCE($5, unittest_code), unittest_name=COALESCE($6, unittest_name),
+                       unittest_code=$5, unittest_name=$6, execution_mode=$7,
+                       function_name=$8, function_args=$9, function_kwargs=$10, expected_return=$11,
                        updated_at=now()
-                 WHERE id=$7`,
-		tc.Stdin, tc.ExpectedStdout, tc.Weight, tc.TimeLimitSec, tc.UnittestCode, tc.UnittestName, tc.ID)
+                 WHERE id=$12`,
+		tc.Stdin, tc.ExpectedStdout, tc.Weight, tc.TimeLimitSec, tc.UnittestCode, tc.UnittestName, tc.ExecutionMode,
+		tc.FunctionName, tc.FunctionArgs, tc.FunctionKwargs, tc.ExpectedReturn, tc.ID)
 	if err != nil {
 		return err
 	}
@@ -1066,7 +1096,9 @@ func UpdateTestCase(tc *TestCase) error {
 func ListTestCases(assignmentID uuid.UUID) ([]TestCase, error) {
 	list := []TestCase{}
 	err := DB.Select(&list, `
-               SELECT id, assignment_id, stdin, expected_stdout, weight, time_limit_sec, memory_limit_kb, unittest_code, unittest_name, created_at, updated_at
+               SELECT id, assignment_id, stdin, expected_stdout, weight, time_limit_sec, memory_limit_kb,
+                      unittest_code, unittest_name, execution_mode, function_name, function_args, function_kwargs,
+                      expected_return, created_at, updated_at
                  FROM test_cases
                  WHERE assignment_id = $1
                  ORDER BY id`, assignmentID)
@@ -1102,6 +1134,12 @@ type Result struct {
 	ExpectedStdout *string   `db:"expected_stdout" json:"expected_stdout,omitempty"`
 	UnittestCode   *string   `db:"unittest_code" json:"unittest_code,omitempty"`
 	UnittestName   *string   `db:"unittest_name" json:"unittest_name,omitempty"`
+	ExecutionMode  *string   `db:"execution_mode" json:"execution_mode,omitempty"`
+	FunctionName   *string   `db:"function_name" json:"function_name,omitempty"`
+	FunctionArgs   *string   `db:"function_args" json:"function_args,omitempty"`
+	FunctionKwargs *string   `db:"function_kwargs" json:"function_kwargs,omitempty"`
+	ExpectedReturn *string   `db:"expected_return" json:"expected_return,omitempty"`
+	ActualReturn   *string   `db:"actual_return" json:"actual_return,omitempty"`
 	TestNumber     *int      `db:"test_number" json:"test_number,omitempty"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 }
@@ -1169,10 +1207,10 @@ func UpdateSubmissionStatus(id uuid.UUID, status string) error {
 
 func CreateResult(r *Result) error {
 	const q = `
-        INSERT INTO results (submission_id, test_case_id, status, actual_stdout, stderr, exit_code, runtime_ms)
-        VALUES ($1,$2,$3,$4,$5,$6,$7)
+        INSERT INTO results (submission_id, test_case_id, status, actual_stdout, stderr, exit_code, runtime_ms, actual_return)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
         RETURNING id, created_at`
-	err := DB.QueryRow(q, r.SubmissionID, r.TestCaseID, r.Status, r.ActualStdout, r.Stderr, r.ExitCode, r.RuntimeMS).
+	err := DB.QueryRow(q, r.SubmissionID, r.TestCaseID, r.Status, r.ActualStdout, r.Stderr, r.ExitCode, r.RuntimeMS, r.ActualReturn).
 		Scan(&r.ID, &r.CreatedAt)
 	if err == nil {
 		if num, nerr := lookupTestNumber(r.TestCaseID); nerr == nil {
@@ -1221,13 +1259,20 @@ func ListResultsForSubmission(subID uuid.UUID) ([]Result, error) {
                    stdin,
                    expected_stdout,
                    unittest_code,
-                   unittest_name
+                   unittest_name,
+                   execution_mode,
+                   function_name,
+                   function_args,
+                   function_kwargs,
+                   expected_return
               FROM test_cases
              WHERE assignment_id = (SELECT assignment_id FROM sub)
         )
         SELECT r.id, r.submission_id, r.test_case_id, r.status, r.actual_stdout, r.stderr,
                r.exit_code, r.runtime_ms, r.created_at,
                ot.stdin, ot.expected_stdout, ot.unittest_code, ot.unittest_name,
+               ot.execution_mode, ot.function_name, ot.function_args, ot.function_kwargs, ot.expected_return,
+               r.actual_return,
                ot.test_number
           FROM results r
           LEFT JOIN ordered_tests ot ON r.test_case_id = ot.id
