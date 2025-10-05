@@ -1,68 +1,58 @@
 import { browser } from '$app/environment';
-import { init, locale as localeStore, register, waitLocale } from 'svelte-i18n';
+import { derived, get, writable } from 'svelte/store';
 
-import { DEFAULT_LOCALE, FALLBACK_LOCALE, SUPPORTED_LOCALES, type AppLocale } from './config';
+export type Locale = 'en' | 'cs';
+export type TranslationDictionary = Record<string, string>;
 
-let registered = false;
-let initialized = false;
-let currentLocale: AppLocale | null = null;
+export const SUPPORTED_LOCALES: readonly Locale[] = ['en', 'cs'] as const;
+export const DEFAULT_LOCALE: Locale = 'en';
 
-function ensureRegistration() {
-  if (registered) return;
+import baseMessages from './locales/en.json';
 
-  register('en', () => import('./locales/en.json'));
-  register('cs', () => import('./locales/cs.json'));
+type Translator = (key: string, vars?: Record<string, string | number>) => string;
 
-  registered = true;
+const localeStore = writable<Locale>(DEFAULT_LOCALE);
+const dictionaryStore = writable<TranslationDictionary>({ ...(baseMessages as TranslationDictionary) });
+const fallbackStore = writable<TranslationDictionary>({ ...(baseMessages as TranslationDictionary) });
+
+export const locale = localeStore;
+export const translations = dictionaryStore;
+export const fallbackTranslations = fallbackStore;
+
+const placeholderPattern = /\{\{\s*([\w.-]+)\s*\}\}/g;
+
+function formatTemplate(template: string, vars: Record<string, string | number> = {}): string {
+  return template.replace(placeholderPattern, (_, name) => {
+    const value = vars[name];
+    return value === undefined || value === null ? '' : String(value);
+  });
 }
 
-function normalize(locale: string | null | undefined): AppLocale | null {
-  if (!locale) return null;
-  const lower = locale.toLowerCase().replace('_', '-');
-  if (SUPPORTED_LOCALES.includes(lower as AppLocale)) {
-    return lower as AppLocale;
-  }
-  const language = lower.split('-')[0];
-  if (SUPPORTED_LOCALES.includes(language as AppLocale)) {
-    return language as AppLocale;
-  }
-  return null;
+export const translator = derived([dictionaryStore, fallbackStore], ([$dictionary, $fallback]): Translator => {
+  return (key, vars = {}) => {
+    const template = $dictionary[key] ?? $fallback[key] ?? key;
+    return formatTemplate(template, vars);
+  };
+});
+
+export function translate(key: string, vars?: Record<string, string | number>): string {
+  return get(translator)(key, vars);
 }
 
-export function setupI18n(initialLocale?: string | null) {
-  ensureRegistration();
+export const t = translate;
 
-  const targetLocale = normalize(initialLocale) ?? DEFAULT_LOCALE;
-
-  if (!initialized) {
-    init({
-      fallbackLocale: FALLBACK_LOCALE,
-      initialLocale: targetLocale,
-    });
-    initialized = true;
-  }
-
-  if (currentLocale !== targetLocale) {
-    localeStore.set(targetLocale);
-    currentLocale = targetLocale;
-  }
-
-  return waitLocale();
-}
-
-export async function changeLocale(nextLocale: string) {
-  const normalized = normalize(nextLocale);
-  if (!normalized) {
-    throw new Error(`Unsupported locale: ${nextLocale}`);
-  }
-  ensureRegistration();
-  localeStore.set(normalized);
-  currentLocale = normalized;
-  await waitLocale();
+export function applyRuntimeI18n(locale: Locale, bundle: TranslationDictionary, fallback: TranslationDictionary): void {
+  localeStore.set(locale);
+  dictionaryStore.set(bundle);
+  fallbackStore.set(fallback);
 
   if (browser) {
-    document.documentElement.lang = normalized;
+    document.documentElement.lang = locale;
   }
 }
 
-export { locale as localeStore } from 'svelte-i18n';
+export function mergeFallbackTranslations(additional: TranslationDictionary): void {
+  fallbackStore.update((existing) => ({ ...existing, ...additional }));
+}
+
+export type { Translator };

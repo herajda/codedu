@@ -15,6 +15,14 @@
   import { onlineUsers } from '$lib/stores/onlineUsers';
   import { browser } from '$app/environment';
   import { login as bkLogin, hasBakalari } from '$lib/bakalari';
+  import { applyRuntimeI18n, locale as localeStore } from '$lib/i18n';
+  import type { LayoutData } from './$types';
+
+  export let data: LayoutData;
+
+  $: if (data?.locale && data?.messages && data?.fallbackMessages) {
+    applyRuntimeI18n(data.locale, data.messages, data.fallbackMessages);
+  }
 
   let settingsDialog: HTMLDialogElement;
   let passwordDialog: HTMLDialogElement;
@@ -533,7 +541,11 @@
       }
     }
   }
-  </script>
+</script>
+
+<svelte:head>
+  <html lang={$localeStore} />
+</svelte:head>
 
   <Background />
   {#if user}
