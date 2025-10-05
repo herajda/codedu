@@ -216,7 +216,6 @@ async def request_translation(client: AsyncOpenAI, rel_path: str, source: str, e
             }
             for message in messages
         ],
-        temperature=0.2,
         max_output_tokens=4096,
     )
     output_text = response.output_text
