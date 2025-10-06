@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Automated localization helper for the codedu frontend.
+"""Automated localization helper for the codedu frontend (tool-calling version).
 
 This script coordinates three responsibilities:
 
@@ -11,9 +11,9 @@ This script coordinates three responsibilities:
    so interrupted runs can resume without re-translating work that already
    completed.
 
-The script is intentionally asynchronous – up to 50 files are processed in
-parallel. Progress is tracked in ``translations/state.json`` and the
-locale catalogues are updated after every processed file.
+Key differences vs. the JSON-text approach:
+- Uses the Responses API with a STRICT tool schema (Structured Outputs) and
+  forces a call to function `emit_translation` that returns validated JSON.
 """
 from __future__ import annotations
 
@@ -22,15 +22,16 @@ import asyncio
 import json
 import logging
 import os
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Union
 
 # Third-party dependency provided by the OpenAI Python SDK.
 from openai import AsyncOpenAI
-from openai.types.responses import ResponseFormatTextJSONSchemaConfig, ResponseTextConfig
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 ROOT = Path(__file__).resolve().parent
 FRONTEND_SRC = ROOT / 'frontend' / 'src'
@@ -44,47 +45,50 @@ DEFAULT_LOCALE = 'en'
 TARGET_LOCALE = 'cs'
 MODEL_NAME = 'gpt-5-mini'
 CONCURRENCY = 50
+MAX_TRANSLATION_RETRIES = 3
 
-TRANSLATION_RESPONSE_SCHEMA = {
-    'type': 'object',
-    'additionalProperties': False,
-    'properties': {
-        'updated_source': {'type': 'string'},
-        'translations': {
-            'type': 'object',
-            'additionalProperties': {
-                'type': 'object',
-                'additionalProperties': False,
-                'properties': {
-                    'en': {'type': 'string'},
-                    'cs': {'type': 'string'},
-                },
-                'required': ['en', 'cs'],
-            },
-        },
-    },
-    'required': ['updated_source', 'translations'],
+# ---- Pydantic models (still useful for type safety locally) ------------------
+
+class TranslationEntry(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    key: str
+    en: str
+    cs: str
+
+
+class TranslationPayload(BaseModel):
+    """Our internal payload shape after we reassemble chunks."""
+    model_config = ConfigDict(extra='forbid')
+    updated_source: str
+    translations: List[TranslationEntry] = Field(default_factory=list)
+
+# ---- Tool schema (STRICT) ---------------------------------------------------
+
+# Drop-in tool matching TranslationPayload exactly
+TRANSLATION_TOOL: Dict[str, Any] = {
+    "type": "function",
+    "name": "emit_translation",
+    "description": "Return updated source and visual translation entries for one file.",
+    "parameters": TranslationPayload.model_json_schema(),
+    "strict": True,
 }
 
-_TRANSLATION_RESPONSE_FORMAT = ResponseTextConfig(
-    format=ResponseFormatTextJSONSchemaConfig(
-        name='translation_payload',
-        schema=TRANSLATION_RESPONSE_SCHEMA,
-        strict=True,
-        type='json_schema',
-    )
-)
-
-TRANSLATION_RESPONSE_FORMAT = _TRANSLATION_RESPONSE_FORMAT.model_dump(by_alias=True, exclude_none=True)
+# ---- File discovery / state --------------------------------------------------
 
 SUPPORTED_EXTENSIONS = {'.svelte', '.ts', '.tsx'}
 IGNORED_DIRECTORIES = {'node_modules', '.svelte-kit', '.git', '__pycache__'}
+
+ROUTE_LIKE_RE = re.compile(r'^/?[A-Za-z0-9_\-./\[\]]+$')
+FILE_SUFFIX_RE = re.compile(r'\.[A-Za-z0-9]{2,6}$')
+NON_VISUAL_KEY_TERMS = (
+    '::error', '_error', 'exception', 'stack', 'trace', 'logger', 'log_',
+    'route', 'path', 'url', 'href', 'logo'
+)
 
 
 @dataclass
 class ProcessedFile:
     """Metadata recorded for each processed source file."""
-
     checksum: str
     updated_at: str
 
@@ -96,7 +100,6 @@ class ProcessedFile:
 @dataclass
 class TranslationState:
     """Serializable progress information stored on disk."""
-
     processed_files: Dict[str, ProcessedFile] = field(default_factory=dict)
 
     @classmethod
@@ -128,6 +131,7 @@ class TranslationState:
     def mark_processed(self, rel_path: str, checksum: str) -> None:
         self.processed_files[rel_path] = ProcessedFile.fresh(checksum)
 
+# ---- Utilities ---------------------------------------------------------------
 
 def load_env(dotenv_path: Path) -> None:
     if not dotenv_path.exists():
@@ -175,7 +179,10 @@ def read_json_file(path: Path) -> Dict[str, str]:
 def dump_json_atomic(path: Path, data: Dict[str, str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_suffix(path.suffix + '.tmp')
-    tmp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+    tmp_path.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + '\n',
+        encoding='utf-8',
+    )
     tmp_path.replace(path)
 
 
@@ -197,8 +204,10 @@ async def async_write_text(path: Path, content: str) -> None:
 async def async_read_text(path: Path) -> str:
     return await asyncio.to_thread(path.read_text, 'utf-8')
 
+# ---- Prompt builder ----------------------------------------------------------
 
-def build_prompt(rel_path: str, source: str, existing_catalogue: Dict[str, Dict[str, str]]) -> List[Dict[str, str]]:
+def build_prompt(rel_path: str, source: str, existing_catalogue: Dict[str, Dict[str, str]]) -> List[Dict[str, Any]]:
+    """Build a prompt that instructs the model AND points it at our tool."""
     catalogue_preview = json.dumps(existing_catalogue, ensure_ascii=False, indent=2)
     instructions = f"""
 You are helping localise a SvelteKit application. The project already exposes an
@@ -216,60 +225,210 @@ invocations. When a Svelte component requires reactivity, declare
 ``let translate;`` followed by ``$: translate = $translator;`` and use
 ``translate('key')`` inside the markup.
 
-Return a JSON object with two fields:
-- ``updated_source`` containing the full updated file contents.
-- ``translations`` mapping each translation key to an object with ``en`` and
-  ``cs`` properties. ``en`` should keep the original English source. ``cs`` must
-  contain the Czech translation. Use deterministic keys of the form
-  ``"{rel_path}::slug"``.
+Translate **only** text that the user can see in the rendered interface.
+- Do not translate log statements, thrown errors, developer diagnostics, or
+  console output.
+- Do not translate route fragments, URLs, file paths, asset names, brand or
+  logo identifiers, or any other non-visual identifiers.
+- Leave internal constants, data-test attributes, ARIA labels used solely for
+  structure, and programmatic sentinel values untouched unless they are also
+  shown to users.
+
+Emit your result by CALLING the function tool ``emit_translation`` exactly once
+with arguments matching the schema:
+- ``updated_source``: the FULL updated file contents as a single string (no code fences).
+- ``translations``: array of objects with ``key``, ``en``, ``cs``.
+  Keys MUST follow: ``"{rel_path}::slug"``. ``en`` keeps original English, ``cs`` is Czech.
 
 Existing catalogue entries to reuse when possible:
 {catalogue_preview}
-
-Ensure the response is **valid JSON** and nothing else. Do not escape the JSON
-string in additional quotes.
 """
     return [
-        {'role': 'system', 'content': 'You are a meticulous localisation assistant.'},
+        {"role": "system", "content": "You are a meticulous localisation assistant."},
         {
-            'role': 'user',
-            'content': f"File: {rel_path}\n\n{instructions}\n\nCurrent source:\n```\n{source}\n```"
+            "role": "user",
+            "content": [
+                {"type": "input_text", "text": f"File: {rel_path}\n\n{instructions}\n\nCurrent source:\n```\n{source}\n```"}  # noqa: E501
+            ],
         },
     ]
 
+# ---- Heuristics for filtering non-visual strings ----------------------------
 
-async def request_translation(client: AsyncOpenAI, rel_path: str, source: str, existing_catalogue: Dict[str, Dict[str, str]]) -> Dict[str, Any]:
-    messages = build_prompt(rel_path, source, existing_catalogue)
-    response = await client.responses.create(
-        model=MODEL_NAME,
-        input=[
-            {
-                'role': message['role'],
-                'content': [{'type': 'input_text', 'text': message['content']}],
-            }
-            for message in messages
-        ],
-        max_output_tokens=4096,
-        text=TRANSLATION_RESPONSE_FORMAT,
-    )
-    output_text = response.output_text
+def _is_route_like(text: str) -> bool:
+    stripped = text.strip()
+    if '/' not in stripped or ' ' in stripped:
+        return False
+    return bool(ROUTE_LIKE_RE.fullmatch(stripped))
+
+
+def _looks_like_file_reference(text: str) -> bool:
+    stripped = text.strip()
+    if FILE_SUFFIX_RE.search(stripped) and '/' in stripped:
+        return True
+    return False
+
+
+def _contains_letters(text: str) -> bool:
+    return any(ch.isalpha() for ch in text)
+
+
+def should_translate_entry(key: str, en_text: str) -> bool:
+    if not en_text:
+        return False
+    stripped = en_text.strip()
+    if not stripped or not _contains_letters(stripped):
+        return False
+
+    lower_key = key.lower()
+    lower_text = stripped.lower()
+
+    if any(term in lower_key for term in NON_VISUAL_KEY_TERMS):
+        return False
+    if any(term in lower_text for term in ('console', 'traceback', 'stack trace', 'stacktrace', 'logger')):
+        return False
+    if 'logo' in lower_text:
+        return False
+    if _is_route_like(stripped):
+        return False
+    if _looks_like_file_reference(stripped):
+        return False
+    return True
+
+
+def _appears_in_non_visual_context(updated_source: str, key: str) -> bool:
+    escaped_key = re.escape(key)
+    patterns = [
+        rf'throw\s+new\s+Error\s*\(\s*t\(\s*["\']{escaped_key}["\']',
+        rf'console\.[a-zA-Z]+\s*\([^)]*t\(\s*["\']{escaped_key}["\']',
+        rf'logger\.[a-zA-Z]+\s*\([^)]*t\(\s*["\']{escaped_key}["\']',
+    ]
+    return any(re.search(pattern, updated_source) for pattern in patterns)
+
+
+def filter_visual_translations(updated_source: str, entries: Iterable[Dict[str, str]]) -> List[Dict[str, str]]:
+    filtered: List[Dict[str, str]] = []
+    for entry in entries:
+        key = entry.get('key') if isinstance(entry, dict) else None
+        en_text = entry.get('en') if isinstance(entry, dict) else None
+        if not key or en_text is None:
+            continue
+        if not should_translate_entry(key, en_text):
+            logging.debug('Skipping %s – non-visual content detected (text=%r)', key, en_text)
+            continue
+        if _appears_in_non_visual_context(updated_source, key):
+            logging.debug('Skipping %s – used in non-visual context', key)
+            continue
+        filtered.append(entry)
+    return filtered
+
+# ---- Responses API call (tool-calling) --------------------------------------
+
+def _as_dict(maybe: Union[str, Dict[str, Any], Any]) -> Dict[str, Any]:
+    """Best-effort convert the tool input to a dict (SDK may return str or typed)."""
+    if isinstance(maybe, dict):
+        return maybe
+    if hasattr(maybe, "model_dump"):  # Pydantic-ish typed object
+        try:
+            return maybe.model_dump()
+        except Exception:
+            pass
+    if isinstance(maybe, str):
+        return json.loads(maybe)
+    # Fallback: try stringify then json-parse if it looks like JSON
+    text = str(maybe)
     try:
-        return json.loads(output_text)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f'Model returned invalid JSON for {rel_path}: {output_text}') from exc
+        return json.loads(text)
+    except Exception:
+        raise TypeError(f"Tool input is not a dict/JSON: {type(maybe)!r} -> {text[:120]!r}")
 
+
+async def request_translation(
+    client: AsyncOpenAI,
+    rel_path: str,
+    source: str,
+    existing_catalogue: Dict[str, Dict[str, str]],
+) -> Dict[str, Any]:
+    messages = build_prompt(rel_path, source, existing_catalogue)
+
+    for attempt in range(1, MAX_TRANSLATION_RETRIES + 1):
+        try:
+            resp = await client.responses.create(
+                model=MODEL_NAME,
+                input=[
+                    {
+                        "role": m["role"],
+                        "content": [{"type": "input_text", "text": m["content"]}],
+                    }
+                    for m in messages
+                ],
+                tools=[TRANSLATION_TOOL],
+                tool_choice={"type": "function", "name": "emit_translation"},
+                parallel_tool_calls=False,
+                max_output_tokens=8192,
+            )
+
+            payload: Optional[Dict[str, Any]] = None
+            for item in resp.output or []:
+                if getattr(item, "type", None) == "function_call" and getattr(item, "name", None) == "emit_translation":
+                    args_json = getattr(item, "arguments", None)
+                    if not isinstance(args_json, str) or not args_json.strip():
+                        raise RuntimeError("emit_translation returned empty arguments.")
+                    model_obj = TranslationPayload.model_validate_json(args_json)
+                    payload = model_obj.model_dump()
+                    break
+
+            if payload is None and getattr(resp, "output_text", None):
+                try:
+                    payload = TranslationPayload.model_validate_json(resp.output_text).model_dump()
+                except ValidationError:
+                    pass
+
+            if payload is None:
+                raise RuntimeError(
+                    "Model did not return a function_call to emit_translation or valid JSON text."
+                )
+
+            return payload
+
+        except Exception as exc:
+            logging.warning("Attempt %s failed for %s: %s", attempt, rel_path, exc)
+            if attempt == MAX_TRANSLATION_RETRIES:
+                raise
+            # Nudge the model towards valid structured output on retry
+            messages.append(
+                {
+                    "role": "system",
+                    "content": (
+                        "You must call the function emit_translation exactly once with arguments "
+                        'matching the schema {"updated_source": string, "translations": array of {"key","en","cs"}} '
+                        "and avoid any extra commentary."
+                    ),
+                }
+            )
+
+    raise RuntimeError(f"Exhausted translation attempts for {rel_path}.")
+
+# ---- Merge & log -------------------------------------------------------------
 
 def merge_translations(
     english: Dict[str, str],
     czech: Dict[str, str],
-    payload: Dict[str, Dict[str, str]],
+    payload: Iterable[Dict[str, str]],
 ) -> None:
-    for key, value in payload.items():
-        if not isinstance(value, dict):
-            logging.warning('Skipping malformed translation for %s (expected dict, got %r)', key, value)
+    for entry in payload:
+        if not isinstance(entry, dict):
+            logging.warning('Skipping malformed translation entry (expected dict, got %r)', entry)
             continue
-        en_text = value.get('en')
-        cs_text = value.get('cs')
+
+        key = entry.get('key')
+        en_text = entry.get('en')
+        cs_text = entry.get('cs')
+
+        if not key:
+            logging.warning('Skipping translation entry missing "key": %r', entry)
+            continue
+
         if en_text:
             english[key] = en_text
         if cs_text:
@@ -288,6 +447,7 @@ def ensure_logging(verbose: bool = False) -> None:
         handlers=handlers,
     )
 
+# ---- Main per-file worker ----------------------------------------------------
 
 async def process_file(
     client: AsyncOpenAI,
@@ -313,7 +473,7 @@ async def process_file(
         existing_entries = {
             key: {'en': english_catalogue.get(key, ''), 'cs': czech_catalogue.get(key, '')}
             for key in english_catalogue
-            if key.startswith(f'{rel_path}::')
+            if key.startswith(f'{rel_path}::') and should_translate_entry(key, english_catalogue.get(key, ''))
         }
 
         try:
@@ -323,12 +483,14 @@ async def process_file(
             return
 
         updated_source = payload.get('updated_source')
-        translations = payload.get('translations', {})
+        translations = payload.get('translations', [])
 
         if not isinstance(updated_source, str):
             raise RuntimeError(f'Response for {rel_path} is missing the updated source code.')
-        if not isinstance(translations, dict):
+        if not isinstance(translations, list):
             raise RuntimeError(f'Response for {rel_path} returned invalid translations payload.')
+
+        translations = filter_visual_translations(updated_source, translations)
 
         if dry_run:
             logging.info('Dry run – generated localisation for %s but did not modify files.', rel_path)
@@ -347,11 +509,16 @@ async def process_file(
             await asyncio.gather(
                 async_write_json(LOCALES_DIR / f'{DEFAULT_LOCALE}.json', english_snapshot),
                 async_write_json(LOCALES_DIR / f'{TARGET_LOCALE}.json', czech_snapshot),
-                asyncio.to_thread(STATE_FILE.write_text, json.dumps(state_payload, ensure_ascii=False, indent=2) + '\n', 'utf-8'),
+                asyncio.to_thread(
+                    STATE_FILE.write_text,
+                    json.dumps(state_payload, ensure_ascii=False, indent=2) + '\n',
+                    'utf-8',
+                ),
             )
 
         logging.info('Finished %s', rel_path)
 
+# ---- Entrypoint --------------------------------------------------------------
 
 async def main_async(args: argparse.Namespace) -> None:
     load_env(ROOT / '.env')
@@ -392,12 +559,15 @@ async def main_async(args: argparse.Namespace) -> None:
     if args.dry_run:
         logging.info('Dry run finished. No files were modified.')
     else:
-        STATE_FILE.write_text(json.dumps(state.to_json(), ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        STATE_FILE.write_text(
+            json.dumps(state.to_json(), ensure_ascii=False, indent=2) + '\n',
+            encoding='utf-8',
+        )
         logging.info('Translation completed successfully.')
 
 
 def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description='Translate the frontend into Czech using OpenAI.')
+    parser = argparse.ArgumentParser(description='Translate the frontend into Czech using OpenAI (tool-calling).')
     parser.add_argument('--dry-run', action='store_true', help='Run all requests without modifying files.')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose logging output.')
     parser.add_argument('--concurrency', type=int, default=CONCURRENCY, help='Maximum number of concurrent translation requests.')
