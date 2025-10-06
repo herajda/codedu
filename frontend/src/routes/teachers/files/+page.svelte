@@ -2,6 +2,7 @@
 import { onMount } from 'svelte';
 import { goto } from '$app/navigation';
 import { auth } from '$lib/auth';
+import { classesStore } from '$lib/stores/classes';
 import { apiJSON, apiFetch } from '$lib/api';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 import { compressImage } from '$lib/utils/compressImage';
@@ -40,6 +41,16 @@ const maxFileSize = 20 * 1024 * 1024;
 let viewMode: 'grid' | 'list' = typeof localStorage !== 'undefined' && localStorage.getItem('fileViewMode') === 'list' ? 'list' : 'grid';
 let confirmModal: InstanceType<typeof ConfirmModal>;
 let promptModal: InstanceType<typeof PromptModal>;
+let copyDialog: HTMLDialogElement;
+let copyItem: any = null;
+let copyErr = '';
+let copyLoading = false;
+let copyFolders: any[] = [];
+let copyBreadcrumbs: { id: string | null; name: string }[] = [{ id: null, name: '🏠' }];
+let copyParent: string | null = null;
+let copyName = '';
+let copying = false;
+let selectedClassId = '';
 
 function toggleSearch() { searchOpen = !searchOpen; if (!searchOpen) search = ''; }
 function isImage(name: string) { const ext = name.split('.').pop()?.toLowerCase(); return ['png','jpg','jpeg','gif','webp','svg'].includes(ext ?? ''); }
@@ -192,6 +203,126 @@ async function rename(item:any){
   if (!name || name === item.name) return;
   await apiFetch(`/api/files/${item.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
   await load(currentParent);
+}
+
+async function ensureClassesLoaded() {
+  if (!$classesStore.classes.length && !$classesStore.loading) {
+    await classesStore.load();
+  }
+}
+
+async function loadDestinationFolders(classId: string | null, parent: string | null) {
+  if (!classId) return;
+  copyLoading = true;
+  copyErr = '';
+  copyFolders = [];
+  try {
+    const q = parent === null ? '' : `?parent=${parent}`;
+    const files = await apiJSON(`/api/classes/${classId}/files${q}`);
+    copyFolders = files.filter((f: any) => f.is_dir);
+    copyParent = parent;
+  } catch (e: any) {
+    copyErr = e?.message ?? 'Failed to load destination folders';
+  }
+  copyLoading = false;
+}
+
+async function openCopyToClass(item: any) {
+  if (!item || item.is_dir) return;
+  copyItem = item;
+  copyName = item.name ?? '';
+  copyErr = '';
+  copyFolders = [];
+  copyBreadcrumbs = [{ id: null, name: '🏠' }];
+  copyParent = null;
+  try {
+    await ensureClassesLoaded();
+  } catch (e: any) {
+    copyErr = e?.message ?? 'Failed to load classes';
+  }
+  const classes = $classesStore.classes;
+  if (!classes.length) {
+    copyErr = copyErr || 'You do not have any classes yet.';
+  } else {
+    if (!selectedClassId || !classes.some((c) => String(c.id) === String(selectedClassId))) {
+      selectedClassId = String(classes[0].id);
+    }
+    await loadDestinationFolders(selectedClassId, null);
+  }
+  copyDialog?.showModal();
+}
+
+function copyCrumbTo(index: number) {
+  if (!selectedClassId) return;
+  const crumb = copyBreadcrumbs[index];
+  copyBreadcrumbs = copyBreadcrumbs.slice(0, index + 1);
+  loadDestinationFolders(selectedClassId, crumb.id);
+}
+
+async function openDestinationFolder(folder: any) {
+  if (!folder?.is_dir || !selectedClassId) return;
+  copyBreadcrumbs = [...copyBreadcrumbs, { id: folder.id, name: folder.name }];
+  await loadDestinationFolders(selectedClassId, folder.id);
+}
+
+function classDestinationPath() {
+  return copyBreadcrumbs.map((b) => b.name).join(' / ');
+}
+
+async function handleClassChange(value: string) {
+  selectedClassId = value || '';
+  copyBreadcrumbs = [{ id: null, name: '🏠' }];
+  copyParent = null;
+  await loadDestinationFolders(selectedClassId, null);
+}
+
+async function doCopyToClass() {
+  if (!copyItem) return;
+  const destinationClass = selectedClassId;
+  if (!destinationClass) {
+    copyErr = 'Please select a destination class';
+    return;
+  }
+  const trimmedName = copyName.trim();
+  if (!trimmedName) {
+    copyErr = 'File name is required';
+    return;
+  }
+  copyErr = '';
+  copying = true;
+  const payload: any = { target_class_id: destinationClass };
+  if (copyParent) payload.target_parent_id = copyParent;
+  if (trimmedName !== (copyItem.name ?? '')) payload.new_name = trimmedName;
+  try {
+    const res = await apiFetch(`/api/files/${copyItem.id}/copy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const js = await res.json().catch(() => ({}));
+      copyErr = js?.error ?? res.statusText;
+      copying = false;
+      return;
+    }
+    await res.json().catch(() => null);
+    copyDialog?.close();
+    resetCopyState();
+  } catch (e: any) {
+    copyErr = e?.message ?? 'Failed to copy file';
+  }
+  copying = false;
+}
+
+function resetCopyState() {
+  copyItem = null;
+  copyErr = '';
+  copyFolders = [];
+  copyBreadcrumbs = [{ id: null, name: '🏠' }];
+  copyParent = null;
+  copyName = '';
+  copyLoading = false;
+  copying = false;
 }
 
 function toggleView() { viewMode = viewMode === 'grid' ? 'list' : 'grid'; if (typeof localStorage !== 'undefined') { localStorage.setItem('fileViewMode', viewMode); } }
@@ -353,6 +484,11 @@ onMount(() => {
           {/if}
           {#if role === 'teacher' || role === 'admin'}
             <div class="absolute top-1 right-1 hidden group-hover:flex gap-1">
+              {#if !it.is_dir}
+                <button class="btn btn-xs btn-circle btn-outline" title="Copy to class" aria-label="Copy to class" on:click|stopPropagation={() => openCopyToClass(it)}>
+                  <i class="fa-solid fa-copy"></i>
+                </button>
+              {/if}
               <button class="btn btn-xs btn-circle" title="Rename" aria-label="Rename" on:click|stopPropagation={() => rename(it)}><i class="fa-solid fa-pen"></i></button>
               <button class="btn btn-xs btn-circle btn-error" title="Delete" aria-label="Delete" on:click|stopPropagation={() => del(it)}><i class="fa-solid fa-trash"></i></button>
             </div>
@@ -393,6 +529,11 @@ onMount(() => {
               <td class="text-right">{formatDateTime(it.updated_at)}</td>
               {#if role === 'teacher' || role === 'admin'}
                 <td class="text-right whitespace-nowrap w-16">
+                  {#if !it.is_dir}
+                    <button class="btn btn-xs btn-circle btn-outline invisible group-hover:visible" title="Copy to class" aria-label="Copy to class" on:click|stopPropagation={() => openCopyToClass(it)}>
+                      <i class="fa-solid fa-copy"></i>
+                    </button>
+                  {/if}
                   <button class="btn btn-xs btn-circle invisible group-hover:visible" title="Rename" aria-label="Rename" on:click|stopPropagation={() => rename(it)}><i class="fa-solid fa-pen"></i></button>
                   <button class="btn btn-xs btn-circle btn-error invisible group-hover:visible" title="Delete" aria-label="Delete" on:click|stopPropagation={() => del(it)}><i class="fa-solid fa-trash"></i></button>
                 </td>
@@ -434,6 +575,103 @@ onMount(() => {
       <div class="modal-action">
         <form method="dialog"><button class="btn">Cancel</button></form>
         <button class="btn btn-primary" on:click|preventDefault={doUpload} disabled={uploading}>Upload</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>
+  <dialog bind:this={copyDialog} class="modal" on:close={resetCopyState}>
+    <div class="modal-box max-w-2xl space-y-4">
+      <h3 class="font-bold text-lg">Copy to class</h3>
+      {#if copyItem}
+        <p class="text-sm text-base-content/70 break-all">Source file: {copyItem.name}</p>
+      {/if}
+      <div class="form-control">
+        <div class="label">
+          <span class="label-text">Destination class</span>
+        </div>
+        <select
+          class="select select-bordered"
+          bind:value={selectedClassId}
+          on:change={(e) => handleClassChange((e.target as HTMLSelectElement).value)}
+          disabled={$classesStore.loading}
+        >
+          {#if $classesStore.loading && !$classesStore.classes.length}
+            <option value="" disabled selected>Loading classes…</option>
+          {:else if !$classesStore.classes.length}
+            <option value="" disabled selected>No classes available</option>
+          {:else}
+            {#each $classesStore.classes as cls}
+              <option value={String(cls.id)}>{cls.name}</option>
+            {/each}
+          {/if}
+        </select>
+        {#if $classesStore.error}
+          <div class="label">
+            <span class="label-text-alt text-error">{$classesStore.error}</span>
+          </div>
+        {/if}
+      </div>
+      {#if selectedClassId}
+        <div>
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-medium">Destination folder</span>
+            <button type="button" class="btn btn-ghost btn-xs" on:click={() => loadDestinationFolders(selectedClassId, copyParent)} disabled={copyLoading}>
+              <i class="fa-solid fa-rotate-right mr-1"></i>Refresh
+            </button>
+          </div>
+          <nav class="text-xs mt-1">
+            <ul class="flex flex-wrap gap-1 items-center">
+              {#each copyBreadcrumbs as b, i}
+                <li class="after:mx-1 after:content-['/'] last:after:hidden">
+                  <button type="button" class="link px-2 py-1 rounded hover:bg-base-300" on:click={() => copyCrumbTo(i)}>
+                    {b.name}
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          </nav>
+          <p class="text-xs text-base-content/70 mt-1">Current folder: {classDestinationPath()}</p>
+        </div>
+      {/if}
+      {#if copyErr}
+        <div class="alert alert-error text-sm">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <span>{copyErr}</span>
+        </div>
+      {/if}
+      <label class="form-control w-full">
+        <div class="label">
+          <span class="label-text">File name</span>
+        </div>
+        <input class="input input-bordered w-full" bind:value={copyName} />
+      </label>
+      {#if selectedClassId}
+        <div class="border border-base-300 rounded-box max-h-64 overflow-y-auto">
+          {#if copyLoading}
+            <div class="p-4 text-sm">Loading folders…</div>
+          {:else if !copyFolders.length}
+            <div class="p-4 text-sm opacity-70">No subfolders. File will be placed in {classDestinationPath()}.</div>
+          {:else}
+            <ul class="menu menu-sm bg-base-200/40">
+              {#each copyFolders as folder}
+                <li>
+                  <button type="button" on:click={() => openDestinationFolder(folder)}>
+                    <i class="fa-solid fa-folder text-warning mr-2"></i>{folder.name}
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
+      {:else}
+        <div class="border border-base-300 rounded-box p-4 text-sm opacity-70">Select a class to browse its folders.</div>
+      {/if}
+      <div class="modal-action">
+        <form method="dialog"><button class="btn">Cancel</button></form>
+        <button class="btn btn-primary" on:click|preventDefault={doCopyToClass} disabled={copying || !selectedClassId || !$classesStore.classes.length}>
+          {#if copying}<span class="loading loading-dots loading-sm mr-2"></span>{/if}
+          Copy here
+        </button>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>

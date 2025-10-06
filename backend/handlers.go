@@ -541,10 +541,10 @@ func uploadUnitTests(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "no tests found"})
 		return
 	}
-        for _, m := range methods {
-                code := string(data)
-                name := m
-                tc := &TestCase{AssignmentID: aid, Weight: 1, Stdin: "", ExpectedStdout: "", UnittestCode: &code, UnittestName: &name, ExecutionMode: "unittest"}
+	for _, m := range methods {
+		code := string(data)
+		name := m
+		tc := &TestCase{AssignmentID: aid, Weight: 1, Stdin: "", ExpectedStdout: "", UnittestCode: &code, UnittestName: &name, ExecutionMode: "unittest"}
 		if err := CreateTestCase(tc); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 			return
@@ -3387,6 +3387,97 @@ func deleteClassFile(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+func copyClassFile(c *gin.Context) {
+	fid, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	src, err := GetFile(fid)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		}
+		return
+	}
+	if src.IsDir {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot copy folders"})
+		return
+	}
+	if src.AssignmentID != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot copy assignment reference"})
+		return
+	}
+	role := c.GetString("role")
+	userID := getUserID(c)
+	if role == "teacher" && src.ClassID != TeacherGroupID {
+		if ok, err := IsTeacherOfClass(src.ClassID, userID); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	var req struct {
+		TargetClassID  uuid.UUID  `json:"target_class_id"`
+		TargetParentID *uuid.UUID `json:"target_parent_id"`
+		NewName        *string    `json:"new_name"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.TargetClassID == uuid.Nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "target class is required"})
+		return
+	}
+	if role == "teacher" && req.TargetClassID != TeacherGroupID {
+		if ok, err := IsTeacherOfClass(req.TargetClassID, userID); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	if req.TargetParentID != nil {
+		var parent ClassFile
+		if err := DB.Get(&parent, `SELECT id,class_id,is_dir FROM class_files WHERE id=$1`, *req.TargetParentID); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				c.JSON(http.StatusNotFound, gin.H{"error": "parent not found"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+			}
+			return
+		}
+		if parent.ClassID != req.TargetClassID {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "parent is in a different class"})
+			return
+		}
+		if !parent.IsDir {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "parent is not a folder"})
+			return
+		}
+	}
+	name := src.Name
+	if req.NewName != nil {
+		if trimmed := strings.TrimSpace(*req.NewName); trimmed != "" {
+			name = trimmed
+		}
+	}
+	cf, err := SaveFile(req.TargetClassID, req.TargetParentID, name, src.Content, false)
+	if err != nil {
+		errMsg := err.Error()
+		switch {
+		case strings.Contains(errMsg, "file too large"):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "file too large"})
+		case strings.Contains(errMsg, "duplicate key"):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "a file with that name already exists"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		}
+		return
+	}
+	c.JSON(http.StatusCreated, cf)
 }
 
 func updateFileContent(c *gin.Context) {
