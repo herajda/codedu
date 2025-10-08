@@ -1,4 +1,4 @@
-# CodeEdu
+# CodEdu
 
 **CodeEdu** is a containerized, self-hostable web application designed for the automatic evaluation and grading of programming assignments. Inspired by ReCodEx, it provides a modern interface and a scalable backend to streamline the process of submitting, evaluating, and grading code in educational or training environments.
 
