@@ -4,7 +4,7 @@
 This script coordinates three responsibilities:
 
 1. Discover user-facing source files in the frontend.
-2. Ask OpenAI's ``gpt-5-mini`` model to rewrite each file so it relies on the
+2. Ask Google's Gemini ``gemini-2.5-flash`` model to rewrite each file so it relies on the
    shared ``$lib/i18n`` helpers and to provide Czech translations for all
    messages.
 3. Persist the resulting source changes and locale dictionaries incrementally
@@ -12,12 +12,13 @@ This script coordinates three responsibilities:
    completed.
 
 Key differences vs. the JSON-text approach:
-- Uses the Responses API with a STRICT tool schema (Structured Outputs) and
-  forces a call to function `emit_translation` that returns validated JSON.
+- Uses Gemini's function calling with a STRICT tool schema and forces a call to
+  function `emit_translation` that returns validated JSON.
 """
 from __future__ import annotations
 
 import argparse
+import ast
 import asyncio
 import json
 import logging
@@ -29,8 +30,7 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Union
 
-# Third-party dependency provided by the OpenAI Python SDK.
-from openai import AsyncOpenAI
+import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 ROOT = Path(__file__).resolve().parent
@@ -43,9 +43,11 @@ PROGRESS_LOG = STATE_DIR / 'progress.log'
 
 DEFAULT_LOCALE = 'en'
 TARGET_LOCALE = 'cs'
-MODEL_NAME = 'gpt-5-mini'
-CONCURRENCY = 50
+MODEL_NAME = 'gemini-2.5-flash'
+GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
+CONCURRENCY = 10
 MAX_TRANSLATION_RETRIES = 3
+RETRY_BACKOFF_SECONDS = 2.0
 
 # ---- Pydantic models (still useful for type safety locally) ------------------
 
@@ -95,6 +97,29 @@ TRANSLATION_TOOL: Dict[str, Any] = {
     },
     "strict": True,
 }
+GEMINI_FUNCTION_DECLARATIONS = [{
+    "name": "emit_translation",
+    "description": "Return updated source and visual translation entries for one file.",
+    "parameters": {
+        "type": "OBJECT",
+        "properties": {
+            "updated_source": {"type": "STRING"},
+            "translations": {
+                "type": "ARRAY",
+                "items": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "key": {"type": "STRING"},
+                        "en": {"type": "STRING"},
+                        "cs": {"type": "STRING"},
+                    },
+                    "required": ["key", "en", "cs"],
+                },
+            },
+        },
+        "required": ["updated_source", "translations"],
+    },
+}]
 
 # ---- File discovery / state --------------------------------------------------
 
@@ -262,6 +287,8 @@ with arguments matching the schema:
 - ``updated_source``: the FULL updated file contents as a single string (no code fences).
 - ``translations``: array of objects with ``key``, ``en``, ``cs``.
   Keys MUST follow: ``"{rel_path}::slug"``. ``en`` keeps original English, ``cs`` is Czech.
+Do not wrap this tool call in ``print(...)``, Markdown fences, or any other text.
+Return nothing except the structured function call.
 
 Existing catalogue entries to reuse when possible:
 {catalogue_preview}
@@ -347,27 +374,168 @@ def filter_visual_translations(updated_source: str, entries: Iterable[Dict[str, 
 
 # ---- Responses API call (tool-calling) --------------------------------------
 
-def _as_dict(maybe: Union[str, Dict[str, Any], Any]) -> Dict[str, Any]:
-    """Best-effort convert the tool input to a dict (SDK may return str or typed)."""
-    if isinstance(maybe, dict):
-        return maybe
-    if hasattr(maybe, "model_dump"):  # Pydantic-ish typed object
-        try:
-            return maybe.model_dump()
-        except Exception:
-            pass
-    if isinstance(maybe, str):
-        return json.loads(maybe)
-    # Fallback: try stringify then json-parse if it looks like JSON
-    text = str(maybe)
-    try:
-        return json.loads(text)
-    except Exception:
-        raise TypeError(f"Tool input is not a dict/JSON: {type(maybe)!r} -> {text[:120]!r}")
+def _normalise_content_parts(content: Any) -> List[Dict[str, str]]:
+    parts: List[Dict[str, str]] = []
+    if isinstance(content, list):
+        for item in content:
+            if isinstance(item, dict):
+                text = item.get('text')
+                if text is None and item.get('type') == 'input_text':
+                    text = item.get('text')
+                if text is not None:
+                    parts.append({'text': str(text)})
+            elif item is not None:
+                parts.append({'text': str(item)})
+    elif content is not None:
+        parts.append({'text': str(content)})
+    return parts
 
+
+def _build_gemini_payload(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+    system_texts: List[str] = []
+    contents: List[Dict[str, Any]] = []
+
+    for message in messages:
+        role = message.get('role', 'user')
+        parts = _normalise_content_parts(message.get('content'))
+        if not parts:
+            continue
+        if role == 'system':
+            system_texts.extend(part['text'] for part in parts if 'text' in part)
+            continue
+        contents.append({'role': role, 'parts': parts})
+
+    payload: Dict[str, Any] = {
+        'contents': contents,
+        'tools': [{'functionDeclarations': GEMINI_FUNCTION_DECLARATIONS}],
+        'toolConfig': {
+            'functionCallingConfig': {
+                'mode': 'ANY',
+                'allowedFunctionNames': [TRANSLATION_TOOL['name']],
+            }
+        },
+        'generationConfig': {'maxOutputTokens': 8192},
+    }
+
+    if system_texts:
+        payload['systemInstruction'] = {
+            'role': 'system',
+            'parts': [{'text': '\n\n'.join(system_texts)}],
+        }
+
+    return payload
+
+
+def _extract_translation_payload(data: Dict[str, Any]) -> Dict[str, Any]:
+    candidates = data.get('candidates') or []
+    for candidate in candidates:
+        content = candidate.get('content') or {}
+        parts = content.get('parts') or []
+        for part in parts:
+            function_call = part.get('functionCall')
+            if function_call and function_call.get('name') == TRANSLATION_TOOL['name']:
+                args = function_call.get('args') or {}
+                if isinstance(args, str):
+                    args_json = args
+                else:
+                    try:
+                        args_json = json.dumps(args)
+                    except (TypeError, ValueError) as exc:
+                        raise RuntimeError(f'Invalid function arguments returned: {exc}') from exc
+                model_obj = TranslationPayload.model_validate_json(args_json)
+                return model_obj.model_dump()
+            text = part.get('text')
+            if isinstance(text, str):
+                cleaned = _coerce_json_snippet(text)
+                if cleaned is None:
+                    continue
+                try:
+                    model_obj = TranslationPayload.model_validate_json(cleaned)
+                    return model_obj.model_dump()
+                except ValidationError:
+                    continue
+        fallback = _coerce_from_finish_message(candidate)
+        if fallback is not None:
+            return fallback
+    logging.debug(
+        "Gemini response lacked emit_translation call. Candidates: %s",
+        json.dumps(candidates, ensure_ascii=False)[:8000],
+    )
+    raise RuntimeError(
+        "Model did not return a function call to emit_translation or valid JSON text."
+    )
+
+
+def _coerce_json_snippet(text: str) -> Optional[str]:
+    stripped = text.strip()
+    if not stripped:
+        return None
+    if stripped.startswith('```') and stripped.endswith('```'):
+        stripped = stripped.strip('`').strip()
+        if stripped.startswith('json'):
+            stripped = stripped[4:].strip()
+    if stripped.startswith('```') and '```' in stripped[3:]:
+        inner = stripped.split('```', 2)[1]
+        return inner.strip()
+    if stripped.startswith('{') and stripped.endswith('}'):
+        return stripped
+    start = stripped.find('{')
+    end = stripped.rfind('}')
+    if start != -1 and end != -1 and end > start:
+        candidate = stripped[start:end + 1].strip()
+        if candidate:
+            return candidate
+    return None
+
+
+def _coerce_from_finish_message(candidate: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    finish_message = candidate.get('finishMessage')
+    if not isinstance(finish_message, str):
+        return None
+    for payload in _iter_emit_translation_payloads(finish_message):
+        try:
+            return TranslationPayload.model_validate(payload).model_dump()
+        except ValidationError:
+            continue
+    return None
+
+
+def _iter_emit_translation_payloads(text: str) -> Iterable[Dict[str, Any]]:
+    for match in re.finditer(r'emit_translation\s*\((.*?)\)', text, re.DOTALL):
+        args_src = match.group(1)
+        expr_src = f"emit_translation({args_src})"
+        try:
+            node = ast.parse(expr_src, mode='eval').body  # type: ignore[attr-defined]
+        except SyntaxError:
+            continue
+        if not isinstance(node, ast.Call):
+            continue
+        # Prefer keyword arguments
+        payload: Dict[str, Any] = {}
+        keyword_failed = False
+        for kw in node.keywords:
+            if kw.arg is None:
+                keyword_failed = True
+                break
+            try:
+                payload[kw.arg] = ast.literal_eval(kw.value)
+            except Exception:
+                keyword_failed = True
+                break
+        if not keyword_failed and payload:
+            yield payload
+            continue
+        # Fallback: single dict positional argument
+        if node.args and len(node.args) == 1:
+            try:
+                candidate = ast.literal_eval(node.args[0])
+            except Exception:
+                continue
+            if isinstance(candidate, dict):
+                yield candidate
 
 async def request_translation(
-    client: AsyncOpenAI,
+    client: httpx.AsyncClient,
     rel_path: str,
     source: str,
     existing_catalogue: Dict[str, Dict[str, str]],
@@ -376,55 +544,38 @@ async def request_translation(
 
     for attempt in range(1, MAX_TRANSLATION_RETRIES + 1):
         try:
-            # build the "input" payload for Responses API:
-            input_payload: List[Dict[str, Any]] = []
-            for m in messages:
-                content_value = m["content"]
-                if isinstance(content_value, list):
-                    # already a content array of {"type": "...", ...} dicts
-                    content_field = content_value
-                else:
-                    # plain string -> wrap it into input_text
-                    content_field = [{"type": "input_text", "text": str(content_value)}]
-
-                input_payload.append({"role": m["role"], "content": content_field})
-
-            resp = await client.responses.create(
-                model=MODEL_NAME,
-                input=input_payload,
-                tools=[TRANSLATION_TOOL],
-                tool_choice={"type": "function", "name": "emit_translation"},
-                parallel_tool_calls=False,
-                max_output_tokens=8192,
+            payload = _build_gemini_payload(messages)
+            response = await client.post(
+                f"/models/{MODEL_NAME}:generateContent",
+                json=payload,
             )
-
-            payload: Optional[Dict[str, Any]] = None
-            for item in resp.output or []:
-                if getattr(item, "type", None) == "function_call" and getattr(item, "name", None) == "emit_translation":
-                    args_json = getattr(item, "arguments", None)
-                    if not isinstance(args_json, str) or not args_json.strip():
-                        raise RuntimeError("emit_translation returned empty arguments.")
-                    model_obj = TranslationPayload.model_validate_json(args_json)
-                    payload = model_obj.model_dump()
-                    break
-
-            if payload is None and getattr(resp, "output_text", None):
-                try:
-                    payload = TranslationPayload.model_validate_json(resp.output_text).model_dump()
-                except ValidationError:
-                    pass
-
-            if payload is None:
-                raise RuntimeError(
-                    "Model did not return a function_call to emit_translation or valid JSON text."
+            if response.status_code >= 400:
+                logging.warning(
+                    "Gemini returned %s for %s: %s",
+                    response.status_code,
+                    rel_path,
+                    response.text.strip()[:500],
                 )
+            response.raise_for_status()
+            data = response.json()
+            prompt_feedback = data.get('promptFeedback') or {}
+            block_reason = prompt_feedback.get('blockReason')
+            if block_reason:
+                raise RuntimeError(f"Gemini blocked the request ({block_reason}).")
 
-            return payload
+            translation_payload = _extract_translation_payload(data)
+            return translation_payload
 
+        except (httpx.HTTPStatusError, httpx.RequestError) as exc:
+            logging.warning("Attempt %s failed for %s due to HTTP error: %s", attempt, rel_path, exc)
+            if attempt == MAX_TRANSLATION_RETRIES:
+                raise
+            await asyncio.sleep(RETRY_BACKOFF_SECONDS * attempt)
         except Exception as exc:
             logging.warning("Attempt %s failed for %s: %s", attempt, rel_path, exc)
             if attempt == MAX_TRANSLATION_RETRIES:
                 raise
+            await asyncio.sleep(RETRY_BACKOFF_SECONDS * attempt)
             # Nudge the model towards valid structured output on retry
             messages.append(
                 {
@@ -480,7 +631,7 @@ def ensure_logging(verbose: bool = False) -> None:
 # ---- Main per-file worker ----------------------------------------------------
 
 async def process_file(
-    client: AsyncOpenAI,
+    client: httpx.AsyncClient,
     state: TranslationState,
     english_catalogue: Dict[str, str],
     czech_catalogue: Dict[str, str],
@@ -553,13 +704,11 @@ async def process_file(
 async def main_async(args: argparse.Namespace) -> None:
     load_env(ROOT / '.env')
 
-    api_key = os.environ.get('OPENAI_API_KEY')
+    api_key = os.environ.get('GEMINI_API_KEY') or os.environ.get('GOOGLE_API_KEY')
     if not api_key:
-        raise EnvironmentError('OPENAI_API_KEY is not set. Add it to your environment or .env file.')
+        raise EnvironmentError('GEMINI_API_KEY (or GOOGLE_API_KEY) is not set. Add it to your environment or .env file.')
 
     ensure_logging(verbose=args.verbose)
-
-    client = AsyncOpenAI(api_key=api_key)
 
     english_catalogue = read_json_file(LOCALES_DIR / f'{DEFAULT_LOCALE}.json')
     czech_catalogue = read_json_file(LOCALES_DIR / f'{TARGET_LOCALE}.json')
@@ -577,14 +726,20 @@ async def main_async(args: argparse.Namespace) -> None:
     semaphore = asyncio.Semaphore(concurrency)
     lock = asyncio.Lock()
 
-    tasks = [
-        asyncio.create_task(
-            process_file(client, state, english_catalogue, czech_catalogue, path, semaphore, lock, args.dry_run)
-        )
-        for path in files
-    ]
+    timeout = httpx.Timeout(120.0, connect=30.0)
+    async with httpx.AsyncClient(
+        base_url=GEMINI_API_BASE,
+        headers={'x-goog-api-key': api_key},
+        timeout=timeout,
+    ) as client:
+        tasks = [
+            asyncio.create_task(
+                process_file(client, state, english_catalogue, czech_catalogue, path, semaphore, lock, args.dry_run)
+            )
+            for path in files
+        ]
 
-    await asyncio.gather(*tasks)
+        await asyncio.gather(*tasks)
 
     if args.dry_run:
         logging.info('Dry run finished. No files were modified.')
@@ -597,7 +752,7 @@ async def main_async(args: argparse.Namespace) -> None:
 
 
 def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description='Translate the frontend into Czech using OpenAI (tool-calling).')
+    parser = argparse.ArgumentParser(description='Translate the frontend into Czech using Google Gemini (function calling).')
     parser.add_argument('--dry-run', action='store_true', help='Run all requests without modifying files.')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose logging output.')
     parser.add_argument('--concurrency', type=int, default=CONCURRENCY, help='Maximum number of concurrent translation requests.')
@@ -611,4 +766,3 @@ def main(argv: Optional[Iterable[str]] = None) -> None:
 
 if __name__ == '__main__':
     main()
-
