@@ -4,7 +4,7 @@
 This script coordinates three responsibilities:
 
 1. Discover user-facing source files in the frontend.
-2. Ask Google's Gemini ``gemini-2.5-flash`` model to rewrite each file so it relies on the
+2. Batch translation requests with Google's Gemini ``gemini-2.5-flash`` model so each file relies on the
    shared ``$lib/i18n`` helpers and to provide Czech translations for all
    messages.
 3. Persist the resulting source changes and locale dictionaries incrementally
@@ -24,6 +24,7 @@ import json
 import logging
 import os
 import re
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from hashlib import sha256
@@ -45,9 +46,9 @@ DEFAULT_LOCALE = 'en'
 TARGET_LOCALE = 'cs'
 MODEL_NAME = 'gemini-2.5-flash'
 GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
-CONCURRENCY = 10
-MAX_TRANSLATION_RETRIES = 3
-RETRY_BACKOFF_SECONDS = 2.0
+DEFAULT_BATCH_SIZE = 10
+BATCH_POLL_INTERVAL_SECONDS = 5.0
+BATCH_TIMEOUT_SECONDS = 3600.0
 
 # ---- Pydantic models (still useful for type safety locally) ------------------
 
@@ -178,6 +179,16 @@ class TranslationState:
 
     def mark_processed(self, rel_path: str, checksum: str) -> None:
         self.processed_files[rel_path] = ProcessedFile.fresh(checksum)
+
+
+@dataclass
+class TranslationJob:
+    """Inputs required to localise a single file via the Gemini Batch API."""
+    rel_path: str
+    path: Path
+    source: str
+    checksum: str
+    existing_catalogue_entries: Dict[str, Dict[str, str]]
 
 # ---- Utilities ---------------------------------------------------------------
 
@@ -414,7 +425,7 @@ def _build_gemini_payload(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
                 'allowedFunctionNames': [TRANSLATION_TOOL['name']],
             }
         },
-        'generationConfig': {'maxOutputTokens': 8192},
+        'generationConfig': {'maxOutputTokens': 65536},
     }
 
     if system_texts:
@@ -534,61 +545,275 @@ def _iter_emit_translation_payloads(text: str) -> Iterable[Dict[str, Any]]:
             if isinstance(candidate, dict):
                 yield candidate
 
-async def request_translation(
+def _chunk_jobs(jobs: List[TranslationJob], size: int) -> Iterable[List[TranslationJob]]:
+    if size <= 0:
+        raise ValueError('Batch size must be a positive integer.')
+    for index in range(0, len(jobs), size):
+        yield jobs[index:index + size]
+
+
+async def prepare_translation_jobs(
+    files: List[Path],
+    state: TranslationState,
+    english_catalogue: Dict[str, str],
+    czech_catalogue: Dict[str, str],
+) -> List[TranslationJob]:
+    jobs: List[TranslationJob] = []
+    for path in files:
+        rel_path = path.relative_to(ROOT).as_posix()
+        source = await async_read_text(path)
+        checksum = compute_checksum(source)
+        if state.is_up_to_date(rel_path, checksum):
+            logging.info('Skipping %s (already processed)', rel_path)
+            continue
+
+        existing_entries = {
+            key: {
+                'en': english_catalogue.get(key, ''),
+                'cs': czech_catalogue.get(key, ''),
+            }
+            for key in english_catalogue
+            if key.startswith(f'{rel_path}::')
+            and should_translate_entry(key, english_catalogue.get(key, ''))
+        }
+
+        logging.info('Translating %s', rel_path)
+        jobs.append(
+            TranslationJob(
+                rel_path=rel_path,
+                path=path,
+                source=source,
+                checksum=checksum,
+                existing_catalogue_entries=existing_entries,
+            )
+        )
+    return jobs
+
+
+def _build_inlined_requests(jobs: List[TranslationJob]) -> List[Dict[str, Any]]:
+    inline_requests: List[Dict[str, Any]] = []
+    for job in jobs:
+        messages = build_prompt(job.rel_path, job.source, job.existing_catalogue_entries)
+        request_payload = _build_gemini_payload(messages)
+        request_payload['model'] = f'models/{MODEL_NAME}'
+        inline_requests.append(
+            {
+                'request': request_payload,
+                'metadata': {
+                    'rel_path': job.rel_path,
+                    'checksum': job.checksum,
+                },
+            }
+        )
+    return inline_requests
+
+
+async def create_batch_job(
     client: httpx.AsyncClient,
-    rel_path: str,
-    source: str,
-    existing_catalogue: Dict[str, Dict[str, str]],
+    jobs: List[TranslationJob],
+    display_name: str,
 ) -> Dict[str, Any]:
-    messages = build_prompt(rel_path, source, existing_catalogue)
-
-    for attempt in range(1, MAX_TRANSLATION_RETRIES + 1):
-        try:
-            payload = _build_gemini_payload(messages)
-            response = await client.post(
-                f"/models/{MODEL_NAME}:generateContent",
-                json=payload,
-            )
-            if response.status_code >= 400:
-                logging.warning(
-                    "Gemini returned %s for %s: %s",
-                    response.status_code,
-                    rel_path,
-                    response.text.strip()[:500],
-                )
-            response.raise_for_status()
-            data = response.json()
-            prompt_feedback = data.get('promptFeedback') or {}
-            block_reason = prompt_feedback.get('blockReason')
-            if block_reason:
-                raise RuntimeError(f"Gemini blocked the request ({block_reason}).")
-
-            translation_payload = _extract_translation_payload(data)
-            return translation_payload
-
-        except (httpx.HTTPStatusError, httpx.RequestError) as exc:
-            logging.warning("Attempt %s failed for %s due to HTTP error: %s", attempt, rel_path, exc)
-            if attempt == MAX_TRANSLATION_RETRIES:
-                raise
-            await asyncio.sleep(RETRY_BACKOFF_SECONDS * attempt)
-        except Exception as exc:
-            logging.warning("Attempt %s failed for %s: %s", attempt, rel_path, exc)
-            if attempt == MAX_TRANSLATION_RETRIES:
-                raise
-            await asyncio.sleep(RETRY_BACKOFF_SECONDS * attempt)
-            # Nudge the model towards valid structured output on retry
-            messages.append(
-                {
-                    "role": "system",
-                    "content": (
-                        "You must call the function emit_translation exactly once with arguments "
-                        'matching the schema {"updated_source": string, "translations": array of {"key","en","cs"}} '
-                        "and avoid any extra commentary."
-                    ),
+    inline_requests = _build_inlined_requests(jobs)
+    payload = {
+        'batch': {
+            'model': f'models/{MODEL_NAME}',
+            'displayName': display_name,
+            'inputConfig': {
+                'requests': {
+                    'requests': inline_requests,
                 }
-            )
+            },
+        }
+    }
+    response = await client.post(
+        f"/models/{MODEL_NAME}:batchGenerateContent",
+        json=payload,
+    )
+    if response.status_code >= 400:
+        logging.warning(
+            'Batch creation returned %s: %s',
+            response.status_code,
+            response.text.strip()[:500],
+        )
+    response.raise_for_status()
+    return response.json()
 
-    raise RuntimeError(f"Exhausted translation attempts for {rel_path}.")
+
+async def poll_operation(
+    client: httpx.AsyncClient,
+    operation_name: str,
+    poll_interval: float = BATCH_POLL_INTERVAL_SECONDS,
+    timeout: float = BATCH_TIMEOUT_SECONDS,
+) -> Dict[str, Any]:
+    deadline = time.monotonic() + timeout
+    attempt = 0
+    while True:
+        response = await client.get(f"/{operation_name}")
+        response.raise_for_status()
+        operation = response.json()
+        if operation.get('done'):
+            error_payload = operation.get('error')
+            if error_payload:
+                raise RuntimeError(
+                    f"Batch operation {operation_name} failed: "
+                    f"{error_payload.get('code')} {error_payload.get('message')}"
+                )
+            return operation
+
+        attempt += 1
+        if attempt == 1 or attempt % 12 == 0:
+            logging.info('Batch %s still processing…', operation_name)
+
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f'Timed out waiting for batch operation {operation_name}.')
+        await asyncio.sleep(poll_interval)
+
+
+async def apply_batch_responses(
+    jobs: List[TranslationJob],
+    operation: Dict[str, Any],
+    english_catalogue: Dict[str, str],
+    czech_catalogue: Dict[str, str],
+    state: TranslationState,
+    dry_run: bool,
+) -> None:
+    response_payload = operation.get('response') or {}
+    batch_name = response_payload.get('name') or operation.get('name')
+    output = response_payload.get('output') or {}
+    inline_container = output.get('inlinedResponses') or {}
+    inline_responses = inline_container.get('inlinedResponses') or []
+
+    if not inline_responses:
+        responses_file = output.get('responsesFile')
+        if responses_file:
+            raise RuntimeError(
+                f'Batch {batch_name} produced a responses file ({responses_file}). '
+                'Downloading batch output files is not implemented yet.'
+            )
+        logging.warning('Batch %s completed without inline responses.', batch_name)
+        return
+
+    if len(inline_responses) != len(jobs):
+        logging.warning(
+            'Batch %s returned %s responses for %s requests.',
+            batch_name,
+            len(inline_responses),
+            len(jobs),
+        )
+
+    for index, job in enumerate(jobs):
+        if index >= len(inline_responses):
+            logging.error('Missing response for %s in batch %s.', job.rel_path, batch_name)
+            continue
+
+        inline_item = inline_responses[index]
+        error_payload = inline_item.get('error')
+        if error_payload:
+            logging.error(
+                'Batch translation failed for %s: (%s) %s',
+                job.rel_path,
+                error_payload.get('code'),
+                error_payload.get('message'),
+            )
+            continue
+
+        response_data = inline_item.get('response')
+        if not response_data:
+            logging.error('Batch response missing data for %s', job.rel_path)
+            continue
+
+        try:
+            translation_payload = _extract_translation_payload(response_data)
+        except Exception as exc:  # noqa: BLE001 - preserve stack for debugging
+            logging.exception('Failed to parse translation payload for %s: %s', job.rel_path, exc)
+            continue
+
+        updated_source = translation_payload.get('updated_source')
+        translations = translation_payload.get('translations', [])
+
+        if not isinstance(updated_source, str):
+            logging.error('Invalid updated source for %s', job.rel_path)
+            continue
+        if not isinstance(translations, list):
+            logging.error('Invalid translations list for %s', job.rel_path)
+            continue
+
+        translations = filter_visual_translations(updated_source, translations)
+
+        if dry_run:
+            logging.info('Dry run – generated localisation for %s but did not modify files.', job.rel_path)
+            continue
+
+        current_source = await async_read_text(job.path)
+        current_checksum = compute_checksum(current_source)
+        if current_checksum != job.checksum:
+            logging.warning(
+                'Skipping %s because the source changed during batch processing.',
+                job.rel_path,
+            )
+            continue
+
+        await async_write_text(job.path, updated_source)
+        merge_translations(english_catalogue, czech_catalogue, translations)
+        final_checksum = compute_checksum(updated_source)
+        state.mark_processed(job.rel_path, final_checksum)
+        english_snapshot = dict(english_catalogue)
+        czech_snapshot = dict(czech_catalogue)
+        state_payload = state.to_json()
+
+        await asyncio.gather(
+            async_write_json(LOCALES_DIR / f'{DEFAULT_LOCALE}.json', english_snapshot),
+            async_write_json(LOCALES_DIR / f'{TARGET_LOCALE}.json', czech_snapshot),
+            asyncio.to_thread(
+                STATE_FILE.write_text,
+                json.dumps(state_payload, ensure_ascii=False, indent=2) + '\n',
+                'utf-8',
+            ),
+        )
+
+        logging.info('Finished %s', job.rel_path)
+
+
+async def process_jobs_in_batches(
+    client: httpx.AsyncClient,
+    jobs: List[TranslationJob],
+    english_catalogue: Dict[str, str],
+    czech_catalogue: Dict[str, str],
+    state: TranslationState,
+    dry_run: bool,
+    batch_size: int,
+) -> None:
+    if not jobs:
+        logging.info('All files are up to date – nothing to translate.')
+        return
+
+    total_batches = max(1, (len(jobs) + batch_size - 1) // batch_size)
+    for batch_index, chunk in enumerate(_chunk_jobs(jobs, batch_size), start=1):
+        display_name = (
+            f"codedu-localisation-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-"
+            f"part-{batch_index:02d}"
+        )
+        logging.info(
+            'Submitting batch %s/%s with %s request(s).',
+            batch_index,
+            total_batches,
+            len(chunk),
+        )
+        operation = await create_batch_job(client, chunk, display_name)
+        operation_name = operation.get('name')
+        if not operation_name:
+            raise RuntimeError('Batch creation response missing operation name.')
+
+        completed_operation = await poll_operation(client, operation_name)
+        logging.info('Batch %s/%s completed (%s).', batch_index, total_batches, operation_name)
+        await apply_batch_responses(
+            chunk,
+            completed_operation,
+            english_catalogue,
+            czech_catalogue,
+            state,
+            dry_run,
+        )
 
 # ---- Merge & log -------------------------------------------------------------
 
@@ -628,77 +853,6 @@ def ensure_logging(verbose: bool = False) -> None:
         handlers=handlers,
     )
 
-# ---- Main per-file worker ----------------------------------------------------
-
-async def process_file(
-    client: httpx.AsyncClient,
-    state: TranslationState,
-    english_catalogue: Dict[str, str],
-    czech_catalogue: Dict[str, str],
-    path: Path,
-    semaphore: asyncio.Semaphore,
-    lock: asyncio.Lock,
-    dry_run: bool,
-) -> None:
-    rel_path = path.relative_to(ROOT).as_posix()
-
-    async with semaphore:
-        source = await async_read_text(path)
-        checksum = compute_checksum(source)
-        if state.is_up_to_date(rel_path, checksum):
-            logging.info('Skipping %s (already processed)', rel_path)
-            return
-
-        logging.info('Translating %s', rel_path)
-
-        existing_entries = {
-            key: {'en': english_catalogue.get(key, ''), 'cs': czech_catalogue.get(key, '')}
-            for key in english_catalogue
-            if key.startswith(f'{rel_path}::') and should_translate_entry(key, english_catalogue.get(key, ''))
-        }
-
-        try:
-            payload = await request_translation(client, rel_path, source, existing_entries)
-        except Exception as exc:  # noqa: BLE001 - preserve stack for debugging
-            logging.exception('Failed to translate %s: %s', rel_path, exc)
-            return
-
-        updated_source = payload.get('updated_source')
-        translations = payload.get('translations', [])
-
-        if not isinstance(updated_source, str):
-            raise RuntimeError(f'Response for {rel_path} is missing the updated source code.')
-        if not isinstance(translations, list):
-            raise RuntimeError(f'Response for {rel_path} returned invalid translations payload.')
-
-        translations = filter_visual_translations(updated_source, translations)
-
-        if dry_run:
-            logging.info('Dry run – generated localisation for %s but did not modify files.', rel_path)
-            return
-
-        await async_write_text(path, updated_source)
-
-        async with lock:
-            merge_translations(english_catalogue, czech_catalogue, translations)
-            final_checksum = compute_checksum(updated_source)
-            state.mark_processed(rel_path, final_checksum)
-            english_snapshot = dict(english_catalogue)
-            czech_snapshot = dict(czech_catalogue)
-            state_payload = state.to_json()
-
-            await asyncio.gather(
-                async_write_json(LOCALES_DIR / f'{DEFAULT_LOCALE}.json', english_snapshot),
-                async_write_json(LOCALES_DIR / f'{TARGET_LOCALE}.json', czech_snapshot),
-                asyncio.to_thread(
-                    STATE_FILE.write_text,
-                    json.dumps(state_payload, ensure_ascii=False, indent=2) + '\n',
-                    'utf-8',
-                ),
-            )
-
-        logging.info('Finished %s', rel_path)
-
 # ---- Entrypoint --------------------------------------------------------------
 
 async def main_async(args: argparse.Namespace) -> None:
@@ -719,12 +873,11 @@ async def main_async(args: argparse.Namespace) -> None:
         logging.warning('No source files matched the selection. Nothing to do.')
         return
 
-    concurrency = args.concurrency or CONCURRENCY
-    if concurrency <= 0:
-        raise ValueError('Concurrency must be a positive integer.')
+    jobs = await prepare_translation_jobs(files, state, english_catalogue, czech_catalogue)
 
-    semaphore = asyncio.Semaphore(concurrency)
-    lock = asyncio.Lock()
+    batch_size = args.concurrency or DEFAULT_BATCH_SIZE
+    if batch_size <= 0:
+        raise ValueError('Batch size must be a positive integer.')
 
     timeout = httpx.Timeout(120.0, connect=30.0)
     async with httpx.AsyncClient(
@@ -732,14 +885,15 @@ async def main_async(args: argparse.Namespace) -> None:
         headers={'x-goog-api-key': api_key},
         timeout=timeout,
     ) as client:
-        tasks = [
-            asyncio.create_task(
-                process_file(client, state, english_catalogue, czech_catalogue, path, semaphore, lock, args.dry_run)
-            )
-            for path in files
-        ]
-
-        await asyncio.gather(*tasks)
+        await process_jobs_in_batches(
+            client,
+            jobs,
+            english_catalogue,
+            czech_catalogue,
+            state,
+            args.dry_run,
+            batch_size,
+        )
 
     if args.dry_run:
         logging.info('Dry run finished. No files were modified.')
@@ -755,7 +909,12 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Translate the frontend into Czech using Google Gemini (function calling).')
     parser.add_argument('--dry-run', action='store_true', help='Run all requests without modifying files.')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose logging output.')
-    parser.add_argument('--concurrency', type=int, default=CONCURRENCY, help='Maximum number of concurrent translation requests.')
+    parser.add_argument(
+        '--concurrency',
+        type=int,
+        default=DEFAULT_BATCH_SIZE,
+        help='Maximum number of translation requests to bundle into each Gemini batch job.',
+    )
     return parser.parse_args(list(argv) if argv is not None else None)
 
 
