@@ -414,7 +414,7 @@ def _build_gemini_payload(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
                 'allowedFunctionNames': [TRANSLATION_TOOL['name']],
             }
         },
-        'generationConfig': {'maxOutputTokens': 8192},
+        'generationConfig': {'maxOutputTokens': 65536},
     }
 
     if system_texts:
