@@ -65,11 +65,34 @@ class TranslationPayload(BaseModel):
 # ---- Tool schema (STRICT) ---------------------------------------------------
 
 # Drop-in tool matching TranslationPayload exactly
+# ---- Tool schema (STRICT) ---------------------------------------------------
+# Explicit JSON Schema to satisfy the Responses API validation rules.
+
 TRANSLATION_TOOL: Dict[str, Any] = {
     "type": "function",
     "name": "emit_translation",
     "description": "Return updated source and visual translation entries for one file.",
-    "parameters": TranslationPayload.model_json_schema(),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "updated_source": {"type": "string"},
+            "translations": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "key": {"type": "string"},
+                        "en": {"type": "string"},
+                        "cs": {"type": "string"},
+                    },
+                    "required": ["key", "en", "cs"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        "required": ["updated_source", "translations"],
+        "additionalProperties": False,
+    },
     "strict": True,
 }
 
@@ -353,15 +376,22 @@ async def request_translation(
 
     for attempt in range(1, MAX_TRANSLATION_RETRIES + 1):
         try:
+            # build the "input" payload for Responses API:
+            input_payload: List[Dict[str, Any]] = []
+            for m in messages:
+                content_value = m["content"]
+                if isinstance(content_value, list):
+                    # already a content array of {"type": "...", ...} dicts
+                    content_field = content_value
+                else:
+                    # plain string -> wrap it into input_text
+                    content_field = [{"type": "input_text", "text": str(content_value)}]
+
+                input_payload.append({"role": m["role"], "content": content_field})
+
             resp = await client.responses.create(
                 model=MODEL_NAME,
-                input=[
-                    {
-                        "role": m["role"],
-                        "content": [{"type": "input_text", "text": m["content"]}],
-                    }
-                    for m in messages
-                ],
+                input=input_payload,
                 tools=[TRANSLATION_TOOL],
                 tool_choice={"type": "function", "name": "emit_translation"},
                 parallel_tool_calls=False,
@@ -581,3 +611,4 @@ def main(argv: Optional[Iterable[str]] = None) -> None:
 
 if __name__ == '__main__':
     main()
+
