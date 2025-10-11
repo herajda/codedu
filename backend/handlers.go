@@ -603,10 +603,13 @@ func generateAITests(c *gin.Context) {
 	}
 
 	var req struct {
-		Instructions string `json:"instructions"`
-		NumTests     int    `json:"num_tests"`
-		AutoTests    bool   `json:"auto_tests"`
-		Mode         string `json:"mode"`
+		Instructions    string `json:"instructions"`
+		NumTests        int    `json:"num_tests"`
+		AutoTests       bool   `json:"auto_tests"`
+		Mode            string `json:"mode"`
+		CallMode        string `json:"call_mode"`
+		Difficulty      string `json:"difficulty"`
+		TeacherSolution string `json:"teacher_solution"`
 	}
 	_ = c.ShouldBindJSON(&req)
 	if !req.AutoTests && req.NumTests <= 0 {
@@ -620,15 +623,44 @@ func generateAITests(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid mode"})
 		return
 	}
+	callMode := strings.ToLower(strings.TrimSpace(req.CallMode))
+	if callMode == "" {
+		callMode = "stdin"
+	}
+	if callMode != "stdin" && callMode != "function" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid call_mode"})
+		return
+	}
+	difficulty := strings.ToLower(strings.TrimSpace(req.Difficulty))
+	if difficulty == "" {
+		difficulty = "simple"
+	}
+	if difficulty != "simple" && difficulty != "hard" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid difficulty"})
+		return
+	}
+	teacherSolution := strings.TrimSpace(req.TeacherSolution)
+	teacherContext := teacherSolution
+	if teacherContext == "" {
+		teacherContext = "None provided."
+	}
 
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if strings.TrimSpace(apiKey) == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "OPENAI_API_KEY not configured on server"})
 		return
 	}
-	model := os.Getenv("OPENAI_MODEL")
-	if model == "" {
-		model = "gpt-5"
+	defaultModel := strings.TrimSpace(os.Getenv("OPENAI_MODEL"))
+	if defaultModel == "" {
+		defaultModel = "gpt-5"
+	}
+	simpleModel := strings.TrimSpace(os.Getenv("OPENAI_MODEL_SIMPLE"))
+	if simpleModel == "" {
+		simpleModel = "gpt-5-mini"
+	}
+	model := defaultModel
+	if difficulty == "simple" {
+		model = simpleModel
 	}
 	base := os.Getenv("OPENAI_API_BASE")
 	if base == "" {
@@ -652,6 +684,7 @@ Constraints:
 - Provide concise, deterministic cases. Avoid randomness and heavyweight inputs.
 - Arguments and expected return values must be valid JSON so they can be stored directly.
 %s
+- Analyse the provided teacher solution to infer expected behaviours. Do not copy its code verbatim into the generated tests.
 
 Return a single JSON object with fields:
 {
@@ -684,20 +717,40 @@ Assignment title: %s
 Assignment description:\n%s
 
 Additional guidance (optional): %s
+
+Teacher solution (reference only):
+%s
 `
-		user = fmt.Sprintf(basePrompt, constraint, assign.Title, assign.Description, req.Instructions)
+		user = fmt.Sprintf(basePrompt, constraint, assign.Title, assign.Description, req.Instructions, teacherContext)
 	} else {
-		constraint := ""
-		if req.AutoTests {
-			constraint = "- Decide the appropriate number of test methods to ensure thorough coverage (typical cases, edge cases, and error handling)."
+		callInstruction := "- Each test must call student_code(...) to execute the student's program with stdin-style inputs and assert on stdout."
+		if callMode == "function" {
+			callInstruction = "- Each test must call student_function('function_name', ...) to import the student's solution function and assert on the returned value."
+		}
+		referenceInstruction := "- Define a helper reference_solution function inside the test module that implements the expected behaviour. Use it to compute expected results before asserting against the student's output."
+		if callMode == "function" {
+			referenceInstruction = "- Define a helper reference_solution function inside the test module that implements the correct behaviour. In each test, compare student_function(...) return values to reference_solution(...) outputs."
 		} else {
-			constraint = fmt.Sprintf("- Cover edge cases and typical cases. Add at least %d test methods.", req.NumTests)
+			referenceInstruction = "- Define a helper reference_solution function inside the test module that implements the correct behaviour. In each test, compare student_code(...) stdout to reference_solution(...) outputs."
+		}
+		additionalGuidance := ""
+		if req.AutoTests {
+			additionalGuidance = "- Decide the appropriate number of test methods to ensure thorough coverage (typical cases, edge cases, and error handling)."
+		} else {
+			additionalGuidance = fmt.Sprintf("- Cover edge cases and typical cases. Add at least %d test methods.", req.NumTests)
+		}
+		if callMode == "function" {
+			additionalGuidance += "\n- Populate builder.callMode with \"function\" and include builder.functionName for each generated test."
+		} else {
+			additionalGuidance += "\n- Populate builder.callMode with \"stdin\" and leave builder.functionName empty."
 		}
 		basePrompt := `Create a Python unittest module for the following programming assignment.
 
 Constraints:
 - Use Python's unittest module and a single test class.
-- Each test must call student_code(...) to execute the student's program with stdin-style arguments, or student_function('function_name', ...) to import and run a specific function and inspect its return value.
+%s
+%s
+- Analyse the provided teacher solution to infer expected behaviours. Do not copy its code verbatim into the generated tests.
 - Prefer small, independent tests. Avoid flaky or slow tests.
 %s
 
@@ -731,8 +784,11 @@ Assignment title: %s
 Assignment description:\n%s
 
 Additional guidance (optional): %s
+
+Teacher solution (reference only):
+%s
 `
-		user = fmt.Sprintf(basePrompt, constraint, assign.Title, assign.Description, req.Instructions)
+		user = fmt.Sprintf(basePrompt, callInstruction, referenceInstruction, additionalGuidance, assign.Title, assign.Description, req.Instructions, teacherContext)
 	}
 
 	// Call OpenAI Chat Completions
@@ -811,8 +867,13 @@ Additional guidance (optional): %s
 	}
 
 	result := gin.H{
-		"mode":   mode,
-		"python": bundle.Python,
+		"mode":       mode,
+		"call_mode":  callMode,
+		"difficulty": difficulty,
+		"python":     bundle.Python,
+	}
+	if teacherSolution != "" {
+		result["teacher_solution"] = teacherSolution
 	}
 	if strings.TrimSpace(bundle.Builder.ClassName) != "" || len(bundle.Builder.Tests) > 0 {
 		result["builder"] = gin.H{

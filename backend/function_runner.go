@@ -69,7 +69,7 @@ func writeFunctionRunnerFiles(dir, mainFile string, cfg functionCallConfig) (str
 		return "", "", err
 	}
 
-script := `import contextlib
+	script := `import contextlib
 import importlib.util
 import io
 import json
@@ -205,16 +205,22 @@ func runFunctionCall(dir, mainFile string, cfg functionCallConfig, timeout time.
 	duration := time.Since(start)
 
 	ctxTimedOut := ctx.Err() == context.DeadlineExceeded
-	out := strings.TrimSpace(stdoutBuf.String())
+	rawOut := stdoutBuf.String()
 	var runtime time.Duration
-	if lines := strings.Split(out, "\n"); len(lines) > 0 && strings.HasPrefix(lines[len(lines)-1], "===RUNTIME_MS===") {
-		rstr := strings.TrimSpace(strings.TrimPrefix(lines[len(lines)-1], "===RUNTIME_MS==="))
-		if ms, perr := strconv.Atoi(rstr); perr == nil {
-			runtime = time.Duration(ms) * time.Millisecond
-			out = strings.Join(lines[:len(lines)-1], "\n")
+	out := rawOut
+	const runtimeMarker = "===RUNTIME_MS==="
+	if idx := strings.LastIndex(out, runtimeMarker); idx != -1 {
+		tail := out[idx+len(runtimeMarker):]
+		if fields := strings.Fields(tail); len(fields) > 0 {
+			if ms, perr := strconv.Atoi(fields[0]); perr == nil {
+				runtime = time.Duration(ms) * time.Millisecond
+			} else {
+				runtime = duration
+			}
 		} else {
 			runtime = duration
 		}
+		out = out[:idx]
 	} else {
 		runtime = duration
 	}
@@ -230,10 +236,9 @@ func runFunctionCall(dir, mainFile string, cfg functionCallConfig, timeout time.
 
 	const marker = "===GRADER_JSON==="
 	var meta *functionCallResult
-	trimmedOut := strings.TrimSpace(out)
-	if idx := strings.LastIndex(trimmedOut, marker); idx != -1 {
-		payload := strings.TrimSpace(trimmedOut[idx+len(marker):])
-		trimmedOut = strings.TrimSpace(trimmedOut[:idx])
+	if idx := strings.LastIndex(out, marker); idx != -1 {
+		payload := strings.TrimSpace(out[idx+len(marker):])
+		out = out[:idx]
 		var tmp functionCallResult
 		if payload != "" {
 			if err := json.Unmarshal([]byte(payload), &tmp); err == nil {
@@ -243,7 +248,7 @@ func runFunctionCall(dir, mainFile string, cfg functionCallConfig, timeout time.
 	}
 
 	timedOut := ctxTimedOut || runtime > timeout
-	stdout := trimmedOut
+	stdout := out
 	if meta != nil && meta.Stdout != "" {
 		stdout = meta.Stdout
 	}

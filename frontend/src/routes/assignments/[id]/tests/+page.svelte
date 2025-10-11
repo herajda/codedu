@@ -49,7 +49,11 @@
   let aiCode = ''
   let hasAIBuilder = false
   let hasFunctionBuilder = false // deprecated
-  let aiMode: 'unittest' | 'function' = 'unittest' // function mode deprecated
+  let aiCallMode: 'stdin' | 'function' = 'stdin'
+  let aiDifficulty: 'simple' | 'hard' = 'simple'
+  let aiSolutionFile: File | null = null
+  let aiSolutionText = ''
+  let aiSolutionError = ''
   let aiAuto = true
   // Teacher solution testing
   let teacherSolutionFile: File | null = null
@@ -1065,6 +1069,32 @@
     return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on'
   }
 
+  function resetAISolutionInput(clearError = true) {
+    aiSolutionFile = null
+    aiSolutionText = ''
+    if (clearError) {
+      aiSolutionError = ''
+    }
+    const input = document.getElementById('ai-solution-upload') as HTMLInputElement | null
+    if (input) {
+      input.value = ''
+    }
+  }
+
+  async function handleAISolutionChange(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0] ?? null
+    aiSolutionFile = file
+    aiSolutionText = ''
+    aiSolutionError = ''
+    if (!file) return
+    try {
+      aiSolutionText = await file.text()
+    } catch (err) {
+      aiSolutionError = translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_error')
+      resetAISolutionInput(false)
+    }
+  }
+
   async function generateWithAI() {
     aiGenerating = true
     err = ''
@@ -1072,7 +1102,16 @@
     hasFunctionBuilder = false
     teacherRun = null
     try {
-      const payload: any = { instructions: aiInstructions, mode: aiMode }
+      const payload: any = {
+        instructions: aiInstructions,
+        mode: 'unittest',
+        call_mode: aiCallMode,
+        difficulty: aiDifficulty
+      }
+      const trimmedSolution = aiSolutionText.trim()
+      if (trimmedSolution) {
+        payload.teacher_solution = trimmedSolution
+      }
       if (aiAuto) {
         payload.auto_tests = true
       } else {
@@ -1083,7 +1122,25 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
-      const responseMode: 'unittest' | 'function' = res?.mode === 'function' ? 'function' : res?.mode === 'unittest' ? 'unittest' : aiMode
+      const responseMode: 'unittest' | 'function' = res?.mode === 'function' ? 'function' : 'unittest'
+      if (typeof res?.call_mode === 'string') {
+        const normalizedCall = String(res.call_mode).toLowerCase()
+        aiCallMode = normalizedCall === 'function' ? 'function' : 'stdin'
+      }
+      if (typeof res?.difficulty === 'string') {
+        const normalizedDifficulty = String(res.difficulty).toLowerCase()
+        aiDifficulty = normalizedDifficulty === 'hard' ? 'hard' : 'simple'
+      }
+      if (res?.teacher_solution) {
+        const receivedSolution = String(res.teacher_solution)
+        if (receivedSolution.trim()) {
+          aiSolutionText = receivedSolution
+          aiSolutionFile = null
+          aiSolutionError = ''
+          const input = document.getElementById('ai-solution-upload') as HTMLInputElement | null
+          if (input) input.value = ''
+        }
+      }
       if (responseMode === 'function') {
         builderMode = 'function'
         aiCode = typeof res?.python === 'string' ? res.python : ''
@@ -1874,86 +1931,234 @@
 
         <input type="radio" name="tests-tab" role="tab" class="tab" aria-label={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_generate')}>
         <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4 space-y-4">
-          <div class="grid sm:grid-cols-4 gap-3">
-            <label class="form-control w-full space-y-1">
-              <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::test_type')}</span>
-              <div class="join">
-                <button type="button" class={`btn btn-sm join-item ${aiMode === 'unittest' ? 'btn-primary' : 'btn-outline'}`} on:click={() => aiMode = 'unittest'}>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_button')}</button>
-                <button type="button" class={`btn btn-sm join-item ${aiMode === 'function' ? 'btn-primary' : 'btn-outline'}`} on:click={() => aiMode = 'function'}>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::function_button')}</button>
-              </div>
-              <span class="text-xs opacity-70">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::choose_ai_produce_unittest_code_or_direct_function_call_cases')}</span>
-            </label>
-            <label class="form-control w-full space-y-1">
-              <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::test_count_mode')}</span>
-              <div class="join">
-                <button type="button" class={`btn join-item ${aiAuto ? 'btn-primary' : 'btn-outline'}`} on:click={() => aiAuto = true}>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::auto')}</button>
-                <button type="button" class={`btn join-item ${aiAuto ? 'btn-outline' : 'btn-primary'}`} on:click={() => aiAuto = false}>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::manual')}</button>
-              </div>
-              {#if !aiAuto}
-                <div class="mt-2">
-                  <input type="number" min="1" class="input input-bordered w-full" bind:value={aiNumTests} placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::how_many_tests_placeholder')}>
-                </div>
-              {/if}
-              <span class="text-xs opacity-70">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::auto_lets_model_decide_number_of_tests')}</span>
-            </label>
-            <div class="sm:col-span-2">
-              <label class="form-control w-full space-y-1">
-                <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::additional_instructions_optional')}</span>
-                <input class="input input-bordered w-full" bind:value={aiInstructions} placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::edge_cases_to_cover_placeholder')}>
-              </label>
-            </div>
-          </div>
-          <div class="flex gap-2">
-            <button class="btn btn-primary" on:click={generateWithAI} disabled={aiGenerating}><FlaskConical size={16}/> {aiGenerating ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::generating') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::generate_with_ai')}</button>
-            <button class="btn" on:click={uploadAIUnitTestsCode} disabled={builderMode !== 'unittest' || !aiCode} title={builderMode !== 'unittest' ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::available_only_for_unittest_generation') : ''}><UploadIcon size={16}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::save_as_tests')}</button>
-          </div>
-          {#if aiCode && builderMode === 'unittest'}
-            <div class="space-y-2">
-              <div class="flex items-center justify-between">
-                <h4 class="font-semibold">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_python_editable')}</h4>
-                <span class="text-xs opacity-70">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::you_can_edit_this_before_saving')}</span>
-              </div>
-              <CodeMirror bind:value={aiCode} lang={python()} readOnly={false} />
-            </div>
-          {/if}
-          {#if hasAIBuilder}
-            <div class="alert">
-              <span>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_prepared_builder_structure_below')}</span>
-            </div>
-          {/if}
-          
-
-          <div class="divider">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::optional_test_on_teacher_solution')}</div>
-          <div class="grid sm:grid-cols-2 gap-3 items-end">
-            <div>
-              <h4 class="font-semibold mb-2 flex items-center gap-2"><UploadIcon size={18}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_teacher_solution')}</h4>
-              <input type="file" accept=".py,.zip" class="file-input file-input-bordered w-full" on:change={(e) => (teacherSolutionFile = (e.target as HTMLInputElement).files?.[0] || null)}>
-            </div>
-            <div class="flex gap-2">
-              <button class="btn" disabled={!teacherSolutionFile || teacherRunLoading} on:click={runTeacherSolution}><FlaskConical size={16}/> {teacherRunLoading ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::running') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::run_tests_on_solution')}</button>
-            </div>
-          </div>
-          {#if teacherRun}
-            <div class="mt-2 rounded-xl border border-base-300/60 p-3 space-y-2">
-              <div class="font-medium">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::results_passed', {passed: teacherRun.passed, total: teacherRun.total})}</div>
-              <div class="grid gap-2 max-h-64 overflow-y-auto">
-                {#each teacherRun.results as r}
-                  <div class="rounded-lg border border-base-300/60 p-2 text-sm">
-                    <div class="flex items-center justify-between">
-                      <div>
-                        <span class="badge mr-2">#{r.test_case_id}</span>
-                        {#if r.unittest_name}<span class="badge badge-primary">{r.unittest_name}</span>{/if}
-                      </div>
-                      <span class="badge {r.status === 'passed' ? 'badge-success' : 'badge-error'}">{r.status === 'passed' ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::passed') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::failed')}</span>
-                    </div>
-                    {#if r.stderr}
-                      <pre class="mt-1 whitespace-pre-wrap opacity-80">{r.stderr}</pre>
-                    {/if}
+          <div class="space-y-6">
+            <section class="panel ai-hero">
+              <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div class="flex items-start gap-3">
+                  <div class="ai-hero__icon">
+                    <FlaskConical size={18} />
                   </div>
-                {/each}
+                  <div class="space-y-1">
+                    <h3 class="text-lg font-semibold">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::generate_with_ai')}</h3>
+                    <p class="text-sm opacity-75">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_call_mode_hint')}</p>
+                  </div>
+                </div>
+                <div class="flex flex-wrap gap-2 text-xs font-medium">
+                  <span class="stat-chip">
+                    {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::call_mode')}:
+                    <strong>{aiCallMode === 'stdin' ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin_stdout_button') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::function_return_button')}</strong>
+                  </span>
+                  <span class="stat-chip">
+                    {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::task_difficulty')}:
+                    <strong>{aiDifficulty === 'simple' ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::simple_task_button') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::hard_task_button')}</strong>
+                  </span>
+                  <span class="stat-chip">
+                    {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::test_count_mode')}:
+                    <strong>{aiAuto ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::auto') : `${translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::manual')} · ${aiNumTests}`}</strong>
+                  </span>
+                </div>
+              </div>
+            </section>
+
+            <div class="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+              <div class="space-y-6">
+                <section class="panel space-y-6">
+                  <div class="space-y-4">
+                    <div class="space-y-2">
+                      <span class="section-label">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::call_mode')}</span>
+                      <div class="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          class={`option-pill ${aiCallMode === 'stdin' ? 'selected' : ''}`}
+                          aria-pressed={aiCallMode === 'stdin'}
+                          on:click={() => (aiCallMode = 'stdin')}
+                        >
+                          <span class="option-pill__indicator" aria-hidden="true" />
+                          <span>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin_stdout_button')}</span>
+                        </button>
+                        <button
+                          type="button"
+                          class={`option-pill ${aiCallMode === 'function' ? 'selected' : ''}`}
+                          aria-pressed={aiCallMode === 'function'}
+                          on:click={() => (aiCallMode = 'function')}
+                        >
+                          <span class="option-pill__indicator" aria-hidden="true" />
+                          <span>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::function_return_button')}</span>
+                        </button>
+                      </div>
+                      <p class="hint">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_call_mode_hint')}</p>
+                    </div>
+
+                    <div class="space-y-2">
+                      <span class="section-label">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::task_difficulty')}</span>
+                      <div class="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          class={`option-pill ${aiDifficulty === 'simple' ? 'selected' : ''}`}
+                          aria-pressed={aiDifficulty === 'simple'}
+                          on:click={() => (aiDifficulty = 'simple')}
+                        >
+                          <span class="option-pill__indicator" aria-hidden="true" />
+                          <span>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::simple_task_button')}</span>
+                        </button>
+                        <button
+                          type="button"
+                          class={`option-pill ${aiDifficulty === 'hard' ? 'selected' : ''}`}
+                          aria-pressed={aiDifficulty === 'hard'}
+                          on:click={() => (aiDifficulty = 'hard')}
+                        >
+                          <span class="option-pill__indicator" aria-hidden="true" />
+                          <span>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::hard_task_button')}</span>
+                        </button>
+                      </div>
+                      <p class="hint">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_difficulty_hint')}</p>
+                    </div>
+
+                    <div class="space-y-2">
+                      <span class="section-label">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::test_count_mode')}</span>
+                      <div class="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          class={`option-pill ${aiAuto ? 'selected' : ''}`}
+                          aria-pressed={aiAuto}
+                          on:click={() => (aiAuto = true)}
+                        >
+                          <span class="option-pill__indicator" aria-hidden="true" />
+                          <span>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::auto')}</span>
+                        </button>
+                        <button
+                          type="button"
+                          class={`option-pill ${!aiAuto ? 'selected' : ''}`}
+                          aria-pressed={!aiAuto}
+                          on:click={() => (aiAuto = false)}
+                        >
+                          <span class="option-pill__indicator" aria-hidden="true" />
+                          <span>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::manual')}</span>
+                        </button>
+                      </div>
+                      {#if !aiAuto}
+                        <div class="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                          <input type="number" min="1" class="input input-bordered w-full" bind:value={aiNumTests} placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::how_many_tests_placeholder')}>
+                        </div>
+                      {/if}
+                      <p class="hint">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::auto_lets_model_decide_number_of_tests')}</p>
+                    </div>
+                  </div>
+
+                  <div class="space-y-2">
+                    <span class="section-label">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::additional_instructions_optional')}</span>
+                    <textarea class="textarea textarea-bordered min-h-[110px]" bind:value={aiInstructions} placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::edge_cases_to_cover_placeholder')}></textarea>
+                    <p class="hint">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_edit_hint')}</p>
+                  </div>
+                </section>
+
+                <section class="panel space-y-4">
+                  <div class="space-y-1">
+                    <h4 class="text-base font-semibold">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_label')}</h4>
+                    <p class="hint">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_hint')}</p>
+                  </div>
+                  <label class="form-control w-full">
+                    <input id="ai-solution-upload" type="file" accept=".py,.txt" class="file-input file-input-bordered w-full" on:change={handleAISolutionChange}>
+                  </label>
+                  {#if aiSolutionError}
+                    <div class="text-xs text-error">{aiSolutionError}</div>
+                  {/if}
+                  {#if aiSolutionText.trim().length}
+                    <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <span>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_loaded', {
+                        name: aiSolutionFile ? aiSolutionFile.name : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_manual'),
+                        bytes: aiSolutionText.length
+                      })}</span>
+                      <button type="button" class="btn btn-ghost btn-xs" on:click={resetAISolutionInput}>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_clear')}</button>
+                    </div>
+                    <CodeMirror bind:value={aiSolutionText} lang={python()} readOnly={false} placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_hint')} />
+                  {/if}
+                </section>
+
+                {#if (aiCode && aiCode.trim().length) || hasAIBuilder}
+                  <section class="panel space-y-4">
+                    <div class="flex items-center justify-between gap-2">
+                      <h4 class="text-base font-semibold">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::optional_test_on_teacher_solution')}</h4>
+                      <span class="badge badge-outline badge-sm">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_teacher_solution')}</span>
+                    </div>
+                    <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                      <input type="file" accept=".py,.zip" class="file-input file-input-bordered w-full" on:change={(e) => (teacherSolutionFile = (e.target as HTMLInputElement).files?.[0] || null)}>
+                      <button class="btn btn-outline sm:w-max" disabled={!teacherSolutionFile || teacherRunLoading} on:click={runTeacherSolution}>
+                        <FlaskConical size={16} />
+                        {teacherRunLoading ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::running') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::run_tests_on_solution')}
+                      </button>
+                    </div>
+                    {#if teacherRun}
+                      <div class="panel-soft space-y-3">
+                        <div class="flex items-center justify-between text-sm font-medium">
+                          <span>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::results_passed', { passed: teacherRun.passed, total: teacherRun.total })}</span>
+                          <span class="badge badge-primary badge-sm">{teacherRun.passed}/{teacherRun.total}</span>
+                        </div>
+                        <div class="grid gap-2 max-h-56 overflow-y-auto pr-1">
+                          {#each teacherRun.results as r}
+                            <div class="result-item">
+                              <div class="flex items-center justify-between text-xs font-medium">
+                                <div class="flex items-center gap-2">
+                                  <span class="badge badge-outline badge-sm">#{r.test_case_id}</span>
+                                  {#if r.unittest_name}<span class="badge badge-primary badge-sm">{r.unittest_name}</span>{/if}
+                                </div>
+                                <span class="badge {r.status === 'passed' ? 'badge-success' : 'badge-error'} badge-sm">
+                                  {r.status === 'passed' ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::passed') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::failed')}
+                                </span>
+                              </div>
+                              {#if r.stderr}
+                                <pre class="result-log">{r.stderr}</pre>
+                              {/if}
+                            </div>
+                          {/each}
+                        </div>
+                      </div>
+                    {/if}
+                  </section>
+                {/if}
+              </div>
+
+              <div class="space-y-6">
+                <section class="panel space-y-4 lg:sticky lg:top-28">
+                  <div class="space-y-1">
+                    <h4 class="text-base font-semibold">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::generate_with_ai')}</h4>
+                    <p class="hint">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::you_can_edit_this_before_saving')}</p>
+                  </div>
+                  <div class="flex flex-col gap-2 sm:flex-row">
+                    <button class="btn btn-primary flex-1" on:click={generateWithAI} disabled={aiGenerating}>
+                      <FlaskConical size={16} />
+                      {aiGenerating ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::generating') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::generate_with_ai')}
+                    </button>
+                    <button class="btn btn-outline flex-1" on:click={uploadAIUnitTestsCode} disabled={builderMode !== 'unittest' || !aiCode} title={builderMode !== 'unittest' ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::available_only_for_unittest_generation') : ''}>
+                      <UploadIcon size={16} />
+                      {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::save_as_tests')}
+                    </button>
+                  </div>
+                  {#if aiGenerating}
+                    <div class="inline-flex items-center gap-2 text-xs font-medium text-warning">
+                      <Clock size={14} />
+                      <span>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::generating')}</span>
+                    </div>
+                  {/if}
+                  {#if hasAIBuilder}
+                    <div class="panel-soft border border-primary/30 text-sm">
+                      <span>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_prepared_builder_structure_below')}</span>
+                    </div>
+                  {/if}
+                </section>
+
+                {#if aiCode && builderMode === 'unittest'}
+                  <section class="panel space-y-3">
+                    <div class="flex items-center justify-between">
+                      <h4 class="text-base font-semibold">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_python_editable')}</h4>
+                      <span class="badge badge-outline badge-sm">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::save_as_tests')}</span>
+                    </div>
+                    <CodeMirror bind:value={aiCode} lang={python()} readOnly={false} />
+                  </section>
+                {/if}
               </div>
             </div>
-          {/if}
+          </div>
         </div>
 
         <input type="radio" name="tests-tab" role="tab" class="tab" aria-label={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_py')}>
@@ -1992,6 +2197,174 @@
 <ConfirmModal bind:this={confirmModal} />
 
 <style>
+  :global(.panel){
+    position: relative;
+    border-radius: 1.5rem;
+    border: 1px solid color-mix(in oklab, oklch(var(--bc)) 18%, transparent);
+    background: color-mix(in oklab, var(--fallback-b1, oklch(var(--b1))) 88%, transparent);
+    padding: 1.5rem;
+    box-shadow: 0 24px 40px rgba(15, 23, 42, 0.08);
+    backdrop-filter: blur(12px);
+  }
+  :global(.ai-hero){
+    overflow: hidden;
+  }
+  :global(.ai-hero::before){
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(120% 150% at 10% 10%, color-mix(in oklab, oklch(var(--p)) 28%, transparent) 0%, transparent 60%),
+                radial-gradient(110% 140% at 90% 20%, color-mix(in oklab, oklch(var(--s)) 20%, transparent) 0%, transparent 55%);
+    opacity: 0.65;
+    pointer-events: none;
+  }
+  :global(.ai-hero > *){
+    position: relative;
+  }
+  :global(.ai-hero__icon){
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 999px;
+    background: color-mix(in oklab, oklch(var(--p)) 22%, oklch(var(--b1)) 78%);
+    color: color-mix(in oklab, oklch(var(--nc)) 90%, oklch(var(--p)) 10%);
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+  }
+  :global(.stat-chip){
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .4rem .75rem;
+    border-radius: 999px;
+    border: 1px solid color-mix(in oklab, oklch(var(--bc)) 14%, transparent);
+    background: color-mix(in oklab, var(--fallback-b1, oklch(var(--b1))) 75%, transparent);
+  }
+  :global(.stat-chip strong){
+    font-weight: 600;
+  }
+  :global(.section-label){
+    display: inline-flex;
+    font-size: .75rem;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: color-mix(in oklab, oklch(var(--bc)) 60%, transparent);
+  }
+  :global(.hint){
+    font-size: .75rem;
+    color: color-mix(in oklab, oklch(var(--bc)) 72%, transparent);
+  }
+  :global(.option-pill){
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .55rem .95rem;
+    border-radius: 999px;
+    border: 1.5px solid color-mix(in oklab, oklch(var(--bc)) 22%, transparent);
+    background: color-mix(in oklab, var(--fallback-b2, oklch(var(--b2))) 78%, transparent);
+    color: color-mix(in oklab, oklch(var(--bc)) 80%, oklch(var(--nc)) 20%);
+    position: relative;
+    isolation: isolate;
+    font-size: .85rem;
+    font-weight: 600;
+    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease, color .18s ease;
+  }
+  :global(.option-pill:not(.selected)){
+    opacity: .68;
+  }
+  :global(.option-pill__indicator){
+    width: .8rem;
+    height: .8rem;
+    border-radius: 999px;
+    background: color-mix(in oklab, oklch(var(--bc)) 60%, transparent);
+    box-shadow: inset 0 0 0 2px color-mix(in oklab, oklch(var(--b1)) 82%, transparent);
+    transition: transform .18s ease, background .18s ease, box-shadow .18s ease;
+  }
+  :global(.option-pill:hover){
+    transform: translateY(-2px);
+    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.08);
+  }
+  :global(.option-pill:focus-visible){
+    outline: 2px solid color-mix(in oklab, oklch(var(--p)) 35%, transparent);
+    outline-offset: 2px;
+  }
+  :global(.option-pill.selected){
+    transform: translateY(-1px) scale(1.05);
+    background: linear-gradient(135deg,
+      color-mix(in oklab, oklch(var(--p)) 86%, var(--fallback-b1, oklch(var(--b1))) 14%) 0%,
+      color-mix(in oklab, oklch(var(--s)) 68%, var(--fallback-b1, oklch(var(--b1))) 32%) 52%,
+      color-mix(in oklab, oklch(var(--p)) 80%, var(--fallback-b1, oklch(var(--b1))) 20%) 100%);
+    border-color: color-mix(in oklab, oklch(var(--p)) 92%, transparent);
+    color: color-mix(in oklab, oklch(var(--nc)) 98%, oklch(var(--p)) 2%);
+    box-shadow:
+      0 0 0 3px color-mix(in oklab, oklch(var(--p)) 65%, transparent),
+      0 18px 34px rgba(15, 23, 42, 0.25),
+      0 0 52px color-mix(in oklab, oklch(var(--p)) 40%, transparent);
+    opacity: 1;
+    animation: option-pill-glow 2.4s ease-in-out infinite;
+  }
+  :global(.option-pill.selected::before){
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: inherit;
+    background:
+      radial-gradient(70% 70% at 50% 50%, color-mix(in oklab, oklch(var(--p)) 58%, transparent) 0%, transparent 100%);
+    opacity: .95;
+    z-index: -1;
+    filter: blur(12px);
+  }
+  :global(.option-pill.selected::after){
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(135deg,
+      color-mix(in oklab, oklch(var(--p)) 85%, transparent) 0%,
+      color-mix(in oklab, oklch(var(--s)) 65%, transparent) 100%);
+    opacity: .38;
+    z-index: -1;
+  }
+  :global(.option-pill.selected .option-pill__indicator){
+    transform: scale(1.2);
+    background: color-mix(in oklab, oklch(var(--n)) 10%, oklch(var(--p)) 80%);
+    box-shadow: 0 0 0 2px color-mix(in oklab, oklch(var(--p)) 65%, transparent), inset 0 0 0 2px color-mix(in oklab, oklch(var(--nc)) 92%, transparent);
+  }
+  @keyframes option-pill-glow{
+    0%, 100%{
+      box-shadow:
+        0 0 0 3px color-mix(in oklab, oklch(var(--p)) 65%, transparent),
+        0 18px 34px rgba(15, 23, 42, 0.25),
+        0 0 52px color-mix(in oklab, oklch(var(--p)) 40%, transparent);
+    }
+    50%{
+      box-shadow:
+        0 0 0 5px color-mix(in oklab, oklch(var(--p)) 75%, transparent),
+        0 22px 40px rgba(15, 23, 42, 0.28),
+        0 0 68px color-mix(in oklab, oklch(var(--p)) 48%, transparent);
+    }
+  }
+  :global(.panel-soft){
+    border-radius: 1.1rem;
+    border: 1px solid color-mix(in oklab, oklch(var(--bc)) 16%, transparent);
+    background: color-mix(in oklab, var(--fallback-b1, oklch(var(--b1))) 70%, color-mix(in oklab, oklch(var(--p)) 12%, transparent) 30%);
+    padding: 1rem 1.1rem;
+  }
+  :global(.result-item){
+    border-radius: .85rem;
+    border: 1px solid color-mix(in oklab, oklch(var(--bc)) 18%, transparent);
+    background: color-mix(in oklab, var(--fallback-b1, oklch(var(--b1))) 82%, transparent);
+    padding: .75rem .9rem;
+  }
+  :global(.result-log){
+    margin-top: .45rem;
+    font-size: .75rem;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    opacity: .8;
+  }
   :global(.card-elevated){
     border-radius: 1rem;
     border: 1px solid color-mix(in oklab, currentColor 20%, transparent);
