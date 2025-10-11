@@ -48,6 +48,7 @@ let templateFile:File|null=null
 let confirmModal: InstanceType<typeof ConfirmModal>
   // removed unittest file input (moved to tests page)
   let submitDialog: HTMLDialogElement;
+  let fileInput: HTMLInputElement | null = null;
   // removed tests dialog (moved to tests page)
 $: percent = assignment ? Math.round(pointsEarned / assignment.max_points * 100) : 0;
 $: testsPassed = results.filter((r:any) => r.status === 'passed').length;
@@ -488,6 +489,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     try{
       await apiFetch(`/api/assignments/${id}/submissions`,{method:'POST', body:fd})
       files = []
+      if (fileInput) fileInput.value = ''
       submitDialog.close()
       alert(t('frontend/src/routes/assignments/[id]/+page.svelte::uploaded_alert'))
       await load()
@@ -495,6 +497,8 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
   }
 
   function openSubmitModal(){
+    files = []
+    if (fileInput) fileInput.value = ''
     submitDialog.showModal()
   }
 
@@ -1284,7 +1288,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
       >
         <div class="text-sm opacity-70 mb-2">{t('frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_dropzone_text')}</div>
         <div class="mb-3">{t('frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_or')}</div>
-        <input type="file" accept=".py" multiple class="file-input file-input-bordered w-full"
+        <input bind:this={fileInput} type="file" accept=".py" multiple class="file-input file-input-bordered w-full"
           on:change={e=>files=Array.from((e.target as HTMLInputElement).files||[])}>
       </div>
       {#if files.length}
