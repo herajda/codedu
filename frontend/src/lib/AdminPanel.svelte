@@ -27,11 +27,13 @@
     deadline: string; max_points: number; grading_policy: string; published: boolean;
     show_traceback: boolean; manual_review: boolean; created_at: string
   };
+  type OnlineUser = { id: string; name: string; avatar: string; email: string };
 
   // Collections
   let users: User[] = [];
   let classes: Class[] = [];
   let assignments: Assignment[] = [];
+  let onlineUsers: OnlineUser[] = [];
 
   // Filters/search
   let userQuery = '';
@@ -76,7 +78,20 @@
     loadingAssignments = false;
   }
 
-  onMount(() => { loadUsers(); loadClasses(); loadAssignments(); });
+  async function loadOnlineUsers() {
+    try {
+      onlineUsers = await apiJSON('/api/online-users');
+    } catch (e) {
+      console.error('Failed to load online users', e);
+    }
+  }
+
+  onMount(() => { loadUsers(); loadClasses(); loadAssignments(); loadOnlineUsers(); });
+
+  function refreshUsers() {
+    loadUsers();
+    loadOnlineUsers();
+  }
 
   // ───────────────────────────
   // Teacher management
@@ -249,6 +264,7 @@
         <div class="stats stats-vertical sm:stats-horizontal shadow">
           <div class="stat"><div class="stat-figure"><Users2 class="w-5 h-5" /></div><div class="stat-title">{t('frontend/src/lib/AdminPanel.svelte::users_stat_title')}</div><div class="stat-value">{users.length}</div></div>
           <div class="stat"><div class="stat-figure"><GraduationCap class="w-5 h-5" /></div><div class="stat-title">{t('frontend/src/lib/AdminPanel.svelte::teachers_stat_title')}</div><div class="stat-value">{teachers.length}</div></div>
+          <div class="stat"><div class="stat-figure"><Users2 class="w-5 h-5" /></div><div class="stat-title">Online</div><div class="stat-value">{onlineUsers.length}</div></div>
           <div class="stat"><div class="stat-figure"><School class="w-5 h-5" /></div><div class="stat-title">{t('frontend/src/lib/AdminPanel.svelte::classes_stat_title')}</div><div class="stat-value">{classes.length}</div></div>
           <div class="stat"><div class="stat-figure"><BookOpen class="w-5 h-5" /></div><div class="stat-title">{t('frontend/src/lib/AdminPanel.svelte::assignments_stat_title')}</div><div class="stat-value">{assignments.length}</div></div>
         </div>
@@ -332,14 +348,14 @@
   <div class="card bg-base-100 shadow">
     <div class="card-body">
       <div class="flex items-center gap-2 justify-between flex-wrap mb-3">
-        <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::users_card_title')}</h2>
+        <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::users_card_title')}<span class="text-sm font-normal text-base-content/60">({onlineUsers.length} online)</span></h2>
         <div class="flex items-center gap-2">
           <label class="input input-bordered input-sm flex items-center gap-2">
             <Search class="w-4 h-4" aria-hidden="true" />
             <input class="grow" placeholder={t('frontend/src/lib/AdminPanel.svelte::search_users_placeholder')} bind:value={userQuery} />
           </label>
           <button class="btn btn-sm" on:click={exportUsersCSV}>{t('frontend/src/lib/AdminPanel.svelte::export_csv_button')}</button>
-          <button class="btn btn-ghost btn-sm" on:click={loadUsers}><RefreshCw class="w-4 h-4" /></button>
+          <button class="btn btn-ghost btn-sm" on:click={refreshUsers}><RefreshCw class="w-4 h-4" /></button>
         </div>
       </div>
       <div class="overflow-x-auto">
