@@ -1,5 +1,6 @@
 import { writable } from 'svelte/store';
 import { apiJSON } from '$lib/api';
+import { t } from '$lib/i18n';
 
 export interface ClassSummary {
   id: string | number;
@@ -34,7 +35,7 @@ function createClassesStore() {
         set({ classes, loading: false, error: null });
         return classes;
       } catch (error: any) {
-        const errorMessage = error?.message ?? 'Failed to load classes';
+        const errorMessage = error?.message ?? t('frontend/src/lib/stores/classes.ts::failed-to-load-classes');
         set({ classes: [], loading: false, error: errorMessage });
         throw error;
       }

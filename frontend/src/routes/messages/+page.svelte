@@ -6,6 +6,10 @@ import { Search, MessageCircle, Plus, MoreVertical, Archive, Trash2, Star, StarO
 import NewChatModal from '$lib/components/NewChatModal.svelte';
 import { onlineUsers } from '$lib/stores/onlineUsers';
 import { formatDate as formatDisplayDate } from '$lib/date';
+  import { t, translator } from '$lib/i18n'; // Added import
+
+  let translate; // Added declaration for reactive translation
+  $: translate = $translator; // Added reactive assignment
 
   let convos: any[] = [];
   let filteredConvos: any[] = [];
@@ -33,7 +37,8 @@ import { formatDate as formatDisplayDate } from '$lib/date';
         c.isToday = isToday(c.lastMessageTime);
         c.isYesterday = isYesterday(c.lastMessageTime);
         c.isThisWeek = isThisWeek(c.lastMessageTime);
-        c.displayName = c.name ?? c.email?.split('@')[0] ?? 'Unknown';
+        // Translate 'Unknown'
+        c.displayName = c.name ?? c.email?.split('@')[0] ?? t('frontend/src/routes/messages/+page.svelte::unknown_user');
         c.status = getStatus(c.lastMessageTime);
       }
       convos = list.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -127,7 +132,8 @@ import { formatDate as formatDisplayDate } from '$lib/date';
     if (isToday(date)) {
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     } else if (isYesterday(date)) {
-      return 'Yesterday';
+      // Translated 'Yesterday'
+      return t('frontend/src/routes/messages/+page.svelte::yesterday');
     } else if (isThisWeek(date)) {
       return date.toLocaleDateString([], { weekday: 'short' });
     } else {
@@ -214,7 +220,7 @@ import { formatDate as formatDisplayDate } from '$lib/date';
   function deleteChat(convo: any, event: Event) {
     event.stopPropagation();
     // TODO: Implement delete functionality
-    console.log('Delete chat:', convo.id);
+    console.log('Delete chat:', convo.id); // Internal log, not translated
   }
 </script>
 
@@ -228,14 +234,14 @@ import { formatDate as formatDisplayDate } from '$lib/date';
             <MessageCircle class="w-6 h-6 text-primary" />
           </div>
           <div>
-            <h1 class="text-2xl font-bold">Messages</h1>
+            <h1 class="text-2xl font-bold">{t('frontend/src/routes/messages/+page.svelte::messages_title')}</h1>
           </div>
         </div>
         <div class="flex gap-2 w-full sm:w-auto justify-end sm:justify-normal">
           <button 
             class="btn btn-ghost btn-sm btn-circle" 
             on:click={loadConvos}
-            aria-label="Refresh"
+            aria-label={t('frontend/src/routes/messages/+page.svelte::refresh_label')}
             disabled={isLoading}
           >
             <RefreshCw class={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -243,18 +249,18 @@ import { formatDate as formatDisplayDate } from '$lib/date';
           <button 
             class="btn btn-primary btn-sm btn-circle" 
             on:click={startNewChat}
-            aria-label="New chat"
+            aria-label={t('frontend/src/routes/messages/+page.svelte::new_chat_label')}
           >
             <Plus class="w-4 h-4" />
           </button>
           <!-- Settings Dropdown (opens Blocked Users modal) -->
           <div class="dropdown dropdown-end">
-            <button class="btn btn-ghost btn-sm btn-circle" aria-label="Settings">
+            <button class="btn btn-ghost btn-sm btn-circle" aria-label={t('frontend/src/routes/messages/+page.svelte::settings_label')}>
               <MoreVertical class="w-4 h-4" />
             </button>
             <ul class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-56 z-50 border border-base-300/30">
               <li>
-                <button class="gap-2" on:click={openBlockedModal}>View blocked users</button>
+                <button class="gap-2" on:click={openBlockedModal}>{t('frontend/src/routes/messages/+page.svelte::view_blocked_users')}</button>
               </li>
             </ul>
           </div>
@@ -267,7 +273,7 @@ import { formatDate as formatDisplayDate } from '$lib/date';
           <Search class="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-base-content/40" />
             <input
               class="input input-bordered w-full pl-10"
-            placeholder="Search conversations, messages, or people..."
+            placeholder={t('frontend/src/routes/messages/+page.svelte::search_placeholder')}
             bind:value={searchQuery}
           />
         </div>
@@ -276,10 +282,10 @@ import { formatDate as formatDisplayDate } from '$lib/date';
             class="select select-bordered select-sm" 
             bind:value={selectedFilter}
           >
-            <option value="all">All</option>
-            <option value="unread">Unread</option>
-            <option value="starred">Starred</option>
-            <option value="archived">Archived</option>
+            <option value="all">{t('frontend/src/routes/messages/+page.svelte::filter_all')}</option>
+            <option value="unread">{t('frontend/src/routes/messages/+page.svelte::filter_unread')}</option>
+            <option value="starred">{t('frontend/src/routes/messages/+page.svelte::filter_starred')}</option>
+            <option value="archived">{t('frontend/src/routes/messages/+page.svelte::filter_archived')}</option>
           </select>
           <button 
             class={`btn btn-outline btn-sm ${showArchived ? 'btn-active' : ''}`} 
@@ -297,7 +303,7 @@ import { formatDate as formatDisplayDate } from '$lib/date';
     {#if isLoading}
       <div class="p-8 text-center">
         <div class="loading loading-spinner loading-lg text-primary"></div>
-        <p class="mt-4 text-base-content/60">Loading conversations...</p>
+        <p class="mt-4 text-base-content/60">{t('frontend/src/routes/messages/+page.svelte::loading_conversations')}</p>
       </div>
     {:else if filteredConvos.length === 0}
        <div class="p-8 text-center">
@@ -305,32 +311,38 @@ import { formatDate as formatDisplayDate } from '$lib/date';
           <MessageCircle class="w-10 h-10 text-primary" />
         </div>
         <h3 class="text-xl font-semibold mb-3">
-          {searchQuery ? 'No conversations found' : 'Ready to start chatting?'}
+          {#if searchQuery}
+            {translate('frontend/src/routes/messages/+page.svelte::no_conversations_found')}
+          {:else}
+            {t('frontend/src/routes/messages/+page.svelte::ready_to_chat_title')}
+          {/if}
         </h3>
         <p class="text-base-content/60 mb-6 max-w-md mx-auto">
-          {searchQuery 
-            ? `No conversations match "${searchQuery}". Try adjusting your search terms or start a new chat.` 
-            : 'Connect with your classmates, teachers, and colleagues. Start your first conversation to begin messaging.'}
+          {#if searchQuery}
+            {translate('frontend/src/routes/messages/+page.svelte::no_conversations_match_search', { values: { searchQuery } })}
+          {:else}
+            {t('frontend/src/routes/messages/+page.svelte::connect_message')}
+          {/if}
         </p>
         {#if !searchQuery}
            <div class="flex flex-col sm:flex-row gap-3 justify-center">
             <button class="btn btn-primary gap-2" on:click={startNewChat}>
               <Plus class="w-4 h-4" />
-              Start Your First Chat
+              {t('frontend/src/routes/messages/+page.svelte::start_first_chat_button')}
             </button>
             <button class="btn btn-outline gap-2" on:click={loadConvos}>
               <RefreshCw class="w-4 h-4" />
-              Refresh
+              {t('frontend/src/routes/messages/+page.svelte::refresh_button')}
             </button>
           </div>
                  {:else}
            <div class="flex gap-2 justify-center">
              <button class="btn btn-outline" on:click={() => searchQuery = ''}>
-               Clear Search
+               {t('frontend/src/routes/messages/+page.svelte::clear_search_button')}
              </button>
              <button class="btn btn-primary gap-2" on:click={startNewChat}>
                <Plus class="w-4 h-4" />
-               Start New Chat
+               {t('frontend/src/routes/messages/+page.svelte::start_new_chat_button')}
              </button>
            </div>
          {/if}
@@ -353,7 +365,7 @@ import { formatDate as formatDisplayDate } from '$lib/date';
                 <div class="avatar">
                   <div class="w-12 h-12 rounded-full overflow-hidden ring-2 ring-base-300/60">
                     {#if convo.avatar}
-                      <img src={convo.avatar} alt="Avatar" class="w-full h-full object-cover" />
+                      <img src={convo.avatar} alt={t('frontend/src/routes/messages/+page.svelte::avatar_alt')} class="w-full h-full object-cover" />
                     {:else}
                       <div class="w-full h-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-lg font-semibold text-primary">
                         {convo.displayName.charAt(0).toUpperCase()}
@@ -390,9 +402,9 @@ import { formatDate as formatDisplayDate } from '$lib/date';
                     {#if convo.text}
                       {convo.text}
                     {:else if convo.image}
-                      📷 Image
+                      {t('frontend/src/routes/messages/+page.svelte::image')}
                     {:else}
-                      No messages yet
+                      {t('frontend/src/routes/messages/+page.svelte::no_messages_yet')}
                     {/if}
                   </p>
                   {#if convo.unread_count > 0}
@@ -407,7 +419,7 @@ import { formatDate as formatDisplayDate } from '$lib/date';
                   {/if}
                   {#if convo.lastMessageTime}
                     <span>•</span>
-                    <span>{convo.status === 'today' ? 'Today' : formatTime(convo.lastMessageTime)}</span>
+                    <span>{convo.status === 'today' ? t('frontend/src/routes/messages/+page.svelte::today') : formatTime(convo.lastMessageTime)}</span>
                   {/if}
                 </div>
               </div>
@@ -417,7 +429,7 @@ import { formatDate as formatDisplayDate } from '$lib/date';
                 <button 
                   class="btn btn-ghost btn-sm btn-square"
                   on:click={(e) => toggleStar(convo, e)}
-                  title="Star conversation"
+                  title={t('frontend/src/routes/messages/+page.svelte::star_conversation_title')}
                 >
                   {#if convo.starred}
                     <Star class="w-4 h-4 text-warning fill-current" />
@@ -436,13 +448,13 @@ import { formatDate as formatDisplayDate } from '$lib/date';
                     <li>
                       <button class="gap-2" on:click={(e) => toggleArchive(convo, e)}>
                         <Archive class="w-4 h-4" />
-                        {convo.archived ? 'Unarchive' : 'Archive'}
+                        {convo.archived ? t('frontend/src/routes/messages/+page.svelte::unarchive') : t('frontend/src/routes/messages/+page.svelte::archive')}
                       </button>
                     </li>
                     <li>
                       <button class="gap-2 text-error" on:click={(e) => deleteChat(convo, e)}>
                         <Trash2 class="w-4 h-4" />
-                        Delete
+                        {t('frontend/src/routes/messages/+page.svelte::delete')}
                       </button>
                     </li>
                   </ul>
@@ -461,9 +473,9 @@ import { formatDate as formatDisplayDate } from '$lib/date';
   {#if !isLoading && filteredConvos.length > 0}
     <div class="mt-4 text-center text-sm text-base-content/60">
       <p>
-        Showing {filteredConvos.length} of {convos.length} conversations
+        {translate('frontend/src/routes/messages/+page.svelte::showing_conversations_count', { values: { filteredCount: filteredConvos.length, totalCount: convos.length } })}
         {#if searchQuery}
-          matching "{searchQuery}"
+          {translate('frontend/src/routes/messages/+page.svelte::matching_search_query', { values: { searchQuery } })}
         {/if}
       </p>
     </div>
@@ -483,13 +495,13 @@ import { formatDate as formatDisplayDate } from '$lib/date';
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div class="bg-base-100 w-full max-w-lg rounded-xl shadow-xl border border-base-300/30">
         <div class="flex items-center justify-between p-4 border-b">
-          <h3 class="text-lg font-semibold">Blocked Users</h3>
-          <button class="btn btn-ghost btn-sm btn-circle" on:click={closeBlockedModal} aria-label="Close">
+          <h3 class="text-lg font-semibold">{t('frontend/src/routes/messages/+page.svelte::blocked_users_title')}</h3>
+          <button class="btn btn-ghost btn-sm btn-circle" on:click={closeBlockedModal} aria-label={t('frontend/src/routes/messages/+page.svelte::close_label')}>
             <X class="w-4 h-4" />
           </button>
         </div>
         {#if blockedUsers.length === 0}
-          <div class="p-4 text-base-content/60">No blocked users</div>
+          <div class="p-4 text-base-content/60">{t('frontend/src/routes/messages/+page.svelte::no_blocked_users')}</div>
         {:else}
           <div class="max-h-80 overflow-y-auto divide-y divide-base-300/60">
             {#each blockedUsers as u (u.id)}
@@ -498,7 +510,7 @@ import { formatDate as formatDisplayDate } from '$lib/date';
                   <div class="avatar">
                     <div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-base-300/60">
                       {#if u.avatar}
-                        <img src={u.avatar} alt="Avatar" class="w-full h-full object-cover" />
+                        <img src={u.avatar} alt={t('frontend/src/routes/messages/+page.svelte::avatar_alt')} class="w-full h-full object-cover" />
                       {:else}
                         <div class="w-full h-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-sm font-semibold text-primary">
                           {(u.name ?? u.email ?? '?').charAt(0).toUpperCase()}
@@ -508,13 +520,13 @@ import { formatDate as formatDisplayDate } from '$lib/date';
                   </div>
                   <span class="font-medium truncate max-w-[12rem]">{u.name ?? u.email}</span>
                 </div>
-                <button class="btn btn-sm" on:click={() => unblock(u.id)}>Unblock</button>
+                <button class="btn btn-sm" on:click={() => unblock(u.id)}>{t('frontend/src/routes/messages/+page.svelte::unblock_button')}</button>
               </div>
             {/each}
           </div>
         {/if}
         <div class="p-4 border-t flex justify-end">
-          <button class="btn" on:click={closeBlockedModal}>Close</button>
+          <button class="btn" on:click={closeBlockedModal}>{t('frontend/src/routes/messages/+page.svelte::close_button')}</button>
         </div>
       </div>
     </div>

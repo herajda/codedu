@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation'
   import { onMount } from 'svelte'
+  import { t, translator } from '$lib/i18n'
 
   type Status = 'idle' | 'verifying' | 'success' | 'error' | 'sent'
 
@@ -8,6 +9,9 @@
   let message = ''
   let email = ''
   let resent = false
+
+  let translate; // Declare translate
+  $: translate = $translator; // Reactive assignment
 
   onMount(() => {
     const params = new URLSearchParams(window.location.search)
@@ -20,17 +24,17 @@
     } else if (email) {
       status = 'sent'
       message = resent
-        ? `We just sent a verification email to ${email}.`
-        : `We sent a verification email to ${email}.`
+        ? t('frontend/src/routes/verify-email/+page.svelte::email_sent_resent', { email })
+        : t('frontend/src/routes/verify-email/+page.svelte::email_sent', { email })
     } else {
       status = 'idle'
-      message = 'Use the link from your verification email to activate your account.'
+      message = t('frontend/src/routes/verify-email/+page.svelte::activate_account_instruction')
     }
   })
 
   async function verify(token: string) {
     status = 'verifying'
-    message = 'Verifying your email…'
+    message = t('frontend/src/routes/verify-email/+page.svelte::verifying_email')
     try {
       const res = await fetch('/api/verify-email', {
         method: 'POST',
@@ -39,48 +43,48 @@
       })
       if (res.ok) {
         status = 'success'
-        message = 'Your email has been verified. You can now log in.'
+        message = t('frontend/src/routes/verify-email/+page.svelte::email_verified_success')
       } else {
         const payload = await res.json().catch(() => ({}))
         status = 'error'
-        message = payload?.error ?? 'We could not verify your email. The link may have expired.'
+        message = payload?.error ?? t('frontend/src/routes/verify-email/+page.svelte::verify_error_expired')
       }
     } catch (err) {
       console.error(err)
       status = 'error'
-      message = 'We could not verify your email right now. Please try again later.'
+      message = t('frontend/src/routes/verify-email/+page.svelte::verify_error_temporary')
     }
   }
 </script>
 
-<h1 class="text-3xl font-bold text-center mb-6">Verify your email</h1>
+<h1 class="text-3xl font-bold text-center mb-6">{translate('frontend/src/routes/verify-email/+page.svelte::title')}</h1>
 <div class="card bg-base-100 shadow p-8 max-w-xl mx-auto space-y-4 text-center">
   {#if status === 'verifying'}
     <p class="text-base-content/80">{message}</p>
     <progress class="progress progress-primary w-full" />
   {:else if status === 'success'}
     <p class="text-success text-lg font-semibold">{message}</p>
-    <button class="btn btn-primary" on:click={() => goto('/login')}>Go to login</button>
+    <button class="btn btn-primary" on:click={() => goto('/login')}>{translate('frontend/src/routes/verify-email/+page.svelte::go_to_login_btn')}</button>
   {:else if status === 'error'}
     <p class="text-error text-lg font-semibold">{message}</p>
     <p class="text-sm text-base-content/70">
-      Try logging in again to request a fresh verification email or contact support if the issue persists.
+      {translate('frontend/src/routes/verify-email/+page.svelte::login_again_or_contact_support')}
     </p>
     <div class="flex justify-center gap-2">
-      <button class="btn" on:click={() => goto('/login')}>Back to login</button>
+      <button class="btn" on:click={() => goto('/login')}>{translate('frontend/src/routes/verify-email/+page.svelte::back_to_login_btn')}</button>
     </div>
   {:else}
     <p class="text-base-content/80">{message}</p>
     {#if email}
       <p class="text-sm text-base-content/70">
-        Check your inbox for a message from CodEdu. Click the link inside to activate your account.
+        {translate('frontend/src/routes/verify-email/+page.svelte::check_inbox_for_codedu')}
       </p>
       <p class="text-sm text-base-content/70">
-        Make sure to look in your spam or promotions folder if you don’t see an email for <span class="font-semibold">{email}</span>.
+        {translate('frontend/src/routes/verify-email/+page.svelte::check_spam_promotions', { email: email })}
       </p>
     {/if}
     <div class="flex justify-center gap-2">
-      <button class="btn" on:click={() => goto('/login')}>Return to login</button>
+      <button class="btn" on:click={() => goto('/login')}>{translate('frontend/src/routes/verify-email/+page.svelte::return_to_login_btn')}</button>
     </div>
   {/if}
 </div>

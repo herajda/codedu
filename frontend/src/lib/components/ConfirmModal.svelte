@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
+  import { t } from '$lib/i18n';
 
   export type ConfirmModalOptions = {
     title?: string;
@@ -14,19 +15,19 @@
   let dialog: HTMLDialogElement | undefined;
   let resolver: ((value: boolean) => void) | null = null;
 
-  let title = 'Are you sure?';
+  let title = t('frontend/src/lib/components/ConfirmModal.svelte::are_you_sure');
   let body = '';
-  let confirmLabel = 'Confirm';
-  let cancelLabel = 'Cancel';
+  let confirmLabel = t('frontend/src/lib/components/ConfirmModal.svelte::confirm');
+  let cancelLabel = t('frontend/src/lib/components/ConfirmModal.svelte::cancel');
   let confirmClass = 'btn btn-primary';
   let cancelClass = 'btn';
   let icon: string | undefined;
 
   export async function open(options: ConfirmModalOptions = {}): Promise<boolean> {
-    title = options.title ?? 'Are you sure?';
+    title = options.title ?? t('frontend/src/lib/components/ConfirmModal.svelte::are_you_sure');
     body = options.body ?? '';
-    confirmLabel = options.confirmLabel ?? 'Confirm';
-    cancelLabel = options.cancelLabel ?? 'Cancel';
+    confirmLabel = options.confirmLabel ?? t('frontend/src/lib/components/ConfirmModal.svelte::confirm');
+    cancelLabel = options.cancelLabel ?? t('frontend/src/lib/components/ConfirmModal.svelte::cancel');
     confirmClass = options.confirmClass ?? 'btn btn-primary';
     cancelClass = options.cancelClass ?? 'btn';
     icon = options.icon;
@@ -96,5 +97,5 @@
       <button class={confirmClass} on:click={handleConfirm}>{confirmLabel}</button>
     </div>
   </div>
-  <form method="dialog" class="modal-backdrop" on:submit={handleCancel}><button aria-label="Close">close</button></form>
+  <form method="dialog" class="modal-backdrop" on:submit={handleCancel}><button aria-label="Close">{t('frontend/src/lib/components/ConfirmModal.svelte::close')}</button></form>
 </dialog>

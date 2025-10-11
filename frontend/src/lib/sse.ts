@@ -1,3 +1,5 @@
+import { t } from '$lib/i18n';
+
 export interface SSEOptions {
   /** milliseconds before attempting to reconnect */
   retry?: number;
@@ -25,7 +27,7 @@ export function createEventSource(
     };
     es.onerror = () => {
       if (closed) return;
-      opts.onError?.("Lost connection, retrying…");
+      opts.onError?.(t('frontend/src/lib/sse.ts::lost-connection-retrying'));
       es?.close();
       setTimeout(connect, retry);
     };

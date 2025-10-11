@@ -3,6 +3,7 @@
   import CodeMirror from '$lib/components/ui/CodeMirror.svelte';
   import { python } from '@codemirror/lang-python';
   import { Plus, Trash2, Play, Code as CodeIcon } from 'lucide-svelte';
+  import { t, translator } from '$lib/i18n';
 
   export let submissionId: number;
 
@@ -15,6 +16,9 @@
   let inputValue = '';
   let timeoutMs: number = 60000; // default 60s
 
+  let translate = t;
+  $: translate = $translator;
+
   type FnParameter = { name: string; type?: string };
   type FnReturn = { name: string; type?: string };
   type FnCase = { name: string; args: string[]; returns: string[]; timeLimit: string };
@@ -25,34 +29,195 @@
   let fnMeta: FnMeta | null = null;
   let fnCases: FnCase[] = [];
 
+  function hasHeaderColon(text: string): boolean {
+    let depthParen = 0;
+    let inString: string | null = null;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (inString) {
+        if (ch === inString && text[i - 1] !== '\\') {
+          inString = null;
+        }
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        inString = ch;
+        continue;
+      }
+      if (ch === '(') {
+        depthParen++;
+        continue;
+      }
+      if (ch === ')') {
+        if (depthParen > 0) depthParen--;
+        continue;
+      }
+      if (ch === ':' && depthParen === 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function splitTopLevel(input: string, separator = ','): string[] {
+    const parts: string[] = [];
+    let current = '';
+    let depthParen = 0;
+    let depthBracket = 0;
+    let depthBrace = 0;
+    let depthAngle = 0;
+    let inString: string | null = null;
+
+    for (let i = 0; i < input.length; i++) {
+      const ch = input[i];
+      if (inString) {
+        current += ch;
+        if (ch === inString && input[i - 1] !== '\\') {
+          inString = null;
+        }
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        inString = ch;
+        current += ch;
+        continue;
+      }
+      switch (ch) {
+        case '(':
+          depthParen++;
+          break;
+        case ')':
+          if (depthParen > 0) depthParen--;
+          break;
+        case '[':
+          depthBracket++;
+          break;
+        case ']':
+          if (depthBracket > 0) depthBracket--;
+          break;
+        case '{':
+          depthBrace++;
+          break;
+        case '}':
+          if (depthBrace > 0) depthBrace--;
+          break;
+        case '<':
+          depthAngle++;
+          break;
+        case '>':
+          if (depthAngle > 0) depthAngle--;
+          break;
+        default:
+          break;
+      }
+      if (
+        ch === separator &&
+        depthParen === 0 &&
+        depthBracket === 0 &&
+        depthBrace === 0 &&
+        depthAngle === 0
+      ) {
+        const trimmed = current.trim();
+        if (trimmed) parts.push(trimmed);
+        current = '';
+        continue;
+      }
+      current += ch;
+    }
+    const last = current.trim();
+    if (last) parts.push(last);
+    return parts;
+  }
+
+  function stripInlineComment(line: string): string {
+    let inString: string | null = null;
+    let result = '';
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inString) {
+        result += ch;
+        if (ch === inString && line[i - 1] !== '\\') {
+          inString = null;
+        }
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        inString = ch;
+        result += ch;
+        continue;
+      }
+      if (ch === '#') {
+        break;
+      }
+      result += ch;
+    }
+    return result.trimEnd();
+  }
+
   function parseFunctionSignatureBlock(block: string): { meta: FnMeta | null; error: string } {
     const raw = String(block || '').replace(/\r\n?/g, '\n');
     const lines = raw.split('\n').map((l) => l.trim()).filter((l) => l);
     if (lines.length === 0) {
       return { meta: null, error: '' };
     }
-    const defLine = lines.find((l) => l.startsWith('def '));
-    if (!defLine) {
-      return { meta: null, error: 'Add a Python function definition, for example: def solve(data):' };
+    const defIdx = lines.findIndex((l) => l.startsWith('def ') || l.startsWith('async def '));
+    if (defIdx === -1) {
+      return { meta: null, error: translate('frontend/src/lib/components/RunConsole.svelte::add-python-function-definition-for-example-def-solve-data') };
     }
-    const defMatch = defLine.match(/^def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)\s*(?:->\s*([^:]+))?:/);
-    if (!defMatch) {
-      return { meta: null, error: 'Could not parse the function definition. Use Python syntax like def name(arg1, arg2) -> int:' };
+    let signature = lines[defIdx];
+    let depth = (signature.match(/\(/g) || []).length - (signature.match(/\)/g) || []).length;
+    let cursor = defIdx + 1;
+    while (cursor < lines.length && (depth > 0 || !hasHeaderColon(signature))) {
+      const part = lines[cursor];
+      signature += ' ' + part;
+      depth += (part.match(/\(/g) || []).length - (part.match(/\)/g) || []).length;
+      cursor++;
     }
-    const [, name, paramsRaw, returnRaw] = defMatch;
+    signature = stripInlineComment(signature);
+    const colonIndex = signature.lastIndexOf(':');
+    if (colonIndex === -1) {
+      return { meta: null, error: translate('frontend/src/lib/components/RunConsole.svelte::could-not-parse-function-definition-use-python-syntax') };
+    }
+    let header = signature.slice(0, colonIndex).trim();
+    if (header.startsWith('async ')) {
+      header = header.slice('async '.length).trimStart();
+    }
+    if (!header.startsWith('def ')) {
+      return { meta: null, error: translate('frontend/src/lib/components/RunConsole.svelte::could-not-parse-function-definition-use-python-syntax') };
+    }
+    const nameStart = header.indexOf('def ') + 4;
+    const openIdx = header.indexOf('(', nameStart);
+    const name = header.slice(nameStart, openIdx).trim();
+    if (!name || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
+      return { meta: null, error: translate('frontend/src/lib/components/RunConsole.svelte::could-not-parse-function-definition-use-python-syntax') };
+    }
+    const closeIdx = header.lastIndexOf(')');
+    if (openIdx === -1 || closeIdx === -1 || closeIdx < openIdx) {
+      return { meta: null, error: translate('frontend/src/lib/components/RunConsole.svelte::could-not-parse-function-definition-use-python-syntax') };
+    }
+    const paramsRaw = header.slice(openIdx + 1, closeIdx);
+    const afterParams = header.slice(closeIdx + 1).trim();
+    let returnRaw: string | undefined;
+    if (!afterParams) {
+      returnRaw = '';
+    } else if (afterParams.startsWith('->')) {
+      returnRaw = afterParams.slice(2).trim();
+    } else {
+      return { meta: null, error: translate('frontend/src/lib/components/RunConsole.svelte::could-not-parse-function-definition-use-python-syntax') };
+    }
     const params: FnParameter[] = [];
     if (paramsRaw.trim()) {
-      const pieces = paramsRaw.split(',');
+      const pieces = splitTopLevel(paramsRaw);
       for (const piece of pieces) {
         const part = piece.trim();
         if (!part) continue;
         if (part.startsWith('*')) {
-          return { meta: null, error: 'Only positional arguments are supported in this builder.' };
+          return { meta: null, error: translate('frontend/src/lib/components/RunConsole.svelte::only-positional-arguments-supported-in-builder') };
         }
         const [namePartRaw, typePartRaw] = part.split(':').map((p) => p.trim());
         const namePart = namePartRaw.split('=')[0].trim();
         if (!namePart || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(namePart)) {
-          return { meta: null, error: `Argument "${namePartRaw}" is not a valid positional parameter.` };
+          return { meta: null, error: translate('frontend/src/lib/components/RunConsole.svelte::argument_invalid_parameter_prefix') + namePartRaw + translate('frontend/src/lib/components/RunConsole.svelte::argument_invalid_parameter_suffix') };
         }
         const typePart = typePartRaw ? typePartRaw.trim() : undefined;
         params.push({ name: namePart, type: typePart });
@@ -66,7 +231,7 @@
       returns = [];
     } else if (ret.startsWith('(') && ret.endsWith(')')) {
       const inner = ret.slice(1, -1);
-      const parts = inner.split(',').map((p) => p.trim()).filter((p) => p);
+      const parts = splitTopLevel(inner);
       if (parts.length === 0) {
         returns = [];
       } else {
@@ -124,7 +289,7 @@
     const args = Array.from({ length: argCount }, () => '');
     const returns = Array.from({ length: returnCount }, () => '');
     return {
-      name: `Case ${idx + 1}`,
+      name: translate('frontend/src/lib/components/RunConsole.svelte::case_prefix') + (idx + 1),
       args,
       returns,
       timeLimit: '1'
@@ -215,7 +380,7 @@
 
   function addFnCase() {
     if (!fnMeta) {
-      addOut('Define the function signature first.\n', 'error');
+      addOut(translate('frontend/src/lib/components/RunConsole.svelte::define-function-signature-first') + '\n', 'error');
       return;
     }
     fnCases = [...fnCases, createEmptyCase(fnMeta, fnCases.length)];
@@ -230,7 +395,7 @@
     fnMeta = meta;
     fnSignatureError = error;
     if (meta && fnCases.length) {
-      const nextCases = fnCases.map((c, idx) => ensureCaseShape({ ...c, name: c.name || `Case ${idx + 1}` }, meta));
+      const nextCases = fnCases.map((c, idx) => ensureCaseShape({ ...c, name: c.name || (translate('frontend/src/lib/components/RunConsole.svelte::case_prefix') + (idx + 1)) }, meta));
       const changed = nextCases.some((caseItem, idx) => !casesEqual(caseItem, fnCases[idx]));
       if (changed) {
         fnCases = nextCases;
@@ -269,7 +434,7 @@
         running = false;
       };
       ws.onerror = () => {
-        addSys('Connection error');
+        addSys(translate('frontend/src/lib/components/RunConsole.svelte::connection-error'));
       };
       ws.onmessage = (e) => {
         try {
@@ -283,7 +448,7 @@
               terminalCollapsed = true;
               break;
             case 'started':
-              addSys('Session active.');
+              addSys(translate('frontend/src/lib/components/RunConsole.svelte::session-active'));
               running = true;
               break;
             case 'stdout':
@@ -293,27 +458,31 @@
               addOut(msg.data ?? '', 'stderr');
               break;
             case 'error':
-              addOut(msg.message ?? 'Error', 'error');
+              addOut(msg.message ?? translate('frontend/src/lib/components/RunConsole.svelte::error'), 'error');
               running = false;
               break;
             case 'exit':
               if (msg.timedOut) {
-                addOut('Timed out.', 'error');
+                addOut(translate('frontend/src/lib/components/RunConsole.svelte::timed-out'), 'error');
               }
-              addSys(`Process exited ${msg.code === 0 ? 'successfully' : 'with code ' + msg.code}.`);
+              addSys(
+                msg.code === 0
+                  ? translate('frontend/src/lib/components/RunConsole.svelte::process-exited-successfully')
+                  : translate('frontend/src/lib/components/RunConsole.svelte::process-exited-with-code-x').replace('{code}', msg.code)
+              );
               running = false;
               break;
             case 'function_result': {
               const fn = (msg.function ?? 'function').toString();
               const status = (msg.status ?? 'unknown').toString().toUpperCase();
-              addSys(`[fn] ${fn} → ${status}`);
+              addSys(translate('frontend/src/lib/components/RunConsole.svelte::function-result-status').replace('{functionName}', fn).replace('{status}', status));
               if (msg.return_repr) {
-                addSys(`Return: ${msg.return_repr}`);
+                addSys(translate('frontend/src/lib/components/RunConsole.svelte::return-repr').replace('{value}', msg.return_repr));
               } else if (msg.return_json) {
-                addSys(`Return JSON: ${msg.return_json}`);
+                addSys(translate('frontend/src/lib/components/RunConsole.svelte::return-json').replace('{value}', msg.return_json));
               }
               if (msg.expected_json) {
-                addSys(`Expected: ${msg.expected_json}`);
+                addSys(translate('frontend/src/lib/components/RunConsole.svelte::expected').replace('{value}', msg.expected_json));
               }
               if (msg.error) {
                 addOut(msg.error + '\n', 'error');
@@ -364,7 +533,7 @@
     if (!ws) return;
     const fn = config.functionName.trim();
     if (!fn) {
-      addOut('Function name is required.\n', 'error');
+      addOut(translate('frontend/src/lib/components/RunConsole.svelte::function-name-required') + '\n', 'error');
       return;
     }
     const payload: Record<string, any> = {
@@ -386,7 +555,7 @@
 
   function buildCasePayload(caseIndex: number): FunctionCallConfig | null {
     if (!fnMeta) {
-      addOut('Define the function signature first.\n', 'error');
+      addOut(translate('frontend/src/lib/components/RunConsole.svelte::define-function-signature-first') + '\n', 'error');
       return null;
     }
     const caseItem = fnCases[caseIndex];
@@ -423,7 +592,7 @@
 
   function runAllFnCases() {
     if (!fnMeta || fnCases.length === 0) {
-      addOut('Add at least one case to run.\n', 'error');
+      addOut(translate('frontend/src/lib/components/RunConsole.svelte::add-at-least-one-case-to-run') + '\n', 'error');
       return;
     }
     fnCases.forEach((_, idx) => {
@@ -471,7 +640,7 @@
     ensureWS();
   });
   onDestroy(() => {
-    if (ws) { try { ws.close(); } catch {}
+    if (ws) { try { ws.close(); } catch {} 
       ws = null; }
   });
 </script>
@@ -481,12 +650,12 @@
     <div class="flex items-center justify-between px-4 py-2 bg-base-300/60">
       <div class="flex items-center gap-2">
         <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-        <span class="font-semibold tracking-wide">GUI window (Tkinter)</span>
-        <span class="text-xs opacity-70 ml-2">noVNC embedded</span>
+        <span class="font-semibold tracking-wide">{translate('frontend/src/lib/components/RunConsole.svelte::gui-window-tkinter')}</span>
+        <span class="text-xs opacity-70 ml-2">{translate('frontend/src/lib/components/RunConsole.svelte::novnc-embedded')}</span>
       </div>
       <div class="flex items-center gap-2">
-        <button class="btn btn-sm" on:click={() => terminalCollapsed = !terminalCollapsed}>{terminalCollapsed ? 'Expand terminal' : 'Minimize terminal'}</button>
-        <button class="btn btn-sm btn-outline" on:click={refreshGUI}>Reload GUI</button>
+        <button class="btn btn-sm" on:click={() => terminalCollapsed = !terminalCollapsed}>{terminalCollapsed ? translate('frontend/src/lib/components/RunConsole.svelte::expand-terminal') : translate('frontend/src/lib/components/RunConsole.svelte::minimize-terminal')}</button>
+        <button class="btn btn-sm btn-outline" on:click={refreshGUI}>{translate('frontend/src/lib/components/RunConsole.svelte::reload-gui')}</button>
       </div>
     </div>
     <div class="gui-frame-wrap">
@@ -499,17 +668,17 @@
   <div class="flex items-center justify-between px-4 py-2 bg-base-300/60">
     <div class="flex items-center gap-2">
       <span class="w-2 h-2 rounded-full" class:animate-pulse={running} class:bg-green-400={running} class:bg-gray-400={!running}></span>
-      <span class="font-semibold tracking-wide">Manual run</span>
-      <span class="text-xs opacity-70 ml-2">Docker sandboxed</span>
+      <span class="font-semibold tracking-wide">{translate('frontend/src/lib/components/RunConsole.svelte::manual-run')}</span>
+      <span class="text-xs opacity-70 ml-2">{translate('frontend/src/lib/components/RunConsole.svelte::docker-sandboxed')}</span>
     </div>
     <div class="flex items-center gap-2">
-      <button class="btn btn-sm btn-primary" on:click={execute} disabled={connecting || running}>Execute</button>
-      <button class="btn btn-sm btn-secondary" on:click={stop} disabled={!running}>Stop</button>
+      <button class="btn btn-sm btn-primary" on:click={execute} disabled={connecting || running}>{translate('frontend/src/lib/components/RunConsole.svelte::execute')}</button>
+      <button class="btn btn-sm btn-secondary" on:click={stop} disabled={!running}>{translate('frontend/src/lib/components/RunConsole.svelte::stop')}</button>
     </div>
   </div>
   <div bind:this={scrollEl} class="font-mono text-sm p-3 overflow-auto" style="height: {showGUI ? (terminalCollapsed ? '5rem' : '14rem') : '18rem'};">
     {#if items.length === 0}
-      <div class="opacity-80 text-sm text-gray-200">Click Execute to run the student's script. Output appears here.</div>
+      <div class="opacity-80 text-sm text-gray-200">{translate('frontend/src/lib/components/RunConsole.svelte::click-execute-to-run-script-output-appears-here')}</div>
     {/if}
     {#each items as it}
       {#if it.type === 'stdout'}
@@ -531,11 +700,11 @@
         bind:this={inputEl}
         class="input input-bordered input-sm w-full"
         bind:value={inputValue}
-        placeholder={running ? 'Type input and press Enter…' : 'Execute first to send input'}
+        placeholder={running ? translate('frontend/src/lib/components/RunConsole.svelte::type-input-and-press-enter') : translate('frontend/src/lib/components/RunConsole.svelte::execute-first-to-send-input')}
         on:keydown={(e)=>{ if(e.key==='Enter'){ e.preventDefault(); if(running) sendInput(); } }}
         disabled={!running}
       />
-      <button class="btn btn-sm" on:click={sendInput} disabled={!running}>Send</button>
+      <button class="btn btn-sm" on:click={sendInput} disabled={!running}>{translate('frontend/src/lib/components/RunConsole.svelte::send')}</button>
     </div>
   </div>
 </div>
@@ -543,27 +712,27 @@
 <div class="card-elevated mt-4 p-4 space-y-4">
   <div class="rounded-2xl border border-base-300/70 bg-base-200/40 p-4 space-y-3">
     <div>
-      <h4 class="font-semibold flex items-center gap-2"><CodeIcon size={18}/> Define function signature</h4>
-      <p class="text-sm opacity-70">Write the Python function header to describe arguments and optional return types.</p>
+      <h4 class="font-semibold flex items-center gap-2"><CodeIcon size={18}/> {translate('frontend/src/lib/components/RunConsole.svelte::define-function-signature')}</h4>
+      <p class="text-sm opacity-70">{translate('frontend/src/lib/components/RunConsole.svelte::write-python-function-header-describe-arguments')}</p>
     </div>
     <CodeMirror bind:value={fnSignature} lang={python()} readOnly={false} placeholder={'def my_function(arr: list, target: int) -> bool'} />
     {#if fnSignatureError}
       <div class="alert alert-error text-sm">{fnSignatureError}</div>
     {:else if fnMeta}
       <div class="flex flex-wrap gap-2 text-xs">
-        <span class="badge badge-outline badge-sm">Function: {fnMeta.name}</span>
+        <span class="badge badge-outline badge-sm">{translate('frontend/src/lib/components/RunConsole.svelte::function_label')} {fnMeta.name}</span>
         {#if fnMeta.params.length}
           {#each fnMeta.params as param}
             <span class="badge badge-outline badge-sm">{param.name}{param.type ? `: ${param.type}` : ''}</span>
           {/each}
         {:else}
-          <span class="badge badge-outline badge-sm">No arguments</span>
+          <span class="badge badge-outline badge-sm">{translate('frontend/src/lib/components/RunConsole.svelte::no-arguments')}</span>
         {/if}
         {#if fnMeta.returns.length === 0}
-          <span class="badge badge-outline badge-sm">Returns: None</span>
+          <span class="badge badge-outline badge-sm">{translate('frontend/src/lib/components/RunConsole.svelte::returns-none')}</span>
         {:else}
           {#each fnMeta.returns as ret, ri}
-            <span class="badge badge-outline badge-sm">{fnMeta.returns.length > 1 ? `Return ${ri + 1}` : 'Return'}{ret.type ? `: ${ret.type}` : ''}</span>
+            <span class="badge badge-outline badge-sm">{fnMeta.returns.length > 1 ? translate('frontend/src/lib/components/RunConsole.svelte::return_n').replace('{n}', ri + 1) : translate('frontend/src/lib/components/RunConsole.svelte::return_label')}{ret.type ? `: ${ret.type}` : ''}</span>
           {/each}
         {/if}
       </div>
@@ -571,33 +740,33 @@
   </div>
 
   <div class="flex flex-wrap items-center justify-between gap-3">
-    <div class="text-sm opacity-70">{fnCases.length} {fnCases.length === 1 ? 'case' : 'cases'}</div>
+    <div class="text-sm opacity-70">{fnCases.length} {fnCases.length === 1 ? translate('frontend/src/lib/components/RunConsole.svelte::case_singular') : translate('frontend/src/lib/components/RunConsole.svelte::case_plural')}</div>
     <div class="flex items-center gap-2 flex-wrap">
-      <button class="btn btn-outline" on:click={addFnCase} disabled={!fnMeta}><Plus size={16}/> Add case</button>
-      <button class="btn btn-primary" on:click={runAllFnCases} disabled={!fnMeta || fnCases.length === 0}><Play size={16}/> Run all cases</button>
+      <button class="btn btn-outline" on:click={addFnCase} disabled={!fnMeta}><Plus size={16}/> {translate('frontend/src/lib/components/RunConsole.svelte::add-case')}</button>
+      <button class="btn btn-primary" on:click={runAllFnCases} disabled={!fnMeta || fnCases.length === 0}><Play size={16}/> {translate('frontend/src/lib/components/RunConsole.svelte::run-all-cases')}</button>
     </div>
   </div>
 
   {#if !fnMeta}
-    <div class="rounded-xl border border-dashed border-base-300/80 p-6 text-center text-sm opacity-70">Define the function signature to start adding test cases.</div>
+    <div class="rounded-xl border border-dashed border-base-300/80 p-6 text-center text-sm opacity-70">{translate('frontend/src/lib/components/RunConsole.svelte::define-function-signature-to-add-test-cases')}</div>
   {:else}
     <div class="space-y-3">
       {#each fnCases as fc, fi}
         <div class="rounded-2xl border border-base-300/70 bg-base-100 p-4 space-y-4 shadow-sm">
           <div class="flex flex-wrap items-center justify-between gap-3">
-            <input class="input input-bordered w-full flex-1" value={fc.name} on:input={(e) => updateFnCaseMeta(fi, 'name', (e.target as HTMLInputElement).value)} placeholder={`Case ${fi + 1}`}/>
+            <input class="input input-bordered w-full flex-1" value={fc.name} on:input={(e) => updateFnCaseMeta(fi, 'name', (e.target as HTMLInputElement).value)} placeholder={translate('frontend/src/lib/components/RunConsole.svelte::case_prefix') + (fi + 1)} />
             <div class="flex items-center gap-2 flex-wrap">
               <label class="form-control w-32">
-                <span class="label-text text-xs">Time limit (s)</span>
+                <span class="label-text text-xs">{translate('frontend/src/lib/components/RunConsole.svelte::time-limit-s')}</span>
                 <input class="input input-bordered w-full" value={fc.timeLimit} on:input={(e) => updateFnCaseMeta(fi, 'timeLimit', (e.target as HTMLInputElement).value)}/>
               </label>
-              <button class="btn btn-primary btn-xs" on:click={() => runFnCase(fi)}><Play size={14}/> Run</button>
-              <button class="btn btn-ghost btn-xs" on:click={() => removeFnCase(fi)}><Trash2 size={14}/> Remove</button>
+              <button class="btn btn-primary btn-xs" on:click={() => runFnCase(fi)}><Play size={14}/> {translate('frontend/src/lib/components/RunConsole.svelte::run_button')}</button>
+              <button class="btn btn-ghost btn-xs" on:click={() => removeFnCase(fi)}><Trash2 size={14}/> {translate('frontend/src/lib/components/RunConsole.svelte::remove')}</button>
             </div>
           </div>
           {#if fnMeta.params.length}
             <div class="space-y-2">
-              <h5 class="text-sm font-semibold">Arguments</h5>
+              <h5 class="text-sm font-semibold">{translate('frontend/src/lib/components/RunConsole.svelte::arguments_heading')}</h5>
               <div class="grid gap-3 md:grid-cols-2">
                 {#each fnMeta.params as param, pi}
                   {@const control = describeTypeControl(param.type)}
@@ -611,12 +780,12 @@
                     {#if control.control === 'boolean'}
                       <label class="label cursor-pointer justify-start gap-2 rounded-lg border border-base-300/60 px-3 py-2 bg-base-200/60">
                         <input type="checkbox" class="toggle toggle-sm" checked={stringToBool(fc.args[pi])} on:change={(e) => updateFnArg(fi, pi, (e.target as HTMLInputElement).checked ? 'true' : 'false')}/>
-                        <span class="label-text text-sm">{stringToBool(fc.args[pi]) ? 'True' : 'False'}</span>
+                        <span class="label-text text-sm">{stringToBool(fc.args[pi]) ? translate('frontend/src/lib/components/RunConsole.svelte::true_label') : translate('frontend/src/lib/components/RunConsole.svelte::false_label')}</span>
                       </label>
                     {:else if control.control === 'textarea'}
-                      <textarea class="textarea textarea-bordered h-24" value={fc.args[pi]} on:input={(e) => updateFnArg(fi, pi, (e.target as HTMLTextAreaElement).value)} placeholder={param.type ?? 'Value'}></textarea>
+                      <textarea class="textarea textarea-bordered h-24" value={fc.args[pi]} on:input={(e) => updateFnArg(fi, pi, (e.target as HTMLTextAreaElement).value)} placeholder={param.type ?? translate('frontend/src/lib/components/RunConsole.svelte::value_placeholder')}></textarea>
                     {:else}
-                      <input class="input input-bordered w-full" type={control.control === 'integer' || control.control === 'number' ? 'number' : 'text'} step={control.control === 'integer' ? '1' : control.control === 'number' ? 'any' : undefined} value={fc.args[pi]} on:input={(e) => updateFnArg(fi, pi, (e.target as HTMLInputElement).value)} placeholder={param.type ?? 'Value'} />
+                      <input class="input input-bordered w-full" type={control.control === 'integer' || control.control === 'number' ? 'number' : 'text'} step={control.control === 'integer' ? '1' : control.control === 'number' ? 'any' : undefined} value={fc.args[pi]} on:input={(e) => updateFnArg(fi, pi, (e.target as HTMLInputElement).value)} placeholder={param.type ?? translate('frontend/src/lib/components/RunConsole.svelte::value_placeholder')} />
                     {/if}
                   </div>
                 {/each}
@@ -625,13 +794,13 @@
           {/if}
           {#if fnMeta.returns.length > 0}
             <div class="space-y-2">
-              <h5 class="text-sm font-semibold">Expected return{fnMeta.returns.length > 1 ? ' values' : ''}</h5>
+              <h5 class="text-sm font-semibold">{fnMeta.returns.length > 1 ? translate('frontend/src/lib/components/RunConsole.svelte::expected-return-values') : translate('frontend/src/lib/components/RunConsole.svelte::expected-return')}</h5>
               <div class="grid gap-3 md:grid-cols-2">
                 {#each fnMeta.returns as ret, ri}
                   {@const control = describeTypeControl(ret.type)}
                   <div class="form-control space-y-1">
                     <span class="label-text text-xs font-semibold uppercase tracking-wide flex items-center gap-2">
-                      {fnMeta.returns.length > 1 ? `Return ${ri + 1}` : 'Return'}
+                      {fnMeta.returns.length > 1 ? translate('frontend/src/lib/components/RunConsole.svelte::return_n').replace('{n}', ri + 1) : translate('frontend/src/lib/components/RunConsole.svelte::return_label')}
                       {#if ret.type}
                         <span class="badge badge-outline badge-sm">{ret.type}</span>
                       {/if}
@@ -639,12 +808,12 @@
                     {#if control.control === 'boolean'}
                       <label class="label cursor-pointer justify-start gap-2 rounded-lg border border-base-300/60 px-3 py-2 bg-base-200/60">
                         <input type="checkbox" class="toggle toggle-sm" checked={stringToBool(fc.returns[ri])} on:change={(e) => updateFnReturn(fi, ri, (e.target as HTMLInputElement).checked ? 'true' : 'false')}/>
-                        <span class="label-text text-sm">{stringToBool(fc.returns[ri]) ? 'True' : 'False'}</span>
+                        <span class="label-text text-sm">{stringToBool(fc.returns[ri]) ? translate('frontend/src/lib/components/RunConsole.svelte::true_label') : translate('frontend/src/lib/components/RunConsole.svelte::false_label')}</span>
                       </label>
                     {:else if control.control === 'textarea'}
-                      <textarea class="textarea textarea-bordered h-24" value={fc.returns[ri]} on:input={(e) => updateFnReturn(fi, ri, (e.target as HTMLTextAreaElement).value)} placeholder={ret.type ?? 'Value'}></textarea>
+                      <textarea class="textarea textarea-bordered h-24" value={fc.returns[ri]} on:input={(e) => updateFnReturn(fi, ri, (e.target as HTMLTextAreaElement).value)} placeholder={ret.type ?? translate('frontend/src/lib/components/RunConsole.svelte::value_placeholder')}></textarea>
                     {:else}
-                      <input class="input input-bordered w-full" type={control.control === 'integer' || control.control === 'number' ? 'number' : 'text'} step={control.control === 'integer' ? '1' : control.control === 'number' ? 'any' : undefined} value={fc.returns[ri]} on:input={(e) => updateFnReturn(fi, ri, (e.target as HTMLInputElement).value)} placeholder={ret.type ?? 'Value'} />
+                      <input class="input input-bordered w-full" type={control.control === 'integer' || control.control === 'number' ? 'number' : 'text'} step={control.control === 'integer' ? '1' : control.control === 'number' ? 'any' : undefined} value={fc.returns[ri]} on:input={(e) => updateFnReturn(fi, ri, (e.target as HTMLInputElement).value)} placeholder={ret.type ?? translate('frontend/src/lib/components/RunConsole.svelte::value_placeholder')} />
                     {/if}
                   </div>
                 {/each}
@@ -652,13 +821,13 @@
             </div>
           {:else}
             <div class="rounded-lg border border-dashed border-base-300/70 bg-base-200/50 px-4 py-3 text-xs opacity-70">
-              This function returns <code>None</code>. Run the case to inspect side effects or stdout.
+              {translate('frontend/src/lib/components/RunConsole.svelte::function-returns-none-inspect-side-effects')}
             </div>
           {/if}
         </div>
       {/each}
       {#if fnCases.length === 0}
-        <div class="rounded-xl border border-dashed border-base-300/80 p-6 text-center text-sm opacity-70">No function cases yet. Add a case to build function-based calls.</div>
+        <div class="rounded-xl border border-dashed border-base-300/80 p-6 text-center text-sm opacity-70">{translate('frontend/src/lib/components/RunConsole.svelte::no-function-cases-yet-add-case')}</div>
       {/if}
     </div>
   {/if}

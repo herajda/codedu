@@ -4,6 +4,10 @@
     import { sha256 } from '$lib/hash'
     import { goto } from '$app/navigation'
     import { login as bkLogin, hasBakalari } from '$lib/bakalari'
+    import { t, translator } from '$lib/i18n'
+
+    let translate;
+    $: translate = $translator;
     
     let email = ''
     let password = ''
@@ -45,19 +49,19 @@
       if (!res.ok) {
         try {
           const payload = await res.json()
-          error = payload?.error ?? 'Login failed'
+          error = payload?.error ?? t('frontend/src/routes/login/+page.svelte::login_failed')
           needsVerification = Boolean(payload?.needsVerification)
           verificationEmailSent = Boolean(payload?.verificationEmailSent)
         } catch (parseErr) {
           console.error(parseErr)
-          error = 'Login failed'
+          error = t('frontend/src/routes/login/+page.svelte::login_failed')
         }
         return
       }
       // 2. Fetch /api/me
       const meRes = await apiFetch('/api/me')
       if (!meRes.ok) {
-        error = 'Couldn\'t fetch user info'
+        error = t('frontend/src/routes/login/+page.svelte::couldnt_fetch_user_info')
         return
       }
       const me = await meRes.json()
@@ -94,7 +98,7 @@
         }
         const meRes = await apiFetch('/api/me')
         if (!meRes.ok) {
-          error = 'Couldn\'t fetch user info'
+          error = t('frontend/src/routes/login/+page.svelte::couldnt_fetch_user_info')
           return
         }
         const me = await meRes.json()
@@ -117,9 +121,9 @@
     }
   </script>
   
-  <h1 class="text-3xl font-bold text-center mb-6">Log In</h1>
+  <h1 class="text-3xl font-bold text-center mb-6">{t('frontend/src/routes/login/+page.svelte::log_in_title')}</h1>
     <div role="tablist" class="tabs tabs-boxed justify-center mb-6">
-    <a role="tab" class="tab {mode==='local' ? 'tab-active' : ''}" on:click={() => mode = 'local'}>Email</a>
+    <a role="tab" class="tab {mode==='local' ? 'tab-active' : ''}" on:click={() => mode = 'local'}>{t('frontend/src/routes/login/+page.svelte::email_tab')}</a>
     {#if hasBakalari}
       <a role="tab" class="tab {mode==='bakalari' ? 'tab-active' : ''}" on:click={() => mode = 'bakalari'}>
         <img src="/bakalari-logo.svg" alt="Bakalari" class="w-16 h-16" />
@@ -130,9 +134,9 @@
     {#if mode === 'local' || !hasBakalari}
       <div class="w-full max-w-sm">
         <form on:submit|preventDefault={submit} class="card w-full bg-base-100 shadow p-6 space-y-4">
-          <input type="email" bind:value={email} placeholder="Email" required class="input input-bordered w-full" />
-          <input type="password" bind:value={password} placeholder="Password" required class="input input-bordered w-full" />
-          <button type="submit" class="btn btn-primary w-full">Log In</button>
+          <input type="email" bind:value={email} placeholder={t('frontend/src/routes/login/+page.svelte::email_placeholder')} required class="input input-bordered w-full" />
+          <input type="password" bind:value={password} placeholder={t('frontend/src/routes/login/+page.svelte::password_placeholder')} required class="input input-bordered w-full" />
+          <button type="submit" class="btn btn-primary w-full">{t('frontend/src/routes/login/+page.svelte::log_in_button')}</button>
         </form>
       </div>
     {:else}
@@ -145,9 +149,9 @@
         
         <!-- Login Form -->
         <form on:submit|preventDefault={submitBk} class="card bg-base-100 shadow p-6 space-y-4">
-          <input bind:value={bkUser} placeholder="Username" required class="input input-bordered w-full" />
-          <input type="password" bind:value={bkPass} placeholder="Password" required class="input input-bordered w-full" />
-          <button type="submit" class="btn btn-primary w-full">Log In</button>
+          <input bind:value={bkUser} placeholder={t('frontend/src/routes/login/+page.svelte::username_placeholder')} required class="input input-bordered w-full" />
+          <input type="password" bind:value={bkPass} placeholder={t('frontend/src/routes/login/+page.svelte::password_placeholder')} required class="input input-bordered w-full" />
+          <button type="submit" class="btn btn-primary w-full">{t('frontend/src/routes/login/+page.svelte::log_in_button')}</button>
         </form>
       </div>
     {/if}
@@ -158,32 +162,32 @@
   {#if needsVerification}
     <div class="alert alert-info mx-auto mt-4 max-w-sm">
       <div>
-        <p class="font-semibold">Verify your email to continue</p>
+        <p class="font-semibold">{translate('frontend/src/routes/login/+page.svelte::verify_email_title')}</p>
         <p class="text-sm">
           {#if verificationEmailSent && lastSubmittedEmail}
-            We just sent a new verification email to {lastSubmittedEmail}. Check your inbox and spam folder.
+            {translate('frontend/src/routes/login/+page.svelte::verification_email_sent', { email: lastSubmittedEmail })}
           {:else if lastSubmittedEmail}
-            Your account for {lastSubmittedEmail} needs to be verified before you can log in.
+            {translate('frontend/src/routes/login/+page.svelte::account_needs_verification_email', { email: lastSubmittedEmail })}
           {:else}
-            Your account needs to be verified before you can log in.
+            {translate('frontend/src/routes/login/+page.svelte::account_needs_verification')}
           {/if}
         </p>
       </div>
       <div class="mt-3 flex justify-end">
         <button type="button" class="btn btn-sm btn-primary" on:click={() => goto(verificationHelpLink)}>
-          View instructions
+          {translate('frontend/src/routes/login/+page.svelte::view_instructions_button')}
         </button>
       </div>
     </div>
   {/if}
   <div class="mt-6 space-y-2 text-center text-sm text-base-content/80">
     <p>
-      Don't have an account?
-      <a href="/register" class="link link-primary">Register here</a>
+      {t('frontend/src/routes/login/+page.svelte::no_account_question')}
+      <a href="/register" class="link link-primary">{t('frontend/src/routes/login/+page.svelte::register_here_link')}</a>
     </p>
     {#if mode === 'local' || !hasBakalari}
       <p>
-        <a href="/forgot-password" class="link link-secondary">Forgot your password?</a>
+        <a href="/forgot-password" class="link link-secondary">{t('frontend/src/routes/login/+page.page.svelte::forgot_password_link')}</a>
       </p>
     {/if}
   </div>

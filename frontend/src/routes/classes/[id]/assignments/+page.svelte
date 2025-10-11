@@ -7,6 +7,10 @@
   import { goto } from '$app/navigation';
   import { Filter, Search, AlertTriangle, Clock, CheckCircle2, Copy } from 'lucide-svelte';
   import { TEACHER_GROUP_ID } from '$lib/teacherGroup';
+  import { t, translator } from '$lib/i18n';
+  
+  let translate;
+  $: translate = $translator;
 
   let id = $page.params.id;
   $: if ($page.params.id !== id) {
@@ -37,7 +41,7 @@
 
   function countdown(deadline: string, completed?: boolean) {
     const diff = new Date(deadline).getTime() - now;
-    if (diff <= 0) return completed ? 'deadline passed' : 'Overdue';
+    if (diff <= 0) return completed ? t('frontend/src/routes/classes/[id]/assignments/+page.svelte::deadline_passed') : t('frontend/src/routes/classes/[id]/assignments/+page.svelte::overdue');
     const d = Math.floor(diff / 86400000);
     if (d >= 1) return `${d}d`;
     const h = Math.floor(diff / 3600000);
@@ -107,7 +111,7 @@
       const created = await apiJSON(`/api/classes/${id}/assignments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'Untitled assignment', description: '', show_traceback: false, show_test_details: false })
+        body: JSON.stringify({ title: t('frontend/src/routes/classes/[id]/assignments/+page.svelte::untitled_assignment'), description: '', show_traceback: false, show_test_details: false })
       });
       goto(`/assignments/${created.id}?new=1`);
     } catch (e: any) {
@@ -168,7 +172,7 @@
 
   async function doCopyFromTeachers() {
     if (!selectedAssignmentId) {
-      copyErr = 'Please select an assignment';
+      copyErr = t('frontend/src/routes/classes/[id]/assignments/+page.svelte::please_select_assignment');
       return;
     }
     try {
@@ -179,7 +183,7 @@
       });
       const result = await res.json();
       if (!res.ok) {
-        copyErr = result.error || 'Failed to copy assignment';
+        copyErr = result.error || t('frontend/src/routes/classes/[id]/assignments/+page.svelte::failed_to_copy_assignment');
         return;
       }
       copyDialog.close();
@@ -197,41 +201,41 @@
 </script>
 
 {#if loading}
-  <p>Loading…</p>
+  <p>{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::loading')}</p>
 {:else if err}
   <p class="text-error">{err}</p>
 {:else}
   <div class="mb-4">
     <h1 class="text-2xl font-semibold">{cls.name}</h1>
     {#if role === 'student'}
-      <p class="opacity-70 text-sm">Teacher: {cls.teacher.name ?? cls.teacher.email}</p>
+      <p class="opacity-70 text-sm">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::teacher_prefix')} {cls.teacher.name ?? cls.teacher.email}</p>
     {/if}
   </div>
 
   <div>
     <div class="card-elevated p-5">
       <div class="flex items-center justify-between mb-3 gap-2 flex-wrap">
-        <h2 class="font-semibold">Assignments</h2>
+        <h2 class="font-semibold">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::assignments_heading')}</h2>
         <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
           <div class="join hidden sm:flex">
-            <button class={`btn btn-sm join-item ${filterMode==='all' ? 'btn-active' : 'btn-ghost'}`} type="button" on:click={() => filterMode='all'}><Filter class="w-4 h-4" aria-hidden="true" /> All</button>
-            <button class={`btn btn-sm join-item ${filterMode==='upcoming' ? 'btn-active' : 'btn-ghost'}`} type="button" on:click={() => filterMode='upcoming'}><Clock class="w-4 h-4" aria-hidden="true" /> Upcoming</button>
-            <button class={`btn btn-sm join-item ${filterMode==='late' ? 'btn-active' : 'btn-ghost'}`} type="button" on:click={() => filterMode='late'}><AlertTriangle class="w-4 h-4" aria-hidden="true" /> Overdue</button>
+            <button class={`btn btn-sm join-item ${filterMode==='all' ? 'btn-active' : 'btn-ghost'}`} type="button" on:click={() => filterMode='all'}><Filter class="w-4 h-4" aria-hidden="true" /> {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::filter_all')}</button>
+            <button class={`btn btn-sm join-item ${filterMode==='upcoming' ? 'btn-active' : 'btn-ghost'}`} type="button" on:click={() => filterMode='upcoming'}><Clock class="w-4 h-4" aria-hidden="true" /> {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::filter_upcoming')}</button>
+            <button class={`btn btn-sm join-item ${filterMode==='late' ? 'btn-active' : 'btn-ghost'}`} type="button" on:click={() => filterMode='late'}><AlertTriangle class="w-4 h-4" aria-hidden="true" /> {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::filter_overdue')}</button>
           </div>
           <label class="input input-bordered input-sm flex items-center gap-2">
             <Search class="w-4 h-4" aria-hidden="true" />
-            <input type="text" class="grow" placeholder="Search" bind:value={search} />
+            <input type="text" class="grow" placeholder={translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::search_placeholder')} bind:value={search} />
           </label>
-          <select class="select select-sm select-bordered" bind:value={sortMode} aria-label="Sort assignments">
-            <option value="deadline_asc">Deadline ↑</option>
-            <option value="deadline_desc">Deadline ↓</option>
-            <option value="title_asc">Title A→Z</option>
+          <select class="select select-sm select-bordered" bind:value={sortMode} aria-label={translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::sort_assignments_aria_label')}>
+            <option value="deadline_asc">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::sort_deadline_asc')}</option>
+            <option value="deadline_desc">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::sort_deadline_desc')}</option>
+            <option value="title_asc">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::sort_title_asc')}</option>
           </select>
           {#if role === 'teacher' || role === 'admin'}
-            <button class="btn btn-sm" type="button" on:click={quickCreateAssignment}>New assignment</button>
+            <button class="btn btn-sm" type="button" on:click={quickCreateAssignment}>{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::new_assignment_button')}</button>
             <button class="btn btn-sm btn-outline" type="button" on:click={openCopyFromTeachers}>
               <Copy class="w-4 h-4 mr-2" aria-hidden="true" />
-              Copy from Teachers' group
+              {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::copy_from_teachers_group_button')}
             </button>
           {/if}
         </div>
@@ -250,7 +254,7 @@
                       <span>{countdown(a.deadline, a.completed)}</span>
                       {#if a.second_deadline}
                         <span>·</span>
-                        <span class="text-warning">2nd: {formatDateTime(a.second_deadline)} ({Math.round(a.late_penalty_ratio * 100)}%)</span>
+                        <span class="text-warning">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::second_deadline_prefix')} {formatDateTime(a.second_deadline)} ({Math.round(a.late_penalty_ratio * 100)}%)</span>
                       {/if}
                     </div>
                   </div>
@@ -270,10 +274,10 @@
                       {/if}
                     {/if}
                     {#if a.completed}
-                      <span class="badge badge-success"><CheckCircle2 class="w-3 h-3" aria-hidden="true" /> Done</span>
+                      <span class="badge badge-success"><CheckCircle2 class="w-3 h-3" aria-hidden="true" /> {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::status_done_badge')}</span>
                     {/if}
                     {#if !a.published}
-                      <span class="badge badge-warning">Unpublished</span>
+                      <span class="badge badge-warning">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::status_unpublished_badge')}</span>
                     {/if}
                   </div>
                 </div>
@@ -282,7 +286,7 @@
           </li>
         {/each}
         {#if !visibleAssignments.length}
-          <li class="text-sm opacity-70">No assignments yet</li>
+          <li class="text-sm opacity-70">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::no_assignments_yet')}</li>
         {/if}
       </ul>
     </div>
@@ -291,7 +295,7 @@
   <!-- Copy from Teachers' group modal -->
   <dialog bind:this={copyDialog} class="modal">
     <div class="modal-box max-w-4xl">
-      <h3 class="font-bold mb-3">Copy assignment from Teachers' group</h3>
+      <h3 class="font-bold mb-3">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::copy_from_teachers_group_button')}</h3>
       
       <!-- Breadcrumb navigation -->
       <div class="mb-4">
@@ -303,7 +307,7 @@
                   type="button" 
                   class="link px-2 py-1 rounded hover:bg-base-300" 
                   on:click={() => copyCrumbTo(i)} 
-                  aria-label={`Open ${b.name}`}
+                  aria-label={`${translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::open_crumb_label')} ${b.name}`}
                 >
                   {b.name}
                 </button>
@@ -314,7 +318,7 @@
       </div>
 
       {#if copyLoading}
-        <p>Loading...</p>
+        <p>{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::loading')}</p>
       {:else if copyErr}
         <p class="text-error">{copyErr}</p>
       {:else}
@@ -323,10 +327,10 @@
           <table class="table table-zebra w-full">
             <thead>
               <tr>
-                <th class="text-left">Name</th>
-                <th class="text-left">Type</th>
-                <th class="text-right">Modified</th>
-                <th class="w-32 text-right">Action</th>
+                <th class="text-left">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::table_header_name')}</th>
+                <th class="text-left">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::table_header_type')}</th>
+                <th class="text-right">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::table_header_modified')}</th>
+                <th class="w-32 text-right">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::table_header_action')}</th>
               </tr>
             </thead>
             <tbody>
@@ -349,7 +353,7 @@
                     {/if}
                     <div class="text-xs text-gray-500">{item.path}</div>
                   </td>
-                  <td>{item.is_dir ? 'Folder' : 'Assignment'}</td>
+                  <td>{item.is_dir ? translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::type_folder') : translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::type_assignment')}</td>
                   <td class="text-right">{formatDateTime(item.updated_at)}</td>
                   <td class="text-right">
                     {#if !item.is_dir && item.assignment_id}
@@ -358,14 +362,14 @@
                         on:click={() => selectedAssignmentId = item.assignment_id}
                         class:btn-active={selectedAssignmentId === item.assignment_id}
                       >
-                        {selectedAssignmentId === item.assignment_id ? 'Selected' : 'Select'}
+                        {selectedAssignmentId === item.assignment_id ? translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::button_selected') : translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::button_select')}
                       </button>
                     {/if}
                   </td>
                 </tr>
               {/each}
               {#if !teacherFiles.length}
-                <tr><td colspan="4"><i>No items in this folder</i></td></tr>
+                <tr><td colspan="4"><i>{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::no_items_in_folder')}</i></td></tr>
               {/if}
             </tbody>
           </table>
@@ -375,23 +379,23 @@
           <div class="mt-4 p-3 bg-primary/10 rounded-lg">
             <p class="text-sm">
               <i class="fa-solid fa-check-circle text-primary mr-2"></i>
-              Assignment selected for copying
+              {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::assignment_selected_for_copying')}
             </p>
           </div>
         {/if}
 
         <div class="modal-action">
-          <form method="dialog"><button class="btn">Cancel</button></form>
+          <form method="dialog"><button class="btn">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::button_cancel')}</button></form>
           <button 
             class="btn btn-primary" 
             on:click|preventDefault={doCopyFromTeachers} 
             disabled={!selectedAssignmentId}
           >
-            Copy assignment
+            {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::button_copy_assignment')}
           </button>
         </div>
       {/if}
     </div>
-    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    <form method="dialog" class="modal-backdrop"><button>{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::button_close')}</button></form>
   </dialog>
 {/if}

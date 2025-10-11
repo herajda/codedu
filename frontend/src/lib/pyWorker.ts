@@ -1,3 +1,4 @@
+
 import { loadPyodide } from 'pyodide';
 
 let pyodide: any = null;
@@ -206,7 +207,7 @@ _imgs = []
 for _num in plt.get_fignums():
     _buf = io.BytesIO()
     plt.figure(_num).savefig(_buf, format='png')
-    _imgs.append(base64.b64encode(_buf.getvalue()).decode('utf-8'))
+    _imgs.append(base64.b64encode(_buf.getvalue()).decode('ascii'))
 plt.close('all')
 _imgs
         `);

@@ -1,6 +1,10 @@
 <script lang="ts">
   import { tick, onMount } from 'svelte';
   import { browser } from '$app/environment';
+  import { t, translator } from '$lib/i18n';
+
+  let translate;
+  $: translate = $translator;
 
   onMount(async () => {
     if (!browser) return;
@@ -20,7 +24,7 @@
   let dialog: HTMLDialogElement | undefined;
   let resolver: ((value: string | null) => void) | null = null;
 
-  let title = 'Select deadline';
+  let title = t('frontend/src/lib/components/DeadlinePicker.svelte::select_deadline_title');
   let minDate: Date | null = null;
 
   // Internal state
@@ -33,17 +37,17 @@
   const todayValue = toCalendarValue(new Date());
 
   const defaultShortcuts: Offset[] = [
-    { label: '+1 hour', hours: 1 },
-    { label: 'In 1 day', days: 1 },
-    { label: 'In 3 days', days: 3 },
-    { label: 'In 1 week', weeks: 1 },
-    { label: 'In 2 weeks', weeks: 2 }
+    { label: t('frontend/src/lib/components/DeadlinePicker.svelte::plus_one_hour_shortcut'), hours: 1 },
+    { label: t('frontend/src/lib/components/DeadlinePicker.svelte::in_one_day_shortcut'), days: 1 },
+    { label: t('frontend/src/lib/components/DeadlinePicker.svelte::in_three_days_shortcut'), days: 3 },
+    { label: t('frontend/src/lib/components/DeadlinePicker.svelte::in_one_week_shortcut'), weeks: 1 },
+    { label: t('frontend/src/lib/components/DeadlinePicker.svelte::in_two_weeks_shortcut'), weeks: 2 }
   ];
   let shortcuts: Offset[] = defaultShortcuts;
 
   // Public API
   export async function open(options: DeadlinePickerOptions = {}): Promise<string | null> {
-    title = options.title ?? 'Select deadline';
+    title = options.title ?? t('frontend/src/lib/components/DeadlinePicker.svelte::select_deadline_title');
     const init = ensureDate(options.initial) ?? new Date();
     minDate = ensureDate(options.min) ?? null;
     selected = new Date(init);
@@ -205,7 +209,7 @@
         <h3 class="font-semibold text-lg">{title}</h3>
         <div class="text-sm opacity-70">{manual}</div>
       </div>
-      <form method="dialog"><button class="btn btn-sm btn-ghost" aria-label="Close">✕</button></form>
+      <form method="dialog"><button class="btn btn-sm btn-ghost" aria-label={t('frontend/src/lib/components/DeadlinePicker.svelte::close_button_label')}>✕</button></form>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -221,7 +225,7 @@
           on:change={handleCalendarChange}
         >
           <svg
-            aria-label="Previous"
+            aria-label={t('frontend/src/lib/components/DeadlinePicker.svelte::previous_month_label')}
             class="fill-current size-4"
             slot="previous"
             xmlns="http://www.w3.org/2000/svg"
@@ -230,7 +234,7 @@
             <path fill="currentColor" d="M15.75 19.5 8.25 12l7.5-7.5"></path>
           </svg>
           <svg
-            aria-label="Next"
+            aria-label={t('frontend/src/lib/components/DeadlinePicker.svelte::next_month_label')}
             class="fill-current size-4"
             slot="next"
             xmlns="http://www.w3.org/2000/svg"
@@ -246,18 +250,18 @@
       <div class="space-y-4">
         <div>
           <div class="label mb-1 py-0">
-            <span class="label-text">Time (24h)</span>
+            <span class="label-text">{translate('frontend/src/lib/components/DeadlinePicker.svelte::time_24h_label')}</span>
           </div>
           <div class="flex items-center gap-2">
             <div class="join">
               <button class="btn btn-sm join-item" type="button" on:click={() => hour = clamp0_23(hour - 1)}>-</button>
-              <input class="input input-bordered input-sm w-16 text-center join-item" value={formatTwo(hour)} on:input={onHourInput} aria-label="Hours" />
+              <input class="input input-bordered input-sm w-16 text-center join-item" value={formatTwo(hour)} on:input={onHourInput} aria-label={t('frontend/src/lib/components/DeadlinePicker.svelte::hours_input_label')} />
               <button class="btn btn-sm join-item" type="button" on:click={() => hour = clamp0_23(hour + 1)}>+</button>
             </div>
             <span class="opacity-70">:</span>
             <div class="join">
               <button class="btn btn-sm join-item" type="button" on:click={() => minute = clamp0_59(minute - 5)}>-</button>
-              <input class="input input-bordered input-sm w-16 text-center join-item" value={formatTwo(minute)} on:input={onMinuteInput} aria-label="Minutes" />
+              <input class="input input-bordered input-sm w-16 text-center join-item" value={formatTwo(minute)} on:input={onMinuteInput} aria-label={t('frontend/src/lib/components/DeadlinePicker.svelte::minutes_input_label')} />
               <button class="btn btn-sm join-item" type="button" on:click={() => minute = clamp0_59(minute + 5)}>+</button>
             </div>
           </div>
@@ -273,31 +277,31 @@
 
         <div>
           <div class="label mb-1 py-0">
-            <span class="label-text">Shortcuts</span>
+            <span class="label-text">{translate('frontend/src/lib/components/DeadlinePicker.svelte::shortcuts_label')}</span>
           </div>
           <div class="flex flex-wrap gap-2">
             {#each shortcuts as s}
               <button type="button" class="btn btn-ghost btn-sm" on:click={() => applyShortcut(s)}>{s.label}</button>
             {/each}
-            <button type="button" class="btn btn-ghost btn-sm" on:click={() => { const d=new Date(); selected=d; hour=d.getHours(); minute=d.getMinutes(); syncManual(); }}>Now</button>
-            <button type="button" class="btn btn-ghost btn-sm" on:click={() => { const d=new Date(); d.setHours(23,59,0,0); selected=d; hour=23; minute=59; syncManual(); }}>Today 23:59</button>
+            <button type="button" class="btn btn-ghost btn-sm" on:click={() => { const d=new Date(); selected=d; hour=d.getHours(); minute=d.getMinutes(); syncManual(); }}>{translate('frontend/src/lib/components/DeadlinePicker.svelte::now_button')}</button>
+            <button type="button" class="btn btn-ghost btn-sm" on:click={() => { const d=new Date(); d.setHours(23,59,0,0); selected=d; hour=23; minute=59; syncManual(); }}>{translate('frontend/src/lib/components/DeadlinePicker.svelte::today_23_59_button')}</button>
           </div>
         </div>
 
         <div>
           <div class="label mb-1 py-0">
-            <span class="label-text">Manual entry</span>
-            <span class="label-text-alt">dd/mm/yyyy hh:mm</span>
+            <span class="label-text">{translate('frontend/src/lib/components/DeadlinePicker.svelte::manual_entry_label')}</span>
+            <span class="label-text-alt">{translate('frontend/src/lib/components/DeadlinePicker.svelte::date_format_hint')}</span>
           </div>
-          <input class="input input-bordered w-full" placeholder="e.g. 25/12/2025 16:30" bind:value={manual} on:input={() => parseManualInput(manual)} on:blur={() => manual = currentLabel()} />
+          <input class="input input-bordered w-full" placeholder={t('frontend/src/lib/components/DeadlinePicker.svelte::manual_entry_placeholder')} bind:value={manual} on:input={() => parseManualInput(manual)} on:blur={() => manual = currentLabel()} />
         </div>
       </div>
     </div>
 
     <div class="modal-action">
-      <button class="btn" type="button" on:click={handleCancel}>Cancel</button>
-      <button class="btn btn-primary" type="button" on:click={confirm}>Set deadline</button>
+      <button class="btn" type="button" on:click={handleCancel}>{translate('frontend/src/lib/components/DeadlinePicker.svelte::cancel_button')}</button>
+      <button class="btn btn-primary" type="button" on:click={confirm}>{translate('frontend/src/lib/components/DeadlinePicker.svelte::set_deadline_button')}</button>
     </div>
   </div>
-  <form method="dialog" class="modal-backdrop"><button aria-label="Close">close</button></form>
+  <form method="dialog" class="modal-backdrop"><button aria-label={t('frontend/src/lib/components/DeadlinePicker.svelte::close_modal_label')}>close</button></form>
 </dialog>

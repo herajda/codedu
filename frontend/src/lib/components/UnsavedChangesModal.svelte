@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
+  import { t, translator } from '$lib/i18n';
 
   export type UnsavedChangesAction = 'save' | 'discard' | null;
 
@@ -15,19 +16,22 @@
   let dialog: HTMLDialogElement | undefined;
   let resolver: ((value: UnsavedChangesAction) => void) | null = null;
 
-  let title = 'Unsaved changes';
-  let body = 'You have unsaved changes. What would you like to do?';
-  let saveLabel = 'Save and leave';
-  let discardLabel = 'Leave without saving';
-  let cancelLabel = 'Cancel';
+  let translate;
+  $: translate = $translator;
+
+  let title = t('frontend/src/lib/components/UnsavedChangesModal.svelte::unsaved_changes_title');
+  let body = t('frontend/src/lib/components/UnsavedChangesModal.svelte::unsaved_changes_body');
+  let saveLabel = t('frontend/src/lib/components/UnsavedChangesModal.svelte::save_and_leave_button');
+  let discardLabel = t('frontend/src/lib/components/UnsavedChangesModal.svelte::leave_without_saving_button');
+  let cancelLabel = t('frontend/src/lib/components/UnsavedChangesModal.svelte::cancel_button');
   let icon: string | undefined;
 
   export async function open(options: UnsavedChangesModalOptions = {}): Promise<UnsavedChangesAction> {
-    title = options.title ?? 'Unsaved changes';
-    body = options.body ?? 'You have unsaved changes. What would you like to do?';
-    saveLabel = options.saveLabel ?? 'Save and leave';
-    discardLabel = options.discardLabel ?? 'Leave without saving';
-    cancelLabel = options.cancelLabel ?? 'Cancel';
+    title = options.title ?? translate('frontend/src/lib/components/UnsavedChangesModal.svelte::unsaved_changes_title');
+    body = options.body ?? translate('frontend/src/lib/components/UnsavedChangesModal.svelte::unsaved_changes_body');
+    saveLabel = options.saveLabel ?? translate('frontend/src/lib/components/UnsavedChangesModal.svelte::save_and_leave_button');
+    discardLabel = options.discardLabel ?? translate('frontend/src/lib/components/UnsavedChangesModal.svelte::leave_without_saving_button');
+    cancelLabel = options.cancelLabel ?? translate('frontend/src/lib/components/UnsavedChangesModal.svelte::cancel_button');
     icon = options.icon;
 
     await tick();
@@ -81,5 +85,5 @@
       </div>
     </div>
   </div>
-  <form method="dialog" class="modal-backdrop" on:submit={handleCancel}><button aria-label="Close">close</button></form>
+  <form method="dialog" class="modal-backdrop" on:submit={handleCancel}><button aria-label={translate('frontend/src/lib/components/UnsavedChangesModal.svelte::close_button')}>{translate('frontend/src/lib/components/UnsavedChangesModal.svelte::close_button')}</button></form>
 </dialog>

@@ -9,6 +9,8 @@
     insertCell,
     deleteCell
   } from "$lib/stores/notebookStore";
+  import { t } from '$lib/i18n';
+
   export let cell: import("$lib/notebook").NotebookCell;
   export let index: number;
   let showInsert = false;
@@ -56,8 +58,8 @@
   {#if !editing}
   <div class="absolute right-2 top-2 z-10 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
     <button
-      aria-label="Move cell up"
-      title="Move cell up"
+      aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_up')}
+      title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_up')}
       on:click={() => moveCellUp(index)}
       class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
     >
@@ -66,8 +68,8 @@
       </svg>
     </button>
     <button
-      aria-label="Move cell down"
-      title="Move cell down"
+      aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_down')}
+      title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_down')}
       on:click={() => moveCellDown(index)}
       class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
     >
@@ -76,8 +78,8 @@
       </svg>
     </button>
     <button
-      aria-label="Delete cell"
-      title="Delete cell"
+      aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::delete_cell')}
+      title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::delete_cell')}
       on:click={() => deleteCell(index)}
       class="p-1 rounded text-gray-600 hover:text-white hover:bg-red-600 hover:scale-110 transition-transform"
     >
@@ -87,8 +89,8 @@
     </button>
     {#if !editing}
       <button
-        aria-label="Edit cell"
-        title="Edit cell"
+        aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::edit_cell')}
+        title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::edit_cell')}
         on:click={toggle}
         class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
       >
@@ -99,8 +101,8 @@
     {/if}
     <div class="relative">
       <button
-        aria-label="Insert cell"
-        title="Insert cell"
+        aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_cell')}
+        title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_cell')}
         on:click={() => { showInsert = !showInsert; if (!showInsert) insertPos = null; }}
         class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
       >
@@ -111,23 +113,27 @@
       {#if showInsert}
         <div class="absolute right-0 mt-1 z-10 bg-white border rounded shadow flex flex-col text-sm">
           {#if !insertPos}
-            <button class="p-1 hover:bg-gray-100" aria-label="Insert above" title="Insert above" on:click={() => (insertPos = 'above')}>
+            <button class="p-1 hover:bg-gray-100" aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_above')}
+              title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_above')} on:click={() => (insertPos = 'above')}>
               <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M12 4l-6 6h4v6h4v-6h4l-6-6z" />
               </svg>
             </button>
-            <button class="p-1 hover:bg-gray-100" aria-label="Insert below" title="Insert below" on:click={() => (insertPos = 'below')}>
+            <button class="p-1 hover:bg-gray-100" aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_below')}
+              title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_below')} on:click={() => (insertPos = 'below')}>
               <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M12 20l6-6h-4v-6h-4v6H6l6 6z" />
               </svg>
             </button>
           {:else}
-            <button class="p-1 hover:bg-gray-100" aria-label="Insert code" title="Insert code" on:click={() => {insertCell(index, 'code', insertPos); showInsert = false; insertPos = null;}}>
+            <button class="p-1 hover:bg-gray-100" aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_code')}
+              title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_code')} on:click={() => {insertCell(index, 'code', insertPos); showInsert = false; insertPos = null;}}>
               <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M16 18l6-6-6-6M8 6L2 12l6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
             </button>
-            <button class="p-1 hover:bg-gray-100" aria-label="Insert markdown" title="Insert markdown" on:click={() => {insertCell(index, 'markdown', insertPos); showInsert = false; insertPos = null;}}>
+            <button class="p-1 hover:bg-gray-100" aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_markdown')}
+              title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_markdown')} on:click={() => {insertCell(index, 'markdown', insertPos); showInsert = false; insertPos = null;}}>
               <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M6 2a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6H6z" />
               </svg>
@@ -149,11 +155,11 @@
       <button
         class="text-blue-600 p-1 rounded hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
         on:click={toggle}
-      >Preview</button>
+      >{t('frontend/src/lib/components/cells/MarkdownCell.svelte::preview')}</button>
       <div class="flex gap-2 items-center ml-auto">
         <button
-          aria-label="Move cell up"
-          title="Move cell up"
+          aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_up')}
+          title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_up')}
           on:click={() => moveCellUp(index)}
           class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
         >
@@ -162,8 +168,8 @@
           </svg>
         </button>
         <button
-          aria-label="Move cell down"
-          title="Move cell down"
+          aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_down')}
+          title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_down')}
           on:click={() => moveCellDown(index)}
           class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
         >
@@ -172,8 +178,8 @@
           </svg>
         </button>
         <button
-          aria-label="Delete cell"
-          title="Delete cell"
+          aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::delete_cell')}
+          title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::delete_cell')}
           on:click={() => deleteCell(index)}
           class="p-1 rounded text-gray-600 hover:text-white hover:bg-red-600 hover:scale-110 transition-transform"
         >
@@ -183,8 +189,8 @@
         </button>
         <div class="relative">
           <button
-            aria-label="Insert cell"
-            title="Insert cell"
+            aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_cell')}
+            title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_cell')}
             on:click={() => { showInsert = !showInsert; if (!showInsert) insertPos = null; }}
             class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
           >
@@ -195,23 +201,27 @@
           {#if showInsert}
             <div class="absolute right-0 mt-1 z-10 bg-white border rounded shadow flex flex-col text-sm">
               {#if !insertPos}
-                <button class="p-1 hover:bg-gray-100" aria-label="Insert above" title="Insert above" on:click={() => (insertPos = 'above')}>
+                <button class="p-1 hover:bg-gray-100" aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_above')}
+                  title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_above')} on:click={() => (insertPos = 'above')}>
                   <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <path d="M12 4l-6 6h4v6h4v-6h4l-6-6z" />
                   </svg>
                 </button>
-                <button class="p-1 hover:bg-gray-100" aria-label="Insert below" title="Insert below" on:click={() => (insertPos = 'below')}>
+                <button class="p-1 hover:bg-gray-100" aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_below')}
+                  title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_below')} on:click={() => (insertPos = 'below')}>
                   <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <path d="M12 20l6-6h-4v-6h-4v6H6l6 6z" />
                   </svg>
                 </button>
               {:else}
-                <button class="p-1 hover:bg-gray-100" aria-label="Insert code" title="Insert code" on:click={() => {insertCell(index, 'code', insertPos); showInsert = false; insertPos = null;}}>
+                <button class="p-1 hover:bg-gray-100" aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_code')}
+                  title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_code')} on:click={() => {insertCell(index, 'code', insertPos); showInsert = false; insertPos = null;}}>
                   <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <path d="M16 18l6-6-6-6M8 6L2 12l6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
                   </svg>
                 </button>
-                <button class="p-1 hover:bg-gray-100" aria-label="Insert markdown" title="Insert markdown" on:click={() => {insertCell(index, 'markdown', insertPos); showInsert = false; insertPos = null;}}>
+                <button class="p-1 hover:bg-gray-100" aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_markdown')}
+                  title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_markdown')} on:click={() => {insertCell(index, 'markdown', insertPos); showInsert = false; insertPos = null;}}>
                   <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <path d="M6 2a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6H6z" />
                   </svg>

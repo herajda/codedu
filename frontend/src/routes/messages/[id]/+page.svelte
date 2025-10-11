@@ -27,6 +27,10 @@
   import UserProfileModal from '$lib/components/UserProfileModal.svelte';
   import { onlineUsers } from '$lib/stores/onlineUsers';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
+  import { t, translator } from '$lib/i18n';
+
+  let translate;
+  $: translate = $translator;
 
   let id = $page.params.id;
   $: if ($page.params.id !== id) {
@@ -166,13 +170,13 @@
     const today = new Date()
     const yesterday = new Date()
     yesterday.setDate(today.getDate() - 1)
-    if (date.toDateString() === today.toDateString()) return 'Today'
-    if (date.toDateString() === yesterday.toDateString()) return 'Yesterday'
+    if (date.toDateString() === today.toDateString()) return t('frontend/src/routes/messages/[id]/+page.svelte::today');
+    if (date.toDateString() === yesterday.toDateString()) return t('frontend/src/routes/messages/[id]/+page.svelte::yesterday');
     return formatDisplayDate(date)
   }
 
   function hyphenateLongWords(text: string, max = 20) {
-    return text.replace(new RegExp(`\\S{${max},}`, 'g'), (word) => {
+    return text.replace(new RegExp(`\S{${max},}`, 'g'), (word) => {
       const parts = []
       for (let i = 0; i < word.length; i += max) parts.push(word.slice(i, i + max))
       return parts.join('\u00AD')
@@ -312,7 +316,7 @@
 
     // Check file size (20MB limit)
     if (f.size > 20 * 1024 * 1024) {
-      alert("File size must be less than 20MB");
+      alert(t('frontend/src/routes/messages/[id]/+page.svelte::file_size_must_be_less_than_20mb'));
       return;
     }
 
@@ -328,9 +332,9 @@
 
   async function blockThisUser() {
     const confirmed = await confirmModal.open({
-      title: 'Block user',
-      body: 'They will no longer be able to message you. You can unblock them later in settings.',
-      confirmLabel: 'Block user',
+      title: t('frontend/src/routes/messages/[id]/+page.svelte::block_user_title'),
+      body: t('frontend/src/routes/messages/[id]/+page.svelte::block_user_body'),
+      confirmLabel: t('frontend/src/routes/messages/[id]/+page.svelte::block_user_confirm_label'),
       confirmClass: 'btn btn-error',
       cancelClass: 'btn'
     });
@@ -390,7 +394,7 @@
 </script>
 
 <!-- Enhanced Chat Window -->
-<div class={`chat-window fixed top-16 bottom-0 right-0 left-0 ${$sidebarCollapsed ? 'sm:left-0' : 'sm:left-60'} z-40 flex flex-col bg-gradient-to-br from-base-100/95 to-base-200/95 backdrop-blur-xl border-l border-base-300/30`}>
+<div class="{`chat-window fixed top-16 bottom-0 right-0 left-0 ${$sidebarCollapsed ? 'sm:left-0' : 'sm:left-60'} z-40 flex flex-col bg-gradient-to-br from-base-100/95 to-base-200/95 backdrop-blur-xl border-l border-base-300/30`}">
   <!-- Enhanced Header -->
   <div class="chat-header relative z-30 mx-2 sm:mx-4 mt-2 sm:mt-3 flex items-center justify-between p-2 sm:p-4 rounded-xl bg-base-100/80 backdrop-blur supports-[backdrop-filter]:bg-base-100/85 border border-base-300/30 shadow-md">
     <div class="flex items-center gap-3 min-w-0">
@@ -428,10 +432,10 @@
         <div class="text-sm text-base-content/60 flex items-center gap-1">
           {#if $onlineUsers.some(u => u.id === id)}
             <div class="w-2 h-2 bg-success rounded-full animate-pulse"></div>
-            <span class="text-success">Online</span>
+            <span class="text-success">{translate('frontend/src/routes/messages/[id]/+page.svelte::online')}</span>
           {:else}
             <div class="w-2 h-2 bg-base-300 rounded-full"></div>
-            <span class="text-base-content/40">Offline</span>
+            <span class="text-base-content/40">{translate('frontend/src/routes/messages/[id]/+page.svelte::offline')}</span>
           {/if}
         </div>
       </div>
@@ -447,8 +451,8 @@
           <MoreVertical class="w-4 h-4" />
         </button>
         <ul class="dropdown-content menu p-2 shadow-lg bg-base-100 rounded-box w-52 border border-base-300/30 z-50">
-          <li><button class="gap-2" on:click={openProfile}>View Profile</button></li>
-          <li><button class="gap-2 text-error" on:click={blockThisUser}>Block User</button></li>
+          <li><button class="gap-2" on:click={openProfile}>{translate('frontend/src/routes/messages/[id]/+page.svelte::view_profile')}</button></li>
+          <li><button class="gap-2 text-error" on:click={blockThisUser}>{translate('frontend/src/routes/messages/[id]/+page.svelte::block_user')}</button></li>
         </ul>
       </div>
     </div>
@@ -456,7 +460,7 @@
 
   {#if showSearch}
     <div class="mx-2 sm:mx-4 mt-2 sm:mt-3 p-2 rounded-lg bg-base-100/80 backdrop-blur supports-[backdrop-filter]:bg-base-100/85 border border-base-300/30 flex items-center gap-2 shadow-sm" in:fade out:fade>
-      <input class="input input-sm input-bordered flex-1" placeholder="Search messages" bind:value={searchQuery} bind:this={searchInput} />
+      <input class="input input-sm input-bordered flex-1" placeholder={t('frontend/src/routes/messages/[id]/+page.svelte::search_messages_placeholder')} bind:value={searchQuery} bind:this={searchInput} />
       <button class="btn btn-sm" on:click={prevResult}>
         <ChevronUp class="w-4 h-4" />
       </button>
@@ -475,7 +479,7 @@
       {#if hasMore}
         <div class="text-center">
           <button class="btn btn-outline btn-sm glass" on:click={() => load(true)}>
-            Load more messages
+            {translate('frontend/src/routes/messages/[id]/+page.svelte::load_more_messages')}
           </button>
         </div>
       {/if}
@@ -490,7 +494,7 @@
         {/if}
         
         <div
-          class={`flex ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'} group ${searchResults.includes(index) ? 'bg-warning/20' : ''}`}
+          class="{`flex ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'} group ${searchResults.includes(index) ? 'bg-warning/20' : ''}`}"
           use:registerMsgEl={index}
         >
             <div class="flex gap-3 max-w-[85%] sm:max-w-[75%] items-end">
@@ -511,10 +515,10 @@
             <div class="relative flex flex-col">
               {#if m.image}
                 <div class="mb-2">
-                  <button type="button" class="block p-0 m-0 bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-primary/50 rounded-2xl" on:click={() => openImage(m.image)} aria-label="Open attachment">
+                  <button type="button" class="block p-0 m-0 bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-primary/50 rounded-2xl" on:click={() => openImage(m.image)} aria-label={t('frontend/src/routes/messages/[id]/+page.svelte::open_attachment_aria')}>
                     <img
                       src={m.image}
-                      alt="Attachment"
+                      alt={t('frontend/src/routes/messages/[id]/+page.svelte::attachment_alt')}
                       class="max-w-[70vw] sm:max-w-xs w-full max-h-96 object-contain rounded-2xl shadow-lg"
                     />
                   </button>
@@ -524,16 +528,16 @@
               {#if m.file}
                 <div class="mb-2">
                   <a
-                    href={`/api/messages/file/${m.id}`}
-                    download={m.file_name || 'file'}
+                    href="{`/api/messages/file/${m.id}`}"
+                    download="{m.file_name || t('frontend/src/routes/messages/[id]/+page.svelte::file_link_text')}"
                     class="flex items-center gap-3 p-3 bg-base-200/50 rounded-2xl border border-base-300/30 hover:bg-base-200/70 transition-colors"
                   >
                     <div class="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
                       <Paperclip class="w-6 h-6 text-primary" />
                     </div>
                     <div class="flex-1 min-w-0">
-                      <p class="text-sm font-medium truncate">{m.file_name || 'File'}</p>
-                      <p class="text-xs text-base-content/60">Click to download</p>
+                      <p class="text-sm font-medium truncate">{m.file_name || translate('frontend/src/routes/messages/[id]/+page.svelte::file_name_display')}</p>
+                      <p class="text-xs text-base-content/60">{translate('frontend/src/routes/messages/[id]/+page.svelte::click_to_download')}</p>
                     </div>
                     <div class="flex-shrink-0">
                       <svg class="w-5 h-5 text-base-content/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -558,17 +562,13 @@
                   
                   <!-- Time display below emoji -->
                   {#if m.showTime}
-                    <div class={`text-xs opacity-60 mt-1 ${m.sender_id === $auth?.id ? 'text-right' : 'text-left'}`}>
+                    <div class="{`text-xs opacity-60 mt-1 ${m.sender_id === $auth?.id ? 'text-right' : 'text-left'}`}">
                       <span class="text-base-content/60">{formatTime(m.created_at)}</span>
                     </div>
                   {/if}
                 {:else}
                   <div 
-                    class={`message-bubble relative rounded-2xl px-4 py-3 whitespace-pre-wrap break-words shadow-sm transition-all duration-200 ${
-                      m.sender_id === $auth?.id 
-                        ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-content rounded-br-md' 
-                        : 'bg-base-200/80 backdrop-blur-sm border border-base-300/30 rounded-bl-md'
-                    } ${m.recipient_id === $auth?.id && !m.is_read ? 'ring-2 ring-primary/50 shadow-lg' : ''}`}
+                    class="{`message-bubble relative rounded-2xl px-4 py-3 whitespace-pre-wrap break-words shadow-sm transition-all duration-200 ${m.sender_id === $auth?.id ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-content rounded-br-md' : 'bg-base-200/80 backdrop-blur-sm border border-base-300/30 rounded-bl-md'} ${m.recipient_id === $auth?.id && !m.is_read ? 'ring-2 ring-primary/50 shadow-lg' : ''}`}"
                     on:click={() => { m.showTime = !m.showTime; convo = [...convo]; }}
                     role="button"
                     tabindex="0"
@@ -590,7 +590,7 @@
                   
                   <!-- Time display below message -->
                   {#if m.showTime}
-                    <div class={`text-xs opacity-60 mt-1 ${m.sender_id === $auth?.id ? 'text-right' : 'text-left'}`}>
+                    <div class="{`text-xs opacity-60 mt-1 ${m.sender_id === $auth?.id ? 'text-right' : 'text-left'}`}">
                       <span class="text-base-content/60">{formatTime(m.created_at)}</span>
                     </div>
                   {/if}
@@ -607,7 +607,7 @@
   <div class="chat-input-area mx-2 sm:mx-4 mb-2 sm:mb-3 p-4 rounded-xl bg-base-100/80 backdrop-blur supports-[backdrop-filter]:bg-base-100/85 border border-base-300/30 shadow-md">
     {#if imageData}
       <div class="relative mb-3">
-        <img src={imageData} alt="preview" class="max-h-32 rounded-lg shadow-sm" />
+        <img src={imageData} alt={t('frontend/src/routes/messages/[id]/+page.svelte::image_preview_alt')} class="max-h-32 rounded-lg shadow-sm" />
         <button
           class="btn btn-circle btn-sm btn-ghost absolute top-2 right-2 bg-base-100/80 backdrop-blur-sm hover:bg-base-200/80"
           on:click={() => imageData = null}
@@ -654,11 +654,11 @@
           <div class="absolute bottom-full left-0 mb-2 bg-base-100 rounded-lg shadow-lg border border-base-300/30 p-2 backdrop-blur-sm">
             <button class="btn btn-ghost btn-sm gap-2 w-full justify-start" on:click={chooseFile}>
               <ImagePlus class="w-4 h-4" />
-              Photo
+              {translate('frontend/src/routes/messages/[id]/+page.svelte::photo_attachment')}
             </button>
             <button class="btn btn-ghost btn-sm gap-2 w-full justify-start" on:click={chooseGeneralFile}>
               <Paperclip class="w-4 h-4" />
-              File
+              {translate('frontend/src/routes/messages/[id]/+page.svelte::file_attachment')}
             </button>
           </div>
         {/if}
@@ -694,7 +694,7 @@
           class="textarea textarea-bordered w-full resize-none overflow-hidden bg-base-200/50 backdrop-blur-sm border-base-300/50 focus:border-primary/50 focus:bg-base-100/80 transition-all duration-200 rounded-2xl"
           rows="1"
           style="min-height:0;height:auto"
-          placeholder="Type a message..."
+          placeholder={t('frontend/src/routes/messages/[id]/+page.svelte::type_a_message_placeholder')}
           bind:value={msg}
           bind:this={msgInput}
           on:input={adjustHeight}
@@ -707,7 +707,7 @@
         class="btn btn-circle btn-primary shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
         on:click={send}
         disabled={!msg.trim() && !imageData && !fileData}
-        aria-label="Send message"
+        aria-label={t('frontend/src/routes/messages/[id]/+page.svelte::send_message_aria')}
       >
         <Send class="w-4 h-4" />
       </button>
@@ -723,26 +723,26 @@
 
 <!-- Image Lightbox Overlay -->
 {#if lightboxOpen && modalImage}
-  <div class={`fixed top-0 bottom-0 right-0 left-0 ${$sidebarCollapsed ? 'sm:left-0' : 'sm:left-60'} z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center`} on:click|self={closeLightbox} in:fade={{ duration: 150 }} out:fade={{ duration: 150 }} role="dialog" aria-modal="true" aria-label="Image viewer" tabindex="-1" on:keydown={handleLightboxKeydown}>
+  <div class="{`fixed top-0 bottom-0 right-0 left-0 ${$sidebarCollapsed ? 'sm:left-0' : 'sm:left-60'} z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center`}" on:click|self={closeLightbox} in:fade={{ duration: 150 }} out:fade={{ duration: 150 }} role="dialog" aria-modal="true" aria-label={t('frontend/src/routes/messages/[id]/+page.svelte::image_viewer_aria')} tabindex="-1" on:keydown={handleLightboxKeydown}>
     <!-- Controls -->
     <div class="absolute top-0 left-0 right-0 p-4 flex items-center justify-end gap-2">
-      <a class="btn btn-sm md:btn-md no-animation bg-white/20 hover:bg-white/30 text-white border-0" href={modalImage} download on:click|stopPropagation aria-label="Download image">Download</a>
-      <button class="btn btn-circle no-animation bg-white/20 hover:bg-white/30 text-white border-0" on:click|stopPropagation={closeLightbox} aria-label="Close">
+      <a class="btn btn-sm md:btn-md no-animation bg-white/20 hover:bg-white/30 text-white border-0" href={modalImage} download on:click|stopPropagation aria-label={t('frontend/src/routes/messages/[id]/+page.svelte::download_image_aria')}>{t('frontend/src/routes/messages/[id]/+page.svelte::download_button')}</a>
+      <button class="btn btn-circle no-animation bg-white/20 hover:bg-white/30 text-white border-0" on:click|stopPropagation={closeLightbox} aria-label={t('frontend/src/routes/messages/[id]/+page.svelte::close_button_aria')}>
         <X class="w-5 h-5" />
       </button>
     </div>
 
     <!-- Image -->
-    <button type="button" class="bg-transparent p-0 m-0 border-0 focus:outline-none" on:click|stopPropagation aria-label="Image">
+    <button type="button" class="bg-transparent p-0 m-0 border-0 focus:outline-none" on:click|stopPropagation aria-label={t('frontend/src/routes/messages/[id]/+page.svelte::image_aria')}>
       <img src={modalImage} alt="" class="max-h-[90vh] max-w-[90vw] object-contain rounded-xl shadow-2xl" transition:scale={{ duration: 200, start: 0.98 }} />
     </button>
 
     <!-- Nav Arrows -->
     {#if imageUrls.length > 1}
-      <button class="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 rounded-full p-2 md:p-3 bg-white/15 hover:bg-white/25 text-white shadow-sm border border-transparent focus:outline-none focus:ring-2 focus:ring-white/50" on:click|stopPropagation={showPrevImage} aria-label="Previous image">
+      <button class="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 rounded-full p-2 md:p-3 bg-white/15 hover:bg-white/25 text-white shadow-sm border border-transparent focus:outline-none focus:ring-2 focus:ring-white/50" on:click|stopPropagation={showPrevImage} aria-label={t('frontend/src/routes/messages/[id]/+page.svelte::previous_image_aria')}>
         <ChevronLeft class="w-6 h-6" />
       </button>
-      <button class="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 rounded-full p-2 md:p-3 bg-white/15 hover:bg-white/25 text-white shadow-sm border border-transparent focus:outline-none focus:ring-2 focus:ring-white/50" on:click|stopPropagation={showNextImage} aria-label="Next image">
+      <button class="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 rounded-full p-2 md:p-3 bg-white/15 hover:bg-white/25 text-white shadow-sm border border-transparent focus:outline-none focus:ring-2 focus:ring-white/50" on:click|stopPropagation={showNextImage} aria-label={t('frontend/src/routes/messages/[id]/+page.svelte::next_image_aria')}>
         <ChevronRight class="w-6 h-6" />
       </button>
     {/if}

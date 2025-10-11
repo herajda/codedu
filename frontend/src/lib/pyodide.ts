@@ -1,4 +1,6 @@
+
 import { writable, get } from "svelte/store";
+import { t } from '$lib/i18n';
 
 let worker: Worker | null = null;
 let msgId = 0;
@@ -94,7 +96,7 @@ export function terminatePyodide() {
     worker = null;
   }
   for (const cb of pending.values()) {
-    cb({ result: null, stdout: '', stderr: 'Execution interrupted' });
+    cb({ result: null, stdout: '', stderr: t('frontend/src/lib/pyodide.ts::execution-interrupted') });
   }
   pending.clear();
   loadingPromise = null;

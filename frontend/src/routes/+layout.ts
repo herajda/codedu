@@ -1,14 +1,14 @@
+
 import type { LayoutLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
 
-export const load: LayoutLoad = async ({ fetch, url }) => {
+export const load: LayoutLoad = async ({ fetch, url, data }) => {
   const path = url.pathname;
 
   const publicPrefixes = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
 
-  // Allow unauthenticated access to public auth routes
   if (publicPrefixes.some((prefix) => path.startsWith(prefix))) {
-    return {};
+    return { ...data };
   }
 
   const r = await fetch('/api/me');
@@ -16,5 +16,5 @@ export const load: LayoutLoad = async ({ fetch, url }) => {
     throw redirect(307, '/login');
   }
 
-  return {};
+  return { ...data };
 };

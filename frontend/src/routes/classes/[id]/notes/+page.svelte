@@ -8,6 +8,10 @@
   import '@fortawesome/fontawesome-free/css/all.min.css';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   import PromptModal from '$lib/components/PromptModal.svelte';
+  import { t, translator } from '$lib/i18n';
+  let translate;
+  $: translate = $translator;
+
   import { TEACHER_GROUP_ID } from '$lib/teacherGroup';
 
   let id = $page.params.id;
@@ -123,13 +127,13 @@
 
   async function promptNotebook() {
     const notebookName = await promptModal?.open({
-      title: 'New notebook',
-      label: 'Notebook name',
+      title: t('frontend/src/routes/classes/[id]/notes/+page.svelte::modal_new_notebook_title'),
+      label: t('frontend/src/routes/classes/[id]/notes/+page.svelte::modal_notebook_name_label'),
       initialValue: 'Untitled.ipynb',
-      helpText: 'Saved as a Jupyter notebook (.ipynb).',
-      confirmLabel: 'Create',
+      helpText: t('frontend/src/routes/classes/[id]/notes/+page.svelte::modal_notebook_help_text'),
+      confirmLabel: t('frontend/src/routes/classes/[id]/notes/+page.svelte::modal_create_button'),
       icon: 'fa-solid fa-book text-secondary',
-      validate: (value) => value.trim() ? null : 'Notebook name is required',
+      validate: (value) => value.trim() ? null : t('frontend/src/routes/classes/[id]/notes/+page.svelte::modal_notebook_name_required'),
       transform: (value) => {
         const trimmed = value.trim();
         if (!trimmed.toLowerCase().endsWith('.ipynb')) return `${trimmed}.ipynb`;
@@ -151,7 +155,7 @@
     try {
       const name = file.name.toLowerCase();
       if (!name.endsWith('.ipynb')) {
-        alert('Please select a .ipynb notebook file.');
+        alert(t('frontend/src/routes/classes/[id]/notes/+page.svelte::alert_select_ipynb_file'));
         return;
       }
       const fd = new FormData();
@@ -159,7 +163,7 @@
       await apiJSON(`/api/classes/${id}/files`, { method: 'POST', body: fd });
       await load();
     } catch (e:any) {
-      alert(e?.message || 'Upload failed');
+      alert(e?.message || t('frontend/src/routes/classes/[id]/notes/+page.svelte::alert_upload_failed'));
     } finally {
       if (input) input.value = '';
     }
@@ -167,9 +171,9 @@
 
   async function del(n:any){
     const confirmed = await confirmModal.open({
-      title: 'Delete notebook',
-      body: 'This notebook will be permanently removed for the class.',
-      confirmLabel: 'Delete notebook',
+      title: t('frontend/src/routes/classes/[id]/notes/+page.svelte::modal_delete_notebook_title'),
+      body: t('frontend/src/routes/classes/[id]/notes/+page.svelte::modal_delete_notebook_body'),
+      confirmLabel: t('frontend/src/routes/classes/[id]/notes/+page.svelte::modal_delete_notebook_confirm_button'),
       confirmClass: 'btn btn-error',
       cancelClass: 'btn'
     });
@@ -180,13 +184,12 @@
 
   async function rename(n:any){
     const name = await promptModal?.open({
-      title: 'Rename notebook',
-      label: 'New name',
+      title: t('frontend/src/routes/classes/[id]/notes/+page.svelte::modal_rename_notebook_title'),
+      label: t('frontend/src/routes/classes/[id]/notes/+page.svelte::modal_new_name_label'),
       initialValue: n.name,
-      confirmLabel: 'Save',
+      confirmLabel: t('frontend/src/routes/classes/[id]/notes/+page.svelte::modal_save_button'),
       icon: 'fa-solid fa-pen text-primary',
-      validate: (value) => value.trim() ? null : 'Name is required',
-      transform: (value) => value.trim(),
+      validate: (value) => value.trim() ? null : t('frontend/src/routes/classes/[id]/notes/+page.svelte::modal_name_required'),
       selectOnOpen: true
     });
     if(!name || name === n.name) return;
@@ -394,24 +397,24 @@
 </script>
 
 <nav class="mb-4 sticky top-16 z-30 bg-base-200 rounded-box shadow px-4 py-2 flex items-center gap-2 flex-wrap">
-  <h1 class="text-xl font-semibold">Notes</h1>
+  <h1 class="text-xl font-semibold">{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::heading_notes')}</h1>
   <div class="ml-auto flex items-center gap-2 w-full sm:w-auto justify-end">
     <div class="relative flex items-center">
       <i class="fa-solid fa-search absolute left-3 text-sm opacity-60"></i>
-       <input class="input input-sm input-bordered pl-8 w-full sm:w-48" placeholder="Search notes" bind:value={search} aria-label="Search notes" />
+       <input class="input input-sm input-bordered pl-8 w-full sm:w-48" placeholder={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::search_notes_placeholder')} bind:value={search} aria-label="Search notes" />
     </div>
       <div class="dropdown dropdown-end">
         <button type="button" class="btn btn-sm" tabindex="0" aria-haspopup="listbox" aria-label="Sort options">
-          <i class="fa-solid fa-arrow-up-wide-short mr-2"></i>Sort
+          <i class="fa-solid fa-arrow-up-wide-short mr-2"></i>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::sort_button_label')}
         </button>
         <ul class="dropdown-content menu bg-base-200 rounded-box z-[1] w-44 p-2 shadow" tabindex="0" role="listbox">
-          <li><button type="button" class={sortKey==='name' ? 'active' : ''} on:click={() => sortKey='name'}>Name</button></li>
-          <li><button type="button" class={sortKey==='date' ? 'active' : ''} on:click={() => sortKey='date'}>Modified</button></li>
-          <li><button type="button" class={sortKey==='size' ? 'active' : ''} on:click={() => sortKey='size'}>Size</button></li>
-          <li class="mt-1"><button type="button" on:click={() => sortDir = sortDir==='asc' ? 'desc' : 'asc'}>Direction: {sortDir === 'asc' ? 'Asc' : 'Desc'}</button></li>
+          <li><button type="button" class={sortKey==='name' ? 'active' : ''} on:click={() => sortKey='name'}>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::sort_option_name')}</button></li>
+          <li><button type="button" class={sortKey==='date' ? 'active' : ''} on:click={() => sortKey='date'}>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::sort_option_modified')}</button></li>
+          <li><button type="button" class={sortKey==='size' ? 'active' : ''} on:click={() => sortKey='size'}>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::sort_option_size')}</button></li>
+          <li class="mt-1"><button type="button" on:click={() => sortDir = sortDir==='asc' ? 'desc' : 'asc'}>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::sort_direction_label')}: {sortDir === 'asc' ? translate('frontend/src/routes/classes/[id]/notes/+page.svelte::sort_direction_asc') : translate('frontend/src/routes/classes/[id]/notes/+page.svelte::sort_direction_desc')}</button></li>
         </ul>
       </div>
-    <button class="btn btn-sm btn-circle" on:click={toggleView} title="Toggle view" aria-label="Toggle view">
+    <button class="btn btn-sm btn-circle" on:click={toggleView} title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::toggle_view_title')} aria-label="Toggle view">
       {#if viewMode === 'grid'}
         <i class="fa-solid fa-list"></i>
       {:else}
@@ -420,15 +423,15 @@
     </button>
     {#if role==='teacher' || role==='admin'}
       <button class="btn btn-sm btn-outline" on:click={openImportFromTeachers} title="Copy from Teachers' group"><i class="fa-solid fa-copy mr-2"></i>Copy from Teachers' group</button>
-      <button class="btn btn-sm" on:click={promptUpload} title="Upload notebook"><i class="fa-solid fa-file-arrow-up mr-2"></i>Upload</button>
-      <button class="btn btn-sm btn-primary" on:click={promptNotebook}><i class="fa-solid fa-book-medical mr-2"></i>New notebook</button>
+      <button class="btn btn-sm" on:click={promptUpload} title="Upload notebook"><i class="fa-solid fa-file-arrow-up mr-2"></i>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::upload_notebook_tooltip')}</button>
+      <button class="btn btn-sm btn-primary" on:click={promptNotebook}><i class="fa-solid fa-book-medical mr-2"></i>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::new_notebook_button')}</button>
       <input bind:this={uploadInput} type="file" accept=".ipynb,application/x-ipynb+json,application/json" class="hidden" on:change={handleUploadChange} />
     {/if}
   </div>
 </nav>
 
 {#if loading}
-  <p>Loading…</p>
+  <p>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::loading_message')}</p>
 {:else if err}
   <p class="text-error">{err}</p>
 {:else}
@@ -448,10 +451,10 @@
               <button class="btn btn-xs btn-circle btn-outline" title="Copy to Teachers' group" aria-label="Copy to Teachers' group" on:click|stopPropagation={() => openCopyToTeachers(n)}>
                 <i class="fa-solid fa-copy"></i>
               </button>
-              <button class="btn btn-xs btn-circle" title="Rename" aria-label="Rename" on:click|stopPropagation={() => rename(n)}>
+              <button class="btn btn-xs btn-circle" title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::rename_tooltip')} aria-label="Rename" on:click|stopPropagation={() => rename(n)}>
                 <i class="fa-solid fa-pen"></i>
               </button>
-              <button class="btn btn-xs btn-circle btn-error" title="Delete" aria-label="Delete" on:click|stopPropagation={() => del(n)}>
+              <button class="btn btn-xs btn-circle btn-error" title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::delete_tooltip')} aria-label="Delete" on:click|stopPropagation={() => del(n)}>
                 <i class="fa-solid fa-trash"></i>
               </button>
             </div>
@@ -459,7 +462,7 @@
         </div>
       {/each}
       {#if !displayedNotes.length}
-        <p class="col-span-full"><i>No notes</i></p>
+        <p class="col-span-full"><i>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::no_notes_message')}</i></p>
       {/if}
     </div>
   {:else}
@@ -467,9 +470,9 @@
       <table class="table table-zebra w-full">
         <thead>
           <tr>
-            <th class="text-left">Name</th>
-            <th class="text-right">Size</th>
-            <th class="text-right">Modified</th>
+            <th class="text-left">{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::table_header_name')}</th>
+            <th class="text-right">{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::table_header_size')}</th>
+            <th class="text-right">{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::table_header_modified')}</th>
             {#if role==='teacher' || role==='admin'}<th class="w-16"></th>{/if}
           </tr>
         </thead>
@@ -486,10 +489,10 @@
                   <button class="btn btn-xs btn-circle btn-outline invisible group-hover:visible" title="Copy to Teachers' group" aria-label="Copy to Teachers' group" on:click|stopPropagation={() => openCopyToTeachers(n)}>
                     <i class="fa-solid fa-copy"></i>
                   </button>
-                  <button class="btn btn-xs btn-circle invisible group-hover:visible" title="Rename" aria-label="Rename" on:click|stopPropagation={() => rename(n)}>
+                  <button class="btn btn-xs btn-circle invisible group-hover:visible" title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::rename_tooltip')} aria-label="Rename" on:click|stopPropagation={() => rename(n)}>
                     <i class="fa-solid fa-pen"></i>
                   </button>
-                  <button class="btn btn-xs btn-circle btn-error invisible group-hover:visible" title="Delete" aria-label="Delete" on:click|stopPropagation={() => del(n)}>
+                  <button class="btn btn-xs btn-circle btn-error invisible group-hover:visible" title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::delete_tooltip')} aria-label="Delete" on:click|stopPropagation={() => del(n)}>
                     <i class="fa-solid fa-trash"></i>
                   </button>
                 </td>
@@ -497,7 +500,7 @@
             </tr>
           {/each}
       {#if !displayedNotes.length}
-            <tr><td colspan={role==='teacher' || role==='admin' ? 4 : 3}><i>No notes</i></td></tr>
+            <tr><td colspan={role==='teacher' || role==='admin' ? 4 : 3}><i>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::no_notes_message')}</i></td></tr>
           {/if}
         </tbody>
       </table>

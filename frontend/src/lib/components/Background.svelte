@@ -50,5 +50,3 @@
     .app-aurora { animation: none; }
   }
 </style>
-
-

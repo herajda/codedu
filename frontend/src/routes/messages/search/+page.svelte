@@ -4,6 +4,10 @@
   import { page } from '$app/stores';
   import { apiJSON } from '$lib/api';
   import type { User } from '$lib/auth';
+  import { translator } from '$lib/i18n';
+
+  let translate;
+  $: translate = $translator;
 
   let searchTerm = $page.url.searchParams.get('q') ?? '';
   let results: User[] = [];
@@ -35,11 +39,11 @@
   }
 </script>
 
-<h1 class="text-2xl font-bold mb-4">New message</h1>
+<h1 class="text-2xl font-bold mb-4">{translate('frontend/src/routes/messages/search/+page.svelte::new_message')}</h1>
 <div class="mb-4">
   <input
     class="input input-bordered w-full sm:max-w-xs"
-    placeholder="Search"
+    placeholder={translate('frontend/src/routes/messages/search/+page.svelte::search_placeholder')}
     bind:value={searchTerm}
     bind:this={inputEl}
     on:input={handleInput}
@@ -53,9 +57,9 @@
       <div class="avatar">
         <div class="w-10 h-10 rounded-full overflow-hidden">
           {#if u.avatar}
-            <img src={u.avatar} alt="Avatar" class="w-full h-full object-cover" />
+            <img src={u.avatar} alt={translate('frontend/src/routes/messages/search/+page.svelte::avatar_alt')} class="w-full h-full object-cover" />
           {:else}
-            <img src="/placeholder.svg?height=40&width=40" alt="Avatar" />
+            <img src="/placeholder.svg?height=40&width=40" alt={translate('frontend/src/routes/messages/search/+page.svelte::avatar_alt')} />
           {/if}
         </div>
       </div>

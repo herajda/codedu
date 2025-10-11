@@ -1,3 +1,4 @@
+
 <script lang="ts">
   import { onMount, tick, onDestroy } from 'svelte';
   import { apiJSON, apiFetch } from '$lib/api';
@@ -6,6 +7,10 @@
   import { page } from '$app/stores';
   import { classesStore } from '$lib/stores/classes';
   import { BookOpen, CalendarClock, Trophy, Inbox, Users, LayoutGrid, MessageSquare, FolderOpen, ListChecks } from 'lucide-svelte';
+  import { t, translator } from '$lib/i18n';
+
+  let translate;
+  $: translate = $translator;
 
   let role = '';
   let classes:any[] = [];
@@ -179,28 +184,28 @@
       <div class="card-elevated p-4 flex items-center gap-3">
         <BookOpen class="w-5 h-5 opacity-70" aria-hidden="true" />
         <div>
-          <div class="text-xs uppercase opacity-70">Classes</div>
+          <div class="text-xs uppercase opacity-70">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_classes')}</div>
           <div class="text-xl font-semibold">{totalClasses}</div>
         </div>
       </div>
       <div class="card-elevated p-4 flex items-center gap-3">
         <Trophy class="w-5 h-5 opacity-70" aria-hidden="true" />
         <div>
-          <div class="text-xs uppercase opacity-70">Progress</div>
+          <div class="text-xs uppercase opacity-70">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_progress')}</div>
           <div class="text-xl font-semibold">{percent(studentStats?.completedAssignments ?? 0, studentStats?.totalAssignments ?? 0)}%</div>
         </div>
       </div>
       <div class="card-elevated p-4 flex items-center gap-3">
         <CalendarClock class="w-5 h-5 opacity-70" aria-hidden="true" />
         <div>
-          <div class="text-xs uppercase opacity-70">Upcoming</div>
+          <div class="text-xs uppercase opacity-70">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_upcoming')}</div>
           <div class="text-xl font-semibold">{upcoming.length}</div>
         </div>
       </div>
       <div class="card-elevated p-4 flex items-center gap-3">
         <Inbox class="w-5 h-5 opacity-70" aria-hidden="true" />
         <div>
-          <div class="text-xs uppercase opacity-70">Points</div>
+          <div class="text-xs uppercase opacity-70">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_points')}</div>
           <div class="text-xl font-semibold">{studentStats?.pointsEarned ?? 0}/{studentStats?.pointsTotal ?? 0}</div>
         </div>
       </div>
@@ -213,7 +218,7 @@
             <div class="flex items-center justify-between mb-3">
               <h2 class="font-semibold text-lg truncate">{c.name}</h2>
               <span class="badge badge-outline">
-                {(c.assignments ?? []).length} assignments
+                {(c.assignments ?? []).length} {translate('frontend/src/routes/dashboard/+page.svelte::dashboard_assignments_label', {count: (c.assignments ?? []).length})}
               </span>
             </div>
             <div class="flex items-center gap-3 mb-3">
@@ -230,7 +235,7 @@
                 </li>
               {/each}
               {#if (c.assignmentProgress ?? []).length === 0}
-                <li class="text-sm opacity-70">No assignments</li>
+                <li class="text-sm opacity-70">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_no_assignments')}</li>
               {/if}
             </ul>
           </div>
@@ -241,7 +246,7 @@
     <section class="mt-8 grid gap-6 lg:grid-cols-2">
       <div class="card-elevated p-5">
         <div class="flex items-center justify-between mb-3">
-          <h3 class="font-semibold">Upcoming deadlines</h3>
+          <h3 class="font-semibold">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_upcoming_deadlines')}</h3>
         </div>
         <ul class="divide-y divide-base-300/60">
           {#each upcoming as a}
@@ -256,7 +261,7 @@
             </li>
           {/each}
           {#if !upcoming.length}
-            <li class="py-3 text-sm opacity-70">No upcoming deadlines</li>
+            <li class="py-3 text-sm opacity-70">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_no_upcoming_deadlines')}</li>
           {/if}
         </ul>
       </div>
@@ -266,21 +271,21 @@
       <div class="card-elevated p-4 flex items-center gap-3">
         <BookOpen class="w-5 h-5 opacity-70" aria-hidden="true" />
         <div>
-          <div class="text-xs uppercase opacity-70">Classes</div>
+          <div class="text-xs uppercase opacity-70">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_classes')}</div>
           <div class="text-xl font-semibold">{totalClasses}</div>
         </div>
       </div>
       <div class="card-elevated p-4 flex items-center gap-3">
         <Users class="w-5 h-5 opacity-70" aria-hidden="true" />
         <div>
-          <div class="text-xs uppercase opacity-70">Students</div>
+          <div class="text-xs uppercase opacity-70">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_students_label', {count: teacherStats?.studentsTotal ?? 0})}</div>
           <div class="text-xl font-semibold">{teacherStats?.studentsTotal ?? 0}</div>
         </div>
       </div>
       <div class="card-elevated p-4 flex items-center gap-3">
         <CalendarClock class="w-5 h-5 opacity-70" aria-hidden="true" />
         <div>
-          <div class="text-xs uppercase opacity-70">Active assignments</div>
+          <div class="text-xs uppercase opacity-70">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_active_assignments')}</div>
           <div class="text-xl font-semibold">{teacherStats?.activeAssignments ?? 0}</div>
         </div>
       </div>
@@ -293,14 +298,14 @@
             <LayoutGrid class="w-5 h-5 text-primary" aria-hidden="true" />
           </div>
           <div class="min-w-0">
-            <div class="text-xs uppercase tracking-wide text-base-content/60">Teachers</div>
-            <div class="text-sm text-base-content/70 whitespace-nowrap truncate">Collaborate with colleagues</div>
+            <div class="text-xs uppercase tracking-wide text-base-content/60">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_teachers')}</div>
+            <div class="text-sm text-base-content/70 whitespace-nowrap truncate">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_collaborate_with_colleagues')}</div>
           </div>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <a href="/teachers/forum" class="btn btn-outline btn-sm"><MessageSquare class="w-4 h-4 mr-1" />Forum</a>
-          <a href="/teachers/files" class="btn btn-outline btn-sm"><FolderOpen class="w-4 h-4 mr-1" />Files</a>
-          <a href="/teachers/assignments" class="btn btn-outline btn-sm"><ListChecks class="w-4 h-4 mr-1" />Assignments</a>
+          <a href="/teachers/forum" class="btn btn-outline btn-sm"><MessageSquare class="w-4 h-4 mr-1" />{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_forum_button')}</a>
+          <a href="/teachers/files" class="btn btn-outline btn-sm"><FolderOpen class="w-4 h-4 mr-1" />{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_files_button')}</a>
+          <a href="/teachers/assignments" class="btn btn-outline btn-sm"><ListChecks class="w-4 h-4 mr-1" />{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_assignments_button')}</a>
         </div>
       </div>
     </section>
@@ -311,7 +316,7 @@
           <div class="card-elevated p-5 h-full">
             <div class="flex items-center justify-between mb-2">
               <h2 class="font-semibold text-lg truncate">{c.name}</h2>
-              <span class="badge badge-ghost">{c.students.length} students</span>
+              <span class="badge badge-ghost">{c.students.length} {translate('frontend/src/routes/dashboard/+page.svelte::dashboard_students_label', {count: c.students.length})}</span>
             </div>
             <ul class="space-y-2">
               {#each (c.assignments ?? []).slice(0,5) as a}
@@ -322,10 +327,10 @@
                 </li>
               {/each}
               {#if !(c.assignments ?? []).length}
-                <li class="text-sm opacity-70">No assignments</li>
+                <li class="text-sm opacity-70">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_no_assignments')}</li>
               {/if}
               {#if (c.assignments ?? []).length > 5}
-                <li class="text-xs opacity-70">{c.notFinished} assignments not finished by all students</li>
+                <li class="text-xs opacity-70">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_assignments_not_finished_by_all_students', {n: c.notFinished})}</li>
               {/if}
             </ul>
           </div>
@@ -336,11 +341,11 @@
     <section class="mt-6">
       {#if showNewClassInput}
         <form class="flex gap-2 max-w-sm" on:submit|preventDefault={createClass}>
-          <input class="input input-bordered flex-1" placeholder="New class" bind:value={newClassName} bind:this={newClassInput} required />
-          <button class="btn" type="submit">Create</button>
+          <input class="input input-bordered flex-1" placeholder={translate('frontend/src/routes/dashboard/+page.svelte::dashboard_new_class_placeholder')} bind:value={newClassName} bind:this={newClassInput} required />
+          <button class="btn" type="submit">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_create_button')}</button>
         </form>
       {:else}
-        <button class="btn" on:click={showInput} type="button">Create New Class</button>
+        <button class="btn" on:click={showInput} type="button">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_create_new_class_button')}</button>
       {/if}
     </section>
   {:else if role === 'admin'}

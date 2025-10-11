@@ -2,6 +2,7 @@
   import { auth } from '$lib/auth';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
+  import { t } from '$lib/i18n';
 
   $: role = $auth?.role ?? '';
   $: if (role) {
@@ -13,4 +14,4 @@
   }
 </script>
 
-<p>Redirecting...</p>
+<p>{t('frontend/src/routes/classes/[id]/+page.svelte::redirecting')}</p>

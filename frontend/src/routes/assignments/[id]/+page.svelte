@@ -12,6 +12,7 @@ import { page } from '$app/stores'
 import ConfirmModal from '$lib/components/ConfirmModal.svelte'
 import { DeadlinePicker } from '$lib'
 import { strictnessGuidance } from '$lib/llmStrictness'
+import { t, translator } from '$lib/i18n'
 
 
 
@@ -100,6 +101,8 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
       eLLMInteractive = false
     }
   }
+  let translate;
+  $: translate = $translator;
 
   // Enhanced UX state
   type TabKey = 'overview' | 'submissions' | 'results' | 'instructor' | 'teacher-runs'
@@ -113,8 +116,8 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
   let teacherRunDialog: HTMLDialogElement
 
   function policyLabel(policy:string){
-    if(policy==='all_or_nothing') return 'All or nothing'
-    if(policy==='weighted') return 'Weighted'
+    if(policy==='all_or_nothing') return t('frontend/src/routes/assignments/[id]/+page.svelte::policyLabel_allOrNothing')
+    if(policy==='weighted') return t('frontend/src/routes/assignments/[id]/+page.svelte::policyLabel_weighted')
     return policy
   }
   function relativeToDeadline(deadline:string){
@@ -125,9 +128,17 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     const mins = Math.round(abs / 60000)
     const hrs = Math.round(mins / 60)
     const days = Math.round(hrs / 24)
-    if(abs < 60) return `${diffMs>=0 ? 'in' : ''} ${mins} min${mins===1?'':'s'}${diffMs<0 ? ' ago' : ''}`
-    if(abs < 60*24) return `${diffMs>=0 ? 'in' : ''} ${hrs} hour${hrs===1?'':'s'}${diffMs<0 ? ' ago' : ''}`
-    return `${diffMs>=0 ? 'in' : ''} ${days} day${days===1?'':'s'}${diffMs<0 ? ' ago' : ''}`
+
+    if(abs < 60) {
+      if (diffMs >= 0) return translate(mins === 1 ? 'frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_future_minutes_singular' : 'frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_future_minutes_plural', {count: mins});
+      return translate(mins === 1 ? 'frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_minutes_singular' : 'frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_minutes_plural', {count: mins});
+    }
+    if(abs < 60*24) {
+      if (diffMs >= 0) return translate(hrs === 1 ? 'frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_future_hours_singular' : 'frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_future_hours_plural', {count: hrs});
+      return translate(hrs === 1 ? 'frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_hours_singular' : 'frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_hours_plural', {count: hrs});
+    }
+    if (diffMs >= 0) return translate(days === 1 ? 'frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_future_days_singular' : 'frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_future_days_plural', {count: days});
+    return translate(days === 1 ? 'frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_days_singular' : 'frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_days_plural', {count: days});
   }
   $: isOverdue = assignment ? new Date(assignment.deadline) < new Date() : false
   $: isSecondDeadlineActive = assignment?.second_deadline ? new Date(assignment.second_deadline) > new Date() : false
@@ -139,15 +150,15 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
   $: deadlineLabel = assignment ? (
       isOverdue
         ? (role==='student' && done
-            ? `Deadline passed ${relativeToDeadline(assignment.deadline)}`
-            : `Due ${relativeToDeadline(assignment.deadline)}`
+            ? translate('frontend/src/routes/assignments/[id]/+page.svelte::deadlineLabel_student_done', {relativeTime: relativeToDeadline(assignment.deadline)})
+            : translate('frontend/src/routes/assignments/[id]/+page.svelte::deadlineLabel_overdue', {relativeTime: relativeToDeadline(assignment.deadline)})
           )
-        : `Due ${relativeToDeadline(assignment.deadline)}`
+        : translate('frontend/src/routes/assignments/[id]/+page.svelte::deadlineLabel_due', {relativeTime: relativeToDeadline(assignment.deadline)})
     ) : ''
   $: secondDeadlineLabel = assignment?.second_deadline ? (
       new Date(assignment.second_deadline) < new Date()
-        ? `Second deadline passed ${relativeToDeadline(assignment.second_deadline)}`
-        : `Second deadline: ${relativeToDeadline(assignment.second_deadline)}`
+        ? translate('frontend/src/routes/assignments/[id]/+page.svelte::secondDeadlineLabel_passed', {relativeTime: relativeToDeadline(assignment.second_deadline)})
+        : translate('frontend/src/routes/assignments/[id]/+page.svelte::secondDeadlineLabel_active', {relativeTime: relativeToDeadline(assignment.second_deadline)})
     ) : ''
 
   async function publish(){
@@ -352,10 +363,10 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     try{
       if(new Date(eDeadline)<new Date()){
         const proceed = await confirmModal.open({
-          title: 'Deadline is in the past',
-          body: 'Students will immediately see this assignment as overdue. Continue anyway?',
-          confirmLabel: 'Continue',
-          cancelLabel: 'Go back',
+          title: t('frontend/src/routes/assignments/[id]/+page.svelte::deadline_past_title'),
+          body: t('frontend/src/routes/assignments/[id]/+page.svelte::deadline_past_body'),
+          confirmLabel: t('frontend/src/routes/assignments/[id]/+page.svelte::confirm'),
+          cancelLabel: t('frontend/src/routes/assignments/[id]/+page.svelte::cancel'),
           confirmClass: 'btn btn-warning',
           cancelClass: 'btn'
         })
@@ -363,10 +374,10 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
       }
       if(eSecondDeadline && new Date(eSecondDeadline)<=new Date(eDeadline)){
         const proceed = await confirmModal.open({
-          title: 'Second deadline must follow the first',
-          body: 'The late deadline should be later than the main deadline. Continue with this timing anyway?',
-          confirmLabel: 'Continue',
-          cancelLabel: 'Go back',
+          title: t('frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_first_title'),
+          body: t('frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_first_body'),
+          confirmLabel: t('frontend/src/routes/assignments/[id]/+page.svelte::confirm'),
+          cancelLabel: t('frontend/src/routes/assignments/[id]/+page.svelte::cancel'),
           confirmClass: 'btn btn-warning',
           cancelClass: 'btn'
         })
@@ -404,9 +415,9 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
 
   async function delAssignment(){
     const confirmed = await confirmModal.open({
-      title: 'Delete assignment',
-      body: 'This assignment and all related submissions will be permanently removed.',
-      confirmLabel: 'Delete assignment',
+      title: t('frontend/src/routes/assignments/[id]/+page.svelte::delete_assignment_title'),
+      body: t('frontend/src/routes/assignments/[id]/+page.svelte::delete_assignment_body'),
+      confirmLabel: t('frontend/src/routes/assignments/[id]/+page.svelte::delete_assignment_confirm'),
       confirmClass: 'btn btn-error',
       cancelClass: 'btn'
     })
@@ -478,7 +489,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
       await apiFetch(`/api/assignments/${id}/submissions`,{method:'POST', body:fd})
       files = []
       submitDialog.close()
-      alert('Uploaded!')
+      alert(t('frontend/src/routes/assignments/[id]/+page.svelte::uploaded_alert'))
       await load()
     }catch(e:any){ err=e.message }
   }
@@ -577,17 +588,17 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
   }
   async function pickMainDeadline(){
     const initial = eDeadlineDate && eDeadlineTime ? `${eDeadlineDate}T${eDeadlineTime}` : (assignment?.deadline ?? null);
-    const picked = await deadlinePicker.open({ title: 'Select main deadline', initial });
+    const picked = await deadlinePicker.open({ title: t('frontend/src/routes/assignments/[id]/+page.svelte::select_main_deadline'), initial });
     if (picked) { eDeadlineDate = picked.slice(0,10); eDeadlineTime = picked.slice(11,16); }
   }
   async function pickSecondDeadline(){
     const initial = eSecondDeadlineDate && eSecondDeadlineTime ? `${eSecondDeadlineDate}T${eSecondDeadlineTime}` : (assignment?.second_deadline ?? null);
-    const picked = await deadlinePicker.open({ title: 'Select second deadline', initial });
+    const picked = await deadlinePicker.open({ title: t('frontend/src/routes/assignments/[id]/+page.svelte::select_second_deadline'), initial });
     if (picked) { eSecondDeadlineDate = picked.slice(0,10); eSecondDeadlineTime = picked.slice(11,16); }
   }
   async function pickExtensionDeadline(){
     const initial = extDeadlineDate && extDeadlineTime ? `${extDeadlineDate}T${extDeadlineTime}` : (assignment?.deadline ?? null);
-    const picked = await deadlinePicker.open({ title: 'Select new deadline', initial });
+    const picked = await deadlinePicker.open({ title: t('frontend/src/routes/assignments/[id]/+page.svelte::select_new_deadline'), initial });
     if (picked) { extDeadlineDate = picked.slice(0,10); extDeadlineTime = picked.slice(11,16); }
   }
 </script>
@@ -595,76 +606,76 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
 {#if !assignment}
   <div class="flex items-center gap-3">
     <span class="loading loading-spinner loading-md"></span>
-    <p>Loading assignment…</p>
+    <p>{t('frontend/src/routes/assignments/[id]/+page.svelte::loading_assignment')}</p>
   </div>
 {:else}
   {#if editing}
     <div class="card-elevated mb-6">
       <div class="card-body p-6">
         <div class="flex items-center justify-between mb-2">
-          <h1 class="card-title text-2xl">Edit assignment</h1>
-          <div class="badge badge-outline">ID #{assignment.id}</div>
+          <h1 class="card-title text-2xl">{t('frontend/src/routes/assignments/[id]/+page.svelte::edit_assignment_title')}</h1>
+          <div class="badge badge-outline">{t('frontend/src/routes/assignments/[id]/+page.svelte::assignment_id', {id: assignment.id})}</div>
         </div>
 
         <div class="grid lg:grid-cols-3 gap-6">
           <div class="lg:col-span-2 space-y-4">
             <!-- Basic info -->
             <section class="rounded-xl border border-base-300/60 bg-base-100 p-5 space-y-3">
-              <h3 class="font-semibold">Basic info</h3>
-              <input class="input input-bordered w-full" bind:value={eTitle} placeholder="Title" required>
-              <MarkdownEditor bind:value={eDesc} placeholder="Description" />
+              <h3 class="font-semibold">{t('frontend/src/routes/assignments/[id]/+page.svelte::basic_info_heading')}</h3>
+              <input class="input input-bordered w-full" bind:value={eTitle} placeholder={t('frontend/src/routes/assignments/[id]/+page.svelte::title_placeholder')} required>
+              <MarkdownEditor bind:value={eDesc} placeholder={t('frontend/src/routes/assignments/[id]/+page.svelte::description_placeholder')} />
               <div class="grid gap-3" class:sm:grid-cols-2={ePolicy === 'all_or_nothing'}>
                 <div class="form-control">
-                  <label class="label" for="grading-policy-select"><span class="label-text">Grading policy</span></label>
+                  <label class="label" for="grading-policy-select"><span class="label-text">{t('frontend/src/routes/assignments/[id]/+page.svelte::grading_policy_label')}</span></label>
                   <select id="grading-policy-select" class="select select-bordered w-full" bind:value={ePolicy}>
-                    <option value="all_or_nothing">All or nothing</option>
-                    <option value="weighted" disabled={testMode === 'manual' || testMode === 'ai'}>Weighted</option>
+                    <option value="all_or_nothing">{t('frontend/src/routes/assignments/[id]/+page.svelte::policyLabel_allOrNothing')}</option>
+                    <option value="weighted" disabled={testMode === 'manual' || testMode === 'ai'}>{t('frontend/src/routes/assignments/[id]/+page.svelte::policyLabel_weighted')}</option>
                   </select>
                   {#if testMode === 'manual' || testMode === 'ai'}
-                    <div class="label-text-alt text-warning">Switch to automatic testing to use weighted grading</div>
+                    <div class="label-text-alt text-warning">{t('frontend/src/routes/assignments/[id]/+page.svelte::weighted_grading_warning')}</div>
                   {/if}
                 </div>
                 {#if ePolicy === 'all_or_nothing'}
                   <div class="form-control">
-                    <label class="label" for="max-points-input"><span class="label-text">Max points</span></label>
-                    <input id="max-points-input" type="number" min="1" class="input input-bordered w-full" bind:value={ePoints} placeholder="Max points" required>
+                    <label class="label" for="max-points-input"><span class="label-text">{t('frontend/src/routes/assignments/[id]/+page.svelte::max_points_label')}</span></label>
+                    <input id="max-points-input" type="number" min="1" class="input input-bordered w-full" bind:value={ePoints} placeholder={t('frontend/src/routes/assignments/[id]/+page.svelte::max_points_placeholder')} required>
                   </div>
                 {/if}
               </div>
               <div class="text-xs opacity-70 mt-2">
-                <strong>All or nothing:</strong> Students get full points only if all tests pass. <strong>Weighted:</strong> Points are calculated from individual test weights set in the Tests section.
+                <strong>{t('frontend/src/routes/assignments/[id]/+page.svelte::policyLabel_allOrNothing')}:</strong> {t('frontend/src/routes/assignments/[id]/+page.svelte::all_or_nothing_desc')} <strong>{t('frontend/src/routes/assignments/[id]/+page.svelte::policyLabel_weighted')}:</strong> {t('frontend/src/routes/assignments/[id]/+page.svelte::weighted_desc')}
               </div>
             </section>
 
             <!-- Deadlines -->
             <section class="rounded-xl border border-base-300/60 bg-base-100 p-5 space-y-3">
               <div class="flex items-center justify-between">
-                <h3 class="font-semibold">Deadlines</h3>
+                <h3 class="font-semibold">{t('frontend/src/routes/assignments/[id]/+page.svelte::deadlines_heading')}</h3>
                 <label class="flex items-center gap-2">
                   <input type="checkbox" class="toggle" bind:checked={showAdvancedOptions}>
-                  <span class="text-sm">Enable second deadline</span>
+                  <span class="text-sm">{t('frontend/src/routes/assignments/[id]/+page.svelte::enable_second_deadline')}</span>
                 </label>
               </div>
               <div class="grid sm:grid-cols-2 gap-3">
                 <!-- Main deadline: open picker modal -->
                 <div class="form-control">
-                  <label class="label"><span class="label-text">Main deadline</span></label>
+                  <label class="label"><span class="label-text">{t('frontend/src/routes/assignments/[id]/+page.svelte::main_deadline_label')}</span></label>
                   <div class="flex items-center gap-2">
                     <input class="input input-bordered w-full" readonly placeholder="dd/mm/yyyy hh:mm" value={euLabelFromParts(eDeadlineDate, eDeadlineTime)}>
-                    <button type="button" class="btn" on:click={pickMainDeadline}>Pick</button>
+                    <button type="button" class="btn" on:click={pickMainDeadline}>{t('frontend/src/routes/assignments/[id]/+page.svelte::pick_button')}</button>
                     {#if eDeadlineDate}
-                      <button type="button" class="btn btn-ghost" title="Clear" on:click={() => { eDeadlineDate=''; eDeadlineTime=''; }}>Clear</button>
+                      <button type="button" class="btn btn-ghost" title={t('frontend/src/routes/assignments/[id]/+page.svelte::clear_button_title')} on:click={() => { eDeadlineDate=''; eDeadlineTime=''; }}>{t('frontend/src/routes/assignments/[id]/+page.svelte::clear_button_label')}</button>
                     {/if}
                   </div>
                 </div>
                 {#if showAdvancedOptions}
                   <div class="form-control">
-                    <label class="label"><span class="label-text">Second deadline</span></label>
+                    <label class="label"><span class="label-text">{t('frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_label')}</span></label>
                     <div class="flex items-center gap-2">
                       <input class="input input-bordered w-full" readonly placeholder="dd/mm/yyyy hh:mm" value={euLabelFromParts(eSecondDeadlineDate, eSecondDeadlineTime)}>
-                      <button type="button" class="btn" on:click={pickSecondDeadline}>Pick</button>
+                      <button type="button" class="btn" on:click={pickSecondDeadline}>{t('frontend/src/routes/assignments/[id]/+page.svelte::pick_button')}</button>
                       {#if eSecondDeadlineDate}
-                        <button type="button" class="btn btn-ghost" title="Clear" on:click={() => { eSecondDeadlineDate=''; eSecondDeadlineTime=''; }}>Clear</button>
+                        <button type="button" class="btn btn-ghost" title={t('frontend/src/routes/assignments/[id]/+page.svelte::clear_button_title')} on:click={() => { eSecondDeadlineDate=''; eSecondDeadlineTime=''; }}>{t('frontend/src/routes/assignments/[id]/+page.svelte::clear_button_label')}</button>
                       {/if}
                     </div>
                   </div>
@@ -673,7 +684,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
               {#if showAdvancedOptions}
                 <div class="form-control">
                   <label class="label" for="late-penalty-range">
-                    <span class="label-text">Late penalty ratio</span>
+                    <span class="label-text">{t('frontend/src/routes/assignments/[id]/+page.svelte::late_penalty_ratio_label')}</span>
                     <span class="label-text-alt">{Math.round(eLatePenaltyRatio * 100)}%</span>
                   </label>
                   <input id="late-penalty-range" type="range" min="0" max="1" step="0.1" class="range range-primary" bind:value={eLatePenaltyRatio} />
@@ -687,60 +698,60 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
 
             <!-- Testing and grading -->
             <section class="rounded-xl border border-base-300/60 bg-base-100 p-5 space-y-3">
-              <h3 class="font-semibold">Testing and grading</h3>
+              <h3 class="font-semibold">{t('frontend/src/routes/assignments/[id]/+page.svelte::testing_grading_heading')}</h3>
               <div class="flex flex-wrap items-center gap-3">
                 <label class="form-control w-full max-w-xs">
                   <select class="select select-bordered select-sm" bind:value={testMode} disabled={ePolicy === 'weighted'}>
-                    <option value="automatic">Automatic tests</option>
-                    <option value="manual" disabled={ePolicy === 'weighted'}>Manual teacher review</option>
-                    <option value="ai" disabled={ePolicy === 'weighted'}>AI testing (LLM-Interactive)</option>
+                    <option value="automatic">{t('frontend/src/routes/assignments/[id]/+page.svelte::automatic_tests_option')}</option>
+                    <option value="manual" disabled={ePolicy === 'weighted'}>{t('frontend/src/routes/assignments/[id]/+page.svelte::manual_teacher_review_option')}</option>
+                    <option value="ai" disabled={ePolicy === 'weighted'}>{t('frontend/src/routes/assignments/[id]/+page.svelte::ai_testing_option')}</option>
                   </select>
                 </label>
                 {#if testMode === 'automatic'}
                   <div class="flex flex-col gap-2">
                     <label class="flex items-center gap-2">
                       <input type="checkbox" class="checkbox" bind:checked={eShowTraceback}>
-                      <span class="label-text">Show traceback to students</span>
+                      <span class="label-text">{t('frontend/src/routes/assignments/[id]/+page.svelte::show_traceback_students')}</span>
                     </label>
                     <label class="flex items-center gap-2">
                       <input type="checkbox" class="checkbox" bind:checked={eShowTestDetails}>
-                      <span class="label-text">Reveal test definitions in teacher review</span>
+                      <span class="label-text">{t('frontend/src/routes/assignments/[id]/+page.svelte::reveal_test_details_teacher_review')}</span>
                     </label>
                   </div>
                 {/if}
               </div>
               <p class="text-xs opacity-70">
                 {#if ePolicy === 'weighted'}
-                  Weighted assignments require automatic testing to calculate points from test weights.
+                  {t('frontend/src/routes/assignments/[id]/+page.svelte::weighted_assignments_desc')}
                 {:else if testMode === 'automatic'}
-                  Use IO/unittest tests (including AI-generated tests) to grade automatically.
+                  {t('frontend/src/routes/assignments/[id]/+page.svelte::automatic_tests_desc')}
                 {:else if testMode === 'manual'}
-                  Teacher reviews submissions and assigns points. No automated tests run.
+                  {t('frontend/src/routes/assignments/[id]/+page.svelte::manual_review_desc')}
                 {:else}
-                  Grade using LLM-driven interactive scenarios.
+                  {t('frontend/src/routes/assignments/[id]/+page.svelte::ai_grading_desc')}
                 {/if}
               </p>
 
               {#if testMode==='ai'}
                 <div class="divider my-2"></div>
                 <button type="button" class="btn btn-ghost btn-sm" on:click={() => showAiOptions = !showAiOptions}>
-                  {showAiOptions ? 'Hide' : 'Show'} AI options
+                  {showAiOptions ? t('frontend/src/routes/assignments/[id]/+page.svelte::hide_ai_options_button') : t('frontend/src/routes/assignments/[id]/+page.svelte::show_ai_options_button')}
                 </button>
                 {#if showAiOptions}
                   <div class="mt-2 space-y-3">
                     <div class="grid sm:grid-cols-2 gap-3">
                       <label class="flex items-center gap-2">
                         <input type="checkbox" class="checkbox checkbox-sm" bind:checked={eLLMFeedback}>
-                        <span class="label-text">Give AI feedback to students</span>
+                        <span class="label-text">{t('frontend/src/routes/assignments/[id]/+page.svelte::give_ai_feedback_students')}</span>
                       </label>
                       <label class="flex items-center gap-2">
                         <input type="checkbox" class="checkbox checkbox-sm" bind:checked={eLLMAutoAward}>
-                        <span class="label-text">Auto-award points from AI</span>
+                        <span class="label-text">{t('frontend/src/routes/assignments/[id]/+page.svelte::auto_award_points_ai')}</span>
                       </label>
                     </div>
                     <div class="form-control">
                       <label class="label" for="ai-strictness-range">
-                        <span class="label-text">Strictness</span>
+                        <span class="label-text">{t('frontend/src/routes/assignments/[id]/+page.svelte::strictness_label')}</span>
                         <span class="label-text-alt">{eLLMStrictness}%</span>
                       </label>
                       <input id="ai-strictness-range" type="range" min="0" max="100" step="5" class="range range-primary" bind:value={eLLMStrictness}>
@@ -749,10 +760,10 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
 
                     <div class="form-control">
                       <button type="button" class="btn btn-ghost btn-sm w-fit" on:click={() => showRubric = !showRubric}>
-                        {showRubric ? 'Hide rubric' : 'Add rubric'}
+                        {showRubric ? t('frontend/src/routes/assignments/[id]/+page.svelte::hide_rubric_button') : t('frontend/src/routes/assignments/[id]/+page.svelte::add_rubric_button')}
                       </button>
                       {#if showRubric}
-                        <textarea class="textarea textarea-bordered min-h-[6rem]" bind:value={eLLMRubric} placeholder="Optional rubric to guide AI scoring"></textarea>
+                        <textarea class="textarea textarea-bordered min-h-[6rem]" bind:value={eLLMRubric} placeholder={t('frontend/src/routes/assignments/[id]/+page.svelte::rubric_placeholder')}></textarea>
                       {/if}
                     </div>
                   </div>
@@ -762,13 +773,13 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
 
             <!-- Template (collapsible) -->
             <details class="collapse collapse-arrow bg-base-100 border border-base-300/60 rounded-xl">
-              <summary class="collapse-title text-base font-medium">Assignment template</summary>
+              <summary class="collapse-title text-base font-medium">{t('frontend/src/routes/assignments/[id]/+page.svelte::assignment_template_heading')}</summary>
               <div class="collapse-content">
                 <div class="flex flex-wrap items-center gap-2">
                   <input type="file" class="file-input file-input-bordered" on:change={e=>templateFile=(e.target as HTMLInputElement).files?.[0] || null}>
-                  <button class="btn" on:click={uploadTemplate} disabled={!templateFile}>Upload template</button>
+                  <button class="btn" on:click={uploadTemplate} disabled={!templateFile}>{t('frontend/src/routes/assignments/[id]/+page.svelte::upload_template_button')}</button>
                   {#if assignment.template_path}
-                    <button class="btn btn-ghost" on:click|preventDefault={downloadTemplate}>Download current</button>
+                    <button class="btn btn-ghost" on:click|preventDefault={downloadTemplate}>{t('frontend/src/routes/assignments/[id]/+page.svelte::download_current_template_button')}</button>
                   {/if}
                 </div>
               </div>
@@ -778,26 +789,26 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           <!-- Sticky actions / summary -->
           <aside class="lg:col-span-1">
             <div class="rounded-xl border border-base-300/60 bg-base-100 p-5 lg:sticky lg:top-24 space-y-4">
-              <h3 class="font-semibold">Actions</h3>
+              <h3 class="font-semibold">{t('frontend/src/routes/assignments/[id]/+page.svelte::actions_heading')}</h3>
               <div class="space-y-2 text-sm opacity-70">
-                <div>Policy: <span class="font-semibold">{policyLabel(ePolicy)}</span></div>
+                <div>{t('frontend/src/routes/assignments/[id]/+page.svelte::policy_label')} <span class="font-semibold">{policyLabel(ePolicy)}</span></div>
                 {#if ePolicy === 'all_or_nothing'}
-                  <div>Max points: <span class="font-semibold">{ePoints}</span></div>
+                  <div>{t('frontend/src/routes/assignments/[id]/+page.svelte::max_points_sidebar_label')} <span class="font-semibold">{ePoints}</span></div>
                 {:else}
-                  <div>Max points: <span class="font-semibold text-base-content/50">From test weights</span></div>
+                  <div>{t('frontend/src/routes/assignments/[id]/+page.svelte::max_points_sidebar_label')} <span class="font-semibold text-base-content/50">{t('frontend/src/routes/assignments/[id]/+page.svelte::from_test_weights_label')}</span></div>
                 {/if}
-                <div>Deadline: <span class="font-semibold">{eDeadline || '-'}</span></div>
+                <div>{t('frontend/src/routes/assignments/[id]/+page.svelte::deadline_sidebar_label')} <span class="font-semibold">{eDeadline || '-'}</span></div>
                 {#if showAdvancedOptions}
-                  <div>2nd deadline: <span class="font-semibold">{eSecondDeadline || '-'}</span></div>
-                  <div>Late penalty: <span class="font-semibold">{Math.round(eLatePenaltyRatio * 100)}%</span></div>
+                  <div>{t('frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_sidebar_label')} <span class="font-semibold">{eSecondDeadline || '-'}</span></div>
+                  <div>{t('frontend/src/routes/assignments/[id]/+page.svelte::late_penalty_sidebar_label')} <span class="font-semibold">{Math.round(eLatePenaltyRatio * 100)}%</span></div>
                 {/if}
                 {#if testMode==='ai'}
-                  <div>AI strictness: <span class="font-semibold">{eLLMStrictness}%</span></div>
+                  <div>{t('frontend/src/routes/assignments/[id]/+page.svelte::ai_strictness_sidebar_label')} <span class="font-semibold">{eLLMStrictness}%</span></div>
                 {/if}
               </div>
               <div class="card-actions">
-                <button class="btn w-full" on:click={()=>editing=false}>Cancel</button>
-                <button class="btn btn-primary w-full" on:click={saveEdit}>Save changes</button>
+                <button class="btn w-full" on:click={()=>editing=false}>{t('frontend/src/routes/assignments/[id]/+page.svelte::cancel_button')}</button>
+                <button class="btn btn-primary w-full" on:click={saveEdit}>{t('frontend/src/routes/assignments/[id]/+page.svelte::save_changes_button')}</button>
               </div>
             </div>
           </aside>
@@ -814,7 +825,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             {#if role==='student' && !assignment.manual_review && testsCount > 0}
               <div class="hidden sm:flex items-center gap-3">
                 <div class="radial-progress text-primary" style="--value:{testsPercent};" aria-valuenow={testsPercent} role="progressbar">{testsPercent}%</div>
-                <span class="font-semibold">{testsPassed} / {results.length} tests</span>
+                <span class="font-semibold">{testsPassed} / {results.length} {t('frontend/src/routes/assignments/[id]/+page.svelte::tests_label')}</span>
               </div>
             {/if}
           </div>
@@ -823,37 +834,37 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             {#if assignment.second_deadline}
               <span class="badge badge-warning">{secondDeadlineLabel}</span>
             {/if}
-            <span class="badge badge-ghost">Max {assignment.max_points} pts</span>
+            <span class="badge badge-ghost">{t('frontend/src/routes/assignments/[id]/+page.svelte::max_points_badge', {maxPoints: assignment.max_points})}</span>
             <span class="badge badge-ghost">{policyLabel(assignment.grading_policy)}</span>
             {#if assignment.manual_review}
-              <span class="badge badge-info">Manual review</span>
+              <span class="badge badge-info">{t('frontend/src/routes/assignments/[id]/+page.svelte::manual_review_badge')}</span>
             {/if}
             {#if role!=='student'}
               {#if assignment.published}
-                <span class="badge badge-success">Published</span>
+                <span class="badge badge-success">{t('frontend/src/routes/assignments/[id]/+page.svelte::published_badge')}</span>
               {:else}
-                <span class="badge badge-warning">Draft</span>
+                <span class="badge badge-warning">{t('frontend/src/routes/assignments/[id]/+page.svelte::draft_badge')}</span>
               {/if}
             {/if}
             {#if done}
-              <span class="badge badge-success">Completed</span>
+              <span class="badge badge-success">{t('frontend/src/routes/assignments/[id]/+page.svelte::completed_badge')}</span>
             {/if}
           </div>
           <div class="mt-4 flex flex-wrap items-center gap-2">
             {#if assignment.template_path}
-              <a class="btn btn-sm btn-ghost" href={`/api/assignments/${id}/template`} on:click|preventDefault={downloadTemplate}>Download template</a>
+              <a class="btn btn-sm btn-ghost" href={`/api/assignments/${id}/template`} on:click|preventDefault={downloadTemplate}>{t('frontend/src/routes/assignments/[id]/+page.svelte::download_template_button')}</a>
             {/if}
             {#if role==='teacher' || role==='admin'}
               {#if !assignment.published}
-                <button class="btn btn-sm btn-secondary" on:click={publish}>Publish</button>
+                <button class="btn btn-sm btn-secondary" on:click={publish}>{t('frontend/src/routes/assignments/[id]/+page.svelte::publish_button')}</button>
               {/if}
               {#if !assignment.manual_review}
-                <button class="btn btn-sm" on:click={openTestsModal}>Manage tests</button>
+                <button class="btn btn-sm" on:click={openTestsModal}>{t('frontend/src/routes/assignments/[id]/+page.svelte::manage_tests_button')}</button>
               {/if}
-              <button class="btn btn-sm" on:click={startEdit}>Edit</button>
-              <button class="btn btn-sm btn-error" on:click={delAssignment}>Delete</button>
+              <button class="btn btn-sm" on:click={startEdit}>{t('frontend/src/routes/assignments/[id]/+page.svelte::edit_button')}</button>
+              <button class="btn btn-sm btn-error" on:click={delAssignment}>{t('frontend/src/routes/assignments/[id]/+page.svelte::delete_button')}</button>
             {:else}
-              <button class="btn btn-sm btn-primary" on:click={openSubmitModal} disabled={assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}>Submit solution</button>
+              <button class="btn btn-sm btn-primary" on:click={openSubmitModal} disabled={assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}>{t('frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_button')}</button>
             {/if}
           </div>
         </div>
@@ -863,7 +874,7 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
               <div class="radial-progress text-primary" style="--value:{percent}; --size:6rem; --thickness:10px" aria-valuenow={percent} role="progressbar">{percent}%</div>
               <div>
                 <div class="text-xl font-semibold">{pointsEarned} / {assignment.max_points}</div>
-                <div class="text-sm opacity-70">points earned</div>
+                <div class="text-sm opacity-70">{t('frontend/src/routes/assignments/[id]/+page.svelte::points_earned_label')}</div>
               </div>
             </div>
           </div>
@@ -872,17 +883,17 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     </section>
     {#if role==='student' && assignment.manual_review}
       <div class="alert alert-info mb-4">
-        <span>This assignment is graded by teacher review. Automatic tests will not run; points will appear after review.</span>
+        <span>{t('frontend/src/routes/assignments/[id]/+page.svelte::teacher_review_alert_body')}</span>
       </div>
     {/if}
     {#if deadlineSoon}
       <div class="alert alert-warning mb-4">
-        <span>The deadline is near!</span>
+        <span>{t('frontend/src/routes/assignments/[id]/+page.svelte::deadline_near_alert')}</span>
       </div>
     {/if}
     {#if secondDeadlineSoon}
       <div class="alert alert-warning mb-4">
-        <span>The second deadline is near! Submissions after the first deadline will receive {Math.round(assignment.late_penalty_ratio * 100)}% of points.</span>
+        <span>{t('frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_near_alert', {penalty: Math.round(assignment.late_penalty_ratio * 100)})}</span>
       </div>
     {/if}
 
@@ -890,16 +901,16 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
       <div class={`col-span-full ${role === 'student' ? 'lg:col-span-8' : 'lg:col-span-12'}`}>
         <div class="tabs tabs-boxed w-full mb-4">
-          <button class={`tab ${activeTab==='overview' ? 'tab-active' : ''}`} on:click={() => setTab('overview')}>Overview</button>
+          <button class={`tab ${activeTab==='overview' ? 'tab-active' : ''}`} on:click={() => setTab('overview')}>{t('frontend/src/routes/assignments/[id]/+page.svelte::tab_overview')}</button>
           {#if role==='student'}
-            <button class={`tab ${activeTab==='submissions' ? 'tab-active' : ''}`} on:click={() => setTab('submissions')}>Submissions</button>
+            <button class={`tab ${activeTab==='submissions' ? 'tab-active' : ''}`} on:click={() => setTab('submissions')}>{t('frontend/src/routes/assignments/[id]/+page.svelte::tab_submissions')}</button>
             {#if !assignment.manual_review}
-              <button class={`tab ${activeTab==='results' ? 'tab-active' : ''}`} on:click={() => setTab('results')}>Results</button>
+              <button class={`tab ${activeTab==='results' ? 'tab-active' : ''}`} on:click={() => setTab('results')}>{t('frontend/src/routes/assignments/[id]/+page.svelte::tab_results')}</button>
             {/if}
           {/if}
           {#if role==='teacher' || role==='admin'}
-          <button class={`tab ${activeTab==='instructor' ? 'tab-active' : ''}`} on:click={() => setTab('instructor')}>Student progress</button>
-          <button class={`tab ${activeTab==='teacher-runs' ? 'tab-active' : ''}`} on:click={() => setTab('teacher-runs')}>Teacher runs</button>
+          <button class={`tab ${activeTab==='instructor' ? 'tab-active' : ''}`} on:click={() => setTab('instructor')}>{t('frontend/src/routes/assignments/[id]/+page.svelte::tab_instructor')}</button>
+          <button class={`tab ${activeTab==='teacher-runs' ? 'tab-active' : ''}`} on:click={() => setTab('teacher-runs')}>{t('frontend/src/routes/assignments/[id]/+page.svelte::tab_teacher_runs')}</button>
           {/if}
         </div>
 
@@ -909,40 +920,40 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
             {#if role==='student' && assignment.second_deadline && new Date() > assignment.deadline && new Date() <= assignment.second_deadline}
               <div class="alert alert-warning">
                 <span>
-                  <strong>Second deadline active!</strong> You can still submit your solution, but you will receive {Math.round(assignment.late_penalty_ratio * 100)}% of the maximum points.
-                  <br>Second deadline: {formatDateTime(assignment.second_deadline)}
+                  <strong>{t('frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_active_alert_strong')}</strong> {t('frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_active_alert_body', {penalty: Math.round(assignment.late_penalty_ratio * 100)})}
+                  <br>{t('frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_label_with_date')}: {formatDateTime(assignment.second_deadline)}
                 </span>
               </div>
             {:else if role==='student' && assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}
               <div class="alert alert-error">
                 <span>
-                  <strong>All deadlines have passed:</strong> No more submissions are accepted for this assignment.
+                  <strong>{t('frontend/src/routes/assignments/[id]/+page.svelte::all_deadlines_passed_alert_strong')}</strong> {t('frontend/src/routes/assignments/[id]/+page.svelte::all_deadlines_passed_alert_body')}
                 </span>
               </div>
             {/if}
             <div class="grid sm:grid-cols-3 gap-3">
               <div class="stat bg-base-100 rounded-xl border border-base-300/60">
-                <div class="stat-title">Deadline</div>
+                <div class="stat-title">{t('frontend/src/routes/assignments/[id]/+page.svelte::stat_deadline_title')}</div>
                 <div class="stat-value text-lg whitespace-normal break-anywhere">{formatDateTime(assignment.deadline)}</div>
                 <div class="stat-desc">{relativeToDeadline(assignment.deadline)}</div>
               </div>
               {#if assignment.second_deadline}
                 <div class="stat bg-base-100 rounded-xl border border-base-300/60">
-                  <div class="stat-title">Second deadline</div>
+                  <div class="stat-title">{t('frontend/src/routes/assignments/[id]/+page.svelte::stat_second_deadline_title')}</div>
                   <div class="stat-value text-lg whitespace-normal break-anywhere">{formatDateTime(assignment.second_deadline)}</div>
-                  <div class="stat-desc">{relativeToDeadline(assignment.second_deadline)} • {Math.round(assignment.late_penalty_ratio * 100)}% points</div>
+                  <div class="stat-desc">{relativeToDeadline(assignment.second_deadline)} • {Math.round(assignment.late_penalty_ratio * 100)}% {t('frontend/src/routes/assignments/[id]/+page.svelte::points_label')}</div>
                 </div>
               {/if}
               <div class="stat bg-base-100 rounded-xl border border-base-300/60">
-                <div class="stat-title">Max points</div>
+                <div class="stat-title">{t('frontend/src/routes/assignments/[id]/+page.svelte::stat_max_points_title')}</div>
                 <div class="stat-value text-lg">{assignment.max_points}</div>
                 <div class="stat-desc">{policyLabel(assignment.grading_policy)}</div>
               </div>
               {#if role!=='student'}
                 <div class="stat bg-base-100 rounded-xl border border-base-300/60">
-                  <div class="stat-title">Status</div>
-                  <div class="stat-value text-lg">{assignment.published ? 'Published' : 'Draft'}</div>
-                  <div class="stat-desc">Assignment visibility</div>
+                  <div class="stat-title">{t('frontend/src/routes/assignments/[id]/+page.svelte::stat_status_title')}</div>
+                  <div class="stat-value text-lg">{assignment.published ? t('frontend/src/routes/assignments/[id]/+page.svelte::stat_published_value') : t('frontend/src/routes/assignments/[id]/+page.svelte::stat_draft_value')}</div>
+                  <div class="stat-desc">{t('frontend/src/routes/assignments/[id]/+page.svelte::stat_assignment_visibility_desc')}</div>
                 </div>
               {/if}
             </div>
@@ -952,19 +963,19 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         {#if activeTab==='submissions' && role==='student'}
           <section class="card-elevated p-6 space-y-3">
             <div class="flex items-center justify-between">
-              <h3 class="font-semibold text-lg">Your submissions</h3>
-              <button class="btn btn-sm" on:click={openSubmitModal} disabled={assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}>New submission</button>
+              <h3 class="font-semibold text-lg">{t('frontend/src/routes/assignments/[id]/+page.svelte::your_submissions_heading')}</h3>
+              <button class="btn btn-sm" on:click={openSubmitModal} disabled={assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}>{t('frontend/src/routes/assignments/[id]/+page.svelte::new_submission_button')}</button>
             </div>
             {#if assignment.second_deadline && new Date() > assignment.deadline && new Date() <= assignment.second_deadline}
               <div class="alert alert-info">
                 <span>
-                  <strong>Second deadline period:</strong> You can still submit, but submissions made after the first deadline will receive {Math.round(assignment.late_penalty_ratio * 100)}% of points.
+                  <strong>{t('frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_period_info_strong')}</strong> {t('frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_period_info_body', {penalty: Math.round(assignment.late_penalty_ratio * 100)})}
                 </span>
               </div>
             {:else if assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}
               <div class="alert alert-error">
                 <span>
-                  <strong>Both deadlines have passed:</strong> No more submissions are accepted for this assignment.
+                  <strong>{t('frontend/src/routes/assignments/[id]/+page.svelte::all_deadlines_passed_alert_strong')}</strong> {t('frontend/src/routes/assignments/[id]/+page.svelte::all_deadlines_passed_alert_body')}
                 </span>
               </div>
             {/if}
@@ -972,13 +983,13 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
               <table class="table table-zebra">
                 <thead>
                   <tr>
-                    <th>Attempt</th>
-                    <th>Date</th>
-                    <th>Deadline</th>
-                    <th>Status</th>
+                    <th>{t('frontend/src/routes/assignments/[id]/+page.svelte::submission_table_header_attempt')}</th>
+                    <th>{t('frontend/src/routes/assignments/[id]/+page.svelte::submission_table_header_date')}</th>
+                    <th>{t('frontend/src/routes/assignments/[id]/+page.svelte::submission_table_header_deadline')}</th>
+                    <th>{t('frontend/src/routes/assignments/[id]/+page.svelte::submission_table_header_status')}</th>
                     {#if testsCount>0}
-                      <th>Passed</th>
-                      <th>Points</th>
+                      <th>{t('frontend/src/routes/assignments/[id]/+page.svelte::submission_table_header_passed')}</th>
+                      <th>{t('frontend/src/routes/assignments/[id]/+page.svelte::submission_table_header_points')}</th>
                     {/if}
                     <th></th>
                   </tr>
@@ -986,29 +997,29 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                 <tbody>
                   {#each submissions as s}
                     <tr>
-                      <td>#{s.attempt_number ?? '?'}</td>
+                      <td>{t('frontend/src/routes/assignments/[id]/+page.svelte::attempt_num_label', {num: s.attempt_number ?? '?'})}</td>
                       <td>{formatDateTime(s.created_at)}</td>
                       <td>
                         {#if s.created_at > assignment.deadline}
                           {#if assignment.second_deadline && s.created_at <= assignment.second_deadline}
-                            <span class="badge badge-warning badge-sm">Second deadline ({Math.round(assignment.late_penalty_ratio * 100)}%)</span>
+                            <span class="badge badge-warning badge-sm">{t('frontend/src/routes/assignments/[id]/+page.svelte::submission_table_badge_second_deadline', {penalty: Math.round(assignment.late_penalty_ratio * 100)})}</span>
                           {:else}
-                            <span class="badge badge-error badge-sm">Late (no points)</span>
+                            <span class="badge badge-error badge-sm">{t('frontend/src/routes/assignments/[id]/+page.svelte::submission_table_badge_late')}</span>
                           {/if}
                         {:else}
-                          <span class="badge badge-success badge-sm">On time</span>
+                          <span class="badge badge-success badge-sm">{t('frontend/src/routes/assignments/[id]/+page.svelte::submission_table_badge_on_time')}</span>
                         {/if}
                       </td>
                       <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span></td>
                       {#if testsCount>0}
                         <td>{#if subStats[s.id]}{subStats[s.id].passed} / {testsCount}{:else}-{/if}</td>
-                        <td>{(s.override_points ?? s.points ?? 0)} {#if s.manually_accepted}<span class="badge badge-xs badge-outline badge-success ml-2" title="Accepted by teacher">accepted</span>{/if}</td>
+                        <td>{(s.override_points ?? s.points ?? 0)} {#if s.manually_accepted}<span class="badge badge-xs badge-outline badge-success ml-2" title={t('frontend/src/routes/assignments/[id]/+page.svelte::submission_table_badge_accepted_title')}>{t('frontend/src/routes/assignments/[id]/+page.svelte::accepted_label')}</span>{/if}</td>
                       {/if}
-                      <td><a href={`/submissions/${s.id}?fromTab=${activeTab}`} class="btn btn-sm btn-outline" on:click={saveState}>View</a></td>
+                      <td><a href={`/submissions/${s.id}?fromTab=${activeTab}`} class="btn btn-sm btn-outline" on:click={saveState}>{t('frontend/src/routes/assignments/[id]/+page.svelte::submission_table_view_button')}</a></td>
                     </tr>
                   {/each}
                   {#if !submissions.length}
-                    <tr><td colspan="{testsCount>0?7:5}"><i>No submissions yet</i></td></tr>
+                    <tr><td colspan="{testsCount>0?7:5}"><i>{t('frontend/src/routes/assignments/[id]/+page.svelte::no_submissions_yet_table')}</i></td></tr>
                   {/if}
                 </tbody>
               </table>
@@ -1018,18 +1029,18 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
 
         {#if activeTab==='results' && role==='student'}
           <section class="card-elevated p-6 space-y-3">
-            <h3 class="font-semibold text-lg">Latest results</h3>
+            <h3 class="font-semibold text-lg">{t('frontend/src/routes/assignments/[id]/+page.svelte::latest_results_heading')}</h3>
             {#if latestSub}
               <div class="flex items-center gap-2">
-                <span>Submission:</span>
-                <span class="text-xs opacity-70">Attempt #{latestSub.attempt_number ?? '?'}</span>
+                <span>{t('frontend/src/routes/assignments/[id]/+page.svelte::submission_label')}</span>
+                <span class="text-xs opacity-70">{t('frontend/src/routes/assignments/[id]/+page.svelte::attempt_label')}{latestSub.attempt_number ?? '?'}</span>
                 <a class="link" href={`/submissions/${latestSub.id}?fromTab=${activeTab}`} on:click={saveState}>{formatDateTime(latestSub.created_at)}</a>
                 <span class={`badge ${statusColor(latestSub.status)}`}>{latestSub.status}</span>
               </div>
               <div class="overflow-x-auto mt-2">
                 <table class="table table-zebra">
                   <thead>
-                    <tr><th>#</th><th>Status</th><th>Runtime (ms)</th><th>Exit</th><th>Traceback</th></tr>
+                    <tr><th>{t('frontend/src/routes/assignments/[id]/+page.svelte::results_table_header_num')}</th><th>{t('frontend/src/routes/assignments/[id]/+page.svelte::results_table_header_status')}</th><th>{t('frontend/src/routes/assignments/[id]/+page.svelte::results_table_header_runtime')}</th><th>{t('frontend/src/routes/assignments/[id]/+page.svelte::results_table_header_exit')}</th><th>{t('frontend/src/routes/assignments/[id]/+page.svelte::results_table_header_traceback')}</th></tr>
                   </thead>
                   <tbody>
                     {#each results as r, i}
@@ -1042,14 +1053,14 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                       </tr>
                     {/each}
                     {#if !results.length}
-                      <tr><td colspan="5"><i>No results yet</i></td></tr>
+                      <tr><td colspan="5"><i>{t('frontend/src/routes/assignments/[id]/+page.svelte::no_results_yet_table')}</i></td></tr>
                     {/if}
                   </tbody>
                 </table>
               </div>
             {:else}
               <div class="alert">
-                <span>No submission yet. Submit your solution to see results.</span>
+                <span>{t('frontend/src/routes/assignments/[id]/+page.svelte::no_submission_yet_alert')}</span>
               </div>
             {/if}
           </section>
@@ -1059,15 +1070,15 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
           <section class="space-y-4">
             <div class="card-elevated p-6">
               <div class="flex items-center justify-between">
-                <h3 class="font-semibold text-lg">Student progress</h3>
+                <h3 class="font-semibold text-lg">{t('frontend/src/routes/assignments/[id]/+page.svelte::student_progress_heading')}</h3>
                 {#if !assignment.manual_review}
-                  <button class="btn btn-sm" on:click={openTestsModal}>Manage tests</button>
+                  <button class="btn btn-sm" on:click={openTestsModal}>{t('frontend/src/routes/assignments/[id]/+page.svelte::manage_tests_button')}</button>
                 {/if}
               </div>
               <div class="overflow-x-auto mt-3">
                 <table class="table table-zebra">
                   <thead>
-                    <tr><th>Student</th><th>Status</th><th>Deadline</th><th>Last submission</th><th class="w-40">Extension</th></tr>
+                    <tr><th>{t('frontend/src/routes/assignments/[id]/+page.svelte::progress_table_header_student')}</th><th>{t('frontend/src/routes/assignments/[id]/+page.svelte::progress_table_header_status')}</th><th>{t('frontend/src/routes/assignments/[id]/+page.svelte::progress_table_header_deadline')}</th><th>{t('frontend/src/routes/assignments/[id]/+page.svelte::progress_table_header_last_submission')}</th><th class="w-40">{t('frontend/src/routes/assignments/[id]/+page.svelte::progress_table_header_extension')}</th></tr>
                   </thead>
                   <tbody>
                     {#each progress as p (p.student.id)}
@@ -1078,26 +1089,26 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                           {#if p.latest}
                             {#if p.latest.created_at > assignment.deadline}
                               {#if assignment.second_deadline && p.latest.created_at <= assignment.second_deadline}
-                                <span class="badge badge-warning flex-wrap whitespace-normal break-words text-center h-auto py-1 leading-tight">Second deadline ({Math.round(assignment.late_penalty_ratio * 100)}%)</span>
+                                <span class="badge badge-warning flex-wrap whitespace-normal break-words text-center h-auto py-1 leading-tight">{t('frontend/src/routes/assignments/[id]/+page.svelte::submission_table_badge_second_deadline', {penalty: Math.round(assignment.late_penalty_ratio * 100)})}</span>
                               {:else}
-                                <span class="badge badge-error flex-wrap whitespace-normal break-words text-center h-auto py-1 leading-tight">Late (no points)</span>
+                                <span class="badge badge-error flex-wrap whitespace-normal break-words text-center h-auto py-1 leading-tight">{t('frontend/src/routes/assignments/[id]/+page.svelte::submission_table_badge_late')}</span>
                               {/if}
                             {:else}
-                              <span class="badge badge-success flex-wrap whitespace-normal break-words text-center h-auto py-1 leading-tight">On time</span>
+                              <span class="badge badge-success flex-wrap whitespace-normal break-words text-center h-auto py-1 leading-tight">{t('frontend/src/routes/assignments/[id]/+page.svelte::submission_table_badge_on_time')}</span>
                             {/if}
                           {:else}
-                            <span class="badge badge-ghost flex-wrap whitespace-normal break-words text-center h-auto py-1 leading-tight">No submission</span>
+                            <span class="badge badge-ghost flex-wrap whitespace-normal break-words text-center h-auto py-1 leading-tight">{t('frontend/src/routes/assignments/[id]/+page.svelte::progress_table_badge_no_submission')}</span>
                           {/if}
                         </td>
                         <td>{p.latest ? formatDateTime(p.latest.created_at) : '-'}</td>
                         <td>
                           {#if overrideMap[p.student.id]}
                             <div class="flex items-center gap-2 flex-nowrap">
-                              <span class="badge badge-info badge-sm whitespace-nowrap" title={overrideMap[p.student.id].note || ''}>Until {formatDateTime(overrideMap[p.student.id].new_deadline)}</span>
-                              <button class="btn btn-ghost btn-xs whitespace-nowrap" on:click|stopPropagation={() => openExtendDialog(p.student)}>Edit</button>
+                              <span class="badge badge-info badge-sm whitespace-nowrap" title={overrideMap[p.student.id].note || ''}>{t('frontend/src/routes/assignments/[id]/+page.svelte::progress_table_extension_until')} {formatDateTime(overrideMap[p.student.id].new_deadline)}</span>
+                              <button class="btn btn-ghost btn-xs whitespace-nowrap" on:click|stopPropagation={() => openExtendDialog(p.student)}>{t('frontend/src/routes/assignments/[id]/+page.svelte::progress_table_extension_edit')}</button>
                             </div>
                           {:else}
-                            <button class="btn btn-ghost btn-xs whitespace-nowrap" on:click|stopPropagation={() => openExtendDialog(p.student)}>Extend…</button>
+                            <button class="btn btn-ghost btn-xs whitespace-nowrap" on:click|stopPropagation={() => openExtendDialog(p.student)}>{t('frontend/src/routes/assignments/[id]/+page.svelte::progress_table_extension_extend')}</button>
                           {/if}
                         </td>
                       </tr>
@@ -1122,30 +1133,30 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                                     </div>
                                     <div class="timeline-end timeline-box m-0 space-y-2">
                                       <div class="flex flex-wrap items-center gap-2">
-                                        <span class="mr-2 text-xs opacity-70">Attempt #{s.attempt_number ?? '?'}</span>
+                                        <span class="mr-2 text-xs opacity-70">{t('frontend/src/routes/assignments/[id]/+page.svelte::timeline_attempt_label', {num: s.attempt_number ?? '?'})}</span>
                                         <a class="link" href={`/submissions/${s.id}?fromTab=${activeTab}`} on:click={saveState}>{formatDateTime(s.created_at)}</a>
                                         {#if s.created_at > assignment.deadline}
                                           {#if assignment.second_deadline && s.created_at <= assignment.second_deadline}
-                                            <span class="badge badge-xs badge-warning" title="Second deadline submission">2nd ({Math.round(assignment.late_penalty_ratio * 100)}%)</span>
+                                            <span class="badge badge-xs badge-warning" title={t('frontend/src/routes/assignments/[id]/+page.svelte::timeline_second_deadline_title')}>{t('frontend/src/routes/assignments/[id]/+page.svelte::timeline_second_deadline_short', {penalty: Math.round(assignment.late_penalty_ratio * 100)})}</span>
                                           {:else}
-                                            <span class="badge badge-xs badge-error" title="Late submission">Late</span>
+                                            <span class="badge badge-xs badge-error" title={t('frontend/src/routes/assignments/[id]/+page.svelte::timeline_late_title')}>{t('frontend/src/routes/assignments/[id]/+page.svelte::late_label')}</span>
                                           {/if}
                                         {/if}
                                         {#if s.manually_accepted}
-                                          <span class="badge badge-xs badge-outline badge-success" title="Accepted by teacher">accepted</span>
+                                          <span class="badge badge-xs badge-outline badge-success" title={t('frontend/src/routes/assignments/[id]/+page.svelte::timeline_accepted_by_teacher_title')}>{t('frontend/src/routes/assignments/[id]/+page.svelte::accepted_label')}</span>
                                         {/if}
                                       </div>
                                       <div class="flex flex-wrap items-center gap-2 text-xs">
                                         {#if testsCount>0}
                                           <span class="badge badge-ghost badge-xs">
                                             {#if subStats[s.id]}
-                                              {subStats[s.id].passed} / {subStats[s.id].total || testsCount} tests
+                                              {subStats[s.id].passed} / {subStats[s.id].total || testsCount} {t('frontend/src/routes/assignments/[id]/+page.svelte::timeline_tests_label')}
                                             {:else}
-                                              - / - tests
+                                              - / - {t('frontend/src/routes/assignments/[id]/+page.svelte::timeline_tests_label')}
                                             {/if}
                                           </span>
                                         {/if}
-                                        <span class="badge badge-outline badge-xs">{(s.override_points ?? s.points ?? 0)} pts</span>
+                                        <span class="badge badge-outline badge-xs">{(s.override_points ?? s.points ?? 0)} {t('frontend/src/routes/assignments/[id]/+page.svelte::timeline_points_label')}</span>
                                       </div>
                                     </div>
                                     {#if i !== p.all.length - 1}<hr />{/if}
@@ -1153,14 +1164,14 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                                 {/each}
                               </ul>
                             {:else}
-                              <i>No submissions</i>
+                              <i>{t('frontend/src/routes/assignments/[id]/+page.svelte::no_submissions_timeline')}</i>
                             {/if}
                           </td>
                         </tr>
                       {/if}
                     {/each}
                     {#if !progress.length}
-                      <tr><td colspan="4"><i>No students</i></td></tr>
+                      <tr><td colspan="4"><i>{t('frontend/src/routes/assignments/[id]/+page.svelte::no_students_table')}</i></td></tr>
                     {/if}
                   </tbody>
                 </table>
@@ -1173,13 +1184,13 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         {#if activeTab==='teacher-runs' && (role==='teacher' || role==='admin')}
           <section class="card-elevated p-6 space-y-3">
             <div class="flex items-center justify-between">
-              <h3 class="font-semibold text-lg">Your runs</h3>
-              <button class="btn btn-sm" on:click={openTeacherRunModal}>New run</button>
+              <h3 class="font-semibold text-lg">{t('frontend/src/routes/assignments/[id]/+page.svelte::your_runs_heading')}</h3>
+              <button class="btn btn-sm" on:click={openTeacherRunModal}>{t('frontend/src/routes/assignments/[id]/+page.svelte::new_run_button')}</button>
             </div>
             <div class="overflow-x-auto">
               <table class="table table-zebra">
                 <thead>
-                  <tr><th>Date</th><th>Status</th><th>First failure</th><th></th></tr>
+                  <tr><th>{t('frontend/src/routes/assignments/[id]/+page.svelte::teacher_runs_table_header_date')}</th><th>{t('frontend/src/routes/assignments/[id]/+page.svelte::teacher_runs_table_header_status')}</th><th>{t('frontend/src/routes/assignments/[id]/+page.svelte::teacher_runs_table_header_first_failure')}</th><th></th></tr>
                 </thead>
                 <tbody>
                   {#each teacherRuns as s}
@@ -1187,11 +1198,11 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
                       <td>{formatDateTime(s.created_at)}</td>
                       <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span></td>
                       <td>{s.failure_reason ?? '-'}</td>
-                      <td><a class="btn btn-sm btn-outline" href={`/submissions/${s.id}?fromTab=${activeTab}`} on:click={saveState}>View</a></td>
+                      <td><a class="btn btn-sm btn-outline" href={`/submissions/${s.id}?fromTab=${activeTab}`} on:click={saveState}>{t('frontend/src/routes/assignments/[id]/+page.svelte::submission_table_view_button')}</a></td>
                     </tr>
                   {/each}
                   {#if !teacherRuns.length}
-                    <tr><td colspan="4"><i>No runs yet</i></td></tr>
+                    <tr><td colspan="4"><i>{t('frontend/src/routes/assignments/[id]/+page.svelte::no_runs_yet_table')}</i></td></tr>
                   {/if}
                 </tbody>
               </table>
@@ -1203,41 +1214,41 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
       {#if role==='student'}
         <aside class="lg:col-span-4 lg:sticky lg:top-24 h-fit space-y-4">
           <div class="card-elevated p-5 space-y-3">
-            <h3 class="font-semibold">Quick actions</h3>
-            <button class="btn btn-primary w-full" on:click={openSubmitModal} disabled={assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}>Submit solution</button>
+            <h3 class="font-semibold">{t('frontend/src/routes/assignments/[id]/+page.svelte::quick_actions_heading')}</h3>
+            <button class="btn btn-primary w-full" on:click={openSubmitModal} disabled={assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}>{t('frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_button')}</button>
             {#if assignment.template_path}
               <div class="divider my-1"></div>
-              <div class="text-sm opacity-70">Need a starting point?</div>
-              <button class="btn btn-ghost btn-sm" on:click|preventDefault={downloadTemplate}>Download template</button>
+              <div class="text-sm opacity-70">{t('frontend/src/routes/assignments/[id]/+page.svelte::need_starting_point_text')}</div>
+              <button class="btn btn-ghost btn-sm" on:click|preventDefault={downloadTemplate}>{t('frontend/src/routes/assignments/[id]/+page.svelte::download_template_button')}</button>
             {/if}
           </div>
           {#if latestSub}
             <div class="card-elevated p-5 space-y-2">
-              <h3 class="font-semibold">Latest submission</h3>
+              <h3 class="font-semibold">{t('frontend/src/routes/assignments/[id]/+page.svelte::latest_submission_heading')}</h3>
               <div class="flex items-center gap-2">
                 <span class={`badge ${statusColor(latestSub.status)}`}>{latestSub.status}</span>
-                <span class="text-xs opacity-70">Attempt #{latestSub.attempt_number ?? '?'}</span>
+                <span class="text-xs opacity-70">{t('frontend/src/routes/assignments/[id]/+page.svelte::attempt_num_label', {num: latestSub.attempt_number ?? '?'})}</span>
                 <a class="link" href={`/submissions/${latestSub.id}?fromTab=${activeTab}`} on:click={saveState}>{formatDateTime(latestSub.created_at)}</a>
               </div>
               {#if assignment.second_deadline && latestSub.created_at > assignment.deadline && latestSub.created_at <= assignment.second_deadline}
                 <div class="alert alert-warning alert-sm">
-                  <span>This submission was made after the first deadline but before the second deadline. You will receive {Math.round(assignment.late_penalty_ratio * 100)}% of points.</span>
+                  <span>{t('frontend/src/routes/assignments/[id]/+page.svelte::latest_submission_alert_body', {penalty: Math.round(assignment.late_penalty_ratio * 100)})}</span>
                 </div>
               {/if}
             </div>
           {/if}
           {#if assignment.second_deadline && new Date() > assignment.deadline && new Date() <= assignment.second_deadline}
             <div class="card-elevated p-5 space-y-2">
-              <h3 class="font-semibold text-warning">Second deadline active</h3>
-              <p class="text-sm">You can still submit, but you will receive {Math.round(assignment.late_penalty_ratio * 100)}% of points.</p>
+              <h3 class="font-semibold text-warning">{t('frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_active_sidebar_heading')}</h3>
+              <p class="text-sm">{t('frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_active_sidebar_body', {penalty: Math.round(assignment.late_penalty_ratio * 100)})}</p>
               <div class="text-xs opacity-70">
-                Second deadline: {formatDateTime(assignment.second_deadline)}
+                {t('frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_label_with_date')}: {formatDateTime(assignment.second_deadline)}
               </div>
             </div>
           {:else if assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}
             <div class="card-elevated p-5 space-y-2">
-              <h3 class="font-semibold text-error">All deadlines passed</h3>
-              <p class="text-sm">No more submissions are accepted for this assignment.</p>
+              <h3 class="font-semibold text-error">{t('frontend/src/routes/assignments/[id]/+page.svelte::all_deadlines_passed_sidebar_heading')}</h3>
+              <p class="text-sm">{t('frontend/src/routes/assignments/[id]/+page.svelte::all_deadlines_passed_sidebar_body')}</p>
             </div>
           {/if}
         </aside>
@@ -1249,17 +1260,17 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
 
   <dialog bind:this={submitDialog} class="modal">
     <div class="modal-box w-11/12 max-w-lg space-y-4">
-      <h3 class="font-bold text-lg">Submit solution</h3>
+      <h3 class="font-bold text-lg">{t('frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_heading')}</h3>
       {#if assignment.second_deadline && new Date() > assignment.deadline && new Date() <= assignment.second_deadline}
         <div class="alert alert-warning">
           <span>
-            <strong>Second deadline period:</strong> This submission will receive {Math.round(assignment.late_penalty_ratio * 100)}% of the maximum points.
+            <strong>{t('frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_period_info_strong')}</strong> {t('frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_alert_body', {penalty: Math.round(assignment.late_penalty_ratio * 100)})}
           </span>
         </div>
       {:else if assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}
         <div class="alert alert-error">
           <span>
-            <strong>All deadlines have passed:</strong> No more submissions are accepted for this assignment.
+            <strong>{t('frontend/src/routes/assignments/[id]/+page.svelte::all_deadlines_passed_alert_strong')}</strong> {t('frontend/src/routes/assignments/[id]/+page.svelte::all_deadlines_passed_alert_body')}
           </span>
         </div>
       {/if}
@@ -1271,57 +1282,57 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         on:dragleave={() => isDragging = false}
         on:drop|preventDefault={(e)=>{ isDragging=false; const dt=(e as DragEvent).dataTransfer; if(dt){ files=[...files, ...Array.from(dt.files)].filter(f=>f.name.endsWith('.py')) } }}
       >
-        <div class="text-sm opacity-70 mb-2">Drag and drop your .py files here</div>
-        <div class="mb-3">or</div>
+        <div class="text-sm opacity-70 mb-2">{t('frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_dropzone_text')}</div>
+        <div class="mb-3">{t('frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_or')}</div>
         <input type="file" accept=".py" multiple class="file-input file-input-bordered w-full"
           on:change={e=>files=Array.from((e.target as HTMLInputElement).files||[])}>
       </div>
       {#if files.length}
-        <div class="text-sm opacity-70">{files.length} file{files.length===1?'':'s'} selected</div>
+        <div class="text-sm opacity-70">{translate(files.length === 1 ? 'frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_files_selected_singular' : 'frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_files_selected_plural', {count: files.length})}</div>
       {/if}
       <div class="modal-action">
-        <button class="btn" on:click={submit} disabled={!files.length || (assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline)}>Upload</button>
+        <button class="btn" on:click={submit} disabled={!files.length || (assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline)}>{t('frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_upload_button')}</button>
       </div>
     </div>
-    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    <form method="dialog" class="modal-backdrop"><button>{t('frontend/src/routes/assignments/[id]/+page.svelte::modal_close_button')}</button></form>
   </dialog>
 
   <!-- Extend deadline dialog (teacher) -->
   <dialog bind:this={extendDialog} class="modal">
     <div class="modal-box w-11/12 max-w-md space-y-4">
-      <h3 class="font-bold text-lg">Extend deadline</h3>
+      <h3 class="font-bold text-lg">{t('frontend/src/routes/assignments/[id]/+page.svelte::extend_deadline_modal_heading')}</h3>
       <div class="form-control">
-        <label class="label"><span class="label-text">Student</span></label>
+        <label class="label"><span class="label-text">{t('frontend/src/routes/assignments/[id]/+page.svelte::extend_deadline_modal_student_label')}</span></label>
         <div class="input input-bordered">{extStudent?.name ?? extStudent?.email}</div>
       </div>
       <div class="form-control">
-        <label class="label"><span class="label-text">New deadline</span></label>
+        <label class="label"><span class="label-text">{t('frontend/src/routes/assignments/[id]/+page.svelte::extend_deadline_modal_new_deadline_label')}</span></label>
         <div class="flex items-center gap-2">
           <input class="input input-bordered w-full" readonly placeholder="dd/mm/yyyy hh:mm" value={euLabelFromParts(extDeadlineDate, extDeadlineTime)}>
-          <button class="btn" on:click|preventDefault={pickExtensionDeadline}>Pick</button>
+          <button class="btn" on:click|preventDefault={pickExtensionDeadline}>{t('frontend/src/routes/assignments/[id]/+page.svelte::pick_button')}</button>
           {#if extDeadlineDate}
-            <button class="btn btn-ghost" on:click|preventDefault={() => { extDeadlineDate=''; extDeadlineTime=''; }}>Clear</button>
+            <button class="btn btn-ghost" on:click|preventDefault={() => { extDeadlineDate=''; extDeadlineTime=''; }}>{t('frontend/src/routes/assignments/[id]/+page.svelte::clear_button_label')}</button>
           {/if}
         </div>
       </div>
       <div class="form-control">
-        <label class="label"><span class="label-text">Note (optional)</span></label>
-        <input type="text" class="input input-bordered w-full" placeholder="Reason or context" bind:value={extNote} />
+        <label class="label"><span class="label-text">{t('frontend/src/routes/assignments/[id]/+page.svelte::extend_deadline_modal_note_label')}</span></label>
+        <input type="text" class="input input-bordered w-full" placeholder={t('frontend/src/routes/assignments/[id]/+page.svelte::extend_deadline_modal_note_placeholder')} bind:value={extNote} />
       </div>
       <div class="modal-action">
         {#if overrideMap[extStudent?.id]}
-          <button class="btn btn-error btn-outline" on:click={clearExtension}>Clear</button>
+          <button class="btn btn-error btn-outline" on:click={clearExtension}>{t('frontend/src/routes/assignments/[id]/+page.svelte::extend_deadline_modal_clear_button')}</button>
         {/if}
-        <button class="btn" on:click={saveExtension} disabled={!extStudent || !extDeadline}>Save</button>
+        <button class="btn" on:click={saveExtension} disabled={!extStudent || !extDeadline}>{t('frontend/src/routes/assignments/[id]/+page.svelte::extend_deadline_modal_save_button')}</button>
       </div>
     </div>
-    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    <form method="dialog" class="modal-backdrop"><button>{t('frontend/src/routes/assignments/[id]/+page.svelte::modal_close_button')}</button></form>
   </dialog>
 
   <!-- Teacher run upload modal -->
   <dialog bind:this={teacherRunDialog} class="modal">
     <div class="modal-box w-11/12 max-w-lg space-y-4">
-      <h3 class="font-bold text-lg">New teacher run</h3>
+      <h3 class="font-bold text-lg">{t('frontend/src/routes/assignments/[id]/+page.svelte::new_teacher_run_modal_heading')}</h3>
       <div
         role="region"
         aria-label="Teacher solution dropzone"
@@ -1330,19 +1341,19 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
         on:dragleave={() => isSolDragging = false}
         on:drop|preventDefault={(e)=>{ isSolDragging=false; const dt=(e as DragEvent).dataTransfer; if(dt){ solFiles=[...solFiles, ...Array.from(dt.files)].filter(f=>f.name.endsWith('.py')) } }}
       >
-        <div class="text-sm opacity-70 mb-2">Drag and drop reference .py files here</div>
-        <div class="mb-3">or</div>
+        <div class="text-sm opacity-70 mb-2">{t('frontend/src/routes/assignments/[id]/+page.svelte::new_teacher_run_modal_dropzone_text')}</div>
+        <div class="mb-3">{t('frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_or')}</div>
         <input type="file" accept=".py" multiple class="file-input file-input-bordered w-full"
           on:change={e=>solFiles=Array.from((e.target as HTMLInputElement).files||[])}>
       </div>
       {#if solFiles.length}
-        <div class="text-sm opacity-70">{solFiles.length} file{solFiles.length===1?'':'s'} selected</div>
+        <div class="text-sm opacity-70">{translate(solFiles.length === 1 ? 'frontend/src/routes/assignments/[id]/+page.svelte::new_teacher_run_modal_files_selected_singular' : 'frontend/src/routes/assignments/[id]/+page.page.svelte::new_teacher_run_modal_files_selected_plural', {count: solFiles.length})}</div>
       {/if}
       <div class="modal-action">
-        <button class={`btn btn-primary ${solLoading ? 'loading' : ''}`} on:click={runTeacherSolution} disabled={!solFiles.length || solLoading}>Run</button>
+        <button class={`btn btn-primary ${solLoading ? 'loading' : ''}`} on:click={runTeacherSolution} disabled={!solFiles.length || solLoading}>{t('frontend/src/routes/assignments/[id]/+page.svelte::new_teacher_run_modal_run_button')}</button>
       </div>
     </div>
-    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    <form method="dialog" class="modal-backdrop"><button>{t('frontend/src/routes/assignments/[id]/+page.svelte::modal_close_button')}</button></form>
   </dialog>
 
   
