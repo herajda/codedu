@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { apiJSON } from '$lib/api';
   import { goto } from '$app/navigation';
+  import { t } from '$lib/i18n';
   type Class = { id:number; name:string; teacher_email:string };
   let list:Class[]=[];
   let err='';
@@ -14,7 +15,7 @@
   });
 </script>
 
-<h1 class="text-2xl font-bold mb-4">My classes</h1>
+<h1 class="text-2xl font-bold mb-4">{t('frontend/src/routes/my-classes/+page.svelte::my_classes')}</h1>
 
 <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
   {#each list as c}
@@ -23,13 +24,13 @@
         <h2 class="card-title">{c.name}</h2>
         <p class="text-sm text-base-content/70">{c.teacher_email}</p>
         <div class="card-actions justify-end">
-          <button class="btn btn-primary btn-sm" on:click={()=>goto(`/classes/${c.id}`)}>Open</button>
+          <button class="btn btn-primary btn-sm" on:click={()=>goto(`/classes/${c.id}`)}>{t('frontend/src/routes/my-classes/+page.svelte::open_class')}</button>
         </div>
       </div>
     </div>
   {/each}
   {#if !list.length && !err}
-    <p>No classes yet.</p>
+    <p>{t('frontend/src/routes/my-classes/+page.svelte::no_classes_yet')}</p>
   {/if}
 </div>
 

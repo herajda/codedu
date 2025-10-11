@@ -1,3 +1,4 @@
+
 const BASE: string | undefined = import.meta.env.BAKALARI_BASE_URL;
 
 export const hasBakalari = !!BASE;

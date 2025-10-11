@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
+  import { t, translator } from '$lib/i18n';
 
   export type PromptModalOptions = {
     title?: string;
@@ -26,13 +27,16 @@
   let resolver: ((value: string | null) => void) | null = null;
   let currentOptions: PromptModalOptions = {};
 
-  let title = 'Enter a value';
+  let translate;
+  $: translate = $translator;
+
+  let title = t('frontend/src/lib/components/PromptModal.svelte::enter_a_value');
   let body = '';
-  let label = 'Value';
+  let label = t('frontend/src/lib/components/PromptModal.svelte::value_label');
   let placeholder = '';
   let value = '';
-  let confirmLabel = 'Save';
-  let cancelLabel = 'Cancel';
+  let confirmLabel = t('frontend/src/lib/components/PromptModal.svelte::save');
+  let cancelLabel = t('frontend/src/lib/components/PromptModal.svelte::cancel');
   let confirmClass = 'btn btn-primary';
   let cancelClass = 'btn';
   let icon: string | undefined;
@@ -44,13 +48,13 @@
 
   export async function open(options: PromptModalOptions = {}): Promise<string | null> {
     currentOptions = options;
-    title = options.title ?? 'Enter a value';
+    title = options.title ?? t('frontend/src/lib/components/PromptModal.svelte::enter_a_value');
     body = options.body ?? '';
-    label = options.label ?? 'Value';
+    label = options.label ?? t('frontend/src/lib/components/PromptModal.svelte::value_label');
     placeholder = options.placeholder ?? '';
     value = options.initialValue ?? '';
-    confirmLabel = options.confirmLabel ?? 'Save';
-    cancelLabel = options.cancelLabel ?? 'Cancel';
+    confirmLabel = options.confirmLabel ?? t('frontend/src/lib/components/PromptModal.svelte::save');
+    cancelLabel = options.cancelLabel ?? t('frontend/src/lib/components/PromptModal.svelte::cancel');
     confirmClass = options.confirmClass ?? 'btn btn-primary';
     cancelClass = options.cancelClass ?? 'btn';
     icon = options.icon;
@@ -165,5 +169,5 @@
       <button type="submit" class={confirmClass}>{confirmLabel}</button>
     </div>
   </form>
-  <form method="dialog" class="modal-backdrop" on:submit={handleCancel}><button aria-label="Close">close</button></form>
+  <form method="dialog" class="modal-backdrop" on:submit={handleCancel}><button aria-label="Close">{translate('frontend/src/lib/components/PromptModal.svelte::close_button')}</button></form>
 </dialog>

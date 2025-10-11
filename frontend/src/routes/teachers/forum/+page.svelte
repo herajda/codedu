@@ -8,6 +8,7 @@
   import { fade, scale } from 'svelte/transition';
   import { sidebarCollapsed } from '$lib/sidebar';
   import { TEACHER_GROUP_ID } from '$lib/teacherGroup';
+  import { t } from '$lib/i18n';
 
   // Use fixed Teachers' group ID
   let id = TEACHER_GROUP_ID;
@@ -168,7 +169,7 @@
     return new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
   function hyphenateLongWords(text: string, max = 20) {
-    return text.replace(new RegExp(`\\S{${max},}`, 'g'), word => {
+    return text.replace(new RegExp(`\S{${max},}`, 'g'), word => {
       const parts: string[] = [];
       for (let i = 0; i < word.length; i += max) parts.push(word.slice(i, i + max));
       return parts.join('\u00AD');
@@ -180,7 +181,7 @@
     const emojiOnly = /^(?:\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic})*)+$/u;
     return emojiOnly.test(trimmed);
   }
-  function displayName(m: any) { return m.name ?? m.email?.split('@')[0] ?? 'Unknown'; }
+  function displayName(m: any) { return m.name ?? m.email?.split('@')[0] ?? t('frontend/src/routes/teachers/forum/+page.svelte::unknown_user_fallback'); }
   function placeholderAvatar(seed: string): string {
     let h = 0; for (let i = 0; i < seed.length; i++) h = ((h << 5) - h + seed.charCodeAt(i)) >>> 0; const n = (h % 50) + 1; return `/avatars/a${n}.svg`;
   }
@@ -214,8 +215,8 @@
         <MessageSquare class="w-5 h-5 text-primary" />
       </div>
       <div class="min-w-0">
-        <h2 class="font-semibold text-lg leading-tight">Teachers' Forum</h2>
-        <div class="text-sm text-base-content/60 truncate" title={cls?.class?.name ?? cls?.name ?? 'Teachers'}>{cls?.class?.name ?? cls?.name ?? 'Teachers'}</div>
+        <h2 class="font-semibold text-lg leading-tight">{t('frontend/src/routes/teachers/forum/+page.svelte::teachers_forum_title')}</h2>
+        <div class="text-sm text-base-content/60 truncate" title={cls?.class?.name ?? cls?.name ?? t('frontend/src/routes/teachers/forum/+page.svelte::teachers_forum_title')}>{cls?.class?.name ?? cls?.name ?? t('frontend/src/routes/teachers/forum/+page.svelte::teachers_forum_title')}</div>
       </div>
     </div>
   </div>
@@ -225,7 +226,7 @@
       {#if hasMore}
         <div class="text-center">
           <button class="btn btn-outline btn-sm glass" on:click={() => load(true)}>
-            Load more messages
+            {t('frontend/src/routes/teachers/forum/+page.svelte::load_more_messages')}
           </button>
         </div>
       {/if}
@@ -241,11 +242,11 @@
             {/if}
 
             <div class="relative flex flex-col">
-              <div class="text-xs opacity-70 mb-1">{m.user_id === $auth?.id ? 'You' : displayName(m)}</div>
+              <div class="text-xs opacity-70 mb-1">{m.user_id === $auth?.id ? t('frontend/src/routes/teachers/forum/+page.svelte::you_label') : displayName(m)}</div>
 
               {#if m.image}
                 <div class="mb-2">
-                  <button type="button" class="block p-0 m-0 bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-primary/50 rounded-2xl" on:click={() => openImage(m.image)} aria-label="Open attachment">
+                  <button type="button" class="block p-0 m-0 bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-primary/50 rounded-2xl" on:click={() => openImage(m.image)} aria-label={t('frontend/src/routes/teachers/forum/+page.svelte::open_attachment_aria_label')}>
                     <img src={m.image} alt="attachment" class="max-w-[70vw] sm:max-w-xs w-full max-h-96 object-contain rounded-2xl shadow" />
                   </button>
                 </div>
@@ -253,7 +254,7 @@
 
               {#if m.file}
                 <a class="btn btn-sm btn-outline gap-2 mb-2" href={m.file} download={m.file_name || 'file'}>
-                  <Paperclip class="w-4 h-4" /> {m.file_name || 'file'}
+                  <Paperclip class="w-4 h-4" /> {m.file_name || t('frontend/src/routes/teachers/forum/+page.svelte::file_download_fallback_name')}
                 </a>
               {/if}
 
@@ -278,7 +279,7 @@
       {#if imageData}
         <div class="mb-2 p-2 bg-base-200/60 rounded-lg flex items-center gap-3">
           <div class="w-16 h-16 overflow-hidden rounded-lg">
-            <img src={imageData} alt="preview" class="w-full h-full object-cover" />
+            <img src={imageData} alt={t('frontend/src/routes/teachers/forum/+page.svelte::image_preview_alt')} class="w-full h-full object-cover" />
           </div>
           <button class="btn btn-circle btn-sm btn-ghost hover:bg-base-200/80" on:click={() => imageData = null}>
             <X class="w-4 h-4" />
@@ -310,8 +311,8 @@
           </button>
           {#if showAttachmentMenu}
             <div class="absolute bottom-full left-0 mb-2 bg-base-100 rounded-lg shadow-lg border border-base-300/30 p-2 backdrop-blur-sm">
-              <button class="btn btn-ghost btn-sm gap-2 w-full justify-start" on:click={choosePhoto}><ImagePlus class="w-4 h-4" /> Photo</button>
-              <button class="btn btn-ghost btn-sm gap-2 w-full justify-start" on:click={chooseFile}><Paperclip class="w-4 h-4" /> File</button>
+              <button class="btn btn-ghost btn-sm gap-2 w-full justify-start" on:click={choosePhoto}><ImagePlus class="w-4 h-4" /> {t('frontend/src/routes/teachers/forum/+page.svelte::attachment_menu_photo')}</button>
+              <button class="btn btn-ghost btn-sm gap-2 w-full justify-start" on:click={chooseFile}><Paperclip class="w-4 h-4" /> {t('frontend/src/routes/teachers/forum/+page.svelte::attachment_menu_file')}</button>
             </div>
           {/if}
         </div>
@@ -332,10 +333,10 @@
         </div>
 
         <div class="flex-1 relative">
-          <textarea class="textarea textarea-bordered w-full resize-none overflow-hidden bg-base-200/50 backdrop-blur-sm border-base-300/50 focus:border-primary/50 focus:bg-base-100/80 transition-all duration-200 rounded-2xl" rows="1" style="min-height:0;height:auto" placeholder="Type a message..." bind:value={text} bind:this={msgInput} on:input={adjustHeight} on:keydown={handleKeydown}></textarea>
+          <textarea class="textarea textarea-bordered w-full resize-none overflow-hidden bg-base-200/50 backdrop-blur-sm border-base-300/50 focus:border-primary/50 focus:bg-base-100/80 transition-all duration-200 rounded-2xl" rows="1" style="min-height:0;height:auto" placeholder={t('frontend/src/routes/teachers/forum/+page.svelte::type_message_placeholder')} bind:value={text} bind:this={msgInput} on:input={adjustHeight} on:keydown={handleKeydown}></textarea>
         </div>
 
-        <button class="btn btn-circle btn-primary shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" on:click={send} disabled={!text.trim() && !imageData && !fileData} aria-label="Send message">
+        <button class="btn btn-circle btn-primary shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" on:click={send} disabled={!text.trim() && !imageData && !fileData} aria-label={t('frontend/src/routes/teachers/forum/+page.svelte::send_message_aria_label')}>
           <Send class="w-4 h-4" />
         </button>
       </div>
@@ -344,19 +345,19 @@
 </div>
 
 {#if lightboxOpen && modalImage}
-  <div class={`fixed top-0 bottom-0 right-0 left-0 ${$sidebarCollapsed ? 'sm:left-0' : 'sm:left-60'} z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center`} on:click|self={closeLightbox} in:fade={{ duration: 150 }} out:fade={{ duration: 150 }} role="dialog" aria-modal="true" aria-label="Image viewer">
+  <div class={`fixed top-0 bottom-0 right-0 left-0 ${$sidebarCollapsed ? 'sm:left-0' : 'sm:left-60'} z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center`} on:click|self={closeLightbox} in:fade={{ duration: 150 }} out:fade={{ duration: 150 }} role="dialog" aria-modal="true" aria-label={t('frontend/src/routes/teachers/forum/+page.svelte::image_viewer_aria_label')}>
     <div class="absolute top-0 left-0 right-0 p-4 flex items-center justify-end gap-2">
-      <a class="btn btn-sm md:btn-md no-animation bg-white/20 hover:bg-white/30 text-white border-0" href={modalImage} download on:click|stopPropagation aria-label="Download image">Download</a>
-      <button class="btn btn-circle no-animation bg-white/20 hover:bg-white/30 text-white border-0" on:click|stopPropagation={closeLightbox} aria-label="Close">
+      <a class="btn btn-sm md:btn-md no-animation bg-white/20 hover:bg-white/30 text-white border-0" href={modalImage} download on:click|stopPropagation aria-label={t('frontend/src/routes/teachers/forum/+page.svelte::lightbox_download_button_aria_label')}>{t('frontend/src/routes/teachers/forum/+page.svelte::lightbox_download_button')}</a>
+      <button class="btn btn-circle no-animation bg-white/20 hover:bg-white/30 text-white border-0" on:click|stopPropagation={closeLightbox} aria-label={t('frontend/src/routes/teachers/forum/+page.svelte::lightbox_close_button_aria_label')}>
         <X class="w-5 h-5" />
       </button>
     </div>
-    <button type="button" class="bg-transparent p-0 m-0 border-0 focus:outline-none" on:click|stopPropagation aria-label="Image">
+    <button type="button" class="bg-transparent p-0 m-0 border-0 focus:outline-none" on:click|stopPropagation aria-label={t('frontend/src/routes/teachers/forum/+page.svelte::lightbox_image_aria_label')}>
       <img src={modalImage} alt="" class="max-h-[90vh] max-w-[90vw] object-contain rounded-xl shadow-2xl" transition:scale={{ duration: 200, start: 0.98 }} />
     </button>
     {#if imageUrls.length > 1}
-      <button class="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 rounded-full p-2 md:p-3 bg-white/15 hover:bg-white/25 text-white shadow-sm border border-transparent focus:outline-none focus:ring-2 focus:ring-white/50" on:click|stopPropagation={showPrevImage} aria-label="Previous image"><ChevronLeft class="w-6 h-6" /></button>
-      <button class="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 rounded-full p-2 md:p-3 bg-white/15 hover:bg-white/25 text-white shadow-sm border border-transparent focus:outline-none focus:ring-2 focus:ring-white/50" on:click|stopPropagation={showNextImage} aria-label="Next image"><ChevronRight class="w-6 h-6" /></button>
+      <button class="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 rounded-full p-2 md:p-3 bg-white/15 hover:bg-white/25 text-white shadow-sm border border-transparent focus:outline-none focus:ring-2 focus:ring-white/50" on:click|stopPropagation={showPrevImage} aria-label={t('frontend/src/routes/teachers/forum/+page.svelte::previous_image_aria_label')}><ChevronLeft class="w-6 h-6" /></button>
+      <button class="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 rounded-full p-2 md:p-3 bg-white/15 hover:bg-white/25 text-white shadow-sm border border-transparent focus:outline-none focus:ring-2 focus:ring-white/50" on:click|stopPropagation={showNextImage} aria-label={t('frontend/src/routes/teachers/forum/+page.svelte::next_image_aria_label')}><ChevronRight class="w-6 h-6" /></button>
     {/if}
   </div>
 {/if}

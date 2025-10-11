@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
+  import { t, translator } from '$lib/i18n';
 
   export let submissionId: number;
 
@@ -24,6 +25,9 @@
     'ls', 'ls -la', 'cat main.py', 'python main.py', 'python3 main.py',
     'pip list', 'pytest -q', 'python -m pytest -q', 'echo "Hello"', 'pwd'
   ];
+
+  let translate;
+  $: translate = $translator;
 
   function wsUrl(): string {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -138,7 +142,8 @@
     if (found) {
       suggestedFull = found;
       suggestSuffix = found.slice(cmd.length);
-    } else {
+    }
+    else {
       suggestedFull = '';
       suggestSuffix = '';
     }
@@ -154,7 +159,7 @@
     for (const raw of text.split(/\s+/)) {
       const token = raw.trim();
       if (!token) continue;
-      if (/^[A-Za-z0-9_\.\-\/]+$/.test(token) && token.length <= 64) {
+      if (/^[A-Za-z0-9_\.\-/]+$/.test(token) && token.length <= 64) {
         seenTokens.add(token);
       }
     }
@@ -217,17 +222,17 @@
   <div class="flex items-center justify-between px-4 py-2 bg-base-300/60">
     <div class="flex items-center gap-2">
       <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-      <span class="font-semibold tracking-wide">Interactive test session</span>
-      <span class="text-xs opacity-70 ml-2">Docker sandboxed</span>
+      <span class="font-semibold tracking-wide">{t('frontend/src/lib/components/Terminal.svelte::interactive_test_session')}</span>
+      <span class="text-xs opacity-70 ml-2">{t('frontend/src/lib/components/Terminal.svelte::docker_sandboxed')}</span>
     </div>
     <div class="flex gap-2">
       {#if !connected}
-        <button class="btn btn-sm btn-primary" on:click={start}>Start</button>
+        <button class="btn btn-sm btn-primary" on:click={start}>{translate('frontend/src/lib/components/Terminal.svelte::start_button')}</button>
       {:else}
-        <button class="btn btn-sm btn-secondary" on:click={stop}>Stop</button>
+        <button class="btn btn-sm btn-secondary" on:click={stop}>{translate('frontend/src/lib/components/Terminal.svelte::stop_button')}</button>
       {/if}
-      <button class="btn btn-sm" on:click={clearOut}>Clear</button>
-      <button class="btn btn-sm btn-outline" on:click={ctrlC} disabled={!connected}>Ctrl+C</button>
+      <button class="btn btn-sm" on:click={clearOut}>{translate('frontend/src/lib/components/Terminal.svelte::clear_button')}</button>
+      <button class="btn btn-sm btn-outline" on:click={ctrlC} disabled={!connected}>{translate('frontend/src/lib/components/Terminal.svelte::ctrl_c_button')}</button>
     </div>
   </div>
   <div bind:this={scrollEl} class="terminal-area font-mono text-sm p-3 h-72 overflow-auto">
@@ -239,7 +244,7 @@
           bind:this={inputEl}
           class="term-input"
           bind:value={cmd}
-          placeholder={!connected ? 'Start the session to type…' : ''}
+          placeholder={!connected ? translate('frontend/src/lib/components/Terminal.svelte::start_session_placeholder') : ''}
           on:keydown={(e)=>{
             if(e.key==='Enter'){ e.preventDefault(); send(); }
             else if(e.key==='Tab'){ e.preventDefault(); acceptSuggestion(); }
@@ -291,4 +296,3 @@
   .term-input::placeholder { color: rgba(214, 255, 240, 0.35); }
   .suggestion { position: absolute; top: 0; color: rgba(214,255,240,0.28); pointer-events: none; }
 </style>
-

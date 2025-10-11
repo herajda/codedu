@@ -8,6 +8,10 @@
   import { compressImage } from '$lib/utils/compressImage';
   import { fade, scale } from 'svelte/transition';
   import { sidebarCollapsed } from '$lib/sidebar';
+  import { t, translator } from '$lib/i18n';
+
+  let translate;
+  $: translate = $translator;
 
   let id = $page.params.id;
   $: if ($page.params.id !== id) {
@@ -117,7 +121,7 @@
     }
     try {
       cls = await apiJSON(`/api/classes/${id}`);
-    } catch {}
+    } catch {} 
   }
 
   function connect() {
@@ -216,7 +220,7 @@
   }
 
   function displayName(m: any) {
-    return m.name ?? m.email?.split('@')[0] ?? 'Unknown';
+    return m.name ?? m.email?.split('@')[0] ?? t('frontend/src/routes/classes/[id]/forum/+page.svelte::unknown');
   }
 
   // Deterministic placeholder avatar (avoid Math.random quirks on re-render)
@@ -273,7 +277,8 @@
           msgInput?.focus();
         }, 0);
       }
-    } catch (e) {
+    }
+    catch (e) {
       console.error('send failed', e);
     }
   }
@@ -286,8 +291,8 @@
         <MessageSquare class="w-5 h-5 text-primary" />
       </div>
       <div class="min-w-0">
-        <h2 class="font-semibold text-lg leading-tight">Forum</h2>
-        <div class="text-sm text-base-content/60 truncate" title={(cls?.class?.name ?? cls?.name) ?? ''}>{cls?.class?.name ?? cls?.name ?? 'Class discussion'}</div>
+        <h2 class="font-semibold text-lg leading-tight">{translate('frontend/src/routes/classes/[id]/forum/+page.svelte::forum_title')}</h2>
+        <div class="text-sm text-base-content/60 truncate" title={(cls?.class?.name ?? cls?.name) ?? ''}>{cls?.class?.name ?? cls?.name ?? translate('frontend/src/routes/classes/[id]/forum/+page.svelte::class_discussion_fallback')}</div>
       </div>
     </div>
   </div>
@@ -297,7 +302,7 @@
       {#if hasMore}
         <div class="text-center">
           <button class="btn btn-outline btn-sm glass" on:click={() => load(true)}>
-            Load more messages
+            {translate('frontend/src/routes/classes/[id]/forum/+page.svelte::load_more_messages')}
           </button>
         </div>
       {/if}
@@ -314,13 +319,13 @@
 
             <div class="relative flex flex-col">
               <div class="text-xs opacity-70 mb-1">
-                {m.user_id === $auth?.id ? 'You' : displayName(m)}
+                {m.user_id === $auth?.id ? translate('frontend/src/routes/classes/[id]/forum/+page.svelte::you') : displayName(m)}
               </div>
 
               {#if m.image}
                 <div class="mb-2">
-                  <button type="button" class="block p-0 m-0 bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-primary/50 rounded-2xl" on:click={() => openImage(m.image)} aria-label="Open attachment">
-                    <img src={m.image} alt="attachment" class="max-w-[70vw] sm:max-w-xs w-full max-h-96 object-contain rounded-2xl shadow-lg" />
+                  <button type="button" class="block p-0 m-0 bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-primary/50 rounded-2xl" on:click={() => openImage(m.image)} aria-label={t('frontend/src/routes/classes/[id]/forum/+page.svelte::open_attachment_aria')}>
+                    <img src={m.image} alt={t('frontend/src/routes/classes/[id]/forum/+page.svelte::attachment_alt')} class="max-w-[70vw] sm:max-w-xs w-full max-h-96 object-contain rounded-2xl shadow-lg" />
                   </button>
                 </div>
               {/if}
@@ -335,8 +340,8 @@
                     <Paperclip class="w-6 h-6 text-primary" />
                   </div>
                   <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium truncate">{m.file_name || 'File'}</p>
-                    <p class="text-xs text-base-content/60">Click to download</p>
+                    <p class="text-sm font-medium truncate">{m.file_name || translate('frontend/src/routes/classes/[id]/forum/+page.svelte::file_name_fallback')}</p>
+                    <p class="text-xs text-base-content/60">{translate('frontend/src/routes/classes/[id]/forum/+page.svelte::click_to_download')}</p>
                   </div>
                   <div class="flex-shrink-0">
                     <svg class="w-5 h-5 text-base-content/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -397,7 +402,7 @@
   <div class="chat-input-area mx-2 sm:mx-4 mb-2 sm:mb-3 p-4 rounded-xl bg-base-100/80 backdrop-blur supports-[backdrop-filter]:bg-base-100/85 border border-base-300/30 shadow-md">
     {#if imageData}
       <div class="relative mb-3">
-        <img src={imageData} alt="preview" class="max-h-32 rounded-lg shadow-sm" />
+        <img src={imageData} alt={t('frontend/src/routes/classes/[id]/forum/+page.svelte::image_preview_alt')} class="max-h-32 rounded-lg shadow-sm" />
         <button
           class="btn btn-circle btn-sm btn-ghost absolute top-2 right-2 bg-base-100/80 backdrop-blur-sm hover:bg-base-200/80"
           on:click={() => imageData = null}
@@ -441,11 +446,11 @@
           <div class="absolute bottom-full left-0 mb-2 bg-base-100 rounded-lg shadow-lg border border-base-300/30 p-2 backdrop-blur-sm">
             <button class="btn btn-ghost btn-sm gap-2 w-full justify-start" on:click={choosePhoto}>
               <ImagePlus class="w-4 h-4" />
-              Photo
+              {translate('frontend/src/routes/classes/[id]/forum/+page.svelte::attachment_photo')}
             </button>
             <button class="btn btn-ghost btn-sm gap-2 w-full justify-start" on:click={chooseFile}>
               <Paperclip class="w-4 h-4" />
-              File
+              {translate('frontend/src/routes/classes/[id]/forum/+page.svelte::attachment_file')}
             </button>
           </div>
         {/if}
@@ -479,7 +484,7 @@
           class="textarea textarea-bordered w-full resize-none overflow-hidden bg-base-200/50 backdrop-blur-sm border-base-300/50 focus:border-primary/50 focus:bg-base-100/80 transition-all duration-200 rounded-2xl"
           rows="1"
           style="min-height:0;height:auto"
-          placeholder="Type a message..."
+          placeholder={t('frontend/src/routes/classes/[id]/forum/+page.svelte::type_a_message_placeholder')}
           bind:value={text}
           bind:this={msgInput}
           on:input={adjustHeight}
@@ -491,7 +496,7 @@
         class="btn btn-circle btn-primary shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
         on:click={send}
         disabled={!text.trim() && !imageData && !fileData}
-        aria-label="Send message"
+        aria-label={t('frontend/src/routes/classes/[id]/forum/+page.svelte::send_message_aria')}
       >
         <Send class="w-4 h-4" />
       </button>
@@ -501,26 +506,26 @@
 
 <!-- Image Lightbox Overlay -->
 {#if lightboxOpen && modalImage}
-  <div class={`fixed top-0 bottom-0 right-0 left-0 ${$sidebarCollapsed ? 'sm:left-0' : 'sm:left-60'} z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center`} on:click|self={closeLightbox} in:fade={{ duration: 150 }} out:fade={{ duration: 150 }} role="dialog" aria-modal="true" aria-label="Image viewer">
+  <div class={`fixed top-0 bottom-0 right-0 left-0 ${$sidebarCollapsed ? 'sm:left-0' : 'sm:left-60'} z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center`} on:click|self={closeLightbox} in:fade={{ duration: 150 }} out:fade={{ duration: 150 }} role="dialog" aria-modal="true" aria-label={t('frontend/src/routes/classes/[id]/forum/+page.svelte::image_viewer_aria')}>
     <!-- Controls -->
     <div class="absolute top-0 left-0 right-0 p-4 flex items-center justify-end gap-2">
-      <a class="btn btn-sm md:btn-md no-animation bg-white/20 hover:bg-white/30 text-white border-0" href={modalImage} download on:click|stopPropagation aria-label="Download image">Download</a>
-      <button class="btn btn-circle no-animation bg-white/20 hover:bg-white/30 text-white border-0" on:click|stopPropagation={closeLightbox} aria-label="Close">
+      <a class="btn btn-sm md:btn-md no-animation bg-white/20 hover:bg-white/30 text-white border-0" href={modalImage} download on:click|stopPropagation aria-label={t('frontend/src/routes/classes/[id]/forum/+page.page.svelte::download_image_aria')}>{translate('frontend/src/routes/classes/[id]/forum/+page.svelte::lightbox_download')}</a>
+      <button class="btn btn-circle no-animation bg-white/20 hover:bg-white/30 text-white border-0" on:click|stopPropagation={closeLightbox} aria-label={t('frontend/src/routes/classes/[id]/forum/+page.svelte::close_aria')}>
         <X class="w-5 h-5" />
       </button>
     </div>
 
     <!-- Image -->
-    <button type="button" class="bg-transparent p-0 m-0 border-0 focus:outline-none" on:click|stopPropagation aria-label="Image">
+    <button type="button" class="bg-transparent p-0 m-0 border-0 focus:outline-none" on:click|stopPropagation aria-label={t('frontend/src/routes/classes/[id]/forum/+page.svelte::image_aria')}>
       <img src={modalImage} alt="" class="max-h-[90vh] max-w-[90vw] object-contain rounded-xl shadow-2xl" transition:scale={{ duration: 200, start: 0.98 }} />
     </button>
 
     <!-- Nav Arrows -->
     {#if imageUrls.length > 1}
-      <button class="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 rounded-full p-2 md:p-3 bg-white/15 hover:bg-white/25 text-white shadow-sm border border-transparent focus:outline-none focus:ring-2 focus:ring-white/50" on:click|stopPropagation={showPrevImage} aria-label="Previous image">
+      <button class="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 rounded-full p-2 md:p-3 bg-white/15 hover:bg-white/25 text-white shadow-sm border border-transparent focus:outline-none focus:ring-2 focus:ring-white/50" on:click|stopPropagation={showPrevImage} aria-label={t('frontend/src/routes/classes/[id]/forum/+page.svelte::previous_image_aria')}>
         <ChevronLeft class="w-6 h-6" />
       </button>
-      <button class="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 rounded-full p-2 md:p-3 bg-white/15 hover:bg-white/25 text-white shadow-sm border border-transparent focus:outline-none focus:ring-2 focus:ring-white/50" on:click|stopPropagation={showNextImage} aria-label="Next image">
+      <button class="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 rounded-full p-2 md:p-3 bg-white/15 hover:bg-white/25 text-white shadow-sm border border-transparent focus:outline-none focus:ring-2 focus:ring-white/50" on:click|stopPropagation={showNextImage} aria-label={t('frontend/src/routes/classes/[id]/forum/+page.svelte::next_image_aria')}>
         <ChevronRight class="w-6 h-6" />
       </button>
     {/if}

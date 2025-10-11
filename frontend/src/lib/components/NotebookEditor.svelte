@@ -1,4 +1,3 @@
-
 <script lang="ts">
 import { notebookStore } from "$lib/stores/notebookStore";
 import pkg from "file-saver";
@@ -10,9 +9,13 @@ import { apiFetch } from "$lib/api";
 import { auth } from "$lib/auth";
 import { onMount, afterUpdate, createEventDispatcher } from 'svelte';
 import { preloadPyodide } from '$lib/pyodide';
+import { t, translator } from '$lib/i18n';
 
   export let fileId: string | number | undefined;
   $: nb = $notebookStore;
+
+  let translate;
+  $: translate = $translator;
 
   let cellRefs: any[] = [];
   const { saveAs } = pkg;
@@ -66,7 +69,7 @@ import { preloadPyodide } from '$lib/pyodide';
         headers: { 'Content-Type': 'application/json' },
         body: json
       });
-      alert('Saved!');
+      alert(t('frontend/src/lib/components/NotebookEditor.svelte::saved_alert'));
       dispatch('saved');
     } else {
       const blob = new Blob([json], { type: 'application/json' });
@@ -86,7 +89,7 @@ import { preloadPyodide } from '$lib/pyodide';
         on:click={runAllCells}
         class="px-3 py-1 rounded text-green-600 hover:text-white hover:bg-green-600 hover:scale-110 transition-transform"
       >
-        Run All
+        {translate('frontend/src/lib/components/NotebookEditor.svelte::run_all')}
       </button>
     </div>
     {#each nb.cells as cell, i (cell.id)}
@@ -108,8 +111,8 @@ import { preloadPyodide } from '$lib/pyodide';
     <div class="flex gap-2">
       <button
         on:click={() => addCell("markdown")}
-        aria-label="Add markdown cell"
-        title="Add markdown cell"
+        aria-label={translate('frontend/src/lib/components/NotebookEditor.svelte::add_markdown_cell')}
+        title={translate('frontend/src/lib/components/NotebookEditor.svelte::add_markdown_cell')}
         class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
       >
         <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -119,8 +122,8 @@ import { preloadPyodide } from '$lib/pyodide';
       </button>
       <button
         on:click={() => addCell("code")}
-        aria-label="Add code cell"
-        title="Add code cell"
+        aria-label={translate('frontend/src/lib/components/NotebookEditor.svelte::add_code_cell')}
+        title={translate('frontend/src/lib/components/NotebookEditor.svelte::add_code_cell')}
         class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
       >
         <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -130,10 +133,10 @@ import { preloadPyodide } from '$lib/pyodide';
       {#if $auth?.role === 'teacher' && fileId}
         <button
           on:click={saveNotebook}
-          aria-label="Save notebook"
+          aria-label={translate('frontend/src/lib/components/NotebookEditor.svelte::save_notebook_aria_label')}
           class="px-3 py-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
         >
-          Save
+          {translate('frontend/src/lib/components/NotebookEditor.svelte::save')}
         </button>
       {/if}
     </div>
@@ -143,11 +146,11 @@ import { preloadPyodide } from '$lib/pyodide';
           on:click={runAllCells}
           class="px-3 py-1 rounded text-green-600 hover:text-white hover:bg-green-600 hover:scale-110 transition-transform"
         >
-          Run All
+          {translate('frontend/src/lib/components/NotebookEditor.svelte::run_all')}
         </button>
       </div>
     {/if}
   </div>
 {:else}
-  <p>Loading…</p>
+  <p>{translate('frontend/src/lib/components/NotebookEditor.svelte::loading')}</p>
 {/if}

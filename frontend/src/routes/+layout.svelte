@@ -15,7 +15,7 @@
   import { onlineUsers } from '$lib/stores/onlineUsers';
   import { browser } from '$app/environment';
   import { login as bkLogin, hasBakalari } from '$lib/bakalari';
-  import { applyRuntimeI18n, locale as localeStore } from '$lib/i18n';
+  import { applyRuntimeI18n, locale as localeStore, t, translator } from '$lib/i18n';
   import type { LayoutData } from './$types';
 
   export let data: LayoutData;
@@ -23,6 +23,9 @@
   $: if (data?.locale && data?.messages && data?.fallbackMessages) {
     applyRuntimeI18n(data.locale, data.messages, data.fallbackMessages);
   }
+
+  let translate; // Declare translate
+  $: translate = $translator; // Assign reactive translate
 
   let settingsDialog: HTMLDialogElement;
   let passwordDialog: HTMLDialogElement;
@@ -186,7 +189,7 @@
     } catch (err) {
       console.error('Failed to process avatar', err);
       avatarFile = null;
-      avatarError = 'We could not process that image. Try a different file.';
+      avatarError = t('frontend/src/routes/+layout.svelte::avatar_processing_error');
     } finally {
       avatarProcessing = false;
     }
@@ -207,7 +210,7 @@
   async function savePassword() {
     passwordError = '';
     if (newPassword !== newPassword2) {
-      passwordError = 'Passwords do not match';
+      passwordError = t('frontend/src/routes/+layout.svelte::passwords_do_not_match');
       return;
     }
     try {
@@ -270,15 +273,15 @@
   async function linkLocal() {
     linkError = '';
     if (!isValidEmail(trimmedLinkEmail)) {
-      linkError = 'Please provide a valid email address.';
+      linkError = t('frontend/src/routes/+layout.svelte::provide_valid_email');
       return;
     }
     if (!linkMeetsPasswordRules) {
-      linkError = 'Password must be longer than 8 characters and include letters and numbers.';
+      linkError = t('frontend/src/routes/+layout.svelte::password_rules_not_met');
       return;
     }
     if (!linkPasswordsMatch) {
-      linkError = 'Passwords must match.';
+      linkError = t('frontend/src/routes/+layout.svelte::passwords_must_match');
       return;
     }
     try {
@@ -321,11 +324,11 @@
   async function linkBakalari() {
     bkLinkError = '';
     if (!hasBakalari) {
-      bkLinkError = 'Bakaláři integration is not configured.';
+      bkLinkError = t('frontend/src/routes/+layout.svelte::bakalari_not_configured');
       return;
     }
     if (!bkLinkUsername || !bkLinkPassword) {
-      bkLinkError = 'Please provide your Bakaláři credentials.';
+      bkLinkError = t('frontend/src/routes/+layout.svelte::provide_bakalari_credentials');
       return;
     }
     linkingBakalari = true;
@@ -368,7 +371,7 @@
       bkLinkPassword = '';
       settingsDialog.close();
     } catch (e: any) {
-      bkLinkError = e?.message ?? 'Unable to link account';
+      bkLinkError = e?.message ?? t('frontend/src/routes/+layout.svelte::unable_to_link_account');
     } finally {
       linkingBakalari = false;
     }
@@ -398,13 +401,13 @@
       localStorage.setItem(key, 'yes');
     } catch {}
   }
-  
+
   // Initialize online users and set up periodic updates
   let presenceInterval: NodeJS.Timeout | null = null;
   $: if (user) {
     // Load online users when user logs in
     onlineUsers.loadOnlineUsers();
-    
+
     // Set up periodic updates for user presence
     if (presenceInterval) {
       clearInterval(presenceInterval);
@@ -422,13 +425,13 @@
       presenceInterval = null;
     }
   }
-  
+
   onDestroy(() => {
     if (presenceInterval) {
       clearInterval(presenceInterval);
     }
   });
-  
+
   // Handle browser close/refresh to mark user as offline
   if (browser) {
     window.addEventListener('beforeunload', () => {
@@ -441,7 +444,7 @@
       }
     });
   }
-  
+
   let unreadInitUserId: number | null = null;
   async function initUnreadCount() {
     try {
@@ -455,11 +458,11 @@
     emailMessageDigest = false;
   }
 
-  $: if (user && user.id !== unreadInitUserId) {
-    unreadInitUserId = user.id;
+  $: if (user && Number(user.id) !== unreadInitUserId) {
+    unreadInitUserId = Number(user.id);
     initUnreadCount();
   }
-  
+
   let msgES: { close: () => void } | null = null;
   $: if (user && !msgES) {
     msgES = createEventSource(
@@ -479,14 +482,14 @@
       { onError: () => {} }
     );
   }
-  
+
   // Clear unread indicator when viewing messages routes
   $: if ($page.url.pathname.startsWith('/messages')) {
     resetUnreadMessages();
   }
 
   $: if (!user && msgES) { msgES.close(); msgES = null; }
-  
+
   let prefersDark = false;
   let media: MediaQueryList;
   function applyThemeFromPreference() {
@@ -497,7 +500,7 @@
     }
     document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
   }
-  
+
   let isScrolled = false;
   function handleScroll() {
     isScrolled = typeof window !== 'undefined' && window.scrollY > 0;
@@ -523,7 +526,7 @@
     applyThemeFromPreference();
     if (user) {
       auth.login(
-        user.id,
+        Number(user.id),
         user.role,
         user.name ?? null,
         user.avatar ?? null,
@@ -544,7 +547,7 @@
 </script>
 
 <svelte:head>
-  <html lang={$localeStore} />
+  <html lang={$localeStore}></html>
 </svelte:head>
 
   <Background />
@@ -560,7 +563,7 @@
           <button
             class="btn btn-square btn-ghost sm:hidden"
             on:click={() => sidebarOpen.update((v) => !v)}
-            aria-label="Open sidebar"
+            aria-label={t('frontend/src/routes/+layout.svelte::open_sidebar_aria')}
             type="button"
           >
             <svg
@@ -582,7 +585,7 @@
           <button
             class="btn btn-square btn-ghost hidden sm:inline-flex"
             on:click={() => sidebarCollapsed.update((v) => !v)}
-            aria-label="Toggle sidebar"
+            aria-label={t('frontend/src/routes/+layout.svelte::toggle_sidebar_aria')}
             type="button"
           >
             <!-- Icon: Menu (hamburger) -->
@@ -613,7 +616,7 @@
       <div class="flex-1"></div>
       <div class="flex items-center gap-2 shrink-0">
         {#if user}
-          <button class="btn btn-ghost" aria-label="Toggle theme" type="button" on:click={toggleTheme}>
+          <button class="btn btn-ghost" aria-label={t('frontend/src/routes/+layout.svelte::toggle_theme_aria')} type="button" on:click={toggleTheme}>
             {#if prefersDark}
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M21.64 13A9 9 0 1111 2.36 7 7 0 0021.64 13z"/></svg>
             {:else}
@@ -623,7 +626,7 @@
           <div class="dropdown dropdown-end">
             <button class="btn btn-ghost btn-circle avatar" aria-haspopup="menu" type="button" tabindex="0">
               {#if user.avatar}
-                <div class="w-10 rounded-full ring-1 ring-base-300/60"><img src={user.avatar} alt="User avatar" /></div>
+                <div class="w-10 rounded-full ring-1 ring-base-300/60"><img src={user.avatar} alt={t('frontend/src/routes/+layout.svelte::user_avatar_alt')} /></div>
               {:else}
                 <div class="w-10 rounded-full bg-neutral text-neutral-content ring-1 ring-base-300/60 flex items-center justify-center">
                   {user.role.slice(0,1).toUpperCase()}
@@ -631,8 +634,8 @@
               {/if}
             </button>
             <ul class="mt-3 z-[60] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-36 border border-base-300/30" role="menu" tabindex="0">
-              <li><button on:click={openSettings}>Settings</button></li>
-              <li><button on:click={logout}>Logout</button></li>
+              <li><button on:click={openSettings}>{translate('frontend/src/routes/+layout.svelte::settings_button')}</button></li>
+              <li><button on:click={logout}>{translate('frontend/src/routes/+layout.svelte::logout_button')}</button></li>
             </ul>
           </div>
           <dialog bind:this={settingsDialog} class="modal">
@@ -643,11 +646,11 @@
                     <div class="avatar">
                       <div class="w-20 h-20 rounded-full ring-4 ring-white/30 shadow-lg overflow-hidden">
                         {#if avatarFile}
-                          <img src={avatarFile} alt="New avatar preview" class="w-full h-full object-cover" />
+                          <img src={avatarFile} alt={translate('frontend/src/routes/+layout.svelte::new_avatar_preview_alt')} class="w-full h-full object-cover" />
                         {:else if selectedAvatarFromCatalog}
-                          <img src={selectedAvatarFromCatalog} alt="New avatar preview" class="w-full h-full object-cover" />
+                          <img src={selectedAvatarFromCatalog} alt={translate('frontend/src/routes/+layout.svelte::new_avatar_preview_alt')} class="w-full h-full object-cover" />
                         {:else if user?.avatar}
-                          <img src={user.avatar} alt="Current avatar" class="w-full h-full object-cover" />
+                          <img src={user.avatar} alt={translate('frontend/src/routes/+layout.svelte::current_avatar_alt')} class="w-full h-full object-cover" />
                         {:else}
                           <div class="w-full h-full flex items-center justify-center text-3xl font-semibold bg-white/20 text-white">
                             {user?.role.slice(0, 1).toUpperCase()}
@@ -657,7 +660,7 @@
                     </div>
                     <div class="space-y-1">
                       <h3 class="text-2xl font-semibold tracking-tight flex items-center gap-2">
-                        {user?.name ?? 'User'}
+                        {user?.name ?? translate('frontend/src/routes/+layout.svelte::user_fallback_name')}
                         {#if user?.role}
                           <span class="badge badge-outline badge-sm border-white/40 text-white/80 bg-white/10 uppercase tracking-wide">
                             {user.role}
@@ -681,7 +684,7 @@
                         }
                       }}
                     >
-                      {editingAvatar ? 'Hide avatar tools' : 'Change avatar'}
+                      {#if editingAvatar}{translate('frontend/src/routes/+layout.svelte::hide_avatar_tools_button')}{:else}{translate('frontend/src/routes/+layout.svelte::change_avatar_button')}{/if}
                     </button>
                     {#if user && user.bk_uid == null}
                       <button
@@ -695,7 +698,7 @@
                           editingName = !editingName;
                         }}
                       >
-                        {editingName ? 'Cancel name edit' : 'Change name'}
+                        {#if editingName}{translate('frontend/src/routes/+layout.svelte::cancel_name_edit_button')}{:else}{translate('frontend/src/routes/+layout.svelte::change_name_button')}{/if}
                       </button>
                     {/if}
                   </div>
@@ -708,12 +711,12 @@
                     <div class="card-body gap-4">
                       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                          <h4 class="card-title text-lg">Update avatar</h4>
-                          <p class="text-sm text-base-content/70">Upload your own image or choose one from the catalog.</p>
+                          <h4 class="card-title text-lg">{translate('frontend/src/routes/+layout.svelte::update_avatar_title')}</h4>
+                          <p class="text-sm text-base-content/70">{translate('frontend/src/routes/+layout.svelte::update_avatar_description')}</p>
                         </div>
                         <div class="flex flex-wrap gap-2">
                           <button type="button" class="btn btn-sm btn-outline" on:click={chooseAvatar}>
-                            <i class="fa-solid fa-image mr-2"></i>Select image
+                            <i class="fa-solid fa-image mr-2"></i>{translate('frontend/src/routes/+layout.2svelte::select_image_button')}
                           </button>
                           <button type="button" class="btn btn-sm btn-ghost" on:click={() => {
                             avatarFile = null;
@@ -723,7 +726,7 @@
                               avatarInput.value = '';
                             }
                           }}>
-                            Reset
+                            {translate('frontend/src/routes/+layout.svelte::reset_button')}
                           </button>
                         </div>
                       </div>
@@ -731,11 +734,11 @@
                         <div class="avatar">
                           <div class="w-24 h-24 rounded-full ring-2 ring-primary/60 shadow-inner overflow-hidden">
                             {#if avatarFile}
-                              <img src={avatarFile} alt="New avatar preview" class="w-full h-full object-cover" />
+                              <img src={avatarFile} alt={translate('frontend/src/routes/+layout.svelte::new_avatar_preview_alt')} class="w-full h-full object-cover" />
                             {:else if selectedAvatarFromCatalog}
-                              <img src={selectedAvatarFromCatalog} alt="New avatar preview" class="w-full h-full object-cover" />
+                              <img src={selectedAvatarFromCatalog} alt={translate('frontend/src/routes/+layout.svelte::new_avatar_preview_alt')} class="w-full h-full object-cover" />
                             {:else if user?.avatar}
-                              <img src={user.avatar} alt="Current avatar" class="w-full h-full object-cover" />
+                              <img src={user.avatar} alt={translate('frontend/src/routes/+layout.svelte::current_avatar_alt')} class="w-full h-full object-cover" />
                             {:else}
                               <div class="w-full h-full flex items-center justify-center text-2xl font-semibold bg-primary/20 text-primary">
                                 {user?.role.slice(0, 1).toUpperCase()}
@@ -744,10 +747,10 @@
                           </div>
                         </div>
                         <div class="text-sm text-base-content/70 space-y-2">
-                          <p>Use a square image for the best result. Larger files are automatically resized.</p>
-                          <p class="text-xs">Supported formats: JPG, PNG, GIF, WebP.</p>
+                          <p>{translate('frontend/src/routes/+layout.svelte::avatar_tip_square_image')}</p>
+                          <p class="text-xs">{translate('frontend/src/routes/+layout.svelte::avatar_supported_formats')}</p>
                           {#if avatarProcessing}
-                            <p class="text-xs text-primary">Processing image…</p>
+                            <p class="text-xs text-primary">{translate('frontend/src/routes/+layout.svelte::processing_image')}</p>
                           {/if}
                           {#if avatarError}
                             <p class="text-xs text-error">{avatarError}</p>
@@ -758,9 +761,9 @@
                       {#if avatarChoices.length > 0}
                         <div class="space-y-3">
                           <div class="flex items-center justify-between">
-                            <h5 class="text-xs uppercase tracking-[0.08em] text-base-content/60">Default avatars</h5>
+                            <h5 class="text-xs uppercase tracking-[0.08em] text-base-content/60">{translate('frontend/src/routes/+layout.svelte::default_avatars_title')}</h5>
                             <button type="button" class="btn btn-sm btn-outline" on:click={chooseAvatar}>
-                              <i class="fa-solid fa-upload mr-2"></i>Upload instead
+                              <i class="fa-solid fa-upload mr-2"></i>{translate('frontend/src/routes/+layout.svelte::upload_instead_button')}
                             </button>
                           </div>
                           <div class="grid gap-3 max-h-56 overflow-y-auto pr-1" style="grid-template-columns: repeat(auto-fit, minmax(48px, 1fr));">
@@ -769,9 +772,9 @@
                                 type="button"
                                 class={`avatar w-12 h-12 rounded-full ring-2 transition duration-150 ${selectedAvatarFromCatalog === a ? 'ring-primary ring-offset-2 ring-offset-base-100 scale-105' : 'ring-base-300/80 hover:ring-primary/60'}`}
                                 on:click={() => { selectedAvatarFromCatalog = a; avatarFile = null; }}
-                                aria-label="Select avatar"
+                                aria-label={translate('frontend/src/routes/+layout.svelte::select_avatar_aria')}
                               >
-                                <img src={a} alt="avatar" class="w-full h-full object-cover rounded-full" />
+                                <img src={a} alt={translate('frontend/src/routes/+layout.svelte::avatar_image_alt')} class="w-full h-full object-cover rounded-full" />
                               </button>
                             {/each}
                           </div>
@@ -785,8 +788,8 @@
                   <div class="card-body gap-4">
                     <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div>
-                        <h4 class="card-title text-lg">Profile details</h4>
-                        <p class="text-sm text-base-content/70">Control how your profile appears across CodEdu.</p>
+                        <h4 class="card-title text-lg">{translate('frontend/src/routes/+layout.svelte::profile_details_title')}</h4>
+                        <p class="text-sm text-base-content/70">{translate('frontend/src/routes/+layout.svelte::profile_details_description')}</p>
                       </div>
                       {#if user && user.bk_uid == null}
                         <button
@@ -800,33 +803,33 @@
                             editingName = !editingName;
                           }}
                         >
-                          {editingName ? 'Cancel' : 'Change name'}
+                          {#if editingName}{translate('frontend/src/routes/+layout.svelte::cancel_button')}{:else}{translate('frontend/src/routes/+layout.svelte::change_name_button_short')}{/if}
                         </button>
                       {/if}
                     </div>
                     {#if editingName && user && user.bk_uid == null}
                       <div class="space-y-3 max-w-md">
                         <label class="form-control w-full space-y-1">
-                          <span class="label-text">Display name</span>
-                          <input class="input input-bordered w-full" bind:value={name} placeholder="Enter your name" />
+                          <span class="label-text">{translate('frontend/src/routes/+layout.svelte::display_name_label')}</span>
+                          <input class="input input-bordered w-full" bind:value={name} placeholder={translate('frontend/src/routes/+layout.svelte::enter_your_name_placeholder')} />
                         </label>
-                        <p class="text-xs text-base-content/60">This is shown to your classmates and teachers.</p>
+                        <p class="text-xs text-base-content/60">{translate('frontend/src/routes/+layout.svelte::display_name_tip')}</p>
                       </div>
                     {:else}
                       <div class="grid gap-4 sm:grid-cols-2">
                         <div class="space-y-1">
-                          <span class="text-xs uppercase tracking-[0.08em] text-base-content/60">Display name</span>
-                          <p class="font-medium text-base-content">{user?.name ?? 'Not set'}</p>
+                          <span class="text-xs uppercase tracking-[0.08em] text-base-content/60">{translate('frontend/src/routes/+layout.svelte::display_name_label')}</span>
+                          <p class="font-medium text-base-content">{user?.name ?? translate('frontend/src/routes/+layout.svelte::not_set_status')}</p>
                         </div>
                         {#if user?.email}
                           <div class="space-y-1">
-                            <span class="text-xs uppercase tracking-[0.08em] text-base-content/60">Email</span>
+                            <span class="text-xs uppercase tracking-[0.08em] text-base-content/60">{translate('frontend/src/routes/+layout.svelte::email_label')}</span>
                             <p class="font-medium text-base-content">{user.email}</p>
                           </div>
                         {/if}
                       </div>
                       {#if user && user.bk_uid != null}
-                        <p class="text-xs text-base-content/60">Your name is managed by Bakaláři.</p>
+                        <p class="text-xs text-base-content/60">{translate('frontend/src/routes/+layout.svelte::bakalari_managed_name_tip')}</p>
                       {/if}
                     {/if}
                   </div>
@@ -837,8 +840,8 @@
                     <div class="card-body gap-4">
                       <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                          <h4 class="card-title text-lg">Email notifications</h4>
-                          <p class="text-sm text-base-content/70">Choose how CodEdu keeps you in the loop.</p>
+                          <h4 class="card-title text-lg">{translate('frontend/src/routes/+layout.svelte::email_notifications_title')}</h4>
+                          <p class="text-sm text-base-content/70">{translate('frontend/src/routes/+layout.svelte::email_notifications_description')}</p>
                         </div>
                         <button
                           type="button"
@@ -846,33 +849,33 @@
                           class:btn-active={editingNotifications}
                           on:click={() => { editingNotifications = !editingNotifications; }}
                         >
-                          {editingNotifications ? 'Done' : 'Adjust'}
+                          {#if editingNotifications}{translate('frontend/src/routes/+layout.svelte::done_button')}{:else}{translate('frontend/src/routes/+layout.svelte::adjust_button')}{/if}
                         </button>
                       </div>
                       {#if editingNotifications}
                         <div class="space-y-4">
                           <div class="flex flex-col gap-2 rounded-xl border border-base-300/60 bg-base-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                              <h5 class="font-medium text-base-content">Assignment alerts</h5>
-                              <p class="text-sm text-base-content/70">Receive emails for new assignments and deadlines.</p>
+                              <h5 class="font-medium text-base-content">{translate('frontend/src/routes/+layout.svelte::assignment_alerts_title')}</h5>
+                              <p class="text-sm text-base-content/70">{translate('frontend/src/routes/+layout.svelte::assignment_alerts_description')}</p>
                             </div>
                             <input
                               type="checkbox"
                               class="toggle toggle-primary"
                               bind:checked={emailNotifications}
-                              aria-label="Toggle email notifications"
+                              aria-label={translate('frontend/src/routes/+layout.svelte::toggle_email_notifications_aria')}
                             />
                           </div>
                           <div class="flex flex-col gap-2 rounded-xl border border-base-300/60 bg-base-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                              <h5 class="font-medium text-base-content">Daily message digest</h5>
-                              <p class="text-sm text-base-content/70">Get one digest email each day summarising new direct messages.</p>
+                              <h5 class="font-medium text-base-content">{translate('frontend/src/routes/+layout.svelte::daily_message_digest_title')}</h5>
+                              <p class="text-sm text-base-content/70">{translate('frontend/src/routes/+layout.svelte::daily_message_digest_description')}</p>
                             </div>
                             <input
                               type="checkbox"
                               class="toggle toggle-primary"
                               bind:checked={emailMessageDigest}
-                              aria-label="Toggle message digest emails"
+                              aria-label={translate('frontend/src/routes/+layout.svelte::toggle_message_digest_aria')}
                               disabled={!emailNotifications}
                             />
                           </div>
@@ -880,15 +883,15 @@
                       {:else}
                         <div class="grid gap-4 sm:grid-cols-2">
                           <div class="space-y-1">
-                            <span class="text-xs uppercase tracking-[0.08em] text-base-content/60">Alerts</span>
+                            <span class="text-xs uppercase tracking-[0.08em] text-base-content/60">{translate('frontend/src/routes/+layout.svelte::alerts_label')}</span>
                             <span class={`badge ${emailNotifications ? 'badge-success badge-outline' : 'badge-neutral badge-outline'}`}>
-                              {emailNotifications ? 'Enabled' : 'Disabled'}
+                              {emailNotifications ? translate('frontend/src/routes/+layout.svelte::enabled_status') : translate('frontend/src/routes/+layout.svelte::disabled_status')}
                             </span>
                           </div>
                           <div class="space-y-1">
-                            <span class="text-xs uppercase tracking-[0.08em] text-base-content/60">Daily digest</span>
+                            <span class="text-xs uppercase tracking-[0.08em] text-base-content/60">{translate('frontend/src/routes/+layout.svelte::daily_digest_label')}</span>
                             <span class={`badge ${emailNotifications && emailMessageDigest ? 'badge-success badge-outline' : 'badge-neutral badge-outline'}`}>
-                              {emailNotifications && emailMessageDigest ? 'Enabled' : 'Disabled'}
+                              {emailNotifications && emailMessageDigest ? translate('frontend/src/routes/+layout.svelte::enabled_status') : translate('frontend/src/routes/+layout.svelte::disabled_status')}
                             </span>
                           </div>
                         </div>
@@ -900,8 +903,8 @@
                     <div class="card-body gap-4">
                       <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                          <h4 class="card-title text-lg">Email notifications</h4>
-                          <p class="text-sm text-base-content/70">Get a once-a-day digest of new direct messages.</p>
+                          <h4 class="card-title text-lg">{translate('frontend/src/routes/+layout.svelte::email_notifications_title')}</h4>
+                          <p class="text-sm text-base-content/70">{translate('frontend/src/routes/+layout.svelte::teacher_email_notifications_description')}</p>
                         </div>
                         <button
                           type="button"
@@ -909,27 +912,27 @@
                           class:btn-active={editingNotifications}
                           on:click={() => { editingNotifications = !editingNotifications; }}
                         >
-                          {editingNotifications ? 'Done' : 'Adjust'}
+                          {#if editingNotifications}{translate('frontend/src/routes/+layout.svelte::done_button')}{:else}{translate('frontend/src/routes/+layout.svelte::adjust_button')}{/if}
                         </button>
                       </div>
                       {#if editingNotifications}
                         <div class="flex flex-col gap-2 rounded-xl border border-base-300/60 bg-base-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                           <div>
-                            <h5 class="font-medium text-base-content">Daily message digest</h5>
-                            <p class="text-sm text-base-content/70">Receive an email summary of incoming messages every morning.</p>
+                            <h5 class="font-medium text-base-content">{translate('frontend/src/routes/+layout.svelte::daily_message_digest_title')}</h5>
+                            <p class="text-sm text-base-content/70">{translate('frontend/src/routes/+layout.svelte::teacher_daily_message_digest_description')}</p>
                           </div>
                           <input
                             type="checkbox"
                             class="toggle toggle-primary"
                             bind:checked={emailMessageDigest}
-                            aria-label="Toggle message digest emails for teachers"
+                            aria-label={translate('frontend/src/routes/+layout.svelte::toggle_message_digest_teachers_aria')}
                           />
                         </div>
                       {:else}
                         <div class="space-y-1">
-                          <span class="text-xs uppercase tracking-[0.08em] text-base-content/60">Daily digest</span>
+                          <span class="text-xs uppercase tracking-[0.08em] text-base-content/60">{translate('frontend/src/routes/+layout.svelte::daily_digest_label')}</span>
                           <span class={`badge ${emailMessageDigest ? 'badge-success badge-outline' : 'badge-neutral badge-outline'}`}>
-                            {emailMessageDigest ? 'Enabled' : 'Disabled'}
+                            {emailMessageDigest ? translate('frontend/src/routes/+layout.svelte::enabled_status') : translate('frontend/src/routes/+layout.svelte::disabled_status')}
                           </span>
                         </div>
                       {/if}
@@ -942,14 +945,14 @@
                     <div class="card-body gap-4">
                       <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                          <h4 class="card-title text-lg">Security</h4>
-                          <p class="text-sm text-base-content/70">Keep your account protected with a strong password.</p>
+                          <h4 class="card-title text-lg">{translate('frontend/src/routes/+layout.svelte::security_title')}</h4>
+                          <p class="text-sm text-base-content/70">{translate('frontend/src/routes/+layout.svelte::security_description')}</p>
                         </div>
                         <button type="button" class="btn btn-sm btn-outline" on:click={openPasswordDialog}>
-                          Change password
+                          {translate('frontend/src/routes/+layout.svelte::change_password_button')}
                         </button>
                       </div>
-                      <p class="text-xs text-base-content/60">Passwords are stored securely using industry-standard hashing.</p>
+                      <p class="text-xs text-base-content/60">{translate('frontend/src/routes/+layout.svelte::password_security_tip')}</p>
                     </div>
                   </section>
 
@@ -960,8 +963,8 @@
                           <div class="flex items-center gap-3">
                             <img src="/bakalari-logo.svg" alt="Bakaláři" class="w-8 h-8" />
                             <div>
-                              <h4 class="card-title text-lg">Link with Bakaláři</h4>
-                              <p class="text-sm text-base-content/70">Sync your school information by connecting your Bakaláři account.</p>
+                              <h4 class="card-title text-lg">{translate('frontend/src/routes/+layout.svelte::link_bakalari_title')}</h4>
+                              <p class="text-sm text-base-content/70">{translate('frontend/src/routes/+layout.svelte::link_bakalari_description')}</p>
                             </div>
                           </div>
                           <button
@@ -970,22 +973,22 @@
                             class:btn-active={showBakalariForm}
                             on:click={() => { showBakalariForm = !showBakalariForm; }}
                           >
-                            {showBakalariForm ? 'Cancel' : 'Link account'}
+                            {#if showBakalariForm}{translate('frontend/src/routes/+layout.svelte::cancel_button')}{:else}{translate('frontend/src/routes/+layout.svelte::link_account_button')}{/if}
                           </button>
                         </div>
                         {#if showBakalariForm}
                           <div class="space-y-3 max-w-md">
-                            <input class="input input-bordered w-full" bind:value={bkLinkUsername} placeholder="Bakaláři username" autocomplete="username" />
-                            <input type="password" class="input input-bordered w-full" bind:value={bkLinkPassword} placeholder="Bakaláři password" autocomplete="current-password" />
+                            <input class="input input-bordered w-full" bind:value={bkLinkUsername} placeholder={translate('frontend/src/routes/+layout.svelte::bakalari_username_placeholder')} autocomplete="username" />
+                            <input type="password" class="input input-bordered w-full" bind:value={bkLinkPassword} placeholder={translate('frontend/src/routes/+layout.svelte::bakalari_password_placeholder')} autocomplete="current-password" />
                             {#if bkLinkError}
                               <p class="text-error text-sm">{bkLinkError}</p>
                             {/if}
                             <button class="btn btn-primary" on:click={linkBakalari} disabled={linkingBakalari} class:loading={linkingBakalari}>
-                              {linkingBakalari ? 'Linking...' : 'Link Bakaláři account'}
+                              {#if linkingBakalari}{translate('frontend/src/routes/+layout.svelte::linking_bakalari_button')}{:else}{translate('frontend/src/routes/+layout.svelte::link_bakalari_account_button')}{/if}
                             </button>
                           </div>
                         {:else}
-                          <p class="text-xs text-base-content/60">Currently not linked.</p>
+                          <p class="text-xs text-base-content/60">{translate('frontend/src/routes/+layout.svelte::not_linked_status')}</p>
                         {/if}
                       </div>
                     </section>
@@ -995,13 +998,13 @@
                     <div class="card-body gap-4">
                       <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                          <h4 class="card-title text-lg">{user.email_verified === false && isValidEmail(user.email) ? 'Verify your email' : 'Create local account'}</h4>
+                          <h4 class="card-title text-lg">{user.email_verified === false && isValidEmail(user.email) ? translate('frontend/src/routes/+layout.svelte::verify_your_email_title') : translate('frontend/src/routes/+layout.svelte::create_local_account_title')}</h4>
                           {#if user.email_verified === false && isValidEmail(user.email)}
                             <p class="text-sm text-base-content/70">
-                              We sent a verification link to <span class="font-medium">{user.email}</span>. If you made a typo, update the email below and we'll resend it.
+                              {translate('frontend/src/routes/+layout.svelte::verification_link_sent_to')} <span class="font-medium">{user.email}</span>. {translate('frontend/src/routes/+layout.svelte::typo_email_update_resend_tip')}
                             </p>
                           {:else}
-                            <p class="text-sm text-base-content/70">Add an email and password in case Bakaláři is unavailable.</p>
+                            <p class="text-sm text-base-content/70">{translate('frontend/src/routes/+layout.svelte::add_email_password_fallback_tip')}</p>
                           {/if}
                         </div>
                         <button
@@ -1010,49 +1013,49 @@
                           class:btn-active={showLocalAccountForm}
                           on:click={() => { showLocalAccountForm = !showLocalAccountForm; }}
                         >
-                          {showLocalAccountForm ? 'Cancel' : 'Set up'}
+                          {#if showLocalAccountForm}{translate('frontend/src/routes/+layout.svelte::cancel_button')}{:else}{translate('frontend/src/routes/+layout.svelte::set_up_button')}{/if}
                         </button>
                       </div>
                       {#if showLocalAccountForm}
                         <div class="space-y-3 max-w-md">
-                          <input type="email" class="input input-bordered w-full" bind:value={linkEmail} placeholder="Email" autocomplete="email" />
+                          <input type="email" class="input input-bordered w-full" bind:value={linkEmail} placeholder={translate('frontend/src/routes/+layout.svelte::email_placeholder')} autocomplete="email" />
                           <div class="space-y-2">
-                            <input type="password" class="input input-bordered w-full" bind:value={linkPassword} placeholder="Password" autocomplete="new-password" />
+                            <input type="password" class="input input-bordered w-full" bind:value={linkPassword} placeholder={translate('frontend/src/routes/+layout.svelte::password_placeholder')} autocomplete="new-password" />
                             <div class="bg-base-200 rounded-lg p-3 text-sm space-y-2">
-                              <p class="font-semibold text-base-content">Password requirements</p>
+                              <p class="font-semibold text-base-content">{translate('frontend/src/routes/+layout.svelte::password_requirements_title')}</p>
                               <ul class="space-y-1">
                                 <li class={`flex items-center gap-2 ${linkHasMinLength ? 'text-success' : 'text-base-content/70'}`}>
                                   <span class={`inline-flex w-2 h-2 rounded-full ${linkHasMinLength ? 'bg-success' : 'bg-base-300'}`}></span>
-                                  <span>At least 9 characters</span>
+                                  <span>{translate('frontend/src/routes/+layout.svelte::password_min_length_requirement')}</span>
                                 </li>
                                 <li class={`flex items-center gap-2 ${linkHasLetter ? 'text-success' : 'text-base-content/70'}`}>
                                   <span class={`inline-flex w-2 h-2 rounded-full ${linkHasLetter ? 'bg-success' : 'bg-base-300'}`}></span>
-                                  <span>Includes a letter</span>
+                                  <span>{translate('frontend/src/routes/+layout.svelte::password_includes_letter_requirement')}</span>
                                 </li>
                                 <li class={`flex items-center gap-2 ${linkHasNumber ? 'text-success' : 'text-base-content/70'}`}>
                                   <span class={`inline-flex w-2 h-2 rounded-full ${linkHasNumber ? 'bg-success' : 'bg-base-300'}`}></span>
-                                  <span>Includes a number</span>
+                                  <span>{translate('frontend/src/routes/+layout.svelte::password_includes_number_requirement')}</span>
                                 </li>
                                 <li class={`flex items-center gap-2 ${linkPassword2.length === 0 ? 'text-base-content/70' : linkPasswordsMatch ? 'text-success' : 'text-error'}`}>
                                   <span class={`inline-flex w-2 h-2 rounded-full ${linkPassword2.length === 0 ? 'bg-base-300' : linkPasswordsMatch ? 'bg-success' : 'bg-error'}`}></span>
-                                  <span>Passwords match</span>
+                                  <span>{translate('frontend/src/routes/+layout.svelte::passwords_match_requirement')}</span>
                                 </li>
                               </ul>
                             </div>
                           </div>
-                          <input type="password" class="input input-bordered w-full" bind:value={linkPassword2} placeholder="Repeat password" autocomplete="new-password" />
+                          <input type="password" class="input input-bordered w-full" bind:value={linkPassword2} placeholder={translate('frontend/src/routes/+layout.svelte::repeat_password_placeholder')} autocomplete="new-password" />
                           {#if linkError}
                             <p class="text-error text-sm">{linkError}</p>
                           {/if}
                           <button type="button" class="btn btn-primary" on:click={linkLocal} disabled={!canLinkLocal}>
-                            {user.email_verified === false && isValidEmail(user.email) ? 'Update email & resend' : 'Link account'}
+                            {user.email_verified === false && isValidEmail(user.email) ? translate('frontend/src/routes/+layout.svelte::update_email_resend_button') : translate('frontend/src/routes/+layout.svelte::link_account_button')}
                           </button>
                         </div>
                       {:else}
                         {#if user.email_verified === false && isValidEmail(user.email)}
-                          <p class="text-xs text-base-content/60">Verification pending for <span class="font-medium">{user.email}</span>. You can update the email if needed.</p>
+                          <p class="text-xs text-base-content/60">{translate('frontend/src/routes/+layout.svelte::verification_pending_email_tip', { values: { email: user.email } })}</p>
                         {:else}
-                          <p class="text-xs text-base-content/60">Set up a fallback login to access CodEdu without Bakaláři.</p>
+                          <p class="text-xs text-base-content/60">{translate('frontend/src/routes/+layout.svelte::set_up_fallback_login_tip')}</p>
                         {/if}
                       {/if}
                     </div>
@@ -1061,61 +1064,60 @@
               </div>
 
               <div class="modal-action bg-base-100 px-6 py-4 border-t border-base-300/60 justify-between sticky bottom-0 z-20">
-                <button type="button" class="btn btn-ghost" on:click={() => settingsDialog.close()}>Cancel</button>
-                <button class="btn btn-primary" on:click={saveSettings} disabled={avatarProcessing}>Save changes</button>
+                <button type="button" class="btn btn-ghost" on:click={() => settingsDialog.close()}>{translate('frontend/src/routes/+layout.svelte::cancel_button')}</button>
+                <button class="btn btn-primary" on:click={saveSettings} disabled={avatarProcessing}>{translate('frontend/src/routes/+layout.svelte::save_changes_button')}</button>
               </div>
             </div>
-            <form method="dialog" class="modal-backdrop"><button>close</button></form>
+            <form method="dialog" class="modal-backdrop"><button>{translate('frontend/src/routes/+layout.svelte::close_dialog_button')}</button></form>
           </dialog>
           <!-- First-time Bakaláři link prompt -->
           <dialog bind:this={bkLinkDialog} class="modal">
             <div class="modal-box space-y-4">
               <div class="flex items-center gap-3">
                 <img src="/bakalari-logo.svg" alt="Bakaláři" class="w-8 h-8" />
-                <h3 class="font-bold text-lg">Create a local account</h3>
+                <h3 class="font-bold text-lg">{translate('frontend/src/routes/+layout.svelte::create_local_account_prompt_title')}</h3>
               </div>
               <p class="text-base-content/80">
-                You are signed in via Bakaláři. To keep access if Bakaláři is unavailable and to enable password login,
-                link your account to an email and password.
+                {translate('frontend/src/routes/+layout.svelte::bakalari_link_prompt_description')}
               </p>
               <div class="modal-action">
                 <form method="dialog">
-                  <button class="btn btn-ghost" aria-label="Dismiss">Later</button>
+                  <button class="btn btn-ghost" aria-label={translate('frontend/src/routes/+layout.svelte::dismiss_prompt_aria')}>{translate('frontend/src/routes/+layout.svelte::later_button')}</button>
                 </form>
                 <button class="btn btn-primary" on:click={() => { bkLinkDialog.close(); openSettings(); }}>
-                  Link account now
+                  {translate('frontend/src/routes/+layout.svelte::link_account_now_button')}
                 </button>
               </div>
             </div>
-            <form method="dialog" class="modal-backdrop"><button>close</button></form>
+            <form method="dialog" class="modal-backdrop"><button>{translate('frontend/src/routes/+layout.svelte::close_dialog_button')}</button></form>
           </dialog>
           <dialog bind:this={passwordDialog} class="modal">
             <div class="modal-box space-y-4">
-              <h3 class="font-bold text-lg">Change Password</h3>
+              <h3 class="font-bold text-lg">{translate('frontend/src/routes/+layout.svelte::change_password_dialog_title')}</h3>
               <label class="form-control w-full space-y-1">
-                <span class="label-text">Current Password</span>
+                <span class="label-text">{translate('frontend/src/routes/+layout.svelte::current_password_label')}</span>
                 <input type="password" class="input input-bordered w-full" bind:value={oldPassword} />
               </label>
               <label class="form-control w-full space-y-1">
-                <span class="label-text">New Password</span>
+                <span class="label-text">{translate('frontend/src/routes/+layout.svelte::new_password_label')}</span>
                 <input type="password" class="input input-bordered w-full" bind:value={newPassword} />
               </label>
               <label class="form-control w-full space-y-1">
-                <span class="label-text">Repeat Password</span>
+                <span class="label-text">{translate('frontend/src/routes/+layout.svelte::repeat_password_label')}</span>
                 <input type="password" class="input input-bordered w-full" bind:value={newPassword2} />
               </label>
               {#if passwordError}
                 <p class="text-error">{passwordError}</p>
               {/if}
               <div class="modal-action">
-                <button class="btn" on:click={savePassword}>Save</button>
+                <button class="btn" on:click={savePassword}>{translate('frontend/src/routes/+layout.svelte::save_button')}</button>
               </div>
             </div>
-            <form method="dialog" class="modal-backdrop"><button>close</button></form>
+            <form method="dialog" class="modal-backdrop"><button>{translate('frontend/src/routes/+layout.svelte::close_dialog_button')}</button></form>
           </dialog>
         {:else}
-          <a href="/login" class="btn btn-ghost">Login</a>
-          <a href="/register" class="btn btn-outline">Register</a>
+          <a href="/login" class="btn btn-ghost">{t('frontend/src/routes/+layout.svelte::login_button')}</a>
+          <a href="/register" class="btn btn-outline">{t('frontend/src/routes/+layout.svelte::register_button')}</a>
         {/if}
       </div>
       </div>

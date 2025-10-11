@@ -14,6 +14,7 @@
   import CodeMirror from "../ui/CodeMirror.svelte";
   import OutputBlock from "./OutputBlock.svelte";
   import ImageOutput from "./ImageOutput.svelte";
+  import { t } from '$lib/i18n';
 
   export let cell: import("$lib/notebook").NotebookCell;
   export let index: number;
@@ -227,8 +228,8 @@
   <div class="flex gap-2 items-center">
     <button
       size="sm"
-      aria-label="Run cell"
-      title="Run cell"
+      aria-label={t('frontend/src/lib/components/cells/CodeCell.svelte::run_cell')}
+      title={t('frontend/src/lib/components/cells/CodeCell.svelte::run_cell')}
       on:click={handleRunClick}
       disabled={$running}
       class="p-1 rounded text-green-600 hover:text-white hover:bg-green-600 hover:scale-110 transition-transform disabled:opacity-50"
@@ -245,8 +246,8 @@
     <button
       size="sm"
       variant="destructive"
-      aria-label="Stop cell"
-      title="Stop cell"
+      aria-label={t('frontend/src/lib/components/cells/CodeCell.svelte::stop_cell')}
+      title={t('frontend/src/lib/components/cells/CodeCell.svelte::stop_cell')}
       on:click={stop}
       class="p-1 rounded text-red-600 hover:text-white hover:bg-red-600 hover:scale-110 transition-transform"
     >
@@ -260,12 +261,12 @@
       </svg>
     </button>
     {#if $running}
-      <span class="animate-pulse text-xs ml-2">Running…</span>
+      <span class="animate-pulse text-xs ml-2">{t('frontend/src/lib/components/cells/CodeCell.svelte::running')}</span>
     {/if}
     <div class="flex gap-2 ml-auto opacity-0 group-hover:opacity-100 items-center">
       <button
-        aria-label="Move cell up"
-        title="Move cell up"
+        aria-label={t('frontend/src/lib/components/cells/CodeCell.svelte::move_cell_up')}
+        title={t('frontend/src/lib/components/cells/CodeCell.svelte::move_cell_up')}
         on:click={() => moveCellUp(index)}
         class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
       >
@@ -274,8 +275,8 @@
         </svg>
       </button>
       <button
-        aria-label="Move cell down"
-        title="Move cell down"
+        aria-label={t('frontend/src/lib/components/cells/CodeCell.svelte::move_cell_down')}
+        title={t('frontend/src/lib/components/cells/CodeCell.svelte::move_cell_down')}
         on:click={() => moveCellDown(index)}
         class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
       >
@@ -284,8 +285,8 @@
         </svg>
       </button>
       <button
-        aria-label="Delete cell"
-        title="Delete cell"
+        aria-label={t('frontend/src/lib/components/cells/CodeCell.svelte::delete_cell')}
+        title={t('frontend/src/lib/components/cells/CodeCell.svelte::delete_cell')}
         on:click={() => deleteCell(index)}
         class="p-1 rounded text-gray-600 hover:text-white hover:bg-red-600 hover:scale-110 transition-transform"
       >
@@ -295,8 +296,8 @@
       </button>
       <div class="relative">
         <button
-          aria-label="Insert cell"
-          title="Insert cell"
+          aria-label={t('frontend/src/lib/components/cells/CodeCell.svelte::insert_cell')}
+          title={t('frontend/src/lib/components/cells/CodeCell.svelte::insert_cell')}
           on:click={() => { showInsert = !showInsert; if (!showInsert) insertPos = null; }}
           class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
         >
@@ -307,23 +308,23 @@
         {#if showInsert}
           <div class="absolute right-0 mt-1 z-10 bg-white border rounded shadow flex flex-col text-sm">
             {#if !insertPos}
-              <button class="p-1 hover:bg-gray-100" aria-label="Insert above" title="Insert above" on:click={() => (insertPos = 'above')}>
+              <button class="p-1 hover:bg-gray-100" aria-label={t('frontend/src/lib/components/cells/CodeCell.svelte::insert_above')} title={t('frontend/src/lib/components/cells/CodeCell.svelte::insert_above')} on:click={() => (insertPos = 'above')}>
                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <path d="M12 4l-6 6h4v6h4v-6h4l-6-6z" />
                 </svg>
               </button>
-              <button class="p-1 hover:bg-gray-100" aria-label="Insert below" title="Insert below" on:click={() => (insertPos = 'below')}>
+              <button class="p-1 hover:bg-gray-100" aria-label={t('frontend/src/lib/components/cells/CodeCell.svelte::insert_below')} title={t('frontend/src/lib/components/cells/CodeCell.svelte::insert_below')} on:click={() => (insertPos = 'below')}>
                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <path d="M12 20l6-6h-4v-6h-4v6H6l6 6z" />
                 </svg>
               </button>
             {:else}
-              <button class="p-1 hover:bg-gray-100" aria-label="Insert code" title="Insert code" on:click={() => {insertCell(index, 'code', insertPos); showInsert = false; insertPos = null;}}>
+              <button class="p-1 hover:bg-gray-100" aria-label={t('frontend/src/lib/components/cells/CodeCell.svelte::insert_code')} title={t('frontend/src/lib/components/cells/CodeCell.svelte::insert_code')} on:click={() => {insertCell(index, 'code', insertPos); showInsert = false; insertPos = null;}}>
                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <path d="M16 18l6-6-6-6M8 6L2 12l6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
               </button>
-              <button class="p-1 hover:bg-gray-100" aria-label="Insert markdown" title="Insert markdown" on:click={() => {insertCell(index, 'markdown', insertPos); showInsert = false; insertPos = null;}}>
+              <button class="p-1 hover:bg-gray-100" aria-label={t('frontend/src/lib/components/cells/CodeCell.svelte::insert_markdown')} title={t('frontend/src/lib/components/cells/CodeCell.svelte::insert_markdown')} on:click={() => {insertCell(index, 'markdown', insertPos); showInsert = false; insertPos = null;}}>
                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <path d="M6 2a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6H6z" />
                 </svg>
@@ -337,7 +338,7 @@
 
   {#if awaitingInput}
     <div class="border border-dashed rounded-lg p-3 bg-gray-50 space-y-2">
-      <div class="text-sm font-medium text-gray-700">Input for this run</div>
+      <div class="text-sm font-medium text-gray-700">{t('frontend/src/lib/components/cells/CodeCell.svelte::input_for_this_run')}</div>
       {#if inputPrompt}
         <div class="text-xs text-gray-600">{inputPrompt}</div>
       {/if}
@@ -347,7 +348,7 @@
         bind:this={inputTextarea}
         bind:value={inputValue}
         tabindex={waitingForParent ? -1 : 0}
-        placeholder="Each line is returned by a separate input() call"
+        placeholder={t('frontend/src/lib/components/cells/CodeCell.svelte::input_placeholder')}
       ></textarea>
       <div class="flex items-center gap-2">
         <button
@@ -355,29 +356,29 @@
           class="btn btn-sm btn-primary"
           on:click={submitInput}
         >
-          Send
+          {t('frontend/src/lib/components/cells/CodeCell.svelte::send')}
         </button>
         <button
           type="button"
           class="btn btn-sm btn-secondary"
           on:click={cancelInput}
         >
-          Cancel
+          {t('frontend/src/lib/components/cells/CodeCell.svelte::cancel')}
         </button>
-        <span class="text-xs text-gray-500 ml-auto">Leave blank to send an empty line.</span>
+        <span class="text-xs text-gray-500 ml-auto">{t('frontend/src/lib/components/cells/CodeCell.svelte::leave_blank_for_empty_line')}</span>
       </div>
     </div>
   {/if}
 
   <!-- Outputs -->
   {#if $stdoutStore}
-  <OutputBlock label="stdout" text={$stdoutStore} />
+  <OutputBlock label={t('frontend/src/lib/components/cells/CodeCell.svelte::stdout_label')} text={$stdoutStore} />
   {/if}
   {#if $stderrStore}
-  <OutputBlock label="stderr" text={$stderrStore} />
+  <OutputBlock label={t('frontend/src/lib/components/cells/CodeCell.svelte::stderr_label')} text={$stderrStore} />
   {/if}
   {#if $resultTextStore !== null && $resultTextStore !== undefined}
-  <OutputBlock label="result" text={$resultTextStore} />
+  <OutputBlock label={t('frontend/src/lib/components/cells/CodeCell.svelte::result_label')} text={$resultTextStore} />
   {/if}
   {#each $imagesStore as img}
   <ImageOutput src={img} />

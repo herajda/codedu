@@ -1,3 +1,4 @@
+
 <script lang="ts">
   // @ts-nocheck
   import { onMount, onDestroy } from 'svelte';
@@ -5,6 +6,7 @@
   import { sidebarCollapsed, sidebarOpen } from '$lib/sidebar';
   import '@fortawesome/fontawesome-free/css/all.min.css';
   import { compressImage } from '$lib/utils/compressImage';
+  import { t } from '$lib/i18n';
 
   let EasyMDE: any;
 
@@ -51,7 +53,7 @@
       showImageDialog = true;
     } catch (err) {
       console.error(err);
-      alert('Could not read image file.');
+      alert(t('frontend/src/lib/MarkdownEditor.svelte::could_not_read_image_file'));
     } finally {
       // reset input so picking the same file again will retrigger change
       if (fileInput) fileInput.value = '';
@@ -103,9 +105,9 @@
   function attachDeleteButton(container: HTMLElement, marker: any, cm: any) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.title = 'Delete image';
+    btn.title = t('frontend/src/lib/MarkdownEditor.svelte::delete_image');
     btn.textContent = '×';
-    btn.setAttribute('aria-label', 'Delete image');
+    btn.setAttribute('aria-label', t('frontend/src/lib/MarkdownEditor.svelte::delete_image'));
     btn.style.position = 'absolute';
     btn.style.top = '4px';
     btn.style.right = '4px';
@@ -125,7 +127,7 @@
         const range = marker.find?.();
         if (range && range.from && range.to) {
           cm.replaceRange('', range.from, range.to);
-        }
+        }D
       } finally {
         try { marker.clear?.(); } catch {}
       }
@@ -209,7 +211,7 @@
           name: 'upload-image',
           action: () => openFilePicker(),
           className: 'fa-solid fa-image',
-          title: 'Insert image from computer'
+          title: t('frontend/src/lib/MarkdownEditor.svelte::insert_image_from_computer')
         },
         '|',
         'preview',
@@ -305,7 +307,7 @@
 {#if showImageDialog}
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
     <div class="bg-white rounded-lg shadow-lg max-w-[90vw] w-[520px] p-4">
-      <div class="font-medium mb-2">Insert image</div>
+      <div class="font-medium mb-2">{t('frontend/src/lib/MarkdownEditor.svelte::insert_image')}</div>
       {#if pendingImageDataUrl}
         <div class="mb-3 flex items-start gap-3">
           <div class="flex-1">
@@ -314,12 +316,12 @@
         </div>
       {/if}
       <div class="mb-3">
-        <label class="block text-sm mb-1" for="md-img-width">Width: {Math.round(imageWidthPx)} px</label>
+        <label class="block text-sm mb-1" for="md-img-width">{t('frontend/src/lib/MarkdownEditor.svelte::width')}: {Math.round(imageWidthPx)} px</label>
         <input id="md-img-width" type="range" min="50" max={Math.max(200, imageNaturalWidth)} step="10" bind:value={imageWidthPx} class="range range-xs w-full" />
       </div>
       <div class="flex justify-end gap-2 mt-2">
-        <button class="btn btn-sm" on:click={() => { showImageDialog = false; pendingImageDataUrl = null; }}>Cancel</button>
-        <button class="btn btn-sm btn-primary" on:click={insertImage}>Insert</button>
+        <button class="btn btn-sm" on:click={() => { showImageDialog = false; pendingImageDataUrl = null; }}>{t('frontend/src/lib/MarkdownEditor.svelte::cancel')}</button>
+        <button class="btn btn-sm btn-primary" on:click={insertImage}>{t('frontend/src/lib/MarkdownEditor.svelte::insert')}</button>
       </div>
     </div>
   </div>

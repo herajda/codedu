@@ -9,6 +9,10 @@ import { formatDateTime } from "$lib/date";
 import { TEACHER_GROUP_ID } from '$lib/teacherGroup';
 import ConfirmModal from '$lib/components/ConfirmModal.svelte';
 import PromptModal from '$lib/components/PromptModal.svelte';
+import { t, translator } from '$lib/i18n';
+
+let translate;
+$: translate = $translator;
 
 // Fixed Teachers' group ID
 let id = TEACHER_GROUP_ID;
@@ -110,7 +114,7 @@ async function doUpload() {
   if (!uploadFile) return;
   let fileToUpload = uploadFile;
   if (uploadFile.type.startsWith('image/')) { try { fileToUpload = await compressImage(uploadFile); } catch {} }
-  if (fileToUpload.size > maxFileSize) { uploadErr = 'File exceeds 20 MB limit'; return; }
+  if (fileToUpload.size > maxFileSize) { uploadErr = t('frontend/src/routes/teachers/files/+page.svelte::upload_error_size_limit'); return; }
   const fd = new FormData();
   if (currentParent !== null) fd.append('parent_id', String(currentParent));
   fd.append('file', fileToUpload);
@@ -127,12 +131,12 @@ async function createDir(name:string){
 
 async function promptDir() {
   const name = await promptModal?.open({
-    title: 'New folder',
-    label: 'Folder name',
-    placeholder: 'e.g. Resources',
-    confirmLabel: 'Create',
+    title: t('frontend/src/routes/teachers/files/+page.svelte::new_folder_title'),
+    label: t('frontend/src/routes/teachers/files/+page.svelte::folder_name_label'),
+    placeholder: t('frontend/src/routes/teachers/files/+page.svelte::folder_name_placeholder'),
+    confirmLabel: t('frontend/src/routes/teachers/files/+page.svelte::create_button_label'),
     icon: 'fa-solid fa-folder-plus text-primary',
-    validate: (value) => value.trim() ? null : 'Folder name is required',
+    validate: (value) => value.trim() ? null : t('frontend/src/routes/teachers/files/+page.svelte::folder_name_required'),
     transform: (value) => value.trim()
   });
   if (!name) return;
@@ -148,13 +152,13 @@ async function createNotebook(name: string) {
 
 async function promptNotebook() {
   const notebookName = await promptModal?.open({
-    title: 'New notebook',
-    label: 'Notebook name',
+    title: t('frontend/src/routes/teachers/files/+page.svelte::new_notebook_title'),
+    label: t('frontend/src/routes/teachers/files/+page.svelte::notebook_name_label'),
     initialValue: 'Untitled.ipynb',
-    helpText: 'Saved as a Jupyter notebook (.ipynb).',
-    confirmLabel: 'Create',
+    helpText: t('frontend/src/routes/teachers/files/+page.svelte::notebook_help_text'),
+    confirmLabel: t('frontend/src/routes/teachers/files/+page.svelte::create_button_label'),
     icon: 'fa-solid fa-book text-secondary',
-    validate: (value) => value.trim() ? null : 'Notebook name is required',
+    validate: (value) => value.trim() ? null : t('frontend/src/routes/teachers/files/+page.svelte::notebook_name_required'),
     transform: (value) => {
       const trimmed = value.trim();
       if (!trimmed.toLowerCase().endsWith('.ipynb')) return `${trimmed}.ipynb`;
@@ -167,9 +171,9 @@ async function promptNotebook() {
 
 async function del(item:any){
   const confirmed = await confirmModal.open({
-    title: item.is_dir ? 'Delete folder' : 'Delete file',
-    body: item.is_dir ? 'Everything inside this folder will be removed.' : 'This file will be permanently deleted.',
-    confirmLabel: 'Delete',
+    title: item.is_dir ? t('frontend/src/routes/teachers/files/+page.svelte::delete_folder_title') : t('frontend/src/routes/teachers/files/+page.svelte::delete_file_title'),
+    body: item.is_dir ? t('frontend/src/routes/teachers/files/+page.svelte::delete_folder_body') : t('frontend/src/routes/teachers/files/+page.svelte::delete_file_body'),
+    confirmLabel: t('frontend/src/routes/teachers/files/+page.svelte::delete_button_label'),
     confirmClass: 'btn btn-error',
     cancelClass: 'btn'
   });
@@ -180,12 +184,12 @@ async function del(item:any){
 
 async function rename(item:any){
   const name = await promptModal?.open({
-    title: 'Rename',
-    label: 'New name',
+    title: t('frontend/src/routes/teachers/files/+page.svelte::rename_title'),
+    label: t('frontend/src/routes/teachers/files/+page.svelte::new_name_label'),
     initialValue: item.name,
-    confirmLabel: 'Save',
+    confirmLabel: t('frontend/src/routes/teachers/files/+page.svelte::save_button_label'),
     icon: item.is_dir ? 'fa-solid fa-folder text-warning' : 'fa-solid fa-pen text-primary',
-    validate: (value) => value.trim() ? null : 'Name is required',
+    validate: (value) => value.trim() ? null : t('frontend/src/routes/teachers/files/+page.svelte::name_required'),
     transform: (value) => value.trim(),
     selectOnOpen: true
   });
@@ -232,7 +236,7 @@ async function onDrop(e: DragEvent) {
   const files = Array.from(e.dataTransfer?.files ?? []);
   if (!files.length) return;
   try { dropping = true; await uploadFiles(files); await load(currentParent); }
-  catch (er:any) { dropErr = er?.message ?? 'Failed to upload'; }
+  catch (er:any) { dropErr = er?.message ?? t('frontend/src/routes/teachers/files/+page.svelte::drop_error_failed_to_upload'); }
   finally { dropping = false; }
 }
 
@@ -240,7 +244,7 @@ async function uploadFiles(files: File[]) {
   for (const f of files) {
     let fileToUpload: File = f;
     if (f.type.startsWith('image/')) { try { fileToUpload = await compressImage(f); } catch {} }
-    if (fileToUpload.size > maxFileSize) { throw new Error(`${f.name} exceeds 20 MB limit`); }
+    if (fileToUpload.size > maxFileSize) { throw new Error(t('frontend/src/routes/teachers/files/+page.svelte::file_size_limit_error', { filename: f.name })); }
     const fd = new FormData();
     if (currentParent !== null) fd.append('parent_id', String(currentParent));
     fd.append('file', fileToUpload);
@@ -265,7 +269,7 @@ onMount(() => {
     const bc = sessionStorage.getItem(`files_breadcrumbs_${id}`);
     if (bc) { try { breadcrumbs = JSON.parse(bc); } catch {} }
   }
-  load(storedParent);
+  load(storedParent ? parseInt(storedParent, 10) : null);
 });
 </script>
 
@@ -274,12 +278,12 @@ onMount(() => {
     <ul class="flex flex-wrap gap-1 text-sm items-center flex-grow">
       {#each breadcrumbs as b,i}
         <li class="after:mx-1 after:content-['/'] last:after:hidden">
-          <button type="button" class="link px-2 py-1 rounded hover:bg-base-300" on:click={() => crumbTo(i)} aria-label={`Open ${b.name}`}>{b.name}</button>
+          <button type="button" class="link px-2 py-1 rounded hover:bg-base-300" on:click={() => crumbTo(i)} aria-label={translate('frontend/src/routes/teachers/files/+page.svelte::open_breadcrumb_aria_label', { name: b.name })}>{b.name}</button>
         </li>
       {/each}
     </ul>
     <div class="flex items-center gap-2 ml-auto">
-      <button class="btn btn-sm btn-circle" on:click={toggleView} title="Toggle view">
+      <button class="btn btn-sm btn-circle" on:click={toggleView} title={translate('frontend/src/routes/teachers/files/+page.svelte::toggle_view_title')}>
         {#if viewMode === 'grid'}
           <i class="fa-solid fa-list"></i>
         {:else}
@@ -288,33 +292,33 @@ onMount(() => {
       </button>
       <div class="relative">
         {#if searchOpen}
-          <input class="input input-bordered input-sm w-48 sm:w-72" placeholder="Search files..." bind:value={search} />
+          <input class="input input-bordered input-sm w-48 sm:w-72" placeholder={translate('frontend/src/routes/teachers/files/+page.svelte::search_files_placeholder')} bind:value={search} />
         {:else}
-          <button class="btn btn-sm" on:click={toggleSearch}><i class="fa-solid fa-magnifying-glass mr-2"></i>Search</button>
+          <button class="btn btn-sm" on:click={toggleSearch}><i class="fa-solid fa-magnifying-glass mr-2"></i>{translate('frontend/src/routes/teachers/files/+page.svelte::search_button_label')}</button>
         {/if}
       </div>
       {#if role === 'teacher' || role === 'admin'}
-        <button class="btn btn-sm" on:click={() => openUploadDialog()}><i class="fa-solid fa-upload mr-2"></i>Upload</button>
-        <button class="btn btn-sm" on:click={promptDir}><i class="fa-solid fa-folder-plus mr-2"></i>Folder</button>
-        <button class="btn btn-sm" on:click={promptNotebook}><i class="fa-solid fa-book mr-2"></i>Notebook</button>
+        <button class="btn btn-sm" on:click={() => openUploadDialog()}><i class="fa-solid fa-upload mr-2"></i>{translate('frontend/src/routes/teachers/files/+page.svelte::upload_button_label')}</button>
+        <button class="btn btn-sm" on:click={promptDir}><i class="fa-solid fa-folder-plus mr-2"></i>{translate('frontend/src/routes/teachers/files/+page.svelte::folder_button_label')}</button>
+        <button class="btn btn-sm" on:click={promptNotebook}><i class="fa-solid fa-book mr-2"></i>{translate('frontend/src/routes/teachers/files/+page.svelte::notebook_button_label')}</button>
       {/if}
       <div class="flex items-center gap-2">
         <select class="select select-bordered select-sm" bind:value={filter}>
-          <option value="all">All</option>
-          <option value="folders">Folders</option>
-          <option value="images">Images</option>
-          <option value="notebooks">Notebooks</option>
-          <option value="documents">Documents</option>
-          <option value="code">Code</option>
+          <option value="all">{translate('frontend/src/routes/teachers/files/+page.svelte::filter_all')}</option>
+          <option value="folders">{translate('frontend/src/routes/teachers/files/+page.svelte::filter_folders')}</option>
+          <option value="images">{translate('frontend/src/routes/teachers/files/+page.svelte::filter_images')}</option>
+          <option value="notebooks">{translate('frontend/src/routes/teachers/files/+page.svelte::filter_notebooks')}</option>
+          <option value="documents">{translate('frontend/src/routes/teachers/files/+page.svelte::filter_documents')}</option>
+          <option value="code">{translate('frontend/src/routes/teachers/files/+page.svelte::filter_code')}</option>
         </select>
         <select class="select select-bordered select-sm" bind:value={sortKey}>
-          <option value="name">Name</option>
-          <option value="date">Modified</option>
-          <option value="size">Size</option>
+          <option value="name">{translate('frontend/src/routes/teachers/files/+page.svelte::sort_name')}</option>
+          <option value="date">{translate('frontend/src/routes/teachers/files/+page.svelte::sort_modified')}</option>
+          <option value="size">{translate('frontend/src/routes/teachers/files/+page.svelte::sort_size')}</option>
         </select>
         <select class="select select-bordered select-sm" bind:value={sortDir}>
-          <option value="asc">Asc</option>
-          <option value="desc">Desc</option>
+          <option value="asc">{translate('frontend/src/routes/teachers/files/+page.svelte::sort_asc')}</option>
+          <option value="desc">{translate('frontend/src/routes/teachers/files/+page.svelte::sort_desc')}</option>
         </select>
       </div>
     </div>
@@ -324,7 +328,7 @@ onMount(() => {
     <p class="text-error">{err}</p>
   {/if}
   {#if loading}
-    <p>Loading…</p>
+    <p>{translate('frontend/src/routes/teachers/files/+page.svelte::loading_message')}</p>
   {/if}
 
   {#if viewMode === 'grid'}
@@ -353,14 +357,14 @@ onMount(() => {
           {/if}
           {#if role === 'teacher' || role === 'admin'}
             <div class="absolute top-1 right-1 hidden group-hover:flex gap-1">
-              <button class="btn btn-xs btn-circle" title="Rename" aria-label="Rename" on:click|stopPropagation={() => rename(it)}><i class="fa-solid fa-pen"></i></button>
-              <button class="btn btn-xs btn-circle btn-error" title="Delete" aria-label="Delete" on:click|stopPropagation={() => del(it)}><i class="fa-solid fa-trash"></i></button>
+              <button class="btn btn-xs btn-circle" title={translate('frontend/src/routes/teachers/files/+page.svelte::rename_button_title')} aria-label={translate('frontend/src/routes/teachers/files/+page.svelte::rename_button_aria_label')} on:click|stopPropagation={() => rename(it)}><i class="fa-solid fa-pen"></i></button>
+              <button class="btn btn-xs btn-circle btn-error" title={translate('frontend/src/routes/teachers/files/+page.svelte::delete_button_title')} aria-label={translate('frontend/src/routes/teachers/files/+page.svelte::delete_button_aria_label')} on:click|stopPropagation={() => del(it)}><i class="fa-solid fa-trash"></i></button>
             </div>
           {/if}
         </div>
       {/each}
       {#if !visible.length}
-        <p class="col-span-full"><i>No files</i></p>
+        <p class="col-span-full"><i>{translate('frontend/src/routes/teachers/files/+page.svelte::no_files_message')}</i></p>
       {/if}
     </div>
   {:else}
@@ -368,9 +372,9 @@ onMount(() => {
       <table class="table table-zebra w-full">
         <thead>
           <tr>
-            <th class="text-left">Name</th>
-            <th class="text-right">Size</th>
-            <th class="text-right">Modified</th>
+            <th class="text-left">{translate('frontend/src/routes/teachers/files/+page.svelte::table_header_name')}</th>
+            <th class="text-right">{translate('frontend/src/routes/teachers/files/+page.svelte::table_header_size')}</th>
+            <th class="text-right">{translate('frontend/src/routes/teachers/files/+page.svelte::table_header_modified')}</th>
             {#if role === 'teacher' || role === 'admin'}<th class="w-16"></th>{/if}
           </tr>
         </thead>
@@ -393,15 +397,15 @@ onMount(() => {
               <td class="text-right">{formatDateTime(it.updated_at)}</td>
               {#if role === 'teacher' || role === 'admin'}
                 <td class="text-right whitespace-nowrap w-16">
-                  <button class="btn btn-xs btn-circle invisible group-hover:visible" title="Rename" aria-label="Rename" on:click|stopPropagation={() => rename(it)}><i class="fa-solid fa-pen"></i></button>
-                  <button class="btn btn-xs btn-circle btn-error invisible group-hover:visible" title="Delete" aria-label="Delete" on:click|stopPropagation={() => del(it)}><i class="fa-solid fa-trash"></i></button>
+                  <button class="btn btn-xs btn-circle invisible group-hover:visible" title={translate('frontend/src/routes/teachers/files/+page.svelte::rename_button_title')} aria-label={translate('frontend/src/routes/teachers/files/+page.svelte::rename_button_aria_label')} on:click|stopPropagation={() => rename(it)}><i class="fa-solid fa-pen"></i></button>
+                  <button class="btn btn-xs btn-circle btn-error invisible group-hover:visible" title={translate('frontend/src/routes/teachers/files/+page.svelte::delete_button_title')} aria-label={translate('frontend/src/routes/teachers/files/+page.svelte::delete_button_aria_label')} on:click|stopPropagation={() => del(it)}><i class="fa-solid fa-trash"></i></button>
                 </td>
               {/if}
             </tr>
           {/each}
           {#if !visible.length}
             <tr>
-              <td colspan={role === 'teacher' || role === 'admin' ? 4 : 3}><i>No files</i></td>
+              <td colspan={role === 'teacher' || role === 'admin' ? 4 : 3}><i>{translate('frontend/src/routes/teachers/files/+page.svelte::no_files_message')}</i></td>
             </tr>
           {/if}
         </tbody>
@@ -413,7 +417,7 @@ onMount(() => {
     <div class="absolute inset-0 z-20 border-4 border-dashed border-primary/60 bg-base-100/70 backdrop-blur-sm rounded-box flex items-center justify-center">
       <div class="text-center">
         <i class="fa-solid fa-cloud-arrow-up text-4xl mb-2"></i>
-        <p class="font-medium">Drop files to upload</p>
+        <p class="font-medium">{translate('frontend/src/routes/teachers/files/+page.svelte::drop_files_to_upload')}</p>
       </div>
     </div>
   {/if}
@@ -423,17 +427,17 @@ onMount(() => {
   {/if}
 
   {#if dropping}
-    <div class="fixed bottom-4 right-4 z-30"><div class="btn btn-primary btn-sm no-animation"><span class="loading loading-dots loading-xs mr-2"></span>Uploading…</div></div>
+    <div class="fixed bottom-4 right-4 z-30"><div class="btn btn-primary btn-sm no-animation"><span class="loading loading-dots loading-xs mr-2"></span>{translate('frontend/src/routes/teachers/files/+page.svelte::uploading_status')}</div></div>
   {/if}
 
   <dialog bind:this={uploadDialog} class="modal">
     <div class="modal-box">
-      <h3 class="font-bold mb-2">Upload file</h3>
+      <h3 class="font-bold mb-2">{translate('frontend/src/routes/teachers/files/+page.svelte::upload_file_title')}</h3>
       <input type="file" class="file-input file-input-bordered w-full" on:change={(e)=>uploadFile=(e.target as HTMLInputElement).files?.[0]||null} />
       {#if uploadErr}<p class="text-error mt-2">{uploadErr}</p>{/if}
       <div class="modal-action">
-        <form method="dialog"><button class="btn">Cancel</button></form>
-        <button class="btn btn-primary" on:click|preventDefault={doUpload} disabled={uploading}>Upload</button>
+        <form method="dialog"><button class="btn">{translate('frontend/src/routes/teachers/files/+page.svelte::cancel_button_label')}</button></form>
+        <button class="btn btn-primary" on:click|preventDefault={doUpload} disabled={uploading}>{translate('frontend/src/routes/teachers/files/+page.svelte::upload_button_label_dialog')}</button>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>

@@ -2,6 +2,7 @@
   import { PUBLIC_TURNSTILE_SITE_KEY } from '$env/static/public'
   import { onMount } from 'svelte'
   import { apiFetch } from '$lib/api'
+  import { t } from '$lib/i18n'
 
   const TURNSTILE_SCRIPT_URL = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
   const TURNSTILE_PLACEHOLDER = 'change_me'
@@ -88,7 +89,7 @@
 
   onMount(() => {
     if (!PUBLIC_TURNSTILE_SITE_KEY || PUBLIC_TURNSTILE_SITE_KEY === TURNSTILE_PLACEHOLDER) {
-      error = 'Password resets are temporarily unavailable while verification is misconfigured. Please contact support.'
+      error = t('frontend/src/routes/forgot-password/+page.svelte::verification_misconfigured_error')
       return
     }
 
@@ -102,7 +103,7 @@
       })
       .catch(() => {
         if (!cancelled) {
-          error = 'Unable to load the verification challenge. Please refresh and try again.'
+          error = t('frontend/src/routes/forgot-password/+page.svelte::verification_challenge_load_error')
         }
       })
 
@@ -122,11 +123,11 @@
   async function submit() {
     error = ''
     if (!email.trim()) {
-      error = 'Please enter your email.'
+      error = t('frontend/src/routes/forgot-password/+page.svelte::enter_email_error')
       return
     }
     if (!turnstileToken) {
-      error = 'Please complete the verification challenge.'
+      error = t('frontend/src/routes/forgot-password/+page.svelte::complete_verification_error')
       return
     }
     loading = true
@@ -144,7 +145,7 @@
       }
       submitted = true
     } catch (e: any) {
-      error = e?.message ?? 'Something went wrong'
+      error = e?.message ?? t('frontend/src/routes/forgot-password/+page.svelte::something_went_wrong')
       resetTurnstile()
     } finally {
       loading = false
@@ -153,24 +154,24 @@
 </script>
 
 <svelte:head>
-  <title>Forgot Password</title>
+  <title>{t('frontend/src/routes/forgot-password/+page.svelte::forgot_password_title')}</title>
 </svelte:head>
 
-<h1 class="text-3xl font-bold text-center mb-6">Forgot Password</h1>
+<h1 class="text-3xl font-bold text-center mb-6">{t('frontend/src/routes/forgot-password/+page.svelte::forgot_password_heading')}</h1>
 <div class="flex justify-center">
   <div class="card w-full max-w-md bg-base-100 shadow p-6 space-y-4">
     {#if !submitted}
       <p class="text-sm text-center text-base-content/70">
-        Enter the email you use for your local account. We will send a link to reset your password if it exists.
+        {t('frontend/src/routes/forgot-password/+page.svelte::forgot_password_intro')}
       </p>
       <form on:submit|preventDefault={submit} class="space-y-4">
-        <input type="email" bind:value={email} placeholder="Email" required class="input input-bordered w-full" />
+        <input type="email" bind:value={email} placeholder={t('frontend/src/routes/forgot-password/+page.svelte::email_placeholder')} required class="input input-bordered w-full" />
         <div class="min-h-[80px]" bind:this={turnstileContainer}></div>
         <button type="submit" class="btn btn-primary w-full" disabled={!canSubmit}>
           {#if loading}
-            Sending...
+            {t('frontend/src/routes/forgot-password/+page.svelte::sending')}
           {:else}
-            Send reset email
+            {t('frontend/src/routes/forgot-password/+page.svelte::send_reset_email')}
           {/if}
         </button>
       </form>
@@ -179,11 +180,11 @@
       {/if}
     {:else}
       <p class="text-center text-base-content">
-        If we found an account with that email, a reset link is on its way. Check your inbox and spam folder.
+        {t('frontend/src/routes/forgot-password/+page.svelte::reset_link_sent_message')}
       </p>
     {/if}
     <p class="text-center text-sm">
-      <a href="/login" class="link link-primary">Back to login</a>
+      <a href="/login" class="link link-primary">{t('frontend/src/routes/forgot-password/+page.svelte::back_to_login_link')}</a>
     </p>
   </div>
 </div>

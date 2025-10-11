@@ -9,6 +9,7 @@
   import { auth } from '$lib/auth';
   import '@fortawesome/fontawesome-free/css/all.min.css';
   import { beforeNavigate, goto } from '$app/navigation';
+  import { t } from '$lib/i18n';
 
   let notebookEditor: InstanceType<typeof NotebookEditor> | undefined;
   let unsavedModal: InstanceType<typeof UnsavedChangesModal> | undefined;
@@ -20,8 +21,8 @@
   let isTeacher = false;
   $: isTeacher = ['teacher', 'admin'].includes($auth?.role ?? '');
   const unsavedModalOptions = {
-    title: 'Unsaved notebook changes',
-    body: 'You have unsaved changes in this notebook. What would you like to do before leaving?',
+    title: t('frontend/src/routes/files/[id]/+page.svelte::Unsaved notebook changes'),
+    body: t('frontend/src/routes/files/[id]/+page.svelte::You have unsaved changes in this notebook. What would you like to do before leaving?'),
     icon: 'fa-solid fa-triangle-exclamation text-warning'
   } as const;
   let ignoreNavigationGuard = false;
@@ -97,7 +98,7 @@
         return true;
       } catch (error) {
         console.error(error);
-        alert('Failed to save notebook.');
+        alert(t('frontend/src/routes/files/[id]/+page.svelte::Failed to save notebook.'));
         return false;
       }
     }
@@ -163,12 +164,12 @@
   });
 </script>
 
-<button class="btn btn-sm btn-circle mb-4" on:click={goBack} aria-label="Back to files">
+<button class="btn btn-sm btn-circle mb-4" on:click={goBack} aria-label={t('frontend/src/routes/files/[id]/+page.svelte::Back to files')}>
   <i class="fa-solid fa-arrow-left"></i>
 </button>
 {#if isImage}
   {#if imgUrl}
-    <img src={imgUrl} alt="image" class="max-w-full" />
+    <img src={imgUrl} alt={t('frontend/src/routes/files/[id]/+page.svelte::image')} class="max-w-full" />
   {/if}
 {:else}
   <NotebookEditor bind:this={notebookEditor} fileId={id} on:saved={handleSaved} />

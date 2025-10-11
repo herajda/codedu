@@ -2,6 +2,7 @@
   import { apiFetch } from '$lib/api'
   import { sha256 } from '$lib/hash'
   import { page } from '$app/stores'
+  import { t, translator } from '$lib/i18n'
 
   let password = ''
   let confirm = ''
@@ -9,20 +10,23 @@
   let success = false
   let loading = false
 
+  let translate;
+  $: translate = $translator;
+
   $: token = $page.url.searchParams.get('token') ?? ''
 
   async function submit() {
     error = ''
     if (!token) {
-      error = 'This reset link is invalid. Request a new one.'
+      error = t('frontend/src/routes/reset-password/+page.svelte::Invalid_Reset_Link')
       return
     }
     if (password.length < 6) {
-      error = 'Password must be at least 6 characters'
+      error = t('frontend/src/routes/reset-password/+page.svelte::Password_Min_Length')
       return
     }
     if (password !== confirm) {
-      error = 'Passwords do not match'
+      error = t('frontend/src/routes/reset-password/+page.svelte::Passwords_Do_Not_Match')
       return
     }
     loading = true
@@ -35,12 +39,12 @@
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        error = data.error ?? res.statusText
+        error = data.error ?? t('frontend/src/routes/reset-password/+page.svelte::Something_Went_Wrong')
         return
       }
       success = true
     } catch (e: any) {
-      error = e.message ?? 'Something went wrong'
+      error = e.message ?? t('frontend/src/routes/reset-password/+page.svelte::Something_Went_Wrong')
     } finally {
       loading = false
     }
@@ -48,24 +52,24 @@
 </script>
 
 <svelte:head>
-  <title>Reset Password</title>
+  <title>{t('frontend/src/routes/reset-password/+page.svelte::Reset_Password')}</title>
 </svelte:head>
 
-<h1 class="text-3xl font-bold text-center mb-6">Reset Password</h1>
+<h1 class="text-3xl font-bold text-center mb-6">{t('frontend/src/routes/reset-password/+page.svelte::Reset_Password')}</h1>
 <div class="flex justify-center">
   <div class="card w-full max-w-md bg-base-100 shadow p-6 space-y-4">
     {#if !success}
       <form on:submit|preventDefault={submit} class="space-y-4">
         <p class="text-sm text-center text-base-content/70">
-          Choose a new password for your account.
+          {t('frontend/src/routes/reset-password/+page.svelte::Choose_New_Password_Account')}
         </p>
-        <input type="password" bind:value={password} placeholder="New password" required class="input input-bordered w-full" />
-        <input type="password" bind:value={confirm} placeholder="Confirm password" required class="input input-bordered w-full" />
+        <input type="password" bind:value={password} placeholder={t('frontend/src/routes/reset-password/+page.svelte::New_Password')} required class="input input-bordered w-full" />
+        <input type="password" bind:value={confirm} placeholder={t('frontend/src/routes/reset-password/+page.svelte::Confirm_Password')} required class="input input-bordered w-full" />
         <button type="submit" class="btn btn-primary w-full" disabled={loading}>
           {#if loading}
-            Saving...
+            {translate('frontend/src/routes/reset-password/+page.svelte::Saving')}
           {:else}
-            Reset password
+            {translate('frontend/src/routes/reset-password/+page.svelte::Reset_Password_Button')}
           {/if}
         </button>
       </form>
@@ -74,11 +78,11 @@
       {/if}
     {:else}
       <p class="text-center text-base-content">
-        Your password has been updated. You can now log in with your new credentials.
+        {t('frontend/src/routes/reset-password/+page.svelte::Password_Updated_Login')}
       </p>
     {/if}
     <p class="text-center text-sm">
-      <a href="/login" class="link link-primary">Return to login</a>
+      <a href="/login" class="link link-primary">{t('frontend/src/routes/reset-password/+page.svelte::Return_To_Login')}</a>
     </p>
   </div>
 </div>

@@ -7,6 +7,10 @@ import { apiJSON } from '$lib/api';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { formatDateTime } from '$lib/date';
+import { t, translator } from '$lib/i18n'; // Added
+
+let translate; // Added
+$: translate = $translator; // Added
 
 let id = $page.params.id;
 $: id = $page.params.id;
@@ -33,7 +37,7 @@ let solLoading = false;
 let teacherRunDialog: HTMLDialogElement;
 
 // Copy (import) to class state
-let copyDialog: HTMLDialogElement;
+let copyDialog: HTMLDialogDialogElement;
 let myClasses: any[] = [];
 let copyClassId: string | null = null;
 let copyErr = '';
@@ -53,7 +57,7 @@ async function openCopyToClass(){
 }
 
 async function doCopyToClass(){
-  if (!copyClassId) { copyErr = 'Choose a class'; return; }
+  if (!copyClassId) { copyErr = t('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::choose_class_error'); return; } // Localized
   try{
     const res = await apiJSON(`/api/classes/${copyClassId}/assignments/import`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source_assignment_id: assignment.id }) });
     copyDialog?.close();
@@ -83,7 +87,8 @@ async function runTeacherSolution(){
     try{
       const tabs = document.querySelectorAll('.tabs .tab');
       tabs.forEach(el => el.classList.remove('tab-active'));
-      const runsBtn = Array.from(tabs).find(el => el.textContent?.trim().toLowerCase().includes('teacher runs')) as HTMLElement | undefined;
+      // Localized the string used for comparison
+      const runsBtn = Array.from(tabs).find(el => el.textContent?.trim().toLowerCase().includes(t('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::teacher_runs_lowercase'))) as HTMLElement | undefined;
       if (runsBtn) runsBtn.classList.add('tab-active');
       const ov = document.getElementById('pv-overview');
       const ins = document.getElementById('pv-instructor');
@@ -123,8 +128,8 @@ function statusColor(s:string){
 }
 
 function policyLabel(policy:string){
-  if(policy==='all_or_nothing') return 'All or nothing';
-  if(policy==='weighted') return 'Weighted';
+  if(policy==='all_or_nothing') return t('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::all_or_nothing'); // Localized
+  if(policy==='weighted') return t('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::weighted'); // Localized
   return policy;
 }
 
@@ -206,24 +211,24 @@ onMount(load);
         <div class="flex items-center justify-between gap-3">
           <h1 class="text-2xl sm:text-3xl font-semibold tracking-tight">{assignment.title}</h1>
           <div class="flex items-center gap-2">
-            <button class="btn btn-sm" on:click={() => history.back()}><i class="fa-solid fa-arrow-left mr-2"></i>Back</button>
-            <button class="btn btn-primary btn-sm" on:click={openCopyToClass}><i class="fa-solid fa-copy mr-2"></i>Add to my class</button>
+            <button class="btn btn-sm" on:click={() => history.back()}><i class="fa-solid fa-arrow-left mr-2"></i>{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::back')}</button>
+            <button class="btn btn-primary btn-sm" on:click={openCopyToClass}><i class="fa-solid fa-copy mr-2"></i>{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::add_to_my_class')}</button>
           </div>
         </div>
         <div class="mt-3 flex flex-wrap items-center gap-2">
-          <span class="badge badge-ghost">Max {assignment.max_points} pts</span>
+          <span class="badge badge-ghost">{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::max_label')}{assignment.max_points} {translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::points_abbr')}</span>
           <span class="badge badge-ghost">{policyLabel(assignment.grading_policy)}</span>
           {#if assignment.manual_review}
-            <span class="badge badge-info">Manual review</span>
+            <span class="badge badge-info">{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::manual_review_badge')}</span>
           {/if}
           {#if assignment.published}
-            <span class="badge badge-success">Published</span>
+            <span class="badge badge-success">{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::published')}</span>
           {:else}
-            <span class="badge badge-warning">Draft</span>
+            <span class="badge badge-warning">{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::draft')}</span>
           {/if}
           <!-- No deadline badges in preview -->
         </div>
-        <div class="mt-4 text-xs opacity-70">Read‑only preview</div>
+        <div class="mt-4 text-xs opacity-70">{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::readonly_preview')}</div>
       </div>
     </div>
   </section>
@@ -231,39 +236,43 @@ onMount(load);
   <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
     <div class="lg:col-span-12">
       <div class="tabs tabs-boxed w-full mb-4">
-        <button class="tab tab-active" aria-current="page" on:click={(e)=>activateTab(e.currentTarget as HTMLElement, 'overview')}>Overview</button>
-        <button class="tab" on:click={(e)=>activateTab(e.currentTarget as HTMLElement, 'runs')}>Teacher runs</button>
+        <button class="tab tab-active" aria-current="page" on:click={(e)=>activateTab(e.currentTarget as HTMLElement, 'overview')}>{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::overview_tab')}</button>
+        <button class="tab" on:click={(e)=>activateTab(e.currentTarget as HTMLElement, 'runs')}>{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::teacher_runs_tab')}</button>
       </div>
 
       <section id="pv-overview" class="card-elevated p-6 space-y-4">
         <div class="markdown assignment-description">{@html safeDesc}</div>
         <div class="grid sm:grid-cols-3 gap-3">
           <div class="stat bg-base-100 rounded-xl border border-base-300/60">
-            <div class="stat-title">Max points</div>
+            <div class="stat-title">{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::max_points_stat_title')}</div>
             <div class="stat-value text-lg">{assignment.max_points}</div>
             <div class="stat-desc">{policyLabel(assignment.grading_policy)}</div>
           </div>
           <div class="stat bg-base-100 rounded-xl border border-base-300/60">
-            <div class="stat-title">Traceback visible</div>
-            <div class="stat-value text-lg">{assignment.show_traceback ? 'Yes' : 'No'}</div>
-            <div class="stat-desc">student error output</div>
+            <div class="stat-title">{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::traceback_visible_stat_title')}</div>
+            <div class="stat-value text-lg">{assignment.show_traceback ? translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::yes') : translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::no')}</div>
+            <div class="stat-desc">{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::student_error_output_desc')}</div>
           </div>
           <div class="stat bg-base-100 rounded-xl border border-base-300/60">
-            <div class="stat-title">Manual review</div>
-            <div class="stat-value text-lg">{assignment.manual_review ? 'Yes' : 'No'}</div>
-            <div class="stat-desc">grading method</div>
+            <div class="stat-title">{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::manual_review_stat_title')}</div>
+            <div class="stat-value text-lg">{assignment.manual_review ? translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::yes') : translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::no')}</div>
+            <div class="stat-desc">{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::grading_method_desc')}</div>
           </div>
         </div>
       </section>
 
       <section id="pv-instructor" class="card-elevated p-6 space-y-4" hidden>
         <div class="flex items-center justify-between">
-          <h3 class="font-semibold text-lg">Student progress</h3>
+          <h3 class="font-semibold text-lg">{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::student_progress_heading')}</h3>
         </div>
         <div class="overflow-x-auto">
           <table class="table table-zebra">
             <thead>
-              <tr><th>Student</th><th>Status</th><th>Last submission</th></tr>
+              <tr>
+                <th>{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::student_table_header')}</th>
+                <th>{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::status_table_header')}</th>
+                <th>{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::last_submission_table_header')}</th>
+              </tr>
             </thead>
             <tbody>
               {#each progress as p (p.student.id)}
@@ -293,23 +302,23 @@ onMount(load);
                               </div>
                               <div class="timeline-end timeline-box m-0 space-y-2">
                                 <div class="flex flex-wrap items-center gap-2">
-                                  <span class="mr-2 text-xs opacity-70">Attempt #{s.attempt_number ?? '?'}</span>
+                                  <span class="mr-2 text-xs opacity-70">{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::attempt_prefix')}#{s.attempt_number ?? '?'}</span>
                                   <a class="link" href={`/submissions/${s.id}`}>{formatDateTime(s.created_at)}</a>
                                   {#if s.manually_accepted}
-                                    <span class="badge badge-xs badge-outline badge-success" title="Accepted by teacher">accepted</span>
+                                    <span class="badge badge-xs badge-outline badge-success" title="{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::accepted_badge')}">{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::accepted_badge')}</span>
                                   {/if}
                                 </div>
                                 <div class="flex flex-wrap items-center gap-2 text-xs">
                                   {#if testsCount>0}
                                     <span class="badge badge-ghost badge-xs">
                                       {#if subStats[s.id]}
-                                        {subStats[s.id].passed} / {subStats[s.id].total || testsCount} tests
+                                        {subStats[s.id].passed} / {subStats[s.id].total || testsCount} {translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::tests_suffix')}
                                       {:else}
-                                        - / - tests
+                                        - / - {translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::tests_suffix')}
                                       {/if}
                                     </span>
                                   {/if}
-                                  <span class="badge badge-outline badge-xs">{(s.override_points ?? s.points ?? 0)} pts</span>
+                                  <span class="badge badge-outline badge-xs">{(s.override_points ?? s.points ?? 0)} {translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::points_abbr_badge')}</span>
                                 </div>
                               </div>
                               {#if i !== p.all.length - 1}<hr />{/if}
@@ -317,14 +326,14 @@ onMount(load);
                           {/each}
                         </ul>
                       {:else}
-                        <i>No submissions</i>
+                        <i>{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::no_submissions')}</i>
                       {/if}
                     </td>
                   </tr>
                 {/if}
               {/each}
               {#if !progress.length}
-                <tr><td colspan="3"><i>No students</i></td></tr>
+                <tr><td colspan="3"><i>{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::no_students')}</i></td></tr>
               {/if}
             </tbody>
           </table>
@@ -333,13 +342,18 @@ onMount(load);
 
       <section id="pv-runs" class="card-elevated p-6 space-y-3" hidden>
         <div class="flex items-center justify-between">
-          <h3 class="font-semibold text-lg">Your runs</h3>
-          <button class="btn btn-sm" on:click={openTeacherRunModal}>New run</button>
+          <h3 class="font-semibold text-lg">{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::your_runs_heading')}</h3>
+          <button class="btn btn-sm" on:click={openTeacherRunModal}>{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::new_run_button')}</button>
         </div>
         <div class="overflow-x-auto">
           <table class="table table-zebra">
             <thead>
-              <tr><th>Date</th><th>Status</th><th>First failure</th><th></th></tr>
+              <tr>
+                <th>{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::date_table_header')}</th>
+                <th>{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::status_table_header')}</th>
+                <th>{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::first_failure_table_header')}</th>
+                <th></th>
+              </tr>
             </thead>
             <tbody>
               {#each teacherRuns as s}
@@ -347,11 +361,11 @@ onMount(load);
                   <td>{formatDateTime(s.created_at)}</td>
                   <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span></td>
                   <td>{s.failure_reason ?? '-'}</td>
-                  <td><a class="btn btn-sm btn-outline" href={`/submissions/${s.id}`}>View</a></td>
+                  <td><a class="btn btn-sm btn-outline" href={`/submissions/${s.id}`}>{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::view_button')}</a></td>
                 </tr>
               {/each}
               {#if !teacherRuns.length}
-                <tr><td colspan="4"><i>No runs yet</i></td></tr>
+                <tr><td colspan="4"><i>{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::no_runs_yet')}</i></td></tr>
               {/if}
             </tbody>
           </table>
@@ -362,12 +376,12 @@ onMount(load);
     <!-- Right side: Optional details (kept minimal for preview) -->
     <aside class="lg:col-span-4 space-y-4">
       <div class="card-elevated p-5">
-        <h3 class="font-semibold mb-2">Details</h3>
+        <h3 class="font-semibold mb-2">{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::details_heading')}</h3>
         <ul class="text-sm space-y-1">
-          <li><b>Template:</b> {assignment.template_path ? 'Present' : 'None'}</li>
-          <li><b>Created:</b> {formatDateTime(assignment.created_at)}</li>
-          <li><b>Updated:</b> {formatDateTime(assignment.updated_at)}</li>
-          <li><b>Tests:</b> {tests.length}</li>
+          <li><b>{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::template_label')}</b> {assignment.template_path ? translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::present_status') : translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::none_status')}</li>
+          <li><b>{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::created_label')}</b> {formatDateTime(assignment.created_at)}</li>
+          <li><b>{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::updated_label')}</b> {formatDateTime(assignment.updated_at)}</li>
+          <li><b>{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::tests_label')}</b> {tests.length}</li>
         </ul>
       </div>
     </aside>
@@ -377,7 +391,7 @@ onMount(load);
 <!-- Teacher run upload modal -->
 <dialog bind:this={teacherRunDialog} class="modal">
   <div class="modal-box w-11/12 max-w-lg space-y-4">
-    <h3 class="font-bold text-lg">New teacher run</h3>
+    <h3 class="font-bold text-lg">{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::new_teacher_run_modal_title')}</h3>
     <div
       role="region"
       aria-label="Teacher solution dropzone"
@@ -386,43 +400,43 @@ onMount(load);
       on:dragleave={() => isSolDragging = false}
       on:drop|preventDefault={(e)=>{ isSolDragging=false; const dt=(e as DragEvent).dataTransfer; if(dt){ solFiles=[...solFiles, ...Array.from(dt.files)].filter(f=>f.name.endsWith('.py')) } }}
     >
-      <div class="text-sm opacity-70 mb-2">Drag and drop reference .py files here</div>
-      <div class="mb-3">or</div>
+      <div class="text-sm opacity-70 mb-2">{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::drag_and_drop_files_instruction')}</div>
+      <div class="mb-3">{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::or_connector')}</div>
       <input type="file" accept=".py" multiple class="file-input file-input-bordered w-full"
         on:change={e=>solFiles=Array.from((e.target as HTMLInputElement).files||[])}>
     </div>
     {#if solFiles.length}
-      <div class="text-sm opacity-70">{solFiles.length} file{solFiles.length===1?'':'s'} selected</div>
+      <div class="text-sm opacity-70">{solFiles.length} {solFiles.length===1 ? translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::file_singular') : translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::file_plural')} {translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::selected_suffix')}</div>
     {/if}
     <div class="modal-action">
-      <button class={`btn btn-primary ${solLoading ? 'loading' : ''}`} on:click={runTeacherSolution} disabled={!solFiles.length || solLoading}>Run</button>
+      <button class={`btn btn-primary ${solLoading ? 'loading' : ''}`} on:click={runTeacherSolution} disabled={!solFiles.length || solLoading}>{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::run_button')}</button>
     </div>
   </div>
-  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  <form method="dialog" class="modal-backdrop"><button>{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::close_button')}</button></form>
 </dialog>
 
 <!-- Copy to class modal -->
 <dialog bind:this={copyDialog} class="modal">
   <div class="modal-box w-11/12 max-w-md">
-    <h3 class="font-bold mb-3">Add to my class</h3>
+    <h3 class="font-bold mb-3">{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::add_to_my_class_modal_title')}</h3>
     {#if copyLoading}
       <div class="py-4 text-center"><span class="loading loading-dots"></span></div>
     {:else}
-      <label class="label"><span class="label-text">Choose class</span></label>
+      <label class="label"><span class="label-text">{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::choose_class_label')}</span></label>
       <select class="select select-bordered w-full" bind:value={copyClassId}>
-        <option value="" disabled selected>Select…</option>
+        <option value="" disabled selected>{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::select_option_placeholder')}</option>
         {#each myClasses as c}
           <option value={c.id}>{c.name}</option>
         {/each}
       </select>
       {#if copyErr}<p class="text-error mt-2">{copyErr}</p>{/if}
       <div class="modal-action">
-        <form method="dialog"><button class="btn">Cancel</button></form>
-        <button class="btn btn-primary" on:click|preventDefault={doCopyToClass}>Add</button>
+        <form method="dialog"><button class="btn">{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::cancel_button')}</button></form>
+        <button class="btn btn-primary" on:click|preventDefault={doCopyToClass}>{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::add_button')}</button>
       </div>
     {/if}
   </div>
-  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  <form method="dialog" class="modal-backdrop"><button>{translate('frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::close_button')}</button></form>
 </dialog>
 
 <style>

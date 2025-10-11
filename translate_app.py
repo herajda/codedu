@@ -149,6 +149,7 @@ class ProcessedFile:
 class TranslationState:
     """Serializable progress information stored on disk."""
     processed_files: Dict[str, ProcessedFile] = field(default_factory=dict)
+    catalogue_checksums: Dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def load(cls, path: Path) -> 'TranslationState':
@@ -159,7 +160,13 @@ class TranslationState:
             rel_path: ProcessedFile(**entry)
             for rel_path, entry in raw.get('processed_files', {}).items()
         }
-        return cls(processed_files=processed)
+        catalogue_checksums = {}
+        if 'catalogue_checksums' in raw and isinstance(raw['catalogue_checksums'], dict):
+            catalogue_checksums = {
+                locale: str(checksum)
+                for locale, checksum in raw['catalogue_checksums'].items()
+            }
+        return cls(processed_files=processed, catalogue_checksums=catalogue_checksums)
 
     def to_json(self) -> Dict[str, Any]:
         return {
@@ -169,7 +176,8 @@ class TranslationState:
                     'updated_at': meta.updated_at,
                 }
                 for rel_path, meta in sorted(self.processed_files.items())
-            }
+            },
+            'catalogue_checksums': dict(sorted(self.catalogue_checksums.items())),
         }
 
     def is_up_to_date(self, rel_path: str, checksum: str) -> bool:
@@ -178,6 +186,29 @@ class TranslationState:
 
     def mark_processed(self, rel_path: str, checksum: str) -> None:
         self.processed_files[rel_path] = ProcessedFile.fresh(checksum)
+
+    def ensure_catalogue_consistency(self, current_checksums: Dict[str, str]) -> None:
+        """Invalidate processed file cache when locale catalogues were reset."""
+        expected = dict(current_checksums)
+        if not self.catalogue_checksums:
+            self.catalogue_checksums = expected
+            return
+
+        if self.catalogue_checksums == expected:
+            return
+
+        missing = set(self.catalogue_checksums) ^ set(expected)
+        if missing:
+            logging.info(
+                'Locale catalogue set changed (%s); resetting translation progress cache.',
+                ', '.join(sorted(missing)),
+            )
+        else:
+            logging.info(
+                'Locale catalogue contents changed; resetting translation progress cache.',
+            )
+        self.processed_files.clear()
+        self.catalogue_checksums = expected
 
 # ---- Utilities ---------------------------------------------------------------
 
@@ -213,6 +244,11 @@ def discover_source_files(root: Path) -> List[Path]:
 
 def compute_checksum(content: str) -> str:
     return sha256(content.encode('utf-8')).hexdigest()
+
+
+def compute_mapping_checksum(mapping: Dict[str, str]) -> str:
+    serialised = json.dumps(mapping, ensure_ascii=False, sort_keys=True)
+    return compute_checksum(serialised)
 
 
 def read_json_file(path: Path) -> Dict[str, str]:
@@ -330,7 +366,12 @@ def should_translate_entry(key: str, en_text: str) -> bool:
     if not stripped or not _contains_letters(stripped):
         return False
 
-    lower_key = key.lower()
+    if '::' in key:
+        _, _, key_slug = key.partition('::')
+    else:
+        key_slug = key
+
+    lower_key = key_slug.lower()
     lower_text = stripped.lower()
 
     if any(term in lower_key for term in NON_VISUAL_KEY_TERMS):
@@ -548,6 +589,7 @@ async def request_translation(
             response = await client.post(
                 f"/models/{MODEL_NAME}:generateContent",
                 json=payload,
+                temperature=0,
             )
             if response.status_code >= 400:
                 logging.warning(
@@ -567,7 +609,20 @@ async def request_translation(
             return translation_payload
 
         except (httpx.HTTPStatusError, httpx.RequestError) as exc:
-            logging.warning("Attempt %s failed for %s due to HTTP error: %s", attempt, rel_path, exc)
+            extra_context = ""
+            if isinstance(exc, httpx.HTTPStatusError):
+                response = exc.response
+                if response is not None:
+                    snippet = response.text.strip()
+                    if snippet:
+                        extra_context = f" | response body: {snippet[:500]}"
+            logging.warning(
+                "Attempt %s failed for %s due to HTTP error: %s%s",
+                attempt,
+                rel_path,
+                exc,
+                extra_context,
+            )
             if attempt == MAX_TRANSLATION_RETRIES:
                 raise
             await asyncio.sleep(RETRY_BACKOFF_SECONDS * attempt)
@@ -682,20 +737,36 @@ async def process_file(
         async with lock:
             merge_translations(english_catalogue, czech_catalogue, translations)
             final_checksum = compute_checksum(updated_source)
+            previous_entry = state.processed_files.get(rel_path)
             state.mark_processed(rel_path, final_checksum)
             english_snapshot = dict(english_catalogue)
             czech_snapshot = dict(czech_catalogue)
+            updated_catalogue_checksums = {
+                DEFAULT_LOCALE: compute_mapping_checksum(english_snapshot),
+                TARGET_LOCALE: compute_mapping_checksum(czech_snapshot),
+            }
+            previous_catalogue_checksums = dict(state.catalogue_checksums)
+            state.catalogue_checksums = updated_catalogue_checksums
             state_payload = state.to_json()
 
-            await asyncio.gather(
-                async_write_json(LOCALES_DIR / f'{DEFAULT_LOCALE}.json', english_snapshot),
-                async_write_json(LOCALES_DIR / f'{TARGET_LOCALE}.json', czech_snapshot),
-                asyncio.to_thread(
-                    STATE_FILE.write_text,
-                    json.dumps(state_payload, ensure_ascii=False, indent=2) + '\n',
-                    'utf-8',
-                ),
-            )
+            try:
+                await asyncio.gather(
+                    async_write_json(LOCALES_DIR / f'{DEFAULT_LOCALE}.json', english_snapshot),
+                    async_write_json(LOCALES_DIR / f'{TARGET_LOCALE}.json', czech_snapshot),
+                    asyncio.to_thread(
+                        STATE_FILE.write_text,
+                        json.dumps(state_payload, ensure_ascii=False, indent=2) + '\n',
+                        'utf-8',
+                    ),
+                )
+            except Exception:
+                # Restore state metadata so a subsequent run retries this file.
+                if previous_entry is not None:
+                    state.processed_files[rel_path] = previous_entry
+                else:
+                    state.processed_files.pop(rel_path, None)
+                state.catalogue_checksums = previous_catalogue_checksums
+                raise
 
         logging.info('Finished %s', rel_path)
 
@@ -713,8 +784,45 @@ async def main_async(args: argparse.Namespace) -> None:
     english_catalogue = read_json_file(LOCALES_DIR / f'{DEFAULT_LOCALE}.json')
     czech_catalogue = read_json_file(LOCALES_DIR / f'{TARGET_LOCALE}.json')
     state = TranslationState.load(STATE_FILE)
+    current_catalogue_checksums = {
+        DEFAULT_LOCALE: compute_mapping_checksum(english_catalogue),
+        TARGET_LOCALE: compute_mapping_checksum(czech_catalogue),
+    }
+    state.ensure_catalogue_consistency(current_catalogue_checksums)
 
-    files = discover_source_files(FRONTEND_SRC)
+    target_file: Optional[Path] = None
+    if args.file:
+        user_path = Path(args.file)
+        candidate_paths: List[Path] = []
+        if user_path.is_absolute():
+            candidate_paths.append(user_path.resolve())
+        else:
+            candidate_paths.append((ROOT / user_path).resolve())
+            candidate_paths.append((FRONTEND_SRC / user_path).resolve())
+
+        resolved: Optional[Path] = None
+        for candidate in candidate_paths:
+            if candidate.exists():
+                resolved = candidate
+                break
+
+        if resolved is None:
+            raise FileNotFoundError(f'File "{args.file}" was not found in the project or frontend source tree.')
+        if not resolved.is_file():
+            raise ValueError(f'"{resolved}" is not a file.')
+        if resolved.suffix.lower() not in SUPPORTED_EXTENSIONS:
+            raise ValueError(f'"{resolved}" is not a supported source file (expected one of: {", ".join(sorted(SUPPORTED_EXTENSIONS))}).')
+        try:
+            resolved.relative_to(FRONTEND_SRC)
+        except ValueError as exc:
+            raise ValueError(f'"{resolved}" is outside the frontend source directory {FRONTEND_SRC}.') from exc
+        target_file = resolved
+
+    if target_file is not None:
+        files = [target_file]
+    else:
+        files = discover_source_files(FRONTEND_SRC)
+
     if not files:
         logging.warning('No source files matched the selection. Nothing to do.')
         return
@@ -726,7 +834,7 @@ async def main_async(args: argparse.Namespace) -> None:
     semaphore = asyncio.Semaphore(concurrency)
     lock = asyncio.Lock()
 
-    timeout = httpx.Timeout(120.0, connect=30.0)
+    timeout = httpx.Timeout(1200.0, connect=30.0)
     async with httpx.AsyncClient(
         base_url=GEMINI_API_BASE,
         headers={'x-goog-api-key': api_key},
@@ -744,6 +852,10 @@ async def main_async(args: argparse.Namespace) -> None:
     if args.dry_run:
         logging.info('Dry run finished. No files were modified.')
     else:
+        state.catalogue_checksums = {
+            DEFAULT_LOCALE: compute_mapping_checksum(english_catalogue),
+            TARGET_LOCALE: compute_mapping_checksum(czech_catalogue),
+        }
         STATE_FILE.write_text(
             json.dumps(state.to_json(), ensure_ascii=False, indent=2) + '\n',
             encoding='utf-8',
@@ -756,6 +868,13 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser.add_argument('--dry-run', action='store_true', help='Run all requests without modifying files.')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose logging output.')
     parser.add_argument('--concurrency', type=int, default=CONCURRENCY, help='Maximum number of concurrent translation requests.')
+    parser.add_argument(
+        '--file',
+        help=(
+            'Translate only the specified frontend source file. Accepts paths relative to the project '
+            'root or to frontend/src.'
+        ),
+    )
     return parser.parse_args(list(argv) if argv is not None else None)
 
 

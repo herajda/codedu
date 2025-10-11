@@ -19,10 +19,11 @@ export const locale = localeStore;
 export const translations = dictionaryStore;
 export const fallbackTranslations = fallbackStore;
 
-const placeholderPattern = /\{\{\s*([\w.-]+)\s*\}\}/g;
+const placeholderPattern = /{{\s*([\w.-]+)\s*}}|\{\s*([\w.-]+)\s*\}/g;
 
 function formatTemplate(template: string, vars: Record<string, string | number> = {}): string {
-  return template.replace(placeholderPattern, (_, name) => {
+  return template.replace(placeholderPattern, (_, doubleName, singleName) => {
+    const name = doubleName ?? singleName;
     const value = vars[name];
     return value === undefined || value === null ? '' : String(value);
   });

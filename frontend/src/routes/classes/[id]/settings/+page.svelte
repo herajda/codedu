@@ -7,6 +7,10 @@
   import { goto } from '$app/navigation';
   import { classesStore } from '$lib/stores/classes';
   import { BookOpen, Pencil, Trash2, UserPlus, UserMinus, Search as SearchIcon, Loader2, Check, X, Users, Download } from 'lucide-svelte';
+  import { t, translator } from '$lib/i18n';
+
+  let translate;
+  $: translate = $translator;
 
   let id = $page.params.id;
   $: if ($page.params.id !== id) { id = $page.params.id; load(); }
@@ -33,13 +37,13 @@
   let renameInput: HTMLInputElement;
 
   function displayName(user: any): string {
-    return user?.name ?? user?.email ?? 'Unknown user';
+    return user?.name ?? user?.email ?? t('frontend/src/routes/classes/[id]/settings/+page.svelte::unknown_user');
   }
 
   function getInitials(text: string): string {
     const base = (text ?? '').trim();
     if (base.length === 0) return '?';
-    const parts = base.includes('@') ? base.replace(/@.+$/, '').split(/[\s._-]+/) : base.split(/[\s._-]+/);
+    const parts = base.includes('@') ? base.replace(/@.+$/, '').split(/[",."_,-]+/) : base.split(/[",."_,-]+/);
     const first = parts[0]?.[0] ?? '';
     const last = parts[parts.length - 1]?.[0] ?? '';
     return (first + last).toUpperCase();
@@ -128,11 +132,11 @@
   async function importAtom(aid: string) {
     err = '';
     try {
-      if (!bkToken) throw new Error('Not logged in');
+      if (!bkToken) throw new Error(t('frontend/src/routes/classes/[id]/settings/+page.svelte::not_logged_in'));
       const students = await getStudents(bkToken, aid);
       const res = await apiJSON<{ added: number }>(`/api/classes/${id}/import-bakalari`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ Students: students }) });
       await load();
-      alert(`Imported ${res.added} students`);
+      alert(t('frontend/src/routes/classes/[id]/settings/+page.svelte::imported_students', { count: res.added }));
     } catch (e: any) { err = e.message }
   }
 </script>
@@ -167,13 +171,13 @@
               <h1 class="text-2xl md:text-3xl font-semibold tracking-tight">{cls.name}</h1>
             {/if}
           </div>
-          <p class="text-base-content/60 text-sm mt-1 flex items-center gap-2"><Users class="size-4" /> {students.length} students</p>
+          <p class="text-base-content/60 text-sm mt-1 flex items-center gap-2"><Users class="size-4" /> {translate('frontend/src/routes/classes/[id]/settings/+page.svelte::student_count', { count: students.length })}</p>
         </div>
       </div>
       {#if role === 'teacher' || role === 'admin'}
         <div class="flex items-center gap-2 ml-auto">
           {#if !renaming}
-            <button class="btn btn-ghost btn-sm" on:click={startRename}><Pencil class="size-4" /> Rename</button>
+            <button class="btn btn-ghost btn-sm" on:click={startRename}><Pencil class="size-4" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::rename')}</button>
           {/if}
         </div>
       {/if}
@@ -186,9 +190,9 @@
       <div class="card bg-base-100/80 backdrop-blur border border-base-300/60 shadow-md">
         <div class="card-body">
           <div class="flex items-center justify-between gap-4 flex-wrap">
-            <h2 class="card-title flex items-center gap-2"><Users class="size-5" /> Students</h2>
+            <h2 class="card-title flex items-center gap-2"><Users class="size-5" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::students')}</h2>
             {#if role === 'teacher' || role === 'admin'}
-              <button class="btn btn-primary btn-sm" on:click={openAddModal}><UserPlus class="size-4" /> Add students</button>
+              <button class="btn btn-primary btn-sm" on:click={openAddModal}><UserPlus class="size-4" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::add_students')}</button>
             {/if}
           </div>
 
@@ -199,7 +203,7 @@
                   <li class="py-3 flex items-center gap-3">
                     <div class="size-9 rounded-full overflow-hidden ring-1 ring-base-300/70 flex items-center justify-center bg-base-200 text-sm font-semibold select-none">
                       {#if s.avatar}
-                        <img src={s.avatar} alt={displayName(s) + ' avatar'} class="w-full h-full object-cover" loading="lazy" />
+                        <img src={s.avatar} alt={t('frontend/src/routes/classes/[id]/settings/+page.svelte::user_avatar', { name: displayName(s) })} class="w-full h-full object-cover" loading="lazy" />
                       {:else}
                         {getInitials(displayName(s))}
                       {/if}
@@ -210,7 +214,7 @@
                       <p class="text-xs text-base-content/60 truncate">ID: {s.id}</p>
                     </div>
                     {#if role === 'teacher' || role === 'admin'}
-                      <button class="btn btn-ghost btn-xs text-error ml-auto" title="Remove" on:click={() => removeStudent(s.id)}>
+                      <button class="btn btn-ghost btn-xs text-error ml-auto" title={t('frontend/src/routes/classes/[id]/settings/+page.svelte::remove_student')} on:click={() => removeStudent(s.id)}>
                         <UserMinus class="size-4" />
                       </button>
                     {/if}
@@ -219,9 +223,9 @@
               </ul>
             {:else}
               <div class="rounded-xl border border-dashed border-base-300/80 p-8 text-center">
-                <p class="text-base-content/70">No students yet</p>
+                <p class="text-base-content/70">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::no_students_yet')}</p>
                 {#if role === 'teacher' || role === 'admin'}
-                  <button class="btn btn-primary btn-sm mt-3" on:click={openAddModal}><UserPlus class="size-4" /> Add students</button>
+                  <button class="btn btn-primary btn-sm mt-3" on:click={openAddModal}><UserPlus class="size-4" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::add_students')}</button>
                 {/if}
               </div>
             {/if}
@@ -235,13 +239,13 @@
       {#if hasBakalari}
         <div class="card bg-base-100/80 backdrop-blur border border-base-300/60 shadow-md">
           <div class="card-body">
-            <h2 class="card-title flex items-center gap-2"><Download class="size-5" /> Import from Bakaláři</h2>
+            <h2 class="card-title flex items-center gap-2"><Download class="size-5" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::import_from_bakalari')}</h2>
             <div class="form-control mt-2 space-y-2">
-              <input class="input input-bordered w-full" placeholder="Username" bind:value={bkUser} />
-              <input class="input input-bordered w-full" type="password" placeholder="Password" bind:value={bkPass} />
+              <input class="input input-bordered w-full" placeholder={t('frontend/src/routes/classes/[id]/settings/+page.svelte::username')} bind:value={bkUser} />
+              <input class="input input-bordered w-full" type="password" placeholder={t('frontend/src/routes/classes/[id]/settings/+page.svelte::password')} bind:value={bkPass} />
               <button class="btn btn-outline w-full" on:click={fetchAtoms} disabled={loadingAtoms}>
                 {#if loadingAtoms}<Loader2 class="size-4 animate-spin" />{:else}<Download class="size-4" />{/if}
-                <span class="ml-1">Load classes</span>
+                <span class="ml-1">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::load_classes')}</span>
               </button>
             </div>
             {#if bkAtoms.length}
@@ -261,10 +265,10 @@
       {#if role === 'teacher' || role === 'admin'}
         <div class="card bg-base-100/80 backdrop-blur border border-error/30 shadow-md">
           <div class="card-body">
-            <h2 class="card-title text-error flex items-center gap-2"><Trash2 class="size-5" /> Danger zone</h2>
-            <p class="text-sm text-base-content/70">Permanently delete this class and all related data.</p>
+            <h2 class="card-title text-error flex items-center gap-2"><Trash2 class="size-5" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::danger_zone')}</h2>
+            <p class="text-sm text-base-content/70">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::delete_class_warning')}</p>
             <div>
-              <button class="btn btn-error btn-outline" on:click={() => deleteDialog.showModal()}><Trash2 class="size-4" /> Delete class</button>
+              <button class="btn btn-error btn-outline" on:click={() => deleteDialog.showModal()}><Trash2 class="size-4" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::delete_class')}</button>
             </div>
           </div>
         </div>
@@ -276,12 +280,12 @@
   <dialog bind:this={addDialog} class="modal">
     <div class="modal-box w-11/12 max-w-2xl">
       <div class="flex items-center justify-between mb-3">
-        <h3 class="font-bold text-lg flex items-center gap-2"><UserPlus class="size-5" /> Add students</h3>
+        <h3 class="font-bold text-lg flex items-center gap-2"><UserPlus class="size-5" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::add_students')}</h3>
         <form method="dialog"><button class="btn btn-ghost btn-sm"><X class="size-4" /></button></form>
       </div>
       <label class="input input-bordered flex items-center gap-2 mb-3">
         <SearchIcon class="size-4 opacity-70" />
-        <input class="grow" placeholder="Search students" bind:value={search} />
+        <input class="grow" placeholder={t('frontend/src/routes/classes/[id]/settings/+page.svelte::search_students')} bind:value={search} />
       </label>
       <div class="max-h-72 overflow-y-auto rounded-lg border border-base-300/60 divide-y divide-base-300/60">
         {#if filtered.length}
@@ -290,7 +294,7 @@
               <input type="checkbox" class="checkbox checkbox-sm" value={s.id} bind:group={selectedIDs} />
               <div class="size-8 rounded-full overflow-hidden ring-[1.5px] ring-base-300/70 flex items-center justify-center bg-base-200 text-xs font-semibold">
                 {#if s.avatar}
-                  <img src={s.avatar} alt={displayName(s) + ' avatar'} class="w-full h-full object-cover" loading="lazy" />
+                  <img src={s.avatar} alt={t('frontend/src/routes/classes/[id]/settings/+page.svelte::user_avatar', { name: displayName(s) })} class="w-full h-full object-cover" loading="lazy" />
                 {:else}
                   {getInitials(displayName(s))}
                 {/if}
@@ -303,30 +307,30 @@
             </label>
           {/each}
         {:else}
-          <div class="p-6 text-center text-base-content/70">No students</div>
+          <div class="p-6 text-center text-base-content/70">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::no_students')}</div>
         {/if}
       </div>
       <div class="modal-action items-center justify-between">
-        <div class="text-sm text-base-content/70">Selected: {selectedIDs.length}</div>
+        <div class="text-sm text-base-content/70">{translate('frontend/src/routes/classes/[id]/settings/+page.svelte::selected_count', { count: selectedIDs.length })}</div>
         <div class="flex items-center gap-2">
-          <button class="btn btn-ghost" on:click={() => { selectedIDs = []; }} disabled={!selectedIDs.length}>Clear</button>
-          <button class="btn btn-primary" on:click={addStudents} disabled={!selectedIDs.length}>Add selected</button>
+          <button class="btn btn-ghost" on:click={() => { selectedIDs = []; }} disabled={!selectedIDs.length}>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::clear')}</button>
+          <button class="btn btn-primary" on:click={addStudents} disabled={!selectedIDs.length}>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::add_selected')}</button>
         </div>
       </div>
     </div>
-    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    <form method="dialog" class="modal-backdrop"><button>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::close')}</button></form>
   </dialog>
 
   <!-- Delete confirm modal -->
   <dialog bind:this={deleteDialog} class="modal">
     <div class="modal-box">
-      <h3 class="font-bold text-lg flex items-center gap-2 text-error"><Trash2 class="size-5" /> Delete class</h3>
-      <p class="py-3">This action cannot be undone. Are you sure you want to delete <b>{cls.name}</b>?</p>
+      <h3 class="font-bold text-lg flex items-center gap-2 text-error"><Trash2 class="size-5" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::delete_class')}</h3>
+      <p class="py-3">{translate('frontend/src/routes/classes/[id]/settings/+page.svelte::delete_class_confirmation', { name: cls.name })}</p>
       <div class="modal-action">
-        <form method="dialog" class="mr-auto"><button class="btn">Cancel</button></form>
-        <button class="btn btn-error" on:click={deleteClass}>Delete</button>
+        <form method="dialog" class="mr-auto"><button class="btn">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::cancel')}</button></form>
+        <button class="btn btn-error" on:click={deleteClass}>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::delete')}</button>
       </div>
     </div>
-    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    <form method="dialog" class="modal-backdrop"><button>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::close')}</button></form>
   </dialog>
 {/if}

@@ -10,9 +10,12 @@
   import { Plus, Save, Trash2, Eye, FlaskConical, FileUp, Code, Copy, Clock, Scale, Upload as UploadIcon } from 'lucide-svelte'
   import ConfirmModal from '$lib/components/ConfirmModal.svelte'
   import { strictnessGuidance } from '$lib/llmStrictness'
+  import { t, translator } from '$lib/i18n'
 
   $: id = $page.params.id
   $: role = ($auth as any)?.role ?? ''
+  let translate = t
+  $: translate = $translator
 
   let assignment: any = null
   let tests: any[] = []
@@ -374,34 +377,185 @@
     utTests = [...utTests]
   }
 
+  const headerColonRegex = /:\s*(?:->|$)/
+
+  function hasHeaderColon(text: string): boolean {
+    return headerColonRegex.test(text)
+  }
+
+  function splitTopLevel(input: string, separator = ','): string[] {
+    const parts: string[] = []
+    let current = ''
+    let depthParen = 0
+    let depthBracket = 0
+    let depthBrace = 0
+    let depthAngle = 0
+    let inString: string | null = null
+    for (let i = 0; i < input.length; i++) {
+      const ch = input[i]
+      if (inString) {
+        current += ch
+        if (ch === inString && input[i - 1] !== '\\') {
+          inString = null
+        }
+        continue
+      }
+      if (ch === '"' || ch === "'") {
+        inString = ch
+        current += ch
+        continue
+      }
+      switch (ch) {
+        case '(':
+          depthParen++
+          break
+        case ')':
+          if (depthParen > 0) depthParen--
+          break
+        case '[':
+          depthBracket++
+          break
+        case ']':
+          if (depthBracket > 0) depthBracket--
+          break
+        case '{':
+          depthBrace++
+          break
+        case '}':
+          if (depthBrace > 0) depthBrace--
+          break
+        case '<':
+          depthAngle++
+          break
+        case '>':
+          if (depthAngle > 0) depthAngle--
+          break
+        default:
+          break
+      }
+      if (
+        ch === separator &&
+        depthParen === 0 &&
+        depthBracket === 0 &&
+        depthBrace === 0 &&
+        depthAngle === 0
+      ) {
+        const trimmed = current.trim()
+        if (trimmed) parts.push(trimmed)
+        current = ''
+        continue
+      }
+      current += ch
+    }
+    const last = current.trim()
+    if (last) parts.push(last)
+    return parts
+  }
+
+  function stripInlineComment(line: string): string {
+    let inString: string | null = null
+    let result = ''
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i]
+      if (inString) {
+        result += ch
+        if (ch === inString && line[i - 1] !== '\\') {
+          inString = null
+        }
+        continue
+      }
+      if (ch === '"' || ch === "'") {
+        inString = ch
+        result += ch
+        continue
+      }
+      if (ch === '#') {
+        break
+      }
+      result += ch
+    }
+    return result.trimEnd()
+  }
+
   function parseFunctionSignatureBlock(block: string): { meta: FnMeta | null; error: string } {
     const raw = String(block || '').replace(/\r\n?/g, '\n')
     const lines = raw.split('\n').map((l) => l.trim()).filter((l) => l)
     if (lines.length === 0) {
       return { meta: null, error: '' }
     }
-    const defLine = lines.find((l) => l.startsWith('def '))
-    if (!defLine) {
-      return { meta: null, error: 'Add a Python function definition, for example: def solve(data):' }
+    const defIdx = lines.findIndex((l) => l.startsWith('def ') || l.startsWith('async def '))
+    if (defIdx === -1) {
+      return { meta: null, error: translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::add_python_function_definition') }
     }
-    const defMatch = defLine.match(/^def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)\s*(?:->\s*([^:]+))?:/)
-    if (!defMatch) {
-      return { meta: null, error: 'Could not parse the function definition. Use Python syntax like def name(arg1, arg2) -> int:' }
+    let signature = lines[defIdx]
+    let depth = (signature.match(/\(/g) || []).length - (signature.match(/\)/g) || []).length
+    let cursor = defIdx + 1
+    while (cursor < lines.length && (depth > 0 || !hasHeaderColon(signature))) {
+      const part = lines[cursor]
+      signature += ' ' + part
+      depth += (part.match(/\(/g) || []).length - (part.match(/\)/g) || []).length
+      cursor++
     }
-    const [, name, paramsRaw, returnRaw] = defMatch
+    signature = stripInlineComment(signature)
+    const colonIndex = signature.lastIndexOf(':')
+    if (colonIndex === -1) {
+      if (typeof window !== 'undefined') {
+        console.warn('Function builder: missing colon in signature', { signature })
+      }
+      return { meta: null, error: translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::could_not_parse_function_definition') }
+    }
+    let header = signature.slice(0, colonIndex).trim()
+    if (header.startsWith('async ')) {
+      header = header.slice('async '.length).trimStart()
+    }
+    if (!header.startsWith('def ')) {
+      if (typeof window !== 'undefined') {
+        console.warn('Function builder: header does not start with def', { header })
+      }
+      return { meta: null, error: translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::could_not_parse_function_definition') }
+    }
+    const nameStart = header.indexOf('def ') + 4
+    const openIdx = header.indexOf('(', nameStart)
+    const name = header.slice(nameStart, openIdx).trim()
+    if (!name || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
+      if (typeof window !== 'undefined') {
+        console.warn('Function builder: failed to extract function name', { header, name })
+      }
+      return { meta: null, error: translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::could_not_parse_function_definition') }
+    }
+    const closeIdx = header.lastIndexOf(')')
+    if (openIdx === -1 || closeIdx === -1 || closeIdx < openIdx) {
+      if (typeof window !== 'undefined') {
+        console.warn('Function builder: could not find parentheses', { header })
+      }
+      return { meta: null, error: translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::could_not_parse_function_definition') }
+    }
+    const paramsRaw = header.slice(openIdx + 1, closeIdx)
+    const afterParams = header.slice(closeIdx + 1).trim()
+    let returnRaw: string | undefined
+    if (!afterParams) {
+      returnRaw = ''
+    } else if (afterParams.startsWith('->')) {
+      returnRaw = afterParams.slice(2).trim()
+    } else {
+      if (typeof window !== 'undefined') {
+        console.warn('Function builder: trailing text after params did not start with arrow', { afterParams })
+      }
+      return { meta: null, error: translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::could_not_parse_function_definition') }
+    }
     const params: FnParameter[] = []
     if (paramsRaw.trim()) {
-      const pieces = paramsRaw.split(',')
+      const pieces = splitTopLevel(paramsRaw)
       for (const piece of pieces) {
         const part = piece.trim()
         if (!part) continue
         if (part.startsWith('*')) {
-          return { meta: null, error: 'Only positional arguments are supported in this builder.' }
+          return { meta: null, error: translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::only_positional_arguments_supported') }
         }
         const [namePartRaw, typePartRaw] = part.split(':').map((p) => p.trim())
         const namePart = namePartRaw.split('=')[0].trim()
         if (!namePart || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(namePart)) {
-          return { meta: null, error: `Argument "${namePartRaw}" is not a valid positional parameter.` }
+          return { meta: null, error: translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::argument_is_not_valid_positional_parameter', {namePartRaw}) }
         }
         const typePart = typePartRaw ? typePartRaw.trim() : undefined
         params.push({ name: namePart, type: typePart })
@@ -415,7 +569,7 @@
       returns = []
     } else if (ret.startsWith('(') && ret.endsWith(')')) {
       const inner = ret.slice(1, -1)
-      const parts = inner.split(',').map((p) => p.trim()).filter((p) => p)
+      const parts = splitTopLevel(inner)
       if (parts.length === 0) {
         returns = []
       } else {
@@ -481,7 +635,7 @@
     const args = Array.from({ length: argCount }, () => '')
     const returns = Array.from({ length: returnCount === 0 ? 0 : Math.max(returnCount, 1) }, () => '')
     return {
-      name: `Case ${idx + 1}`,
+      name: translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::case_n_placeholder', { fi: idx + 1 }),
       args,
       returns,
       weight: defaultWeight,
@@ -549,7 +703,7 @@
     fnMeta = meta
     fnSignatureError = error
     if (meta && fnCases.length) {
-      const nextCases = fnCases.map((c, idx) => ensureCaseShape({ ...c, name: c.name || `Case ${idx + 1}` }, meta))
+      const nextCases = fnCases.map((c, idx) => ensureCaseShape({ ...c, name: c.name || translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::case_n_placeholder', { fi: idx + 1 }) }, meta))
       const changed = nextCases.some((caseItem, idx) => !casesEqual(caseItem, fnCases[idx]))
       if (changed) {
         fnCases = nextCases
@@ -559,7 +713,7 @@
 
   function addFnCase() {
     if (!fnMeta) {
-      err = 'Define the function signature first.'
+      err = translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::define_function_signature_first')
       return
     }
     const defaultWeight = assignment?.grading_policy === 'weighted' ? '1' : '0'
@@ -576,11 +730,11 @@
 
   async function createFunctionTestsFromBuilder() {
     if (!fnMeta) {
-      err = 'Define the function signature before creating tests.'
+      err = translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::define_function_signature_before_creating_tests')
       return
     }
     if (fnCases.length === 0) {
-      err = 'Add at least one case'
+      err = translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::add_at_least_one_case')
       return
     }
     try {
@@ -682,7 +836,7 @@
           lines.push(...cs)
           continue
         }
-        const rawArgs = Array.isArray((a as any).args) ? (a as any).args : []
+        const rawArgs = Array.isArray((a as any).args) ? (a as any).args : (a as any).args != null ? [(a as any).args] : []
         const call = buildCallExpression(t, rawArgs)
         switch (a.kind) {
           case 'equals':
@@ -763,7 +917,7 @@
   }
   function parseArgsFromMaybeStudentCode(v: any): string[] {
     const raw = String(v ?? '').trim()
-    const m = raw.match(/^student_code\s*\(([\s\S]*)\)$/)
+    const m = raw.match(/^student_code\\s*\\(([\\s\\S]*)\\)$/)
     if (m) {
       const inner = m[1]
       return splitArgsPreserveQuoted(inner).map((p) => stripOuterQuotes(p))
@@ -846,7 +1000,7 @@
   }
 
   function convertAICaseToBuilder(rc: any, idx: number, meta: FnMeta | null, defaultWeight: string): FnCase {
-    const name = rc?.name ? String(rc.name) : `Case ${idx + 1}`
+    const name = rc?.name ? String(rc.name) : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::case_n_placeholder', { fi: idx + 1 })
     const weightSource = rc?.weight ?? rc?.points ?? rc?.score
     const timeSource = rc?.time_limit ?? rc?.timeLimit ?? rc?.timeout ?? rc?.duration
     let weight = defaultWeight
@@ -986,7 +1140,7 @@
   }
   async function uploadAIUnitTestsCode() {
     if (builderMode !== 'unittest') {
-      err = 'AI Python upload is only available in unittest mode.'
+      err = translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_python_upload_only_unittest_mode')
       return
     }
     if (!aiCode.trim()) return
@@ -1102,9 +1256,9 @@
 
   async function delTest(tid: number) {
     const confirmed = await confirmModal.open({
-      title: 'Delete test',
-      body: 'This test will be removed for all students.',
-      confirmLabel: 'Delete',
+      title: translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::delete_test'),
+      body: translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::this_test_will_be_removed_for_all_students'),
+      confirmLabel: translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::delete_label'),
       confirmClass: 'btn btn-error',
       cancelClass: 'btn'
     })
@@ -1119,9 +1273,9 @@
 
   async function deleteAllTests() {
     const confirmed = await confirmModal.open({
-      title: 'Delete all tests',
-      body: 'All tests for this assignment will be permanently deleted. This cannot be undone.',
-      confirmLabel: 'Delete all',
+      title: translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::delete_all_tests'),
+      body: translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::all_tests_permanently_deleted'),
+      confirmLabel: translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::delete_all_label'),
       confirmClass: 'btn btn-error',
       cancelClass: 'btn'
     })
@@ -1154,7 +1308,7 @@
       } else if (mode === 'function') {
         const fn = String(t.function_name ?? '').trim()
         if (!fn) {
-          err = 'Function name is required'
+          err = translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::function_name_is_required')
           return
         }
         testData.function_name = fn
@@ -1207,65 +1361,65 @@
 
 {#if role !== 'teacher' && role !== 'admin'}
   <div class="alert alert-error">
-    <span>You do not have permission to manage tests.</span>
+    <span>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::no_permission_manage_tests')}</span>
   </div>
 {:else}
   {#if !assignment}
     <div class="flex items-center gap-3">
       <span class="loading loading-spinner loading-md"></span>
-      <p>Loading…</p>
+      <p>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::loading')}</p>
     </div>
   {:else}
     <div class="mb-4 flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-semibold">Manage tests — {assignment.title}</h1>
+        <h1 class="text-2xl font-semibold">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::manage_tests')} — {assignment.title}</h1>
         {#if assignment.llm_interactive}
-          <p class="text-sm opacity-70">Configure AI testing (LLM-Interactive) for this assignment.</p>
+          <p class="text-sm opacity-70">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::configure_ai_testing_llm_interactive')}</p>
         {:else}
-          <p class="text-sm opacity-70">Create IO tests, build Python unittest-based tests, or use AI to generate them.</p>
+          <p class="text-sm opacity-70">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::create_io_tests_build_python_unittest_based_tests_or_use_ai_to_generate_them')}</p>
         {/if}
         {#if assignment?.manual_review}
           <div class="alert alert-info mt-2">
-            <span>Manual review is enabled for this assignment. Tests are optional and won't auto-assign points.</span>
+            <span>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::manual_review_enabled_tests_optional')}</span>
           </div>
         {/if}
       </div>
-      <a class="btn" href={`/assignments/${id}`}>Back to assignment</a>
+      <a class="btn" href={`/assignments/${id}`}>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::back_to_assignment')}</a>
     </div>
     <div class="card-elevated p-6 space-y-6">
       {#if assignment.llm_interactive}
         <div class="grid gap-4">
           <div class="space-y-3">
-            <div class="divider">AI testing settings</div>
+            <div class="divider">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_testing_settings')}</div>
             <div class="grid sm:grid-cols-2 gap-3">
               <label class="flex items-center gap-2 sm:col-span-2">
                 <input type="checkbox" class="checkbox" bind:checked={llmFeedback}>
-                <span class="label-text">LLM feedback visible to students</span>
+                <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::llm_feedback_visible_to_students')}</span>
               </label>
               <label class="flex items-center gap-2">
                 <input type="checkbox" class="checkbox" bind:checked={llmAutoAward}>
-                <span class="label-text">Auto-award full points if all scenarios pass</span>
+                <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::auto_award_full_points_if_all_scenarios_pass')}</span>
               </label>
               <label class="form-control w-full sm:col-span-2">
-                <span class="label-text">Scenarios JSON (optional)</span>
+                <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::scenarios_json_optional')}</span>
                 <textarea class="textarea textarea-bordered h-40" bind:value={llmScenarios} placeholder={exampleScenario}></textarea>
               </label>
               <div class="sm:col-span-2 grid gap-3">
                 <label class="form-control w-full">
                   <div class="label">
-                    <span class="label-text">Strictness</span>
+                    <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::strictness')}</span>
                     <span class="label-text-alt">{llmStrictness}%</span>
                   </div>
                   <input type="range" min="0" max="100" step="5" class="range range-primary" bind:value={llmStrictness}>
                   <p class="text-xs opacity-70 mt-2">{llmStrictnessMessage}</p>
                 </label>
                 <label class="form-control w-full">
-                  <span class="label-text">Teacher rubric (what is OK vs WRONG)</span>
-                  <textarea class="textarea textarea-bordered h-32" bind:value={llmRubric} placeholder="Describe what is acceptable and what should be considered wrong. This text will guide the LLM's evaluation."></textarea>
+                  <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_rubric_what_is_ok_vs_wrong')}</span>
+                  <textarea class="textarea textarea-bordered h-32" bind:value={llmRubric} placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::describe_what_is_acceptable_and_what_should_be_considered_wrong')}></textarea>
                 </label>
               </div>
               <div class="sm:col-span-2 flex justify-end">
-                <button class="btn btn-primary" on:click={saveLLMSettings}><Save size={16}/> Save settings</button>
+                <button class="btn btn-primary" on:click={saveLLMSettings}><Save size={16}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::save_settings')}</button>
               </div>
             </div>
           </div>
@@ -1273,18 +1427,18 @@
       {:else}
         <div class="alert">
           <div>
-            <span class="font-medium">Tip:</span>
-            Use <code>student_code(...)</code> in assertions to run the student's program with inputs, or <code>student_function('function_name', ...)</code> to import a function and check its return value.
+            <span class="font-medium">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::tip')}</span>
+            {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::assertion_helper_text')}
           </div>
         </div>
 
         <!-- Tabs -->
         <div role="tablist" class="tabs tabs-lifted">
-        <input type="radio" name="tests-tab" role="tab" class="tab" aria-label="Existing tests" checked>
+        <input type="radio" name="tests-tab" role="tab" class="tab" aria-label={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::existing_tests')} checked>
         <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4">
           <div class="flex items-center justify-between mb-2">
-            <div class="text-sm opacity-70">{tests?.length || 0} tests</div>
-            <button class="btn btn-error btn-sm" on:click={deleteAllTests} disabled={!tests || tests.length === 0}><Trash2 size={14}/> Delete all</button>
+            <div class="text-sm opacity-70">{tests?.length || 0} {tests?.length === 1 ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::test_singular') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::test_plural')}</div>
+            <button class="btn btn-error btn-sm" on:click={deleteAllTests} disabled={!tests || tests.length === 0}><Trash2 size={14}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::delete_all')}</button>
           </div>
           <div class="grid gap-3 max-h-[32rem] overflow-y-auto">
             {#each tests as t, i}
@@ -1296,141 +1450,141 @@
                   <div class="flex items-center gap-2 font-semibold">
                     <span class="opacity-70">#{i + 1}</span>
                     {#if mode === 'function'}
-                      <span class="badge badge-info gap-1">Function</span>
+                      <span class="badge badge-info gap-1">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::function')}</span>
                       {#if t.function_name}
                         <span class="badge badge-outline ml-1">{t.function_name}</span>
                       {/if}
                     {:else if mode === 'unittest'}
-                      <span class="badge badge-primary gap-1"><FlaskConical size={14}/> unittest</span>
+                      <span class="badge badge-primary gap-1"><FlaskConical size={14}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest')}</span>
                       {#if utName}
                         <span class="badge badge-outline ml-1">{utName}</span>
                       {:else}
-                        <span class="badge badge-outline ml-1 opacity-70">Unnamed test</span>
+                        <span class="badge badge-outline ml-1 opacity-70">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::unnamed_test')}</span>
                       {/if}
                     {:else}
-                      <span class="badge badge-secondary gap-1">IO</span>
+                      <span class="badge badge-secondary gap-1">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::io')}</span>
                     {/if}
                   </div>
                   <div class="flex gap-2">
                     {#if mode === 'unittest' && hasUnittestCode}
-                      <button class="btn btn-xs" on:click={() => openEditUnitTest(t)}><Code size={14}/> Edit</button>
+                      <button class="btn btn-xs" on:click={() => openEditUnitTest(t)}><Code size={14}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::edit')}</button>
                     {/if}
-                    <button class="btn btn-xs" on:click={() => updateTest(t)}><Save size={14}/> Save</button>
-                    <button class="btn btn-xs btn-error" on:click={() => delTest(t.id)}><Trash2 size={14}/> Delete</button>
+                    <button class="btn btn-xs" on:click={() => updateTest(t)}><Save size={14}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::save')}</button>
+                    <button class="btn btn-xs btn-error" on:click={() => delTest(t.id)}><Trash2 size={14}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::delete')}</button>
                   </div>
                 </div>
                 {#if mode === 'function'}
                   <div class="grid gap-2 md:grid-cols-2">
                     <label class="form-control w-full space-y-1">
-                      <span class="label-text">Function name</span>
-                      <input class="input input-bordered w-full" placeholder="e.g. multiply" bind:value={t.function_name}>
+                      <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::function_name')}</span>
+                      <input class="input input-bordered w-full" placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::function_name_example_multiply')} bind:value={t.function_name}>
                     </label>
                     <label class="form-control w-full space-y-1">
-                      <span class="label-text">Expected return (JSON)</span>
-                      <textarea class="textarea textarea-bordered w-full" rows="2" placeholder="e.g. 6" bind:value={t.expected_return}></textarea>
+                      <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_json')}</span>
+                      <textarea class="textarea textarea-bordered w-full" rows="2" placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::example_6')} bind:value={t.expected_return}></textarea>
                     </label>
                     <label class="form-control w-full space-y-1 md:col-span-1">
-                      <span class="label-text">Arguments (JSON array)</span>
-                      <textarea class="textarea textarea-bordered w-full" rows="2" placeholder="e.g. [2,3]" bind:value={t.function_args}></textarea>
+                      <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::arguments_json_array')}</span>
+                      <textarea class="textarea textarea-bordered w-full" rows="2" placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::example_2_3')} bind:value={t.function_args}></textarea>
                     </label>
                     <label class="form-control w-full space-y-1 md:col-span-1">
-                      <span class="label-text">Keyword args (JSON object)</span>
-                      <textarea class="textarea textarea-bordered w-full" rows="2" placeholder={`e.g. {"round": 2}`} bind:value={t.function_kwargs}></textarea>
+                      <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_args_json_object')}</span>
+                      <textarea class="textarea textarea-bordered w-full" rows="2" placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::example_round_2')} bind:value={t.function_kwargs}></textarea>
                     </label>
                   </div>
                 {:else if t.unittest_name}
                   {#if t.unittest_code}
                     <details class="mt-1">
-                      <summary class="cursor-pointer text-sm opacity-70 flex items-center gap-1"><Eye size={14}/> View test method code</summary>
+                      <summary class="cursor-pointer text-sm opacity-70 flex items-center gap-1"><Eye size={14}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::view_test_method_code')}</summary>
                       <pre class="mt-2 whitespace-pre-wrap text-xs opacity-80 p-2 rounded-lg bg-base-200">{extractMethodFromUnittest(t.unittest_code, t.unittest_name)}</pre>
                     </details>
                   {/if}
                 {:else}
                   <div class="grid sm:grid-cols-2 gap-2">
                     <label class="form-control w-full space-y-1">
-                      <span class="label-text">Input</span>
-                      <input class="input input-bordered w-full" placeholder="stdin" bind:value={t.stdin}>
+                      <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::input')}</span>
+                      <input class="input input-bordered w-full" placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin')} bind:value={t.stdin}>
                     </label>
                     <label class="form-control w-full space-y-1">
-                      <span class="label-text">Expected output</span>
-                      <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={t.expected_stdout}>
+                      <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_output')}</span>
+                      <input class="input input-bordered w-full" placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_stdout')} bind:value={t.expected_stdout}>
                     </label>
                   </div>
                 {/if}
                 <div class="grid gap-2" class:sm:grid-cols-2={assignment?.grading_policy === 'weighted'}>
                   <label class="form-control w-full space-y-1">
-                    <span class="label-text flex items-center gap-1"><Clock size={14}/> <span>Time limit (s)</span></span>
-                    <input class="input input-bordered w-full" placeholder="seconds" bind:value={t.time_limit_sec}>
+                    <span class="label-text flex items-center gap-1"><Clock size={14}/> <span>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::time_limit_s')}</span></span>
+                    <input class="input input-bordered w-full" placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::seconds')} bind:value={t.time_limit_sec}>
                   </label>
                   {#if assignment?.grading_policy === 'weighted'}
                     <label class="form-control w-full space-y-1">
-                      <span class="label-text flex items-center gap-1"><Scale size={14}/> <span>Points</span></span>
-                      <input class="input input-bordered w-full" placeholder="points" bind:value={t.weight}>
+                      <span class="label-text flex items-center gap-1"><Scale size={14}/> <span>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::points')}</span></span>
+                      <input class="input input-bordered w-full" placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::points_placeholder')} bind:value={t.weight}>
                     </label>
                   {/if}
                 </div>
               </div>
             {/each}
-            {#if !(tests && tests.length)}<p><i>No tests</i></p>{/if}
+            {#if !(tests && tests.length)}<p><i>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::no_tests')}</i></p>{/if}
           </div>
         </div>
 
-        <input type="radio" name="tests-tab" role="tab" class="tab" aria-label="Add IO test">
+        <input type="radio" name="tests-tab" role="tab" class="tab" aria-label={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::add_io_test')}>
         <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4">
           <div class="border-base-300/60 space-y-2">
-            <h4 class="font-semibold flex items-center gap-2"><Code size={18}/> Add IO test</h4>
+            <h4 class="font-semibold flex items-center gap-2"><Code size={18}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::add_io_test')}</h4>
             <div class="grid gap-2" class:sm:grid-cols-2={assignment?.grading_policy === 'weighted'}>
               <label class="form-control w-full space-y-1">
-                <span class="label-text">Input</span>
-                <input class="input input-bordered w-full" placeholder="stdin" bind:value={tStdin}>
+                <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::input')}</span>
+                <input class="input input-bordered w-full" placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin')} bind:value={tStdin}>
               </label>
               <label class="form-control w-full space-y-1">
-                <span class="label-text">Expected output</span>
-                <input class="input input-bordered w-full" placeholder="expected stdout" bind:value={tStdout}>
+                <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_output')}</span>
+                <input class="input input-bordered w-full" placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_stdout')} bind:value={tStdout}>
               </label>
               <label class="form-control w-full space-y-1">
-                <span class="label-text flex items-center gap-1"><Clock size={14}/> <span>Time limit (s)</span></span>
-                <input class="input input-bordered w-full" placeholder="seconds" bind:value={tLimit}>
+                <span class="label-text flex items-center gap-1"><Clock size={14}/> <span>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::time_limit_s')}</span></span>
+                <input class="input input-bordered w-full" placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::seconds')} bind:value={tLimit}>
               </label>
               {#if assignment?.grading_policy === 'weighted'}
                 <label class="form-control w-full space-y-1">
-                  <span class="label-text flex items-center gap-1"><Scale size={14}/> <span>Points</span></span>
-                  <input class="input input-bordered w-full" placeholder="points" bind:value={tWeight}>
+                  <span class="label-text flex items-center gap-1"><Scale size={14}/> <span>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::points')}</span></span>
+                  <input class="input input-bordered w-full" placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::points_placeholder')} bind:value={tWeight}>
                 </label>
               {/if}
             </div>
             <div>
-              <button class="btn btn-primary" on:click={addTest} disabled={!tStdin || !tStdout}><Plus size={16}/> Add</button>
+              <button class="btn btn-primary" on:click={addTest} disabled={!tStdin || !tStdout}><Plus size={16}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::add')}</button>
             </div>
           </div>
         </div>
 
 
 
-        <input type="radio" name="tests-tab" role="tab" class="tab" aria-label="Unittest builder">
+        <input type="radio" name="tests-tab" role="tab" class="tab" aria-label={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_builder')}>
         <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4 space-y-4">
           <div class="grid sm:grid-cols-2 gap-3">
             <label class="form-control w-full space-y-1">
-              <span class="label-text">Class name</span>
-              <input class="input input-bordered w-full" bind:value={utClassName} placeholder="TestAssignment">
+              <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::class_name')}</span>
+              <input class="input input-bordered w-full" bind:value={utClassName} placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::test_assignment_placeholder')}>
             </label>
             <div class="flex items-end gap-2">
-              <button class="btn btn-outline" on:click={addUTTest}><Plus size={16}/> Add test method</button>
-              <button class="btn" on:click={() => { utShowPreview = !utShowPreview; refreshPreview() }}><Eye size={16}/> {utShowPreview ? 'Hide' : 'Preview'} code</button>
-              <button class="btn btn-primary" disabled={utTests.length === 0} on:click={uploadGeneratedUnitTests}><FlaskConical size={16}/> Create tests</button>
+              <button class="btn btn-outline" on:click={addUTTest}><Plus size={16}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::add_test_method')}</button>
+              <button class="btn" on:click={() => { utShowPreview = !utShowPreview; refreshPreview() }}><Eye size={16}/> {utShowPreview ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::hide_code') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::preview_code')} code</button>
+              <button class="btn btn-primary" disabled={utTests.length === 0} on:click={uploadGeneratedUnitTests}><FlaskConical size={16}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::create_tests')}</button>
             </div>
           </div>
 
           <div>
-            <button class="btn btn-outline btn-sm" on:click={() => showAdvanced = !showAdvanced}>{showAdvanced ? 'Hide' : 'Advanced: setUp/tearDown'}</button>
+            <button class="btn btn-outline btn-sm" on:click={() => showAdvanced = !showAdvanced}>{showAdvanced ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::hide_code') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::advanced_setup_teardown')}</button>
             {#if showAdvanced}
               <div class="grid sm:grid-cols-2 gap-3 mt-3">
                 <div>
-                  <div class="label"><span class="label-text">setUp() (optional)</span></div>
+                  <div class="label"><span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::setup_optional')}</span></div>
                   <CodeMirror bind:value={utSetup} lang={python()} readOnly={false} />
                 </div>
                 <div>
-                  <div class="label"><span class="label-text">tearDown() (optional)</span></div>
+                  <div class="label"><span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::teardown_optional')}</span></div>
                   <CodeMirror bind:value={utTeardown} lang={python()} readOnly={false} />
                 </div>
               </div>
@@ -1443,56 +1597,56 @@
                 <div class="flex items-center justify-between gap-3 ut-method-header">
                   <div class="grid gap-2 flex-1" class:sm:grid-cols-2={assignment?.grading_policy === 'weighted'}>
                     <label class="form-control w-full space-y-1">
-                      <span class="label-text">Method name</span>
-                      <input class="input input-bordered w-full" bind:value={ut.name} placeholder="test_something">
+                      <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::method_name')}</span>
+                      <input class="input input-bordered w-full" bind:value={ut.name} placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::test_something_placeholder')}>
                     </label>
                     <label class="form-control w-full space-y-1">
-                      <span class="label-text">Description</span>
-                      <input class="input input-bordered w-full" bind:value={ut.description} placeholder="What this test checks">
+                      <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::description')}</span>
+                      <input class="input input-bordered w-full" bind:value={ut.description} placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::what_this_test_checks_placeholder')}>
                     </label>
                   </div>
                   <div class="flex items-end gap-2">
-                    <button class="btn btn-ghost btn-xs" on:click={() => removeUTTest(ti)}><Trash2 size={14}/> Remove</button>
+                    <button class="btn btn-ghost btn-xs" on:click={() => removeUTTest(ti)}><Trash2 size={14}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::remove')}</button>
                   </div>
                 </div>
                 <div class="grid sm:grid-cols-2 gap-2">
                   <label class="form-control w-full space-y-1">
-                    <span class="label-text">Call mode</span>
+                    <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::call_mode')}</span>
                     <select class="select select-bordered w-full" bind:value={ut.callMode}>
-                      <option value="stdin">student_code (stdin/stdout)</option>
-                      <option value="function">student_function (return value)</option>
+                      <option value="stdin">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::student_code_stdin_stdout')}</option>
+                      <option value="function">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::student_function_return_value')}</option>
                     </select>
                   </label>
                   {#if ut.callMode === 'function'}
                     <label class="form-control w-full space-y-1">
-                      <span class="label-text">Function name</span>
-                      <input class="input input-bordered w-full" bind:value={ut.functionName} placeholder="solve">
+                      <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::function_name')}</span>
+                      <input class="input input-bordered w-full" bind:value={ut.functionName} placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::solve_placeholder')}>
                     </label>
                   {/if}
                 </div>
                 <div class="grid gap-2" class:sm:grid-cols-2={assignment?.grading_policy === 'weighted'}>
                   <label class="form-control w-full space-y-1">
-                    <span class="label-text flex items-center gap-1"><Clock size={14}/> <span>Time limit (s)</span></span>
+                    <span class="label-text flex items-center gap-1"><Clock size={14}/> <span>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::time_limit_s')}</span></span>
                     <input class="input input-bordered w-full" bind:value={ut.timeLimit}>
                   </label>
                   {#if assignment?.grading_policy === 'weighted'}
                     <label class="form-control w-full space-y-1">
-                      <span class="label-text flex items-center gap-1"><Scale size={14}/> <span>Points</span></span>
+                      <span class="label-text flex items-center gap-1"><Scale size={14}/> <span>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::points')}</span></span>
                       <input class="input input-bordered w-full" bind:value={ut.weight}>
                     </label>
                   {/if}
                 </div>
                 <div class="space-y-2 ut-assertions">
                   <div class="flex items-center justify-between">
-                    <div class="font-medium text-primary">Assertions</div>
+                    <div class="font-medium text-primary">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::assertions')}</div>
                     <div class="join">
-                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'equals')}><Plus size={12}/> Equals</button>
-                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'notEquals')}><Plus size={12}/> Not equals</button>
-                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'contains')}><Plus size={12}/> Contains</button>
-                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'notContains')}><Plus size={12}/> Not contains</button>
-                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'regex')}><Plus size={12}/> Regex</button>
-                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'raises')}><Plus size={12}/> Raises</button>
-                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'custom')}><Plus size={12}/> Custom</button>
+                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'equals')}><Plus size={12}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::equals')}</button>
+                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'notEquals')}><Plus size={12}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::not_equals')}</button>
+                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'contains')}><Plus size={12}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::contains')}</button>
+                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'notContains')}><Plus size={12}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::not_contains')}</button>
+                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'regex')}><Plus size={12}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::regex')}</button>
+                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'raises')}><Plus size={12}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::raises')}</button>
+                      <button class="btn btn-xs join-item" on:click={() => addUTAssertion(ti, 'custom')}><Plus size={12}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::custom')}</button>
                     </div>
                   </div>
                   <div class="space-y-2">
@@ -1500,63 +1654,63 @@
                       <div class="rounded-lg border border-base-300/60 p-2 space-y-2 ut-assertion-item">
                         <div class="flex items-center justify-between">
                           <span class="badge badge-primary">{a.kind}</span>
-                          <button class="btn btn-ghost btn-xs" on:click={() => removeUTAssertion(ti, ai)}><Trash2 size={14}/> Remove</button>
+                          <button class="btn btn-ghost btn-xs" on:click={() => removeUTAssertion(ti, ai)}><Trash2 size={14}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::remove')}</button>
                         </div>
                         {#if a.kind === 'custom'}
                           <label class="form-control w-full space-y-1">
-                            <span class="label-text">Custom Python (inside test method)</span>
-                            <textarea class="textarea textarea-bordered h-24" value={getCustom(a)} on:input={(e) => setCustom(a, (e.target as HTMLTextAreaElement).value)} placeholder="self.assertTrue(...)"></textarea>
+                            <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::custom_python_inside_test_method')}</span>
+                            <textarea class="textarea textarea-bordered h-24" value={getCustom(a)} on:input={(e) => setCustom(a, (e.target as HTMLTextAreaElement).value)} placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::self_assert_true_placeholder')}></textarea>
                           </label>
                         {:else if a.kind === 'regex'}
                           <div class="grid sm:grid-cols-2 gap-2">
                             <label class="form-control w-full space-y-1">
-                              <span class="label-text">{ut.callMode === 'function' ? 'Arguments (Python expressions, one per line)' : 'Inputs (one per line)'}</span>
+                              <span class="label-text">{ut.callMode === 'function' ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::arguments_python_expressions_one_per_line') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::inputs_one_per_line')}</span>
                               <textarea
                                 class="textarea textarea-bordered h-24"
                                 value={getInputs(a)}
                                 on:input={(e) => setInputs(a, (e.target as HTMLTextAreaElement).value)}
-                                placeholder={ut.callMode === 'function' ? '[1, 2]\n3' : '2\n3'}
+                                placeholder={ut.callMode === 'function' ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::example_args_1_2_3') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::example_inputs_2_3')}
                               ></textarea>
                             </label>
                             <label class="form-control w-full space-y-1">
-                              <span class="label-text">Regex pattern</span>
-                              <input class="input input-bordered w-full" value={getPattern(a)} on:input={(e) => setPattern(a, (e.target as HTMLInputElement).value)} placeholder="^5$">
+                              <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::regex_pattern')}</span>
+                              <input class="input input-bordered w-full" value={getPattern(a)} on:input={(e) => setPattern(a, (e.target as HTMLInputElement).value)} placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::example_regex_5')}>
                             </label>
                           </div>
                         {:else if a.kind === 'raises'}
                           <div class="grid sm:grid-cols-2 gap-2">
                             <label class="form-control w-full space-y-1">
-                              <span class="label-text">{ut.callMode === 'function' ? 'Arguments (Python expressions, one per line)' : 'Inputs (one per line)'}</span>
+                              <span class="label-text">{ut.callMode === 'function' ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::arguments_python_expressions_one_per_line') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::inputs_one_per_line')}</span>
                               <textarea
                                 class="textarea textarea-bordered h-24"
                                 value={getInputs(a)}
                                 on:input={(e) => setInputs(a, (e.target as HTMLTextAreaElement).value)}
-                                placeholder={ut.callMode === 'function' ? "invalid\nvalue" : 'bad\ninput'}
+                                placeholder={ut.callMode === 'function' ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::example_invalid_value') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::example_bad_input')}
                               ></textarea>
                             </label>
                             <label class="form-control w-full space-y-1">
-                              <span class="label-text">Exception type</span>
-                              <input class="input input-bordered w-full" value={getException(a)} on:input={(e) => setException(a, (e.target as HTMLInputElement).value)} placeholder="ValueError">
+                              <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::exception_type')}</span>
+                              <input class="input input-bordered w-full" value={getException(a)} on:input={(e) => setException(a, (e.target as HTMLInputElement).value)} placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::value_error_placeholder')}>
                             </label>
                           </div>
                         {:else}
                           <div class="grid sm:grid-cols-2 gap-2">
                             <label class="form-control w-full space-y-1">
-                              <span class="label-text">{ut.callMode === 'function' ? 'Arguments (Python expressions, one per line)' : 'Inputs (one per line)'}</span>
+                              <span class="label-text">{ut.callMode === 'function' ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::arguments_python_expressions_one_per_line') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::inputs_one_per_line')}</span>
                               <textarea
                                 class="textarea textarea-bordered h-24"
                                 value={getInputs(a)}
                                 on:input={(e) => setInputs(a, (e.target as HTMLTextAreaElement).value)}
-                                placeholder={ut.callMode === 'function' ? '[1, 2]\n3' : '2\n3'}
+                                placeholder={ut.callMode === 'function' ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::example_args_1_2_3') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::example_inputs_2_3')}
                               ></textarea>
                             </label>
                             <label class="form-control w-full space-y-1">
-                              <span class="label-text">{ut.callMode === 'function' ? 'Expected return (Python expression)' : 'Expected output'}</span>
+                              <span class="label-text">{ut.callMode === 'function' ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_python_expression') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_output')}</span>
                               <input
                                 class="input input-bordered w-full"
                                 value={getExpected(a)}
                                 on:input={(e) => setExpected(a, (e.target as HTMLInputElement).value)}
-                                placeholder={ut.callMode === 'function' ? '5' : '5'}
+                                placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::example_expected_5')}
                               >
                             </label>
                           </div>
@@ -1564,7 +1718,7 @@
                       </div>
                     {/each}
                     {#if ut.assertions.length === 0}
-                      <p class="text-sm opacity-70">Add assertions to this test.</p>
+                      <p class="text-sm opacity-70">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::add_assertions_to_this_test')}</p>
                     {/if}
                   </div>
                 </div>
@@ -1575,10 +1729,10 @@
           {#if utShowPreview}
             <div class="space-y-2">
               <div class="flex items-center justify-between">
-                <h4 class="font-semibold">Generated Python</h4>
+                <h4 class="font-semibold">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::generated_python')}</h4>
                 <div class="join">
-                  <button class="btn btn-sm join-item" on:click={refreshPreview}><Code size={14}/> Refresh</button>
-                  <button class="btn btn-sm join-item" on:click={copyPreview}><Copy size={14}/> {copiedPreview ? 'Copied' : 'Copy'}</button>
+                  <button class="btn btn-sm join-item" on:click={refreshPreview}><Code size={14}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::refresh')}</button>
+                  <button class="btn btn-sm join-item" on:click={copyPreview}><Copy size={14}/> {copiedPreview ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::copied') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::copy')}</button>
                 </div>
               </div>
               <CodeMirror bind:value={utPreviewCode} lang={python()} readOnly={true} />
@@ -1587,69 +1741,69 @@
 
         </div>
 
-        <input type="radio" name="tests-tab" role="tab" class="tab" aria-label="Function tests builder">
+        <input type="radio" name="tests-tab" role="tab" class="tab" aria-label={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::function_tests_builder')}>
         <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4 space-y-4">
           <div class="space-y-4">
             <div class="rounded-2xl border border-base-300/70 bg-base-200/40 p-4 space-y-3">
               <div>
-                <h4 class="font-semibold flex items-center gap-2"><Code size={18}/> Define function signature</h4>
-                <p class="text-sm opacity-70">Write the Python function header to describe arguments and optional return types.</p>
+                <h4 class="font-semibold flex items-center gap-2"><Code size={18}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::define_function_signature')}</h4>
+                <p class="text-sm opacity-70">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::write_python_function_header_to_describe_arguments')}</p>
               </div>
-              <CodeMirror bind:value={fnSignature} lang={python()} readOnly={false} placeholder={'def my_function(arr: list, target: int) -> bool'} />
+              <CodeMirror bind:value={fnSignature} lang={python()} readOnly={false} placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::function_signature_placeholder')} />
               {#if fnSignatureError}
                 <div class="alert alert-error text-sm">{fnSignatureError}</div>
               {:else if fnMeta}
                 <div class="flex flex-wrap gap-2 text-xs">
-                  <span class="badge badge-outline badge-sm">Function: {fnMeta.name}</span>
+                  <span class="badge badge-outline badge-sm">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::function_label')} {fnMeta.name}</span>
                   {#if fnMeta.params.length}
                     {#each fnMeta.params as p}
                       <span class="badge badge-outline badge-sm">{p.name}{p.type ? `: ${p.type}` : ''}</span>
                     {/each}
                   {:else}
-                    <span class="badge badge-outline badge-sm">No arguments</span>
+                    <span class="badge badge-outline badge-sm">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::no_arguments')}</span>
                   {/if}
                   {#if fnMeta.returns.length === 0}
-                    <span class="badge badge-outline badge-sm">Returns: None</span>
+                    <span class="badge badge-outline badge-sm">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::returns_none')}</span>
                   {:else}
                     {#each fnMeta.returns as r, ri}
-                      <span class="badge badge-outline badge-sm">{fnMeta.returns.length > 1 ? `Return ${ri + 1}` : 'Return'}{r.type ? `: ${r.type}` : ''}</span>
+                      <span class="badge badge-outline badge-sm">{fnMeta.returns.length > 1 ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::return_n', {ri: ri + 1}) : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::return_single')}{r.type ? `: ${r.type}` : ''}</span>
                     {/each}
                   {/if}
                 </div>
               {/if}
             </div>
             <div class="flex flex-wrap items-center justify-between gap-3">
-              <div class="text-sm opacity-70">{fnCases.length} {fnCases.length === 1 ? 'case' : 'cases'}</div>
+              <div class="text-sm opacity-70">{fnCases.length} {fnCases.length === 1 ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::case_singular') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::case_plural')}</div>
               <div class="flex items-center gap-2">
-                <button class="btn btn-outline" on:click={addFnCase} disabled={!fnMeta}><Plus size={16}/> Add case</button>
-                <button class="btn btn-primary" disabled={!fnMeta || fnCases.length === 0} on:click={createFunctionTestsFromBuilder}><FlaskConical size={16}/> Create function tests</button>
+                <button class="btn btn-outline" on:click={addFnCase} disabled={!fnMeta}><Plus size={16}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::add_case')}</button>
+                <button class="btn btn-primary" disabled={!fnMeta || fnCases.length === 0} on:click={createFunctionTestsFromBuilder}><FlaskConical size={16}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::create_function_tests')}</button>
               </div>
             </div>
             {#if !fnMeta}
-              <div class="rounded-xl border border-dashed border-base-300/80 p-6 text-center text-sm opacity-70">Define the function signature to start adding test cases.</div>
+              <div class="rounded-xl border border-dashed border-base-300/80 p-6 text-center text-sm opacity-70">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::define_function_signature_to_start_adding_test_cases')}</div>
             {:else}
               <div class="space-y-3">
                 {#each fnCases as fc, fi}
                   <div class="rounded-2xl border border-base-300/70 bg-base-100 p-4 space-y-4 shadow-sm">
                     <div class="flex flex-wrap items-center justify-between gap-3">
-                      <input class="input input-bordered w-full flex-1" bind:value={fc.name} placeholder={`Case ${fi + 1}`}>
+                      <input class="input input-bordered w-full flex-1" bind:value={fc.name} placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::case_n_placeholder', { fi: fi + 1 })}>
                       <div class="flex items-center gap-2 flex-wrap">
                         <label class="form-control w-32">
-                          <span class="label-text text-xs">Time limit (s)</span>
+                          <span class="label-text text-xs">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::time_limit_s_small')}</span>
                           <input class="input input-bordered w-full" bind:value={fc.timeLimit}>
                         </label>
                         {#if assignment?.grading_policy === 'weighted'}
                           <label class="form-control w-28">
-                            <span class="label-text text-xs">Points</span>
+                            <span class="label-text text-xs">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::points_small')}</span>
                             <input class="input input-bordered w-full" bind:value={fc.weight}>
                           </label>
                         {/if}
-                        <button class="btn btn-ghost btn-xs" on:click={() => removeFnCase(fi)}><Trash2 size={14}/> Remove</button>
+                        <button class="btn btn-ghost btn-xs" on:click={() => removeFnCase(fi)}><Trash2 size={14}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::remove')}</button>
                       </div>
                     </div>
                     {#if fnMeta.params.length}
                       <div class="space-y-2">
-                        <h5 class="text-sm font-semibold">Arguments</h5>
+                        <h5 class="text-sm font-semibold">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::arguments')}</h5>
                         <div class="grid gap-3 md:grid-cols-2">
                           {#each fnMeta.params as param, pi}
                             {@const control = describeTypeControl(param.type)}
@@ -1663,12 +1817,12 @@
                               {#if control.control === 'boolean'}
                                 <label class="label cursor-pointer justify-start gap-2 rounded-lg border border-base-300/60 px-3 py-2 bg-base-200/60">
                                   <input type="checkbox" class="toggle toggle-sm" checked={stringToBool(fc.args[pi])} on:change={(e) => updateFnArg(fi, pi, (e.target as HTMLInputElement).checked ? 'true' : 'false')}>
-                                  <span class="label-text text-sm">{stringToBool(fc.args[pi]) ? 'True' : 'False'}</span>
+                                  <span class="label-text text-sm">{stringToBool(fc.args[pi]) ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::true') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::false')}</span>
                                 </label>
                               {:else if control.control === 'textarea'}
-                                <textarea class="textarea textarea-bordered h-24" value={fc.args[pi]} on:input={(e) => updateFnArg(fi, pi, (e.target as HTMLTextAreaElement).value)} placeholder={param.type ?? 'Value'}></textarea>
+                                <textarea class="textarea textarea-bordered h-24" value={fc.args[pi]} on:input={(e) => updateFnArg(fi, pi, (e.target as HTMLTextAreaElement).value)} placeholder={param.type ?? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder')}></textarea>
                               {:else}
-                                <input class="input input-bordered w-full" type={control.control === 'integer' || control.control === 'number' ? 'number' : 'text'} step={control.control === 'integer' ? '1' : control.control === 'number' ? 'any' : undefined} value={fc.args[pi]} on:input={(e) => updateFnArg(fi, pi, (e.target as HTMLInputElement).value)} placeholder={param.type ?? 'Value'}>
+                                <input class="input input-bordered w-full" type={control.control === 'integer' || control.control === 'number' ? 'number' : 'text'} step={control.control === 'integer' ? '1' : control.control === 'number' ? 'any' : undefined} value={fc.args[pi]} on:input={(e) => updateFnArg(fi, pi, (e.target as HTMLInputElement).value)} placeholder={param.type ?? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder')}>
                               {/if}
                             </div>
                           {/each}
@@ -1677,13 +1831,13 @@
                     {/if}
                     {#if fnMeta.returns.length > 0}
                       <div class="space-y-2">
-                        <h5 class="text-sm font-semibold">Expected return{fnMeta.returns.length > 1 ? ' values' : ''}</h5>
+                        <h5 class="text-sm font-semibold">{fnMeta.returns.length > 1 ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_values') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_value')}</h5>
                         <div class="grid gap-3 md:grid-cols-2">
                           {#each fnMeta.returns as ret, ri}
                             {@const control = describeTypeControl(ret.type)}
                             <div class="form-control space-y-1">
                               <span class="label-text text-xs font-semibold uppercase tracking-wide flex items-center gap-2">
-                                {fnMeta.returns.length > 1 ? `Return ${ri + 1}` : 'Return'}
+                                {fnMeta.returns.length > 1 ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::return_n_capitalized', {ri: ri + 1}) : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::return_single_capitalized')}
                                 {#if ret.type}
                                   <span class="badge badge-outline badge-sm">{ret.type}</span>
                                 {/if}
@@ -1691,12 +1845,12 @@
                               {#if control.control === 'boolean'}
                                 <label class="label cursor-pointer justify-start gap-2 rounded-lg border border-base-300/60 px-3 py-2 bg-base-200/60">
                                   <input type="checkbox" class="toggle toggle-sm" checked={stringToBool(fc.returns[ri])} on:change={(e) => updateFnReturn(fi, ri, (e.target as HTMLInputElement).checked ? 'true' : 'false')}>
-                                  <span class="label-text text-sm">{stringToBool(fc.returns[ri]) ? 'True' : 'False'}</span>
+                                  <span class="label-text text-sm">{stringToBool(fc.returns[ri]) ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::true') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::false')}</span>
                                 </label>
                               {:else if control.control === 'textarea'}
-                                <textarea class="textarea textarea-bordered h-24" value={fc.returns[ri]} on:input={(e) => updateFnReturn(fi, ri, (e.target as HTMLTextAreaElement).value)} placeholder={ret.type ?? 'Value'}></textarea>
+                                <textarea class="textarea textarea-bordered h-24" value={fc.returns[ri]} on:input={(e) => updateFnReturn(fi, ri, (e.target as HTMLTextAreaElement).value)} placeholder={ret.type ?? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder')}></textarea>
                               {:else}
-                                <input class="input input-bordered w-full" type={control.control === 'integer' || control.control === 'number' ? 'number' : 'text'} step={control.control === 'integer' ? '1' : control.control === 'number' ? 'any' : undefined} value={fc.returns[ri]} on:input={(e) => updateFnReturn(fi, ri, (e.target as HTMLInputElement).value)} placeholder={ret.type ?? 'Value'}>
+                                <input class="input input-bordered w-full" type={control.control === 'integer' || control.control === 'number' ? 'number' : 'text'} step={control.control === 'integer' ? '1' : control.control === 'number' ? 'any' : undefined} value={fc.returns[ri]} on:input={(e) => updateFnReturn(fi, ri, (e.target as HTMLInputElement).value)} placeholder={ret.type ?? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder')}>
                               {/if}
                             </div>
                           {/each}
@@ -1704,13 +1858,13 @@
                       </div>
                     {:else}
                       <div class="rounded-lg border border-dashed border-base-300/70 bg-base-200/50 px-4 py-3 text-xs opacity-70">
-                        This function returns <code>None</code>. You can leave the expected value blank to assert that no value is returned.
+                        {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::this_function_returns_none')}
                       </div>
                     {/if}
                   </div>
                 {/each}
                 {#if fnCases.length === 0}
-                  <div class="rounded-xl border border-dashed border-base-300/80 p-6 text-center text-sm opacity-70">No function cases yet. Add a case to build function-based tests.</div>
+                  <div class="rounded-xl border border-dashed border-base-300/80 p-6 text-center text-sm opacity-70">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::no_function_cases_yet')}</div>
                 {/if}
               </div>
             {/if}
@@ -1718,70 +1872,70 @@
         </div>
 
 
-        <input type="radio" name="tests-tab" role="tab" class="tab" aria-label="AI generate">
+        <input type="radio" name="tests-tab" role="tab" class="tab" aria-label={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_generate')}>
         <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4 space-y-4">
           <div class="grid sm:grid-cols-4 gap-3">
             <label class="form-control w-full space-y-1">
-              <span class="label-text">Test type</span>
+              <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::test_type')}</span>
               <div class="join">
-                <button type="button" class={`btn btn-sm join-item ${aiMode === 'unittest' ? 'btn-primary' : 'btn-outline'}`} on:click={() => aiMode = 'unittest'}>Unittest</button>
-                <button type="button" class={`btn btn-sm join-item ${aiMode === 'function' ? 'btn-primary' : 'btn-outline'}`} on:click={() => aiMode = 'function'}>Function</button>
+                <button type="button" class={`btn btn-sm join-item ${aiMode === 'unittest' ? 'btn-primary' : 'btn-outline'}`} on:click={() => aiMode = 'unittest'}>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_button')}</button>
+                <button type="button" class={`btn btn-sm join-item ${aiMode === 'function' ? 'btn-primary' : 'btn-outline'}`} on:click={() => aiMode = 'function'}>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::function_button')}</button>
               </div>
-              <span class="text-xs opacity-70">Choose whether AI should produce unittest code or direct function-call cases.</span>
+              <span class="text-xs opacity-70">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::choose_ai_produce_unittest_code_or_direct_function_call_cases')}</span>
             </label>
             <label class="form-control w-full space-y-1">
-              <span class="label-text">Test count mode</span>
+              <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::test_count_mode')}</span>
               <div class="join">
-                <button type="button" class="btn join-item {aiAuto ? 'btn-primary' : 'btn-outline'}" on:click={() => aiAuto = true}>Auto</button>
-                <button type="button" class="btn join-item {aiAuto ? 'btn-outline' : 'btn-primary'}" on:click={() => aiAuto = false}>Manual</button>
+                <button type="button" class={`btn join-item ${aiAuto ? 'btn-primary' : 'btn-outline'}`} on:click={() => aiAuto = true}>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::auto')}</button>
+                <button type="button" class={`btn join-item ${aiAuto ? 'btn-outline' : 'btn-primary'}`} on:click={() => aiAuto = false}>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::manual')}</button>
               </div>
               {#if !aiAuto}
                 <div class="mt-2">
-                  <input type="number" min="1" class="input input-bordered w-full" bind:value={aiNumTests} placeholder="How many tests?">
+                  <input type="number" min="1" class="input input-bordered w-full" bind:value={aiNumTests} placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::how_many_tests_placeholder')}>
                 </div>
               {/if}
-              <span class="text-xs opacity-70">Auto lets the model decide the right number of tests.</span>
+              <span class="text-xs opacity-70">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::auto_lets_model_decide_number_of_tests')}</span>
             </label>
             <div class="sm:col-span-2">
               <label class="form-control w-full space-y-1">
-                <span class="label-text">Additional instructions (optional)</span>
-                <input class="input input-bordered w-full" bind:value={aiInstructions} placeholder="Edge cases to cover, constraints, etc.">
+                <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::additional_instructions_optional')}</span>
+                <input class="input input-bordered w-full" bind:value={aiInstructions} placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::edge_cases_to_cover_placeholder')}>
               </label>
             </div>
           </div>
           <div class="flex gap-2">
-            <button class="btn btn-primary" on:click={generateWithAI} disabled={aiGenerating}><FlaskConical size={16}/> {aiGenerating ? 'Generating…' : 'Generate with AI'}</button>
-            <button class="btn" on:click={uploadAIUnitTestsCode} disabled={builderMode !== 'unittest' || !aiCode} title={builderMode !== 'unittest' ? 'Available only for unittest generation' : ''}><UploadIcon size={16}/> Save as tests</button>
+            <button class="btn btn-primary" on:click={generateWithAI} disabled={aiGenerating}><FlaskConical size={16}/> {aiGenerating ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::generating') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::generate_with_ai')}</button>
+            <button class="btn" on:click={uploadAIUnitTestsCode} disabled={builderMode !== 'unittest' || !aiCode} title={builderMode !== 'unittest' ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::available_only_for_unittest_generation') : ''}><UploadIcon size={16}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::save_as_tests')}</button>
           </div>
           {#if aiCode && builderMode === 'unittest'}
             <div class="space-y-2">
               <div class="flex items-center justify-between">
-                <h4 class="font-semibold">AI Python (editable)</h4>
-                <span class="text-xs opacity-70">You can edit this before saving.</span>
+                <h4 class="font-semibold">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_python_editable')}</h4>
+                <span class="text-xs opacity-70">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::you_can_edit_this_before_saving')}</span>
               </div>
               <CodeMirror bind:value={aiCode} lang={python()} readOnly={false} />
             </div>
           {/if}
           {#if hasAIBuilder}
             <div class="alert">
-              <span>AI also prepared a builder structure below. You can tweak it in the Unittest builder tab and upload from there.</span>
+              <span>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_prepared_builder_structure_below')}</span>
             </div>
           {/if}
           
 
-          <div class="divider">Optional: test on teacher solution</div>
+          <div class="divider">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::optional_test_on_teacher_solution')}</div>
           <div class="grid sm:grid-cols-2 gap-3 items-end">
             <div>
-              <h4 class="font-semibold mb-2 flex items-center gap-2"><UploadIcon size={18}/> Upload teacher solution</h4>
+              <h4 class="font-semibold mb-2 flex items-center gap-2"><UploadIcon size={18}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_teacher_solution')}</h4>
               <input type="file" accept=".py,.zip" class="file-input file-input-bordered w-full" on:change={(e) => (teacherSolutionFile = (e.target as HTMLInputElement).files?.[0] || null)}>
             </div>
             <div class="flex gap-2">
-              <button class="btn" disabled={!teacherSolutionFile || teacherRunLoading} on:click={runTeacherSolution}><FlaskConical size={16}/> {teacherRunLoading ? 'Running…' : 'Run tests on solution'}</button>
+              <button class="btn" disabled={!teacherSolutionFile || teacherRunLoading} on:click={runTeacherSolution}><FlaskConical size={16}/> {teacherRunLoading ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::running') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::run_tests_on_solution')}</button>
             </div>
           </div>
           {#if teacherRun}
             <div class="mt-2 rounded-xl border border-base-300/60 p-3 space-y-2">
-              <div class="font-medium">Results: {teacherRun.passed}/{teacherRun.total} passed</div>
+              <div class="font-medium">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::results_passed', {passed: teacherRun.passed, total: teacherRun.total})}</div>
               <div class="grid gap-2 max-h-64 overflow-y-auto">
                 {#each teacherRun.results as r}
                   <div class="rounded-lg border border-base-300/60 p-2 text-sm">
@@ -1790,7 +1944,7 @@
                         <span class="badge mr-2">#{r.test_case_id}</span>
                         {#if r.unittest_name}<span class="badge badge-primary">{r.unittest_name}</span>{/if}
                       </div>
-                      <span class="badge {r.status === 'passed' ? 'badge-success' : 'badge-error'}">{r.status}</span>
+                      <span class="badge {r.status === 'passed' ? 'badge-success' : 'badge-error'}">{r.status === 'passed' ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::passed') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::failed')}</span>
                     </div>
                     {#if r.stderr}
                       <pre class="mt-1 whitespace-pre-wrap opacity-80">{r.stderr}</pre>
@@ -1802,14 +1956,14 @@
           {/if}
         </div>
 
-        <input type="radio" name="tests-tab" role="tab" class="tab" aria-label="Upload .py">
+        <input type="radio" name="tests-tab" role="tab" class="tab" aria-label={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_py')}>
         <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4">
-          <h4 class="font-semibold mb-2 flex items-center gap-2"><FileUp size={18}/> Upload unittest file</h4>
+          <h4 class="font-semibold mb-2 flex items-center gap-2"><FileUp size={18}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_unittest_file')}</h4>
           <input type="file" accept=".py" class="file-input file-input-bordered w-full" on:change={(e) => (unittestFile = (e.target as HTMLInputElement).files?.[0] || null)}>
           <div class="mt-2">
-            <button class="btn" on:click={uploadUnitTests} disabled={!unittestFile}><UploadIcon size={16}/> Upload</button>
+            <button class="btn" on:click={uploadUnitTests} disabled={!unittestFile}><UploadIcon size={16}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::upload')}</button>
           </div>
-          <p class="text-xs opacity-70 mt-2">Each method named <code>test_*</code> in classes derived from <code>unittest.TestCase</code> will become a separate test. Use <code>student_code(...)</code> to run the student's program with inputs or <code>student_function('function_name', ...)</code> to call a specific function and check its return value.</p>
+          <p class="text-xs opacity-70 mt-2">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_guidance')}</p>
         </div>
         </div>
       {/if}
@@ -1823,13 +1977,13 @@
 
 <dialog bind:this={editDialog} class="modal">
   <div class="modal-box w-11/12 max-w-4xl space-y-3">
-    <h3 class="font-semibold">Edit unittest method</h3>
+    <h3 class="font-semibold">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::edit_unittest_method')}</h3>
     <p class="text-xs opacity-70">{editingTest?.unittest_name}</p>
     <CodeMirror bind:value={editingMethodCode} lang={python()} readOnly={false} />
     <div class="modal-action">
-      <button class="btn" on:click={saveEditUnitTest}><Save size={16}/> Save</button>
+      <button class="btn" on:click={saveEditUnitTest}><Save size={16}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::save')}</button>
       <form method="dialog">
-        <button class="btn btn-ghost" on:click={closeEditUnitTest}>Close</button>
+        <button class="btn btn-ghost" on:click={closeEditUnitTest}>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::close')}</button>
       </form>
     </div>
   </div>
@@ -1867,4 +2021,4 @@
     background: color-mix(in oklab, var(--fallback-b1, oklch(var(--b1))) 90%, oklch(var(--p)) 10%);
     border-color: color-mix(in oklab, oklch(var(--p)) 40%, oklch(var(--bc)) 60%);
   }
-</style>
+  </style>

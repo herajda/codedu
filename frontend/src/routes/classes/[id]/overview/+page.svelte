@@ -1,9 +1,14 @@
+
 <script lang="ts">
 import { onMount } from 'svelte';
 import { apiJSON } from '$lib/api';
 import { page } from '$app/stores';
 import { formatDateTime } from "$lib/date";
 import { Trophy, CalendarClock, ListChecks, Target, PlayCircle, FolderOpen, MessageSquare, MessageCircle } from 'lucide-svelte';
+import { t, translator } from '$lib/i18n';
+
+let translate;
+$: translate = $translator;
 
 let id = $page.params.id;
 $: if ($page.params.id !== id) { id = $page.params.id; load(); }
@@ -95,25 +100,25 @@ function badgeFor(a: any) {
   const best = assignmentProgress.find((p: any) => p.id === a.id)?.best ?? 0;
   const complete = best >= a.max_points;
   const late = new Date(a.deadline) < new Date() && !complete;
-  if (complete) return { text: 'Completed', cls: 'badge-success' };
-  if (late) return { text: 'Late', cls: 'badge-error' };
-  return { text: 'Upcoming', cls: 'badge-info' };
+  if (complete) return { text: t('frontend/src/routes/classes/[id]/overview/+page.svelte::badge_completed'), cls: 'badge-success' };
+  if (late) return { text: t('frontend/src/routes/classes/[id]/overview/+page.svelte::badge_late'), cls: 'badge-error' };
+  return { text: t('frontend/src/routes/classes/[id]/overview/+page.svelte::badge_upcoming'), cls: 'badge-info' };
 }
 </script>
 
 {#if loading}
-  <p>Loading…</p>
+  <p>{t('frontend/src/routes/classes/[id]/overview/+page.svelte::loading')}</p>
 {:else if err}
   <p class="text-error">{err}</p>
 {:else}
   <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
     <div class="space-y-1">
-      <h1 class="text-2xl font-semibold">{cls.name} · Overview</h1>
-      <p class="text-sm text-base-content/60">Stay on top of upcoming work and results.</p>
+      <h1 class="text-2xl font-semibold">{cls.name} · {t('frontend/src/routes/classes/[id]/overview/+page.svelte::overview_suffix')}</h1>
+      <p class="text-sm text-base-content/60">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::overview_description')}</p>
     </div>
     <div class="hidden sm:flex gap-2">
-        <a href={`/classes/${id}/files`} class="btn btn-outline"><FolderOpen class="w-4 h-4" aria-hidden="true" /> Files</a>
-        <a href={`/classes/${id}/forum`} class="btn btn-outline"><MessageSquare class="w-4 h-4" aria-hidden="true" /> Forum</a>
+        <a href={`/classes/${id}/files`} class="btn btn-outline"><FolderOpen class="w-4 h-4" aria-hidden="true" /> {t('frontend/src/routes/classes/[id]/overview/+page.svelte::files_button')}</a>
+        <a href={`/classes/${id}/forum`} class="btn btn-outline"><MessageSquare class="w-4 h-4" aria-hidden="true" /> {t('frontend/src/routes/classes/[id]/overview/+page.svelte::forum_button')}</a>
     </div>
   </div>
 
@@ -121,29 +126,29 @@ function badgeFor(a: any) {
     <div class="card-elevated p-4 flex items-center gap-3">
       <Trophy class="w-5 h-5 opacity-70" aria-hidden="true" />
       <div>
-        <div class="text-xs uppercase opacity-70">Progress</div>
+        <div class="text-xs uppercase opacity-70">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::progress_card_title')}</div>
         <div class="text-xl font-semibold">{progressPercent}%</div>
-        <div class="text-xs opacity-70">{completedAssignments}/{totalAssignments} assignments</div>
+        <div class="text-xs opacity-70">{translate('frontend/src/routes/classes/[id]/overview/+page.svelte::x_of_y_assignments', {completed: completedAssignments, total: totalAssignments})}</div>
       </div>
     </div>
     <div class="card-elevated p-4 flex items-center gap-3">
       <Target class="w-5 h-5 opacity-70" aria-hidden="true" />
       <div>
-        <div class="text-xs uppercase opacity-70">Points</div>
+        <div class="text-xs uppercase opacity-70">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::points_card_title')}</div>
         <div class="text-xl font-semibold">{pointsEarned}/{pointsTotal}</div>
       </div>
     </div>
     <div class="card-elevated p-4 flex items-center gap-3">
       <ListChecks class="w-5 h-5 opacity-70" aria-hidden="true" />
       <div>
-        <div class="text-xs uppercase opacity-70">Assignments</div>
+        <div class="text-xs uppercase opacity-70">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::total_assignments_card_title')}</div>
         <div class="text-xl font-semibold">{totalAssignments}</div>
       </div>
     </div>
     <div class="card-elevated p-4 flex items-center gap-3">
       <CalendarClock class="w-5 h-5 opacity-70" aria-hidden="true" />
       <div>
-        <div class="text-xs uppercase opacity-70">Upcoming</div>
+        <div class="text-xs uppercase opacity-70">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::upcoming_card_title')}</div>
         <div class="text-xl font-semibold">{upcomingCount}</div>
       </div>
     </div>
@@ -163,7 +168,7 @@ function badgeFor(a: any) {
         </div>
       </div>
       <div class="min-w-0 flex-1">
-        <div class="text-xs uppercase tracking-wide text-base-content/60">Teacher</div>
+        <div class="text-xs uppercase tracking-wide text-base-content/60">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::teacher_label')}</div>
         <div class="font-semibold leading-tight truncate">{teacherName}</div>
         {#if teacherEmail && teacherEmail !== teacherName}
           <a class="text-sm text-primary truncate hover:underline" href={`mailto:${teacherEmail}`}>{teacherEmail}</a>
@@ -172,7 +177,7 @@ function badgeFor(a: any) {
       {#if teacherMessageUrl}
         <a href={teacherMessageUrl} class="btn btn-primary gap-2">
           <MessageCircle class="w-4 h-4" aria-hidden="true" />
-          Message teacher
+          {t('frontend/src/routes/classes/[id]/overview/+page.svelte::message_teacher_button')}
         </a>
       {/if}
     </div>
@@ -183,17 +188,17 @@ function badgeFor(a: any) {
       {#if nextAssignment}
         <div class="card-elevated p-5 flex items-center justify-between gap-4">
           <div class="min-w-0">
-            <div class="text-sm opacity-70">Continue where you left off</div>
+            <div class="text-sm opacity-70">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::continue_where_you_left_off')}</div>
             <div class="text-lg font-semibold truncate">{nextAssignment.title}</div>
-            <div class="text-sm opacity-70">Due {formatDateTime(nextAssignment.deadline)}</div>
+            <div class="text-sm opacity-70">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::due_prefix')} {formatDateTime(nextAssignment.deadline)}</div>
           </div>
-          <a href={`/assignments/${nextAssignment.id}`} class="btn"><PlayCircle class="w-4 h-4" aria-hidden="true" /> Continue</a>
+          <a href={`/assignments/${nextAssignment.id}`} class="btn"><PlayCircle class="w-4 h-4" aria-hidden="true" /> {t('frontend/src/routes/classes/[id]/overview/+page.svelte::continue_button')}</a>
         </div>
       {/if}
 
       <div class="card-elevated p-5">
         <div class="flex items-center justify-between mb-3">
-          <h2 class="font-semibold">Your assignments</h2>
+          <h2 class="font-semibold">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::your_assignments_title')}</h2>
         </div>
         <ul class="space-y-3">
           {#each assignmentProgress as a}
@@ -203,7 +208,7 @@ function badgeFor(a: any) {
                   <div class="flex items-center justify-between gap-4">
                     <div class="min-w-0">
                       <div class="font-medium truncate">{a.title}</div>
-                      <div class="text-sm opacity-70 truncate">Due {formatDateTime(a.deadline)}</div>
+                      <div class="text-sm opacity-70 truncate">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::due_prefix')} {formatDateTime(a.deadline)}</div>
                     </div>
                   <div class="flex items-center gap-3 shrink-0">
                       <div class="flex items-center gap-2">
@@ -220,7 +225,7 @@ function badgeFor(a: any) {
             </li>
           {/each}
           {#if !assignmentProgress.length}
-            <li class="text-sm opacity-70">No assignments</li>
+            <li class="text-sm opacity-70">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::no_assignments_message')}</li>
           {/if}
         </ul>
       </div>
@@ -229,7 +234,7 @@ function badgeFor(a: any) {
     <aside class="space-y-6">
       <div class="card-elevated p-5">
         <div class="flex items-center justify-between mb-3">
-          <h3 class="font-semibold">Upcoming deadlines</h3>
+          <h3 class="font-semibold">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::upcoming_deadlines_title')}</h3>
         </div>
         <ul class="divide-y divide-base-300/60">
           {#each upcomingAssignments as a}
@@ -244,13 +249,13 @@ function badgeFor(a: any) {
             </li>
           {/each}
           {#if !upcomingAssignments.length}
-            <li class="py-3 text-sm opacity-70">No upcoming deadlines</li>
+            <li class="py-3 text-sm opacity-70">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::no_upcoming_deadlines_message')}</li>
           {/if}
         </ul>
       </div>
 
       <div class="card-elevated p-5">
-        <h3 class="font-semibold mb-3">Recent submissions</h3>
+        <h3 class="font-semibold mb-3">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::recent_submissions_title')}</h3>
         <ul class="space-y-2">
           {#each recentSubmissions as s}
             <li>
@@ -268,7 +273,7 @@ function badgeFor(a: any) {
             </li>
           {/each}
           {#if !recentSubmissions.length}
-            <li class="text-sm opacity-70">No submissions yet</li>
+            <li class="text-sm opacity-70">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::no_submissions_yet_message')}</li>
           {/if}
         </ul>
       </div>

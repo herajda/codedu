@@ -1,7 +1,9 @@
+
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { apiJSON } from '$lib/api';
   import { createEventSource } from '$lib/sse';
+  import { t } from '$lib/i18n';
 
   import { formatDateTime } from "$lib/date";
   interface Submission {
@@ -171,47 +173,47 @@
   <div class="space-y-6">
     <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
       <div>
-        <h1 class="text-3xl font-semibold tracking-tight">My Submissions</h1>
-        <p class="text-sm opacity-70">Track grading progress and results at a glance</p>
+        <h1 class="text-3xl font-semibold tracking-tight">{t('frontend/src/routes/submissions/+page.svelte::my_submissions')}</h1>
+        <p class="text-sm opacity-70">{t('frontend/src/routes/submissions/+page.svelte::track_grading_progress')}</p>
       </div>
       <div class="flex flex-wrap gap-2 items-center">
         <div class="join">
-          <input class="input input-bordered join-item" placeholder="Search by assignment or ID" bind:value={query}>
+          <input class="input input-bordered join-item" placeholder={t('frontend/src/routes/submissions/+page.svelte::search_by_assignment_or_id')} bind:value={query}>
           <select class="select select-bordered join-item" bind:value={statusFilter}>
-            <option value="all">All</option>
-            <option value="running">Running</option>
-            <option value="completed">Completed</option>
-            <option value="failed">Failed</option>
+            <option value="all">{t('frontend/src/routes/submissions/+page.svelte::all_filter')}</option>
+            <option value="running">{t('frontend/src/routes/submissions/+page.svelte::running_filter')}</option>
+            <option value="completed">{t('frontend/src/routes/submissions/+page.svelte::completed_filter')}</option>
+            <option value="failed">{t('frontend/src/routes/submissions/+page.svelte::failed_filter')}</option>
           </select>
           <select class="select select-bordered join-item" bind:value={sortBy}>
-            <option value="newest">Newest</option>
-            <option value="oldest">Oldest</option>
-            <option value="status">Status</option>
+            <option value="newest">{t('frontend/src/routes/submissions/+page.svelte::newest')}</option>
+            <option value="oldest">{t('frontend/src/routes/submissions/+page.svelte::oldest')}</option>
+            <option value="status">{t('frontend/src/routes/submissions/+page.svelte::status_sort')}</option>
           </select>
         </div>
         <div class="join ml-auto">
-          <button class={`btn join-item ${layoutMode==='table' ? 'btn-primary' : 'btn-ghost'}`} on:click={() => layoutMode='table'}>Table</button>
-          <button class={`btn join-item ${layoutMode==='cards' ? 'btn-primary' : 'btn-ghost'}`} on:click={() => layoutMode='cards'}>Cards</button>
-          <button class={`btn join-item ${layoutMode==='board' ? 'btn-primary' : 'btn-ghost'}`} on:click={() => layoutMode='board'}>Board</button>
+          <button class={`btn join-item ${layoutMode==='table' ? 'btn-primary' : 'btn-ghost'}`} on:click={() => layoutMode='table'}>{t('frontend/src/routes/submissions/+page.svelte::table_layout')}</button>
+          <button class={`btn join-item ${layoutMode==='cards' ? 'btn-primary' : 'btn-ghost'}`} on:click={() => layoutMode='cards'}>{t('frontend/src/routes/submissions/+page.svelte::cards_layout')}</button>
+          <button class={`btn join-item ${layoutMode==='board' ? 'btn-primary' : 'btn-ghost'}`} on:click={() => layoutMode='board'}>{t('frontend/src/routes/submissions/+page.svelte::board_layout')}</button>
         </div>
       </div>
     </div>
 
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
       <div class="stat bg-base-100 rounded-box shadow">
-        <div class="stat-title">Total</div>
+        <div class="stat-title">{t('frontend/src/routes/submissions/+page.svelte::total_submissions')}</div>
         <div class="stat-value text-primary">{subs.length}</div>
       </div>
       <div class="stat bg-base-100 rounded-box shadow">
-        <div class="stat-title">Running</div>
+        <div class="stat-title">{t('frontend/src/routes/submissions/+page.svelte::running_submissions')}</div>
         <div class="stat-value text-info">{countByStatus('running')}</div>
       </div>
       <div class="stat bg-base-100 rounded-box shadow">
-        <div class="stat-title">Completed</div>
+        <div class="stat-title">{t('frontend/src/routes/submissions/+page.svelte::completed_submissions')}</div>
         <div class="stat-value text-success">{countByStatus('completed')}</div>
       </div>
       <div class="stat bg-base-100 rounded-box shadow">
-        <div class="stat-title">Failed</div>
+        <div class="stat-title">{t('frontend/src/routes/submissions/+page.svelte::failed_submissions')}</div>
         <div class="stat-value text-error">{countByStatus('failed')}</div>
       </div>
     </div>
@@ -222,11 +224,11 @@
           <table class="table">
             <thead>
               <tr>
-                <th>Assignment</th>
-                <th>Submitted</th>
-                <th>Status</th>
-                <th>Pass</th>
-                <th>Avg ms</th>
+                <th>{t('frontend/src/routes/submissions/+page.svelte::assignment_th')}</th>
+                <th>{t('frontend/src/routes/submissions/+page.svelte::submitted_th')}</th>
+                <th>{t('frontend/src/routes/submissions/+page.svelte::status_th_table')}</th>
+                <th>{t('frontend/src/routes/submissions/+page.svelte::pass_th')}</th>
+                <th>{t('frontend/src/routes/submissions/+page.svelte::avg_ms_th')}</th>
                 <th></th>
               </tr>
             </thead>
@@ -240,17 +242,17 @@
                     <div class="text-xs opacity-60">#{s.id}</div>
                   </td>
                   <td class="whitespace-nowrap">{formatDateTime(s.created_at)}</td>
-                  <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span> {#if s.manually_accepted}<span class="badge badge-xs badge-outline badge-success ml-2" title="Accepted by teacher">accepted</span>{/if}</td>
+                  <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span> {#if s.manually_accepted}<span class="badge badge-xs badge-outline badge-success ml-2" title={t('frontend/src/routes/submissions/+page.svelte::accepted_by_teacher')}>{t('frontend/src/routes/submissions/+page.svelte::accepted_badge')}</span>{/if}</td>
                   <td>
                     {#if s.results && s.results.length}
                       {Math.round((passRatio(s).passed / Math.max(1, passRatio(s).total)) * 100)}%
                     {:else}
-                      <span class="opacity-60">pending</span>
+                      <span class="opacity-60">{t('frontend/src/routes/submissions/+page.svelte::pending_results')}</span>
                     {/if}
                   </td>
                   <td>{avgRuntimeMs(s) ?? '-'}</td>
                   <td class="text-right">
-                    <a class="btn btn-sm" href={`/submissions/${s.id}`}>Open</a>
+                    <a class="btn btn-sm" href={`/submissions/${s.id}`}>{t('frontend/src/routes/submissions/+page.svelte::open_submission')}</a>
                   </td>
                 </tr>
               {/each}
@@ -284,19 +286,19 @@
                   </svg>
                   <div class="text-xs opacity-70">
                     {#if s.results && s.results.length}
-                      {passRatio(s).passed}/{passRatio(s).total} passed
+                      {passRatio(s).passed}/{passRatio(s).total} {t('frontend/src/routes/submissions/+page.svelte::passed_count')}
                     {:else}
-                      pending tests…
+                      {t('frontend/src/routes/submissions/+page.svelte::pending_tests')}
                     {/if}
                   </div>
                   <div class="ml-auto text-xs opacity-70">
                     {#if avgRuntimeMs(s) !== null}
-                      avg {avgRuntimeMs(s)}ms
+                      {t('frontend/src/routes/submissions/+page.svelte::avg_runtime')} {avgRuntimeMs(s)}ms
                     {/if}
                   </div>
                 </div>
                 {#if s.manually_accepted}
-                  <div class="text-xs text-success">Manually accepted</div>
+                  <div class="text-xs text-success">{t('frontend/src/routes/submissions/+page.svelte::manually_accepted')}</div>
                 {/if}
               </div>
             </a>
@@ -307,7 +309,7 @@
           <div class="space-y-2">
             <div class="flex items-center gap-2">
               <div class="w-2 h-2 rounded-full bg-info"></div>
-              <div class="font-medium">Running</div>
+              <div class="font-medium">{t('frontend/src/routes/submissions/+page.svelte::running_board_title')}</div>
               <span class="badge badge-ghost">{grouped.running.length}</span>
             </div>
             <div class="space-y-2">
@@ -326,7 +328,7 @@
           <div class="space-y-2">
             <div class="flex items-center gap-2">
               <div class="w-2 h-2 rounded-full bg-success"></div>
-              <div class="font-medium">Completed</div>
+              <div class="font-medium">{t('frontend/src/routes/submissions/+page.svelte::completed_board_title')}</div>
               <span class="badge badge-ghost">{grouped.completed.length}</span>
             </div>
             <div class="space-y-2">
@@ -345,7 +347,7 @@
           <div class="space-y-2">
             <div class="flex items-center gap-2">
               <div class="w-2 h-2 rounded-full bg-error"></div>
-              <div class="font-medium">Failed</div>
+              <div class="font-medium">{t('frontend/src/routes/submissions/+page.svelte::failed_board_title')}</div>
               <span class="badge badge-ghost">{grouped.failed.length}</span>
             </div>
             <div class="space-y-2">
@@ -364,7 +366,7 @@
           <div class="space-y-2">
             <div class="flex items-center gap-2">
               <div class="w-2 h-2 rounded-full bg-base-300"></div>
-              <div class="font-medium">Other</div>
+              <div class="font-medium">{t('frontend/src/routes/submissions/+page.svelte::other_board_title')}</div>
               <span class="badge badge-ghost">{grouped.other.length}</span>
             </div>
             <div class="space-y-2">
@@ -384,7 +386,7 @@
       {/if}
     {:else}
       <div class="text-center py-16 opacity-70">
-        <p>No submissions match your filters.</p>
+        <p>{t('frontend/src/routes/submissions/+page.svelte::no_submissions_match_filters')}</p>
       </div>
     {/if}
 

@@ -1,0 +1,356 @@
+{
+  "processed_files": {
+    "frontend/src/app.d.ts": {
+      "checksum": "07e1cecf6ecb25cc2a357b2e64a3eff949aac5ddcc0ad71e67bb259c5f5aa066",
+      "updated_at": "2025-10-11T10:20:17.136528+00:00"
+    },
+    "frontend/src/hooks.server.ts": {
+      "checksum": "a9b6be2047a1043880083c77eab6784285f9304471d10251d6326238c61855e0",
+      "updated_at": "2025-10-11T10:20:18.031551+00:00"
+    },
+    "frontend/src/lib/AdminPanel.svelte": {
+      "checksum": "99a4c371449b926797cd41ec97896e58e24fb3429ad8023b252993460f939d1f",
+      "updated_at": "2025-10-11T10:21:25.598038+00:00"
+    },
+    "frontend/src/lib/Counter.svelte": {
+      "checksum": "09ee8d05129b3457838920ac6db91b7ce461ae4059beeff415f7685ca482244d",
+      "updated_at": "2025-10-11T10:20:21.430253+00:00"
+    },
+    "frontend/src/lib/FileTree.svelte": {
+      "checksum": "6cd1c8b8f58f8428e182c1bcd20288b41e70f1621b99ac2691f282339db0fbf4",
+      "updated_at": "2025-10-11T10:20:23.639689+00:00"
+    },
+    "frontend/src/lib/FileTreeItem.svelte": {
+      "checksum": "2493a6e3f7616b64bd0e8b1582f30005f865365fbc0057a21c53de56944c1b83",
+      "updated_at": "2025-10-11T10:20:28.562806+00:00"
+    },
+    "frontend/src/lib/MarkdownEditor.svelte": {
+      "checksum": "6fef21a0a23b5a9442e2155deacfa32550f69d6408e72c03a7495366cf8c2ed7",
+      "updated_at": "2025-10-11T10:20:52.705376+00:00"
+    },
+    "frontend/src/lib/Sidebar.svelte": {
+      "checksum": "76e13ea710f614e28aa2415584625b433b3128ad7e5c158c4f37677c614a219a",
+      "updated_at": "2025-10-11T10:22:16.701170+00:00"
+    },
+    "frontend/src/lib/api.ts": {
+      "checksum": "5488e469b75b10961e137b6301b1165653348d851fb7a2d84d38f377a93c6237",
+      "updated_at": "2025-10-11T10:21:31.083041+00:00"
+    },
+    "frontend/src/lib/auth.ts": {
+      "checksum": "0f28c3474dfd58621e3f40efec28c75d0e6c6fb2051b7f861702c26279b79fd3",
+      "updated_at": "2025-10-11T10:21:39.620628+00:00"
+    },
+    "frontend/src/lib/bakalari.ts": {
+      "checksum": "b8a9574e55cfa9fc16184761017daa2ecc52c8427637d4351e7b545decb597ae",
+      "updated_at": "2025-10-11T10:21:45.074305+00:00"
+    },
+    "frontend/src/lib/components/Background.svelte": {
+      "checksum": "66bb5cb28a76bcd9a223bca588bbebdd721253ee30400a4e67f1204b8452c4e4",
+      "updated_at": "2025-10-11T10:21:51.079236+00:00"
+    },
+    "frontend/src/lib/components/ConfirmModal.svelte": {
+      "checksum": "7d0171a4dd878ec2b175420a3054bb3ac9d7db2d53eb9f4da15002e605e5bee8",
+      "updated_at": "2025-10-11T10:22:08.953119+00:00"
+    },
+    "frontend/src/lib/components/DeadlinePicker.svelte": {
+      "checksum": "1db3fbbefec0742447022263d901a66c135d6e93bc4a723c6b991ef077a72972",
+      "updated_at": "2025-10-11T10:23:05.928877+00:00"
+    },
+    "frontend/src/lib/components/MessageStats.svelte": {
+      "checksum": "c66329eed156d67034d835e401c98c79532f2c2550a8d2c8ef5488a74e225b9c",
+      "updated_at": "2025-10-11T10:22:27.993760+00:00"
+    },
+    "frontend/src/lib/components/NewChatModal.svelte": {
+      "checksum": "62afb46001f107d84dbad64d2a77543f34966a65ffdfa218054ee5e1fe0054a0",
+      "updated_at": "2025-10-11T10:22:58.346956+00:00"
+    },
+    "frontend/src/lib/components/NotebookEditor.svelte": {
+      "checksum": "6df604afdf90b18a52653374e02870e6d1f3d7ac76afe812f9350a19802982e5",
+      "updated_at": "2025-10-11T10:23:28.474035+00:00"
+    },
+    "frontend/src/lib/components/PromptModal.svelte": {
+      "checksum": "11e6b6746e1f35d448fec6f4349cc9747ce78f656361cf5578a69fefa3b2a13b",
+      "updated_at": "2025-10-11T10:23:33.549269+00:00"
+    },
+    "frontend/src/lib/components/RunConsole.svelte": {
+      "checksum": "141f6caf105bf4a4601f4df03653fa1ae37157a03e0d349b27fddf7b2de9a832",
+      "updated_at": "2025-10-11T10:25:38.166861+00:00"
+    },
+    "frontend/src/lib/components/Terminal.svelte": {
+      "checksum": "c3721a04ef7d368029d2021c70f701a6c42224376ddf9554a8bf3fa8008f83c7",
+      "updated_at": "2025-10-11T10:23:55.740373+00:00"
+    },
+    "frontend/src/lib/components/UnsavedChangesModal.svelte": {
+      "checksum": "123cf66853c1874d893e2fd5dc6a163e523db847148063b510446237d82aeff7",
+      "updated_at": "2025-10-11T10:24:23.884378+00:00"
+    },
+    "frontend/src/lib/components/UserProfileModal.svelte": {
+      "checksum": "ba577ac58fa45f0edc04f1c04bdd5fa4eee7ab624b0b167355b72ab1c058f3e8",
+      "updated_at": "2025-10-11T10:24:37.537622+00:00"
+    },
+    "frontend/src/lib/components/cells/CodeCell.svelte": {
+      "checksum": "43b5ecf2ef6fa2357c29685844e1fef79090ff867d66a96a79a02df1f8a6b88c",
+      "updated_at": "2025-10-11T10:25:12.487864+00:00"
+    },
+    "frontend/src/lib/components/cells/ImageOutput.svelte": {
+      "checksum": "513c9a611af9b17330bb2ad699059096bb6f4458ef7c4a809fa79be49a29e55e",
+      "updated_at": "2025-10-11T10:25:15.123495+00:00"
+    },
+    "frontend/src/lib/components/cells/MarkdownCell.svelte": {
+      "checksum": "4b48ba7bab384a319a2b020f97ab3445b4807ce44d83a3b8ccf662fef4387bfb",
+      "updated_at": "2025-10-11T10:25:42.041855+00:00"
+    },
+    "frontend/src/lib/components/cells/OutputBlock.svelte": {
+      "checksum": "c00a8dd5ca647086a3aa2d0a7ef8c5e4346693199f0902aa45fde26feb841500",
+      "updated_at": "2025-10-11T10:25:41.480017+00:00"
+    },
+    "frontend/src/lib/components/ui/CodeMirror.svelte": {
+      "checksum": "3b530cd3f05c1a5f7e85e956b885d46ba5c8e81852d276f439bdc553f5b64e31",
+      "updated_at": "2025-10-11T10:25:52.502084+00:00"
+    },
+    "frontend/src/lib/date.ts": {
+      "checksum": "a38d805da3a81f55af8b75e6fe548f360a1bddc698a90cce04e564efc6a338b1",
+      "updated_at": "2025-10-11T10:25:47.658935+00:00"
+    },
+    "frontend/src/lib/hash.ts": {
+      "checksum": "4078719d453f6441ef146fa9f278da27f02344f2eab8575839823c24bbfcd9d8",
+      "updated_at": "2025-10-11T10:25:49.419246+00:00"
+    },
+    "frontend/src/lib/index.ts": {
+      "checksum": "f27e65cfb5b8b056582d86e0a0053d01b0712590444684e65309226507d3524e",
+      "updated_at": "2025-10-11T10:25:52.405982+00:00"
+    },
+    "frontend/src/lib/llmStrictness.ts": {
+      "checksum": "c7574d14680ef939ab72640f7b52720810b936ccaf911c45ff1393921182752a",
+      "updated_at": "2025-10-11T10:26:37.854633+00:00"
+    },
+    "frontend/src/lib/notebook.ts": {
+      "checksum": "c1b2c16910657e98ed60af76a43e5d276ea76b8f3c0a5a2a19efbc648b37da5f",
+      "updated_at": "2025-10-11T10:26:02.543719+00:00"
+    },
+    "frontend/src/lib/pyWorker.ts": {
+      "checksum": "285c4d25fc7c06e04a61e85ed7f3f54b9ae22e5ae03020fc1ae2e6d163a5a97d",
+      "updated_at": "2025-10-11T10:26:18.105231+00:00"
+    },
+    "frontend/src/lib/pyodide.ts": {
+      "checksum": "87afb460e6f8caa3fb549b8297b43d49b6bfe00b555d3aac0622bd26a98de3d3",
+      "updated_at": "2025-10-11T10:26:26.494001+00:00"
+    },
+    "frontend/src/lib/sidebar.ts": {
+      "checksum": "7f31c1dca6590c43088b89c0883dfb7e4cdc5ab8460c7c62f5ce3e177f993e04",
+      "updated_at": "2025-10-11T10:26:28.390297+00:00"
+    },
+    "frontend/src/lib/sse.ts": {
+      "checksum": "74debc5a5ca94494eeb513af8890eddd8fc152d392c38ab6d37ecf85186076a2",
+      "updated_at": "2025-10-11T10:26:32.243227+00:00"
+    },
+    "frontend/src/lib/stores/classes.ts": {
+      "checksum": "37ed9f1391d8644b0c9614c2d817e5f80416028d99777f26af55fc5d9f6af68c",
+      "updated_at": "2025-10-11T10:26:41.390569+00:00"
+    },
+    "frontend/src/lib/stores/messages.ts": {
+      "checksum": "ee225d6a92142daa5865a9daa9b57342dc825f7670d9285340cfd7c0170f663e",
+      "updated_at": "2025-10-11T10:26:39.780703+00:00"
+    },
+    "frontend/src/lib/stores/notebookStore.ts": {
+      "checksum": "47be10b1eb3c224eacde3b6f0e3fb076a169b1a05ddfec3b52f3b1c4ed9c483c",
+      "updated_at": "2025-10-11T10:26:44.315705+00:00"
+    },
+    "frontend/src/lib/stores/onlineUsers.ts": {
+      "checksum": "d4b20a284734a5fa234e973b3bef3fa2ec4f6bf534c413c77271797670009a0e",
+      "updated_at": "2025-10-11T10:26:45.834413+00:00"
+    },
+    "frontend/src/lib/teacherGroup.ts": {
+      "checksum": "8f7e41239ce9edafb69d2f3d30fd303b0826193165025dc46adee7e3467c0cfa",
+      "updated_at": "2025-10-11T10:26:46.167960+00:00"
+    },
+    "frontend/src/lib/unittests.ts": {
+      "checksum": "b8f92aa93531dc40357212e8df60a5f99155d8f8b15701a41f4ebcd44379df88",
+      "updated_at": "2025-10-11T10:26:53.912479+00:00"
+    },
+    "frontend/src/lib/utils/compressImage.ts": {
+      "checksum": "27762d3308f4bf834ec1d646789946250513f25c44bd64b23e835dd08333c47f",
+      "updated_at": "2025-10-11T10:26:49.625376+00:00"
+    },
+    "frontend/src/routes/+layout.server.ts": {
+      "checksum": "8bea8f477628d02ba25c477e857a490fba69723c666e067bb8a3a45acb1aef16",
+      "updated_at": "2025-10-11T10:26:54.100411+00:00"
+    },
+    "frontend/src/routes/+layout.svelte": {
+      "checksum": "5058c902de85fbecdc88aced3c4bfd17c81682bcb80eb7116994542cba80444c",
+      "updated_at": "2025-10-11T10:30:38.698770+00:00"
+    },
+    "frontend/src/routes/+layout.ts": {
+      "checksum": "b640aae8915a21bdd1ca1287143ff499e000aa34aa176b97c8d95dc67460e068",
+      "updated_at": "2025-10-11T10:26:58.452141+00:00"
+    },
+    "frontend/src/routes/+page.ts": {
+      "checksum": "3113d0a38f271afe046e954a38a2f8aa8ddc5a349bcb22f94d4c41102c01c23a",
+      "updated_at": "2025-10-11T10:27:00.098756+00:00"
+    },
+    "frontend/src/routes/admin/+page.svelte": {
+      "checksum": "f09990248627dcc2fd6ab00dde6ab984b290fb79b528b9c770480f7ee676c457",
+      "updated_at": "2025-10-11T10:27:02.665297+00:00"
+    },
+    "frontend/src/routes/admin/+page.ts": {
+      "checksum": "69df6de61553b3b6bd7cc2d539b70815fdc8fa052a4887706cc9e39ed2cc4412",
+      "updated_at": "2025-10-11T10:27:05.968048+00:00"
+    },
+    "frontend/src/routes/assignments/+layout.svelte": {
+      "checksum": "b030582c2035d50decd460c0b37805e9cff52151c331e03088f7a8bea59699a9",
+      "updated_at": "2025-10-11T10:27:09.915322+00:00"
+    },
+    "frontend/src/routes/assignments/[id]/+page.svelte": {
+      "checksum": "060282b57ba8a220a89a97e25423f1767464e3c537a0fa5dc0063a18a8525156",
+      "updated_at": "2025-10-11T10:30:25.596684+00:00"
+    },
+    "frontend/src/routes/assignments/[id]/tests/+page.svelte": {
+      "checksum": "b97b9e437fc0d66fb0372e6ebfa0123cf17e702370879c125572a53d1a9e1efa",
+      "updated_at": "2025-10-11T10:34:40.085356+00:00"
+    },
+    "frontend/src/routes/classes/+layout.svelte": {
+      "checksum": "90691fecb7ec8e0a0f685803c35c4d53371b86f914266d4d8c5e79c255a56d8a",
+      "updated_at": "2025-10-11T10:30:41.232466+00:00"
+    },
+    "frontend/src/routes/classes/+page.svelte": {
+      "checksum": "27fa5fc9d3036d0ccfecd95bfc5f8180f7f249420889a35a88936aebe17062d9",
+      "updated_at": "2025-10-11T10:30:45.083896+00:00"
+    },
+    "frontend/src/routes/classes/[id]/+page.svelte": {
+      "checksum": "138a16e063befd918afc64dd9e4cb612a4c9600db186be554aba4b6b7d888156",
+      "updated_at": "2025-10-11T10:30:49.784387+00:00"
+    },
+    "frontend/src/routes/classes/[id]/assignments/+page.svelte": {
+      "checksum": "1067dc2d61811c68a3224a01f09bc032d85f5aef5658609f383d5230409c5955",
+      "updated_at": "2025-10-11T10:32:37.151082+00:00"
+    },
+    "frontend/src/routes/classes/[id]/files/+page.svelte": {
+      "checksum": "16f0406001994961b26b6edadb114124a3c1ec4bac0f942b832aa4501f40d464",
+      "updated_at": "2025-10-11T10:34:32.024342+00:00"
+    },
+    "frontend/src/routes/classes/[id]/files/+page.ts": {
+      "checksum": "bd0af0b7a45dc21d51a63f456289382cccfe634d3d9bdbacbdfba44065348df8",
+      "updated_at": "2025-10-11T10:34:33.537202+00:00"
+    },
+    "frontend/src/routes/classes/[id]/forum/+page.svelte": {
+      "checksum": "5ffd56a07dbf4056d848fa36739638545628c9a9b749a6a43585731c639cf162",
+      "updated_at": "2025-10-11T10:35:29.943355+00:00"
+    },
+    "frontend/src/routes/classes/[id]/notes/+page.svelte": {
+      "checksum": "65cf854a0d1230bbc5b11b9ccb947e3ef2d9c3cb020359f271d33b2f43d33f98",
+      "updated_at": "2025-10-11T10:35:29.061697+00:00"
+    },
+    "frontend/src/routes/classes/[id]/notes/+page.ts": {
+      "checksum": "f21b64d615dfbac548e7298fe8d130dfc7e0e148ffb00d6945ac470da791e002",
+      "updated_at": "2025-10-11T10:35:30.566939+00:00"
+    },
+    "frontend/src/routes/classes/[id]/overview/+page.svelte": {
+      "checksum": "c72e7d643b541e1e01f13cd828263a16ec088487b233d7fd158b04fd85a3ec1e",
+      "updated_at": "2025-10-11T10:36:16.565417+00:00"
+    },
+    "frontend/src/routes/classes/[id]/progress/+page.svelte": {
+      "checksum": "7e799e49a39efd109275bdedc4504a1ac31df6aa8510c413edb8a33b55d5b328",
+      "updated_at": "2025-10-11T10:36:28.925875+00:00"
+    },
+    "frontend/src/routes/classes/[id]/progress/[sid]/+page.svelte": {
+      "checksum": "b8f876f6580239f7d299086a987349aadc94a626c1fc36f213963879a8000479",
+      "updated_at": "2025-10-11T10:36:58.298909+00:00"
+    },
+    "frontend/src/routes/classes/[id]/settings/+page.svelte": {
+      "checksum": "de0da77d5b0847a1cf5a53c741fb7fdd45f85adf716acdae62c4308a8e9fae2c",
+      "updated_at": "2025-10-11T10:37:30.969393+00:00"
+    },
+    "frontend/src/routes/dashboard/+page.svelte": {
+      "checksum": "95ab737c3ed2ebd1d411d06f6632a38f2fd3ea2b7246b51e76f8359e7c1b19e4",
+      "updated_at": "2025-10-11T10:38:22.009492+00:00"
+    },
+    "frontend/src/routes/files/[id]/+page.svelte": {
+      "checksum": "9a75d4c8dac740bb4bdad3a7daa00fc3708d73b23427a29c38a3cd26549e8e2b",
+      "updated_at": "2025-10-11T10:37:45.939725+00:00"
+    },
+    "frontend/src/routes/files/[id]/+page.ts": {
+      "checksum": "bd0af0b7a45dc21d51a63f456289382cccfe634d3d9bdbacbdfba44065348df8",
+      "updated_at": "2025-10-11T10:37:46.723895+00:00"
+    },
+    "frontend/src/routes/forgot-password/+page.svelte": {
+      "checksum": "1552a5024c8659eb8fd50787603199bae873be9ef46822761821da2b12bfe204",
+      "updated_at": "2025-10-11T10:38:09.768729+00:00"
+    },
+    "frontend/src/routes/login/+page.svelte": {
+      "checksum": "720fa7f4a2056211d0bcd36433373f2392815a2a960a28a8a8521c9ffdabd79a",
+      "updated_at": "2025-10-11T10:38:50.005971+00:00"
+    },
+    "frontend/src/routes/login/+page.ts": {
+      "checksum": "540b883dcf52dfde5c984c91a0d318fefb4a90eaf14e9355b161b6bdf7032781",
+      "updated_at": "2025-10-11T10:38:25.005367+00:00"
+    },
+    "frontend/src/routes/messages/+page.svelte": {
+      "checksum": "2b29059c834d713e1ef696a28f952946fd8e37305a8455880172c7bf1d464092",
+      "updated_at": "2025-10-11T10:39:48.956634+00:00"
+    },
+    "frontend/src/routes/messages/[id]/+page.svelte": {
+      "checksum": "348f3b8dca14c9697a67518fba69b644aff3e49786eb305790dcfed103929fc9",
+      "updated_at": "2025-10-11T10:39:55.563935+00:00"
+    },
+    "frontend/src/routes/messages/search/+page.svelte": {
+      "checksum": "e0ea0d50291f75410cce7ba6b18ae989c759ff3705543fdc3ea4eef66ad43a40",
+      "updated_at": "2025-10-11T10:39:56.553212+00:00"
+    },
+    "frontend/src/routes/my-classes/+page.svelte": {
+      "checksum": "b1e94c2c65b281c435cfe5482806c9d4549cb6bb3faff7f3e91e099f7c30fa9f",
+      "updated_at": "2025-10-11T10:40:05.218298+00:00"
+    },
+    "frontend/src/routes/register/+page.svelte": {
+      "checksum": "cb316fc92925cd9583ca22e4c3fc11c3015a4b84820c848b72bd6c984bb524f3",
+      "updated_at": "2025-10-11T10:40:34.417058+00:00"
+    },
+    "frontend/src/routes/register/+page.ts": {
+      "checksum": "844b5ef91a708088331a91ccf6fbe7d6064a30d1aa9cc3571f780d0bad1e26f5",
+      "updated_at": "2025-10-11T10:40:07.383761+00:00"
+    },
+    "frontend/src/routes/reset-password/+page.svelte": {
+      "checksum": "473ef8c547111e848a5376a471033c4693a6266360579ac977229eddb22052c1",
+      "updated_at": "2025-10-11T10:40:21.777337+00:00"
+    },
+    "frontend/src/routes/submissions/+page.svelte": {
+      "checksum": "ebc3cb6af10fbd5e3e41444005c8eb18310a31600d0f06db714271024242a56c",
+      "updated_at": "2025-10-11T10:41:14.518018+00:00"
+    },
+    "frontend/src/routes/submissions/[id]/+page.svelte": {
+      "checksum": "42e7e1078271856eec0dbb54d913b8b632629b00b61350820df30a9797ecce7f",
+      "updated_at": "2025-10-11T10:42:07.234242+00:00"
+    },
+    "frontend/src/routes/teachers/+layout.svelte": {
+      "checksum": "d77841dcd13d5c0436e75f413cd909f5b88e62c4478ebab9a1c613371165e01d",
+      "updated_at": "2025-10-11T10:41:21.553674+00:00"
+    },
+    "frontend/src/routes/teachers/+page.svelte": {
+      "checksum": "39dd947b0e29420b392d417b9172835b32e2ae04a3c058bbc4ab8c663433f4c2",
+      "updated_at": "2025-10-11T10:41:24.057137+00:00"
+    },
+    "frontend/src/routes/teachers/assignments/+page.svelte": {
+      "checksum": "eda0b91363c9a93d61aadb19cfdb99a4a635a78663bd22d90f7fd0268a2f5388",
+      "updated_at": "2025-10-11T10:44:00.108017+00:00"
+    },
+    "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte": {
+      "checksum": "0e7402535671f8d1ee409a0003bbd63a571fc327db29570a0d7ceb0aab8582e9",
+      "updated_at": "2025-10-11T10:44:14.764066+00:00"
+    },
+    "frontend/src/routes/teachers/files/+page.svelte": {
+      "checksum": "ee0df3c6e1f733b84f55b627c7f95ffa56466db3dcdb3f82100e383eae5523af",
+      "updated_at": "2025-10-11T10:45:47.748594+00:00"
+    },
+    "frontend/src/routes/teachers/forum/+page.svelte": {
+      "checksum": "7823cb205a1909226afc4243f3d75d4a7049ffe494c833687fac49e714e0cec6",
+      "updated_at": "2025-10-11T10:44:55.481831+00:00"
+    },
+    "frontend/src/routes/verify-email/+page.svelte": {
+      "checksum": "44fe606dca7a2e4868565383c283230f2c44599d122a0330b3f565a001f48fe9",
+      "updated_at": "2025-10-11T10:45:45.414129+00:00"
+    }
+  },
+  "catalogue_checksums": {
+    "cs": "c09cf0bf27890b962b91d6e233024ef2023122159905686162ea3730ef34adf2",
+    "en": "42fce347b5f0b58d43eb2994dedea470a8b4fe51ae037f2481d13a9f1b532bd3"
+  }
+}

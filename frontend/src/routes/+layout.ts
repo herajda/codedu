@@ -1,3 +1,4 @@
+
 import type { LayoutLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
 

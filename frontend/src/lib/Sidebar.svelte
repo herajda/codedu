@@ -5,6 +5,11 @@
   import { auth } from '$lib/auth';
   import { unreadMessages } from '$lib/stores/messages';
   import { classesStore } from '$lib/stores/classes';
+  import { translator } from '$lib/i18n';
+  import type { Translator } from '$lib/i18n';
+
+  let translate: Translator;
+  $: translate = $translator;
 
   $: if ($auth) {
     // Load classes when auth state changes
@@ -48,7 +53,7 @@
             on:click={() => sidebarOpen.set(false)}
           >
             <i class="fa-solid fa-message nav-icon" aria-hidden="true"></i>
-            <span class="truncate">Messages</span>
+            <span class="truncate">{translate('frontend/src/lib/Sidebar.svelte::messages_link')}</span>
             {#if $unreadMessages > 0 && !isSection('/messages')}
               <span class="badge badge-primary badge-sm ml-auto">{$unreadMessages}</span>
             {/if}
@@ -57,7 +62,7 @@
 
         <div class="divider-glow my-3"></div>
 
-        <div class="section-title">Classes</div>
+        <div class="section-title">{translate('frontend/src/lib/Sidebar.svelte::classes_title')}</div>
         <ul class="space-y-2">
           {#each $classesStore.classes as c}
             <li class="nav-collapsible" data-open={isSection(`/classes/${c.id}`)}>
@@ -70,33 +75,33 @@
                   {#if $auth?.role === 'student'}
                     <a class={`nav-sublink ${isActive(`/classes/${c.id}/overview`) ? 'is-active' : ''}`} href={`/classes/${c.id}/overview`} on:click={() => sidebarOpen.set(false)}>
                       <i class="fa-regular fa-compass sub-icon" aria-hidden="true"></i>
-                      <span>Overview</span>
+                      <span>{translate('frontend/src/lib/Sidebar.svelte::class_overview_link')}</span>
                     </a>
                   {/if}
                   <a class={`nav-sublink ${isActive(`/classes/${c.id}/assignments`) ? 'is-active' : ''}`} href={`/classes/${c.id}/assignments`} on:click={() => sidebarOpen.set(false)}>
                     <i class="fa-solid fa-list-check sub-icon" aria-hidden="true"></i>
-                    <span>Assignments</span>
+                    <span>{translate('frontend/src/lib/Sidebar.svelte::class_assignments_link')}</span>
                   </a>
                   <a class={`nav-sublink ${isActive(`/classes/${c.id}/files`) ? 'is-active' : ''}`} href={`/classes/${c.id}/files`} on:click={() => sidebarOpen.set(false)}>
                     <i class="fa-regular fa-folder-open sub-icon" aria-hidden="true"></i>
-                    <span>Files</span>
+                    <span>{translate('frontend/src/lib/Sidebar.svelte::class_files_link')}</span>
                   </a>
                   <a class={`nav-sublink ${isActive(`/classes/${c.id}/notes`) ? 'is-active' : ''}`} href={`/classes/${c.id}/notes`} on:click={() => sidebarOpen.set(false)}>
                     <i class="fa-regular fa-note-sticky sub-icon" aria-hidden="true"></i>
-                    <span>Notes</span>
+                    <span>{translate('frontend/src/lib/Sidebar.svelte::class_notes_link')}</span>
                   </a>
                   <a class={`nav-sublink ${isActive(`/classes/${c.id}/forum`) ? 'is-active' : ''}`} href={`/classes/${c.id}/forum`} on:click={() => sidebarOpen.set(false)}>
                     <i class="fa-regular fa-comments sub-icon" aria-hidden="true"></i>
-                    <span>Forum</span>
+                    <span>{translate('frontend/src/lib/Sidebar.svelte::class_forum_link')}</span>
                   </a>
                   {#if $auth?.role !== 'student'}
                     <a class={`nav-sublink ${isActive(`/classes/${c.id}/progress`) ? 'is-active' : ''}`} href={`/classes/${c.id}/progress`} on:click={() => sidebarOpen.set(false)}>
                       <i class="fa-solid fa-chart-line sub-icon" aria-hidden="true"></i>
-                      <span>Progress</span>
+                      <span>{translate('frontend/src/lib/Sidebar.svelte::class_progress_link')}</span>
                     </a>
                     <a class={`nav-sublink ${isActive(`/classes/${c.id}/settings`) ? 'is-active' : ''}`} href={`/classes/${c.id}/settings`} on:click={() => sidebarOpen.set(false)}>
                       <i class="fa-solid fa-sliders sub-icon" aria-hidden="true"></i>
-                      <span>Settings</span>
+                      <span>{translate('frontend/src/lib/Sidebar.svelte::class_settings_link')}</span>
                     </a>
                   {/if}
                 </div>
@@ -104,10 +109,10 @@
             </li>
           {/each}
           {#if !$classesStore.classes.length && !$classesStore.loading && !$classesStore.error}
-            <li class="text-sm opacity-60">No classes</li>
+            <li class="text-sm opacity-60">{translate('frontend/src/lib/Sidebar.svelte::no_classes_message')}</li>
           {/if}
           {#if $classesStore.loading}
-            <li class="text-sm opacity-60">Loading classes...</li>
+            <li class="text-sm opacity-60">{translate('frontend/src/lib/Sidebar.svelte::loading_classes_message')}</li>
           {/if}
 
           {#if $auth?.role === 'teacher' || $auth?.role === 'admin'}
@@ -115,20 +120,20 @@
               <details open={isSection('/teachers')}>
                 <summary class="nav-summary">
                   <i class="fa-solid fa-people-group nav-icon" aria-hidden="true"></i>
-                  <span class="truncate">Teachers</span>
+                  <span class="truncate">{translate('frontend/src/lib/Sidebar.svelte::teachers_title')}</span>
                 </summary>
                 <div class="nav-group">
                   <a class={`nav-sublink ${isActive('/teachers/forum') ? 'is-active' : ''}`} href="/teachers/forum" on:click={() => sidebarOpen.set(false)}>
                     <i class="fa-regular fa-comments sub-icon" aria-hidden="true"></i>
-                    <span>Forum</span>
+                    <span>{translate('frontend/src/lib/Sidebar.svelte::teachers_forum_link')}</span>
                   </a>
                   <a class={`nav-sublink ${isActive('/teachers/files') ? 'is-active' : ''}`} href="/teachers/files" on:click={() => sidebarOpen.set(false)}>
                     <i class="fa-regular fa-folder-open sub-icon" aria-hidden="true"></i>
-                    <span>Files</span>
+                    <span>{translate('frontend/src/lib/Sidebar.svelte::teachers_files_link')}</span>
                   </a>
                   <a class={`nav-sublink ${isActive('/teachers/assignments') ? 'is-active' : ''}`} href="/teachers/assignments" on:click={() => sidebarOpen.set(false)}>
                     <i class="fa-solid fa-list-check sub-icon" aria-hidden="true"></i>
-                    <span>Assignments</span>
+                    <span>{translate('frontend/src/lib/Sidebar.svelte::teachers_assignments_link')}</span>
                   </a>
                 </div>
               </details>

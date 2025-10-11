@@ -8,6 +8,8 @@ import '@fortawesome/fontawesome-free/css/all.min.css';
 import { compressImage } from '$lib/utils/compressImage';
 import ConfirmModal from '$lib/components/ConfirmModal.svelte';
 import PromptModal from '$lib/components/PromptModal.svelte';
+import { t, translator } from '$lib/i18n'; // Add this
+let translate; $: translate = $translator; // Add this
 
 import { formatDateTime } from "$lib/date";
 let id = $page.params.id;
@@ -154,7 +156,7 @@ async function doUpload() {
     } catch {}
   }
   if (fileToUpload.size > maxFileSize) {
-    uploadErr = 'File exceeds 20 MB limit';
+    uploadErr = t('frontend/src/routes/classes/[id]/files/+page.svelte::file_exceeds_limit');
     return;
   }
   const fd = new FormData();
@@ -183,12 +185,12 @@ async function createDir(name:string){
 
 async function promptDir(){
   const name = await promptModal?.open({
-    title: 'New folder',
-    label: 'Folder name',
-    placeholder: 'e.g. Resources',
-    confirmLabel: 'Create',
+    title: t('frontend/src/routes/classes/[id]/files/+page.svelte::new_folder_title'),
+    label: t('frontend/src/routes/classes/[id]/files/+page.svelte::folder_name_label'),
+    placeholder: t('frontend/src/routes/classes/[id]/files/+page.svelte::folder_name_placeholder'),
+    confirmLabel: t('frontend/src/routes/classes/[id]/files/+page.svelte::create_button_label'),
     icon: 'fa-solid fa-folder-plus text-primary',
-    validate: (value) => value.trim() ? null : 'Folder name is required',
+    validate: (value) => value.trim() ? null : t('frontend/src/routes/classes/[id]/files/+page.svelte::folder_name_required_error'),
     transform: (value) => value.trim()
   });
   if(!name) return;
@@ -216,13 +218,13 @@ async function createNotebook(name: string) {
 
 async function promptNotebook() {
   const notebookName = await promptModal?.open({
-    title: 'New notebook',
-    label: 'Notebook name',
-    initialValue: 'Untitled.ipynb',
-    helpText: 'Saved as a Jupyter notebook (.ipynb).',
-    confirmLabel: 'Create',
+    title: t('frontend/src/routes/classes/[id]/files/+page.svelte::new_notebook_title'),
+    label: t('frontend/src/routes/classes/[id]/files/+page.svelte::notebook_name_label'),
+    initialValue: t('frontend/src/routes/classes/[id]/files/+page.svelte::notebook_name_initial_value'),
+    helpText: t('frontend/src/routes/classes/[id]/files/+page.svelte::notebook_help_text'),
+    confirmLabel: t('frontend/src/routes/classes/[id]/files/+page.svelte::create_button_label'),
     icon: 'fa-solid fa-book text-secondary',
-    validate: (value) => value.trim() ? null : 'Notebook name is required',
+    validate: (value) => value.trim() ? null : t('frontend/src/routes/classes/[id]/files/+page.svelte::notebook_name_required_error'),
     transform: (value) => {
       const trimmed = value.trim();
       if (!trimmed.toLowerCase().endsWith('.ipynb')) return `${trimmed}.ipynb`;
@@ -235,9 +237,9 @@ async function promptNotebook() {
 
 async function del(item:any){
   const confirmed = await confirmModal.open({
-    title: item.is_dir ? 'Delete folder' : 'Delete file',
-    body: item.is_dir ? 'Everything inside this folder will be removed for the class.' : 'This file will be permanently deleted for the class.',
-    confirmLabel: 'Delete',
+    title: item.is_dir ? t('frontend/src/routes/classes/[id]/files/+page.svelte::delete_folder_title') : t('frontend/src/routes/classes/[id]/files/+page.svelte::delete_file_title'),
+    body: item.is_dir ? t('frontend/src/routes/classes/[id]/files/+page.svelte::delete_folder_body') : t('frontend/src/routes/classes/[id]/files/+page.svelte::delete_file_body'),
+    confirmLabel: t('frontend/src/routes/classes/[id]/files/+page.svelte::delete_button_label'),
     confirmClass: 'btn btn-error',
     cancelClass: 'btn'
   });
@@ -248,12 +250,12 @@ async function del(item:any){
 
 async function rename(item:any){
   const name = await promptModal?.open({
-    title: 'Rename',
-    label: 'New name',
+    title: t('frontend/src/routes/classes/[id]/files/+page.svelte::rename_title'),
+    label: t('frontend/src/routes/classes/[id]/files/+page.svelte::new_name_label'),
     initialValue: item.name,
-    confirmLabel: 'Save',
+    confirmLabel: t('frontend/src/routes/classes/[id]/files/+page.svelte::save_button_label'),
     icon: item.is_dir ? 'fa-solid fa-folder text-warning' : 'fa-solid fa-pen text-primary',
-    validate: (value) => value.trim() ? null : 'Name is required',
+    validate: (value) => value.trim() ? null : t('frontend/src/routes/classes/[id]/files/+page.svelte::name_required_error'),
     transform: (value) => value.trim(),
     selectOnOpen: true
   });
@@ -338,7 +340,7 @@ function toggleView() {
       await uploadFiles(files);
       await load(currentParent);
     } catch (er:any) {
-      dropErr = er?.message ?? 'Failed to upload';
+      dropErr = er?.message ?? t('frontend/src/routes/classes/[id]/files/+page.svelte::failed_to_upload_error');
     } finally {
       dropping = false;
     }
@@ -351,7 +353,7 @@ function toggleView() {
         try { fileToUpload = await compressImage(f); } catch {}
       }
       if (fileToUpload.size > maxFileSize) {
-        throw new Error(`${f.name} exceeds 20 MB limit`);
+        throw new Error(t('frontend/src/routes/classes/[id]/files/+page.svelte::file_exceeds_limit_named', { name: f.name }));
       }
       const fd = new FormData();
       if (currentParent !== null) fd.append('parent_id', String(currentParent));
@@ -367,7 +369,7 @@ function fmtSize(bytes: number | null | undefined, decimals = 1) {
   if (bytes == null) return '';
   if (bytes < 1024) return `${bytes} B`;
 
-  const units = ['KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+  const units = [t('frontend/src/routes/classes/[id]/files/+page.svelte::unit_kb'), t('frontend/src/routes/classes/[id]/files/+page.svelte::unit_mb'), t('frontend/src/routes/classes/[id]/files/+page.svelte::unit_gb'), t('frontend/src/routes/classes/[id]/files/+page.svelte::unit_tb'), t('frontend/src/routes/classes/[id]/files/+page.svelte::unit_pb'), t('frontend/src/routes/classes/[id]/files/+page.svelte::unit_eb'), t('frontend/src/routes/classes/[id]/files/+page.svelte::unit_zb'), t('frontend/src/routes/classes/[id]/files/+page.svelte::unit_yb')];
   let i = -1;
   do {
     bytes /= 1024;
@@ -399,14 +401,14 @@ onMount(() => {
   <ul class="flex flex-wrap gap-1 text-sm items-center flex-grow">
     {#each breadcrumbs as b,i}
       <li class="after:mx-1 after:content-['/'] last:after:hidden">
-        <button type="button" class="link px-2 py-1 rounded hover:bg-base-300" on:click={() => crumbTo(i)} aria-label={`Open ${b.name}`}>
+        <button type="button" class="link px-2 py-1 rounded hover:bg-base-300" on:click={() => crumbTo(i)} aria-label={translate('frontend/src/routes/classes/[id]/files/+page.svelte::open_breadcrumb_aria_label', { name: b.name })}>
           {b.name}
         </button>
       </li>
     {/each}
   </ul>
   <div class="flex items-center gap-2 ml-auto">
-    <button class="btn btn-sm btn-circle" on:click={toggleView} title="Toggle view">
+    <button class="btn btn-sm btn-circle" on:click={toggleView} title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::toggle_view_tooltip')}>
       {#if viewMode === 'grid'}
         <i class="fa-solid fa-list"></i>
       {:else}
@@ -416,7 +418,7 @@ onMount(() => {
   </div>
   <div class="flex items-center gap-2 ml-auto w-full sm:w-auto justify-end">
     <div class="relative overflow-hidden flex items-center">
-      <button class="btn btn-sm btn-circle" on:click={toggleSearch} aria-label="Search">
+      <button class="btn btn-sm btn-circle" on:click={toggleSearch} aria-label={translate('frontend/src/routes/classes/[id]/files/+page.svelte::search_button_aria_label')}>
         <i class="fa-solid fa-search"></i>
       </button>
       <input
@@ -425,34 +427,34 @@ onMount(() => {
         style:padding-left={searchOpen ? '0.5rem' : '0'}
         style:padding-right={searchOpen ? '0.5rem' : '0'}
         style:opacity={searchOpen ? '1' : '0'}
-        placeholder="Search"
+        placeholder={translate('frontend/src/routes/classes/[id]/files/+page.svelte::search_placeholder')}
         bind:value={search}
       />
     </div>
       <!-- Sort controls -->
       <div class="dropdown dropdown-end">
-        <button type="button" class="btn btn-sm" tabindex="0" aria-haspopup="listbox" aria-label="Sort options">
-          <i class="fa-solid fa-arrow-up-wide-short mr-2"></i>Sort
+        <button type="button" class="btn btn-sm" tabindex="0" aria-haspopup="listbox" aria-label={translate('frontend/src/routes/classes/[id]/files/+page.svelte::sort_options_aria_label')}>
+          <i class="fa-solid fa-arrow-up-wide-short mr-2"></i>{translate('frontend/src/routes/classes/[id]/files/+page.svelte::sort_button_label')}
         </button>
         <ul class="dropdown-content menu bg-base-200 rounded-box z-[1] w-44 p-2 shadow" tabindex="0" role="listbox">
-          <li><button type="button" class={sortKey==='name' ? 'active' : ''} on:click={() => sortKey='name'} aria-label="Sort by name">Name</button></li>
-          <li><button type="button" class={sortKey==='date' ? 'active' : ''} on:click={() => sortKey='date'} aria-label="Sort by modified">Modified</button></li>
-          <li><button type="button" class={sortKey==='size' ? 'active' : ''} on:click={() => sortKey='size'} aria-label="Sort by size">Size</button></li>
-          <li class="mt-1"><button type="button" on:click={() => sortDir = sortDir==='asc' ? 'desc' : 'asc'} aria-label="Toggle sort direction">
-            Direction: {sortDir === 'asc' ? 'Asc' : 'Desc'}</button></li>
+          <li><button type="button" class={sortKey==='name' ? 'active' : ''} on:click={() => sortKey='name'} aria-label={translate('frontend/src/routes/classes/[id]/files/+page.svelte::sort_by_name_aria_label')}>{translate('frontend/src/routes/classes/[id]/files/+page.svelte::sort_by_name_label')}</button></li>
+          <li><button type="button" class={sortKey==='date' ? 'active' : ''} on:click={() => sortKey='date'} aria-label={translate('frontend/src/routes/classes/[id]/files/+page.svelte::sort_by_modified_aria_label')}>{translate('frontend/src/routes/classes/[id]/files/+page.svelte::sort_by_modified_label')}</button></li>
+          <li><button type="button" class={sortKey==='size' ? 'active' : ''} on:click={() => sortKey='size'} aria-label={translate('frontend/src/routes/classes/[id]/files/+page.svelte::sort_by_size_aria_label')}>{translate('frontend/src/routes/classes/[id]/files/+page.svelte::sort_by_size_label')}</button></li>
+          <li class="mt-1"><button type="button" on:click={() => sortDir = sortDir==='asc' ? 'desc' : 'asc'} aria-label={translate('frontend/src/routes/classes/[id]/files/+page.svelte::toggle_sort_direction_aria_label')}>
+            {translate('frontend/src/routes/classes/[id]/files/+page.svelte::sort_direction_label')}: {sortDir === 'asc' ? translate('frontend/src/routes/classes/[id]/files/+page.svelte::sort_direction_asc') : translate('frontend/src/routes/classes/[id]/files/+page.svelte::sort_direction_desc')}</button></li>
         </ul>
       </div>
   </div>
   {#if role==='teacher' || role==='admin'}
     <div class="flex items-center gap-2 ml-2 w-full sm:w-auto justify-end">
       <div class="dropdown">
-        <button type="button" class="btn btn-sm btn-primary" aria-haspopup="listbox" aria-label="Create menu">
-          <i class="fa-solid fa-plus mr-2"></i>Create
+        <button type="button" class="btn btn-sm btn-primary" aria-haspopup="listbox" aria-label={translate('frontend/src/routes/classes/[id]/files/+page.svelte::create_menu_aria_label')}>
+          <i class="fa-solid fa-plus mr-2"></i>{translate('frontend/src/routes/classes/[id]/files/+page.svelte::create_menu_button_label')}
         </button>
         <ul class="dropdown-content menu bg-base-200 rounded-box z-[1] w-48 p-2 shadow" role="listbox">
-          <li><button type="button" on:click={openUploadDialog}><i class="fa-solid fa-upload mr-2"></i>Upload file</button></li>
-          <li><button type="button" on:click={promptDir}><i class="fa-solid fa-folder-plus mr-2"></i>New folder</button></li>
-          <li><button type="button" on:click={promptNotebook}><i class="fa-solid fa-book-medical mr-2"></i>New notebook</button></li>
+          <li><button type="button" on:click={openUploadDialog}><i class="fa-solid fa-upload mr-2"></i>{translate('frontend/src/routes/classes/[id]/files/+page.svelte::upload_file_menu_item')}</button></li>
+          <li><button type="button" on:click={promptDir}><i class="fa-solid fa-folder-plus mr-2"></i>{translate('frontend/src/routes/classes/[id]/files/+page.svelte::new_folder_menu_item')}</button></li>
+          <li><button type="button" on:click={promptNotebook}><i class="fa-solid fa-book-medical mr-2"></i>{translate('frontend/src/routes/classes/[id]/files/+page.svelte::new_notebook_menu_item')}</button></li>
         </ul>
       </div>
     </div>
@@ -461,26 +463,26 @@ onMount(() => {
 
 <dialog bind:this={uploadDialog} class="modal">
   <div class="modal-box w-11/12 max-w-md space-y-2">
-    <h3 class="font-bold text-lg">Upload file</h3>
+    <h3 class="font-bold text-lg">{translate('frontend/src/routes/classes/[id]/files/+page.svelte::upload_file_dialog_title')}</h3>
     {#if uploadErr}<p class="text-error">{uploadErr}</p>{/if}
     <input type="file" class="file-input file-input-bordered w-full" on:change={e => uploadFile=(e.target as HTMLInputElement).files?.[0] || null}>
     <div class="modal-action">
       <button class="btn" on:click={doUpload} disabled={!uploadFile || uploading}>
-        {#if uploading}<span class="loading loading-dots"></span>{:else}Upload{/if}
+        {#if uploading}<span class="loading loading-dots"></span>{translate('frontend/src/routes/classes/[id]/files/+page.svelte::uploading_button_label')}{:else}{translate('frontend/src/routes/classes/[id]/files/+page.svelte::upload_button_label')}{/if}
       </button>
     </div>
   </div>
-  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  <form method="dialog" class="modal-backdrop"><button>{translate('frontend/src/routes/classes/[id]/files/+page.svelte::close_button_label')}</button></form>
 </dialog>
 
-<div class="relative" role="region" aria-label="File list dropzone"
+<div class="relative" role="region" aria-label={translate('frontend/src/routes/classes/[id]/files/+page.svelte::file_list_dropzone_aria_label')}
      on:dragenter|preventDefault={onDragEnter}
      on:dragleave|preventDefault={onDragLeave}
      on:dragover|preventDefault={onDragOver}
      on:drop|preventDefault={onDrop}>
 
 {#if loading}
-  <p>Loading…</p>
+  <p>{translate('frontend/src/routes/classes/[id]/files/+page.svelte::loading_message')}</p>
 {:else if err}
   <p class="text-error">{err}</p>
 {:else}
@@ -524,11 +526,11 @@ onMount(() => {
 
         {#if role === 'teacher' || role === 'admin'}
           <div class="absolute top-1 right-1 hidden group-hover:flex gap-1">
-            <button class="btn btn-xs btn-circle" title="Rename" aria-label="Rename"
+            <button class="btn btn-xs btn-circle" title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::rename_tooltip')} aria-label={translate('frontend/src/routes/classes/[id]/files/+page.svelte::rename_aria_label')}
                     on:click|stopPropagation={() => rename(it)}>
               <i class="fa-solid fa-pen"></i>
             </button>
-            <button class="btn btn-xs btn-circle btn-error" title="Delete" aria-label="Delete"
+            <button class="btn btn-xs btn-circle btn-error" title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::delete_tooltip')} aria-label={translate('frontend/src/routes/classes/[id]/files/+page.svelte::delete_aria_label')}
                     on:click|stopPropagation={() => del(it)}>
               <i class="fa-solid fa-trash"></i>
             </button>
@@ -538,7 +540,7 @@ onMount(() => {
     {/each}
 
     {#if !visible.length}
-      <p class="col-span-full"><i>No files</i></p>
+      <p class="col-span-full"><i>{translate('frontend/src/routes/classes/[id]/files/+page.svelte::no_files_message')}</i></p>
     {/if}
   </div>
 
@@ -548,9 +550,9 @@ onMount(() => {
     <table class="table table-zebra w-full">
       <thead>
         <tr>
-          <th class="text-left">Name</th>
-          <th class="text-right">Size</th>
-          <th class="text-right">Modified</th>
+          <th class="text-left">{translate('frontend/src/routes/classes/[id]/files/+page.svelte::table_header_name')}</th>
+          <th class="text-right">{translate('frontend/src/routes/classes/[id]/files/+page.svelte::table_header_size')}</th>
+          <th class="text-right">{translate('frontend/src/routes/classes/[id]/files/+page.svelte::table_header_modified')}</th>
           {#if role === 'teacher' || role === 'admin'}<th class="w-16"></th>{/if}
         </tr>
       </thead>
@@ -575,11 +577,11 @@ onMount(() => {
 
             {#if role === 'teacher' || role === 'admin'}
               <td class="text-right whitespace-nowrap w-16">
-                <button class="btn btn-xs btn-circle invisible group-hover:visible" title="Rename" aria-label="Rename"
+                <button class="btn btn-xs btn-circle invisible group-hover:visible" title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::rename_tooltip')} aria-label={translate('frontend/src/routes/classes/[id]/files/+page.svelte::rename_aria_label')}
                         on:click|stopPropagation={() => rename(it)}>
                   <i class="fa-solid fa-pen"></i>
                 </button>
-                <button class="btn btn-xs btn-circle btn-error invisible group-hover:visible" title="Delete" aria-label="Delete"
+                <button class="btn btn-xs btn-circle btn-error invisible group-hover:visible" title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::delete_tooltip')} aria-label={translate('frontend/src/routes/classes/[id]/files/+page.svelte::delete_aria_label')}
                         on:click|stopPropagation={() => del(it)}>
                   <i class="fa-solid fa-trash"></i>
                 </button>
@@ -590,7 +592,7 @@ onMount(() => {
 
         {#if !visible.length}
           <tr>
-            <td colspan={role === 'teacher' || role === 'admin' ? 4 : 3}><i>No files</i></td>
+            <td colspan={role === 'teacher' || role === 'admin' ? 4 : 3}><i>{translate('frontend/src/routes/classes/[id]/files/+page.svelte::no_files_message')}</i></td>
           </tr>
         {/if}
       </tbody>
@@ -602,7 +604,7 @@ onMount(() => {
   <div class="absolute inset-0 z-20 border-4 border-dashed border-primary/60 bg-base-100/70 backdrop-blur-sm rounded-box flex items-center justify-center">
     <div class="text-center">
       <i class="fa-solid fa-cloud-arrow-up text-4xl mb-2"></i>
-      <p class="font-medium">Drop files to upload</p>
+      <p class="font-medium">{translate('frontend/src/routes/classes/[id]/files/+page.svelte::drop_files_to_upload_message')}</p>
     </div>
   </div>
 {/if}
@@ -617,7 +619,7 @@ onMount(() => {
 {#if dropping}
   <div class="fixed bottom-4 right-4 z-30">
     <div class="btn btn-primary btn-sm no-animation">
-      <span class="loading loading-dots loading-xs mr-2"></span>Uploading…
+      <span class="loading loading-dots loading-xs mr-2"></span>{translate('frontend/src/routes/classes/[id]/files/+page.svelte::uploading_message')}
     </div>
   </div>
 {/if}
