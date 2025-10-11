@@ -489,11 +489,11 @@ onMount(() => {
           {#if role === 'teacher' || role === 'admin'}
             <div class="absolute top-1 right-1 hidden group-hover:flex gap-1">
               {#if !it.is_dir}
-                <button class="btn btn-xs btn-circle btn-outline" title="Copy to class" aria-label="Copy to class" on:click|stopPropagation={() => openCopyToClass(it)}>
+                <button class="btn btn-xs btn-circle btn-outline" title={translate('frontend/src/routes/teachers/files/+page.svelte::copy_to_class')} aria-label={translate('frontend/src/routes/teachers/files/+page.svelte::copy_to_class_label')} on:click|stopPropagation={() => openCopyToClass(it)}>
                   <i class="fa-solid fa-copy"></i>
                 </button>
               {/if}
-              <button class="btn btn-xs btn-circle" {translate('frontend/src/routes/teachers/files/+page.svelte::rename_button_title')} aria-label={translate('frontend/src/routes/teachers/files/+page.svelte::rename_button_aria_label')} on:click|stopPropagation={() => rename(it)}><i class="fa-solid fa-pen"></i></button>
+              <button class="btn btn-xs btn-circle" title={translate('frontend/src/routes/teachers/files/+page.svelte::rename_button_title')} aria-label={translate('frontend/src/routes/teachers/files/+page.svelte::rename_button_aria_label')} on:click|stopPropagation={() => rename(it)}><i class="fa-solid fa-pen"></i></button>
               <button class="btn btn-xs btn-circle btn-error" title={translate('frontend/src/routes/teachers/files/+page.svelte::delete_button_title')} aria-label={translate('frontend/src/routes/teachers/files/+page.svelte::delete_button_aria_label')} on:click|stopPropagation={() => del(it)}><i class="fa-solid fa-trash"></i></button>
             </div>
           {/if}
@@ -534,7 +534,7 @@ onMount(() => {
               {#if role === 'teacher' || role === 'admin'}
                 <td class="text-right whitespace-nowrap w-16">
                   {#if !it.is_dir}
-                    <button class="btn btn-xs btn-circle btn-outline invisible group-hover:visible" title="Copy to class" aria-label="Copy to class" on:click|stopPropagation={() => openCopyToClass(it)}>
+                    <button class="btn btn-xs btn-circle btn-outline invisible group-hover:visible" title={translate('frontend/src/routes/teachers/files/+page.svelte::copy_to_class')} aria-label={translate('frontend/src/routes/teachers/files/+page.svelte::copy_to_class_label')} on:click|stopPropagation={() => openCopyToClass(it)}>
                       <i class="fa-solid fa-copy"></i>
                     </button>
                   {/if}
@@ -585,7 +585,7 @@ onMount(() => {
   </dialog>
   <dialog bind:this={copyDialog} class="modal" on:close={resetCopyState}>
     <div class="modal-box max-w-2xl space-y-4">
-      <h3 class="font-bold text-lg">Copy to class</h3>
+      <h3 class="font-bold text-lg">{translate('frontend/src/routes/teachers/files/+page.svelte::copy_to_class')}</h3>
       {#if copyItem}
         <p class="text-sm text-base-content/70 break-all">Source file: {copyItem.name}</p>
       {/if}
@@ -674,7 +674,7 @@ onMount(() => {
         <form method="dialog"><button class="btn">Cancel</button></form>
         <button class="btn btn-primary" on:click|preventDefault={doCopyToClass} disabled={copying || !selectedClassId || !$classesStore.classes.length}>
           {#if copying}<span class="loading loading-dots loading-sm mr-2"></span>{/if}
-          Copy here
+          {translate('frontend/src/routes/teachers/files/+page.svelte::copy_here')}
         </button>
       </div>
     </div>

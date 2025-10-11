@@ -422,7 +422,7 @@
       {/if}
     </button>
     {#if role==='teacher' || role==='admin'}
-      <button class="btn btn-sm btn-outline" on:click={openImportFromTeachers} title="Copy from Teachers' group"><i class="fa-solid fa-copy mr-2"></i>Copy from Teachers' group</button>
+      <button class="btn btn-sm btn-outline" on:click={openImportFromTeachers} title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::upload_notebook_tooltip')}><i class="fa-solid fa-copy mr-2"></i>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::upload_notebook_tooltip')}</button>
       <button class="btn btn-sm" on:click={promptUpload} title="Upload notebook"><i class="fa-solid fa-file-arrow-up mr-2"></i>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::upload_notebook_tooltip')}</button>
       <button class="btn btn-sm btn-primary" on:click={promptNotebook}><i class="fa-solid fa-book-medical mr-2"></i>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::new_notebook_button')}</button>
       <input bind:this={uploadInput} type="file" accept=".ipynb,application/x-ipynb+json,application/json" class="hidden" on:change={handleUploadChange} />
@@ -448,7 +448,7 @@
           </div>
           {#if role==='teacher' || role==='admin'}
             <div class="absolute top-1 right-1 hidden group-hover:flex gap-1">
-              <button class="btn btn-xs btn-circle btn-outline" title="Copy to Teachers' group" aria-label="Copy to Teachers' group" on:click|stopPropagation={() => openCopyToTeachers(n)}>
+              <button class="btn btn-xs btn-circle btn-outline" title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::copy_to_teachers_group')} aria-label={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::copy_to_teachers_group')} on:click|stopPropagation={() => openCopyToTeachers(n)}>
                 <i class="fa-solid fa-copy"></i>
               </button>
               <button class="btn btn-xs btn-circle" title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::rename_tooltip')} aria-label="Rename" on:click|stopPropagation={() => rename(n)}>
@@ -486,7 +486,7 @@
               <td class="text-right">{formatDateTime(n.updated_at)}</td>
               {#if role==='teacher' || role==='admin'}
                 <td class="text-right whitespace-nowrap w-16">
-                  <button class="btn btn-xs btn-circle btn-outline invisible group-hover:visible" title="Copy to Teachers' group" aria-label="Copy to Teachers' group" on:click|stopPropagation={() => openCopyToTeachers(n)}>
+                  <button class="btn btn-xs btn-circle btn-outline invisible group-hover:visible" title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::copy_to_teachers_group')} aria-label={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::copy_to_teachers_group')} on:click|stopPropagation={() => openCopyToTeachers(n)}>
                     <i class="fa-solid fa-copy"></i>
                   </button>
                   <button class="btn btn-xs btn-circle invisible group-hover:visible" title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::rename_tooltip')} aria-label="Rename" on:click|stopPropagation={() => rename(n)}>

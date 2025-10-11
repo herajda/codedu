@@ -624,7 +624,7 @@ onMount(() => {
         {#if role === 'teacher' || role === 'admin'}
           <div class="absolute top-1 right-1 hidden group-hover:flex gap-1">
             {#if !it.is_dir}
-              <button class="btn btn-xs btn-circle btn-outline" title="Copy to Teachers' group" aria-label="Copy to Teachers' group"
+              <button class="btn btn-xs btn-circle btn-outline" title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::copy_to_teachers_group')} aria-label={translate('frontend/src/routes/classes/[id]/files/+page.svelte::copy_to_teachers_group')}
                       on:click|stopPropagation={() => openCopyToTeachers(it)}>
                 <i class="fa-solid fa-copy"></i>
               </button>
@@ -681,7 +681,7 @@ onMount(() => {
             {#if role === 'teacher' || role === 'admin'}
               <td class="text-right whitespace-nowrap w-16">
                 {#if !it.is_dir}
-                  <button class="btn btn-xs btn-circle btn-outline invisible group-hover:visible" title="Copy to Teachers' group" aria-label="Copy to Teachers' group"
+                  <button class="btn btn-xs btn-circle btn-outline invisible group-hover:visible" title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::copy_to_teachers_group')} aria-label={translate('frontend/src/routes/classes/[id]/files/+page.svelte::copy_to_teachers_group')}
                           on:click|stopPropagation={() => openCopyToTeachers(it)}>
                     <i class="fa-solid fa-copy"></i>
                   </button>
