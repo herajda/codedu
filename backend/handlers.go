@@ -76,6 +76,11 @@ type RunSession struct {
 var runSessionsMu sync.Mutex
 var runSessions = map[string]*RunSession{}
 
+var supportedLocales = map[string]struct{}{
+	"en": {},
+	"cs": {},
+}
+
 func isEmptyOrJSON(s string) bool {
 	trimmed := strings.TrimSpace(s)
 	if trimmed == "" {
@@ -3634,6 +3639,7 @@ func updateProfile(c *gin.Context) {
 		Theme              *string `json:"theme"`
 		EmailNotifications *bool   `json:"email_notifications"`
 		EmailMessageDigest *bool   `json:"email_message_digest"`
+		PreferredLocale    *string `json:"preferred_locale"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -3685,7 +3691,22 @@ func updateProfile(c *gin.Context) {
 		}
 		req.Theme = &t
 	}
-	if err := UpdateUserProfile(uid, req.Name, req.Avatar, req.Theme, req.EmailNotifications, req.EmailMessageDigest); err != nil {
+	preferredLocaleProvided := false
+	var preferredLocale *string
+	if req.PreferredLocale != nil {
+		preferredLocaleProvided = true
+		value := strings.ToLower(strings.TrimSpace(*req.PreferredLocale))
+		if value == "" {
+			preferredLocale = nil
+		} else {
+			if _, ok := supportedLocales[value]; !ok {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid locale"})
+				return
+			}
+			preferredLocale = &value
+		}
+	}
+	if err := UpdateUserProfile(uid, req.Name, req.Avatar, req.Theme, req.EmailNotifications, req.EmailMessageDigest, preferredLocale, preferredLocaleProvided); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}

@@ -159,7 +159,7 @@ func main() {
 			if u.Avatar == nil {
 				pick := defaultAvatars[rand.Intn(len(defaultAvatars))]
 				// best-effort update; ignore error but reflect in response
-				_ = UpdateUserProfile(u.ID, nil, &pick, nil, nil, nil)
+				_ = UpdateUserProfile(u.ID, nil, &pick, nil, nil, nil, nil, false)
 				u.Avatar = &pick
 			}
 			c.JSON(http.StatusOK, gin.H{
@@ -171,6 +171,7 @@ func main() {
 				"email":                u.Email,
 				"email_verified":       u.EmailVerified,
 				"theme":                u.Theme,
+				"preferred_locale":     u.PreferredLocale,
 				"email_notifications":  u.EmailNotifications,
 				"email_message_digest": u.EmailMessageDigest,
 			})

@@ -9,14 +9,17 @@
   import { apiFetch, apiJSON } from '$lib/api';
   import { sha256 } from '$lib/hash';
   import { onDestroy, tick } from 'svelte';
+  import { get } from 'svelte/store';
   import { page } from '$app/stores';
   import { createEventSource } from '$lib/sse';
   import { incrementUnreadMessages, resetUnreadMessages, setUnreadMessages } from '$lib/stores/messages';
   import { onlineUsers } from '$lib/stores/onlineUsers';
   import { browser } from '$app/environment';
   import { login as bkLogin, hasBakalari } from '$lib/bakalari';
-  import { applyRuntimeI18n, locale as localeStore, t, translator } from '$lib/i18n';
+  import { applyRuntimeI18n, DEFAULT_LOCALE, locale as localeStore, t, translator } from '$lib/i18n';
+  import { detectLocale as detectLocaleFromHeader, ensureLocale } from '$lib/i18n/detect';
   import type { LayoutData } from './$types';
+  import type { Locale, TranslationDictionary } from '$lib/i18n';
 
   export let data: LayoutData;
 
@@ -56,6 +59,7 @@
   let editingNotifications = false;
   let showBakalariForm = false;
   let showLocalAccountForm = false;
+  let preferredLocaleSelection: '' | Locale = '';
 
   $: trimmedLinkEmail = linkEmail.trim();
   $: linkHasMinLength = linkPassword.length > 8;
@@ -96,6 +100,7 @@
     linkingBakalari = false;
     emailNotifications = user?.email_notifications ?? true;
     emailMessageDigest = user?.email_message_digest ?? true;
+    preferredLocaleSelection = user?.preferred_locale ?? '';
     editingAvatar = false;
     editingName = false;
     editingNotifications = false;
@@ -107,6 +112,46 @@
     // load catalog
     fetch('/api/avatars').then(r => r.ok ? r.json() : []).then((list) => { avatarChoices = list; });
     settingsDialog.showModal();
+  }
+
+  const localeModules = import.meta.glob('../lib/i18n/locales/*.json') as Record<string, () => Promise<{ default: TranslationDictionary }>>;
+
+  async function loadLocaleBundle(locale: Locale): Promise<TranslationDictionary> {
+    if (locale === DEFAULT_LOCALE) {
+      return data.fallbackMessages;
+    }
+    const key = `../lib/i18n/locales/${locale}.json`;
+    const loader = localeModules[key];
+    if (!loader) {
+      return {};
+    }
+    const module = await loader();
+    return module.default ?? {};
+  }
+
+  function detectBrowserLocaleClient(): Locale {
+    if (!browser) {
+      return data.locale ?? DEFAULT_LOCALE;
+    }
+    const languages =
+      Array.isArray(navigator.languages) && navigator.languages.length > 0
+        ? navigator.languages
+        : navigator.language
+          ? [navigator.language]
+          : [];
+    if (languages.length === 0) {
+      return data.locale ?? DEFAULT_LOCALE;
+    }
+    return detectLocaleFromHeader(languages.join(','));
+  }
+
+  async function applyLocalePreference(preferred: string | null | undefined) {
+    const target = preferred && preferred.length > 0 ? ensureLocale(preferred) : detectBrowserLocaleClient();
+    if (get(localeStore) === target) {
+      return;
+    }
+    const bundle = await loadLocaleBundle(target);
+    applyRuntimeI18n(target, bundle, data.fallbackMessages);
   }
 
   const MAX_AVATAR_DIMENSION = 512;
@@ -248,6 +293,10 @@
     if (user?.role === 'student' || user?.role === 'teacher') {
       body.email_message_digest = emailMessageDigest;
     }
+    const currentPreference = user?.preferred_locale ?? '';
+    if (preferredLocaleSelection !== currentPreference) {
+      body.preferred_locale = preferredLocaleSelection;
+    }
     const res = await apiFetch('/api/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (res.ok) {
       const meRes = await apiFetch('/api/me');
@@ -264,7 +313,10 @@
           me.theme ?? null,
           me.email_notifications ?? true,
           me.email_message_digest ?? true,
+          me.preferred_locale ?? null,
         );
+        preferredLocaleSelection = me.preferred_locale ?? '';
+        await applyLocalePreference(me.preferred_locale ?? null);
       }
     }
     settingsDialog.close();
@@ -309,7 +361,10 @@
           me.theme ?? null,
           me.email_notifications ?? true,
           me.email_message_digest ?? true,
+          me.preferred_locale ?? null,
         );
+        preferredLocaleSelection = me.preferred_locale ?? '';
+        await applyLocalePreference(me.preferred_locale ?? null);
       }
       settingsDialog.close();
       const email = typeof data.email === 'string' && data.email.length > 0 ? data.email : trimmedLinkEmail;
@@ -365,7 +420,10 @@
           me.theme ?? null,
           me.email_notifications ?? true,
           me.email_message_digest ?? true,
+          me.preferred_locale ?? null,
         );
+        preferredLocaleSelection = me.preferred_locale ?? '';
+        await applyLocalePreference(me.preferred_locale ?? null);
       }
       bkLinkUsername = '';
       bkLinkPassword = '';
@@ -536,6 +594,7 @@
         prefersDark ? 'dark' : 'light',
         user.email_notifications ?? true,
         user.email_message_digest ?? true,
+        user.preferred_locale ?? null,
       );
       try {
         await apiFetch('/api/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ theme: prefersDark ? 'dark' : 'light' }) });
@@ -832,6 +891,36 @@
                         <p class="text-xs text-base-content/60">{translate('frontend/src/routes/+layout.svelte::bakalari_managed_name_tip')}</p>
                       {/if}
                     {/if}
+                  </div>
+                </section>
+
+                <section class="card border border-base-300/60 bg-base-100 shadow-sm">
+                  <div class="card-body gap-4">
+                    <div class="space-y-2">
+                      <h4 class="card-title text-lg">{translate('frontend/src/routes/+layout.svelte::language_settings_title')}</h4>
+                      <p class="text-sm text-base-content/70">{translate('frontend/src/routes/+layout.svelte::language_settings_description')}</p>
+                    </div>
+                    <div class="form-control w-full max-w-xs space-y-2">
+                      <label class="form-control w-full space-y-1">
+                        <span class="label-text text-sm font-medium text-base-content/80">{translate('frontend/src/routes/+layout.svelte::language_select_label')}</span>
+                        <select class="select select-bordered w-full" bind:value={preferredLocaleSelection}>
+                          <option value="">{translate('frontend/src/routes/+layout.svelte::language_system_default')}</option>
+                          {#each data.availableLocales as code}
+                            <option value={code}>
+                              {translate(`frontend/src/routes/+layout.svelte::language_option_${code}`)}
+                            </option>
+                          {/each}
+                        </select>
+                      </label>
+                      <p class="text-xs text-base-content/60">
+                        {translate('frontend/src/routes/+layout.svelte::language_select_helper')}
+                      </p>
+                      <p class="text-xs text-base-content/60">
+                        {translate('frontend/src/routes/+layout.svelte::language_current_helper', {
+                          language: translate(`frontend/src/routes/+layout.svelte::language_option_${$localeStore}`)
+                        })}
+                      </p>
+                    </div>
                   </div>
                 </section>
 

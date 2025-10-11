@@ -13,6 +13,7 @@ export type User = {
   email_verified?: boolean | null;
   bk_uid?: string | null;
   theme?: "light" | "dark" | null;
+  preferred_locale?: string | null;
   email_notifications?: boolean | null;
   email_message_digest?: boolean | null;
 } | null;
@@ -33,6 +34,7 @@ function createAuth() {
     theme?: "light" | "dark" | null,
     emailNotifications?: boolean | null,
     emailMessageDigest?: boolean | null,
+    preferredLocale?: string | null,
   ) {
     set({
       id,
@@ -43,6 +45,7 @@ function createAuth() {
       email,
       email_verified: emailVerified ?? null,
       theme,
+      preferred_locale: preferredLocale ?? null,
       email_notifications: emailNotifications ?? true,
       email_message_digest: emailMessageDigest ?? true,
     });
@@ -86,6 +89,7 @@ function createAuth() {
           me.theme ?? null,
           me.email_notifications ?? true,
           me.email_message_digest ?? true,
+          me.preferred_locale ?? null,
         );
       } else if (r.status === 401) {
         set(null);

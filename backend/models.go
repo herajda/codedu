@@ -25,6 +25,7 @@ type User struct {
 	Avatar             *string    `db:"avatar"`
 	Role               string     `db:"role"`
 	Theme              string     `db:"theme"`
+	PreferredLocale    *string    `db:"preferred_locale"`
 	EmailNotifications bool       `db:"email_notifications"`
 	EmailMessageDigest bool       `db:"email_message_digest"`
 	EmailVerified      bool       `db:"email_verified"`
@@ -153,7 +154,7 @@ func UpdateUserRole(id uuid.UUID, role string) error {
 
 func GetUser(id uuid.UUID) (*User, error) {
 	var u User
-	err := DB.Get(&u, `SELECT id, email, password_hash, name, avatar, role, theme, email_notifications, email_message_digest, email_verified, email_verified_at, bk_class, bk_uid, created_at
+	err := DB.Get(&u, `SELECT id, email, password_hash, name, avatar, role, theme, preferred_locale, email_notifications, email_message_digest, email_verified, email_verified_at, bk_class, bk_uid, created_at
                 FROM users WHERE id=$1`, id)
 	if err != nil {
 		return nil, err
@@ -161,7 +162,19 @@ func GetUser(id uuid.UUID) (*User, error) {
 	return &u, nil
 }
 
-func UpdateUserProfile(id uuid.UUID, name, avatar, theme *string, notifications, messageDigest *bool) error {
+func UpdateUserProfile(id uuid.UUID, name, avatar, theme *string, notifications, messageDigest *bool, preferredLocale *string, preferredLocaleProvided bool) error {
+	if preferredLocaleProvided {
+		_, err := DB.Exec(`UPDATE users
+		SET name=COALESCE($1,name),
+		    avatar=COALESCE($2,avatar),
+		    theme=COALESCE($3,theme),
+		    email_notifications=COALESCE($4,email_notifications),
+		    email_message_digest=COALESCE($5,email_message_digest),
+		    preferred_locale=$6
+	 WHERE id=$7`, name, avatar, theme, notifications, messageDigest, preferredLocale, id)
+		return err
+	}
+
 	_, err := DB.Exec(`UPDATE users
 		SET name=COALESCE($1,name),
 		    avatar=COALESCE($2,avatar),

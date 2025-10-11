@@ -1,5 +1,5 @@
 import type { LayoutServerLoad } from './$types';
-import { detectLocale } from '$lib/i18n/detect';
+import { detectLocale, ensureLocale } from '$lib/i18n/detect';
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale, type TranslationDictionary } from '$lib/i18n';
 import baseMessages from '$lib/i18n/locales/en.json';
 
@@ -15,9 +15,21 @@ async function loadLocaleDictionary(locale: Locale): Promise<TranslationDictiona
   return module.default ?? {};
 }
 
-export const load: LayoutServerLoad = async ({ request }) => {
+export const load: LayoutServerLoad = async ({ request, fetch }) => {
   const acceptLanguage = request.headers.get('accept-language');
-  const resolvedLocale = detectLocale(acceptLanguage);
+  let resolvedLocale = detectLocale(acceptLanguage);
+
+  try {
+    const meRes = await fetch('/api/me');
+    if (meRes.ok) {
+      const me = (await meRes.json()) as { preferred_locale?: string | null };
+      if (typeof me.preferred_locale === 'string' && me.preferred_locale.length > 0) {
+        resolvedLocale = ensureLocale(me.preferred_locale);
+      }
+    }
+  } catch {
+    // ignore errors and fall back to detected locale
+  }
 
   const messages = resolvedLocale === DEFAULT_LOCALE ? (baseMessages as TranslationDictionary) : await loadLocaleDictionary(resolvedLocale);
 

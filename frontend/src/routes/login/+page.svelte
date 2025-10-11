@@ -73,11 +73,12 @@
         me.name ?? null,
         me.avatar ?? null,
         me.bk_uid ?? null,
-        me.email ?? null,
-        me.email_verified ?? null,
-        me.theme ?? null,
-        me.email_notifications ?? true,
-        me.email_message_digest ?? true
+      me.email ?? null,
+      me.email_verified ?? null,
+      me.theme ?? null,
+      me.email_notifications ?? true,
+      me.email_message_digest ?? true,
+      me.preferred_locale ?? null,
       )
       goto('/dashboard')
     }
@@ -108,11 +109,12 @@
           me.name ?? null,
           me.avatar ?? null,
           me.bk_uid ?? null,
-          me.email ?? null,
-          me.email_verified ?? null,
-          me.theme ?? null,
-          me.email_notifications ?? true,
-          me.email_message_digest ?? true
+      me.email ?? null,
+      me.email_verified ?? null,
+      me.theme ?? null,
+      me.email_notifications ?? true,
+      me.email_message_digest ?? true,
+      me.preferred_locale ?? null,
         )
         goto('/dashboard')
       } catch (e: any) {

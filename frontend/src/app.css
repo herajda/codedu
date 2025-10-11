@@ -99,7 +99,7 @@ img { max-width: 100%; height: auto; }
 }
 .markdown, .editor-preview, .editor-preview-side {
   line-height: 1.5;
-  color: #000; /* Ensure markdown text is black in both viewer and EasyMDE preview */
+  color: hsl(var(--bc)); /* Use theme-aware base content color */
 }
 .markdown p,
 .editor-preview p,
@@ -190,7 +190,7 @@ body.hide-navbar .navbar {
   }
 }
 
-/* EasyMDE toolbar: ensure high-contrast black controls */
+/* EasyMDE toolbar: ensure high-contrast theme-aware controls */
 .editor-toolbar a,
 .editor-toolbar button,
 .editor-toolbar i,
@@ -199,11 +199,11 @@ body.hide-navbar .navbar {
 .editor-toolbar .far,
 .editor-toolbar .fal,
 .editor-toolbar .fab {
-  color: #000 !important;
+  color: hsl(var(--bc)) !important;
 }
 .editor-toolbar a:hover,
 .editor-toolbar button:hover {
-  color: #000 !important;
+  color: hsl(var(--bc)) !important;
 }
 
 /* Keep EasyMDE fullscreen below the sticky top appbar */
@@ -219,10 +219,10 @@ body.hide-navbar .navbar {
   font-size: 0; /* suppress any '|' text node */
 }
 
-/* In side-by-side or preview-only, also enforce black text for content */
+/* In side-by-side or preview-only, use theme-aware text color */
 .editor-preview,
 .editor-preview-side {
-  color: #000 !important;
+  color: hsl(var(--bc)) !important;
 }
 
 /* Accent rings and focus states */
