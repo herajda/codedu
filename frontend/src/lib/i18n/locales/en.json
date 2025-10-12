@@ -658,6 +658,8 @@
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::edit_unittest_method": "Edit unittest method",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::equals": "Equals",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::example_2_3": "e.g. [2,3]",
+  "frontend/src/routes/assignments/[id]/tests/+page.svelte::example_inputs_2_3": "e.g. [2,3]",
+  "frontend/src/routes/assignments/[id]/tests/+page.svelte::example_args_1_2_3": "e.g. [1,2,3]",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::example_6": "e.g. 6",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::example_bad_input": "bad\ninput",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::example_expected_5": "Example: 5",

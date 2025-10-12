@@ -658,6 +658,8 @@
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::edit_unittest_method": "Upravit unittest metodu",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::equals": "Rovná se",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::example_2_3": "např. [2,3]",
+  "frontend/src/routes/assignments/[id]/tests/+page.svelte::example_inputs_2_3": "např. [2,3]",
+  "frontend/src/routes/assignments/[id]/tests/+page.svelte::example_args_1_2_3": "např. [1,2,3]",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::example_6": "např. 6",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::example_bad_input": "špatný\nvstup",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::example_expected_5": "Příklad: 5",
