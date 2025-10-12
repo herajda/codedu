@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
@@ -32,6 +33,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/option"
+	"github.com/openai/openai-go/responses"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -587,13 +591,14 @@ func parseUnittestMethods(src string) []string {
 // generateAITests: POST /api/assignments/:id/tests/ai-generate
 // Calls an LLM (default: GPT-5 via OpenAI API) to generate a Python unittest file
 // and a corresponding builder-friendly JSON plan from the assignment title/description.
+// POST /api/assignments/:id/tests/ai-generate
 func generateAITests(c *gin.Context) {
 	aid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	// Only teachers/admins and must own the assignment if teacher
+	// authz
 	if role := c.GetString("role"); role == "teacher" {
 		if ok, err := IsTeacherOfAssignment(aid, getUserID(c)); err != nil || !ok {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
@@ -611,12 +616,14 @@ func generateAITests(c *gin.Context) {
 		Instructions    string `json:"instructions"`
 		NumTests        int    `json:"num_tests"`
 		AutoTests       bool   `json:"auto_tests"`
-		Mode            string `json:"mode"`
-		CallMode        string `json:"call_mode"`
-		Difficulty      string `json:"difficulty"`
+		Mode            string `json:"mode"`       // "unittest" | "function"
+		CallMode        string `json:"call_mode"`  // "stdin" | "function"
+		Difficulty      string `json:"difficulty"` // "simple" | "hard"
 		TeacherSolution string `json:"teacher_solution"`
 	}
 	_ = c.ShouldBindJSON(&req)
+
+	// defaults + validation
 	if !req.AutoTests && req.NumTests <= 0 {
 		req.NumTests = 5
 	}
@@ -650,11 +657,12 @@ func generateAITests(c *gin.Context) {
 		teacherContext = "None provided."
 	}
 
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if strings.TrimSpace(apiKey) == "" {
+	apiKey := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
+	if apiKey == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "OPENAI_API_KEY not configured on server"})
 		return
 	}
+	// model selection
 	defaultModel := strings.TrimSpace(os.Getenv("OPENAI_MODEL"))
 	if defaultModel == "" {
 		defaultModel = "gpt-5"
@@ -667,21 +675,26 @@ func generateAITests(c *gin.Context) {
 	if difficulty == "simple" {
 		model = simpleModel
 	}
-	base := os.Getenv("OPENAI_API_BASE")
-	if base == "" {
-		base = "https://api.openai.com/v1"
-	}
 
-	// Build prompt
+	base := strings.TrimSpace(os.Getenv("OPENAI_API_BASE")) // optional, defaults to api.openai.com
+	opts := []option.RequestOption{option.WithAPIKey(apiKey)}
+	if base != "" {
+		opts = append(opts, option.WithBaseURL(strings.TrimRight(base, "/")))
+	}
+	client := openai.NewClient(opts...)
+
+	// -------- build prompt text (instructions + input) --------
 	sys := "You are an expert Python educator and testing assistant. Generate high-quality automatic tests."
 	var user string
+
 	if mode == "function" {
 		constraint := ""
 		if req.AutoTests {
-			constraint = "- Choose an appropriate number of function-call cases (typically 4–6) that cover normal usage, edge cases, and error scenarios when applicable."
+			constraint = "- Choose ~4–6 function-call cases covering normal usage, edge cases, and error scenarios when applicable."
 		} else {
-			constraint = fmt.Sprintf("- Provide at least %d distinct function-call cases that cover typical behaviour and edge conditions.", req.NumTests)
+			constraint = fmt.Sprintf("- Provide at least %d distinct function-call cases covering typical behaviour and edge conditions.", req.NumTests)
 		}
+
 		basePrompt := `Design function-call based automatic tests for the following Python assignment.
 
 Constraints:
@@ -691,35 +704,11 @@ Constraints:
 %s
 - Analyse the provided teacher solution to infer expected behaviours. Do not copy its code verbatim into the generated tests.
 
-Return a single JSON object with fields:
-{
-  "python": "<optional helper code or empty string>",
-  "function_builder": {
-    "function_name": "<function students must implement>",
-    "description": "<optional short summary>",
-    "cases": [
-      {
-        "name": "<case identifier>",
-        "description": "<optional human-readable summary>",
-        "args": [/* positional arguments as JSON */],
-        "kwargs": {/* keyword arguments as JSON object or {} */},
-        "expected": /* JSON-serialisable expected return (use null for None) */,
-        "weight": <numeric weight such as 1>,
-        "time_limit": <numeric seconds such as 1>,
-        "notes": "<optional teacher notes>"
-      }
-    ]
-  }
-}
-
-Rules:
-- kwargs must always be a JSON object (use {} when no keyword arguments are needed).
-- Ensure cases are independent and collectively cover success paths and critical edge conditions.
-- Re-use the assignment's specified function signature exactly when provided.
-- Use null when the expected result is None and omit optional fields if not needed.
+Return ONLY a JSON object conforming to the provided JSON Schema.
 
 Assignment title: %s
-Assignment description:\n%s
+Assignment description:
+%s
 
 Additional guidance (optional): %s
 
@@ -732,23 +721,21 @@ Teacher solution (reference only):
 		if callMode == "function" {
 			callInstruction = "- Each test must call student_function('function_name', ...) to import the student's solution function and assert on the returned value."
 		}
-		referenceInstruction := "- Define a helper reference_solution function inside the test module that implements the expected behaviour. Use it to compute expected results before asserting against the student's output."
-		if callMode == "function" {
-			referenceInstruction = "- Define a helper reference_solution function inside the test module that implements the correct behaviour. In each test, compare student_function(...) return values to reference_solution(...) outputs."
-		} else {
-			referenceInstruction = "- Define a helper reference_solution function inside the test module that implements the correct behaviour. In each test, compare student_code(...) stdout to reference_solution(...) outputs."
-		}
-		additionalGuidance := ""
+		refInstruction := "- Define a helper reference_solution(...) inside the test module and compare student results to it."
+		additional := ""
 		if req.AutoTests {
-			additionalGuidance = "- Decide the appropriate number of test methods to ensure thorough coverage (typical cases, edge cases, and error handling)."
+			additional = "- Decide the appropriate number of test methods (typical cases, edge cases, error handling)."
 		} else {
-			additionalGuidance = fmt.Sprintf("- Cover edge cases and typical cases. Add at least %d test methods.", req.NumTests)
+			additional = fmt.Sprintf("- Cover edge cases and typical cases. Add at least %d test methods.", req.NumTests)
 		}
 		if callMode == "function" {
-			additionalGuidance += "\n- Populate builder.callMode with \"function\" and include builder.functionName for each generated test."
+			additional += ` 
+- Populate builder.callMode with "function" and include builder.functionName for each generated test.`
 		} else {
-			additionalGuidance += "\n- Populate builder.callMode with \"stdin\" and leave builder.functionName empty."
+			additional += `
+- Populate builder.callMode with "stdin" and leave builder.functionName empty.`
 		}
+
 		basePrompt := `Create a Python unittest module for the following programming assignment.
 
 Constraints:
@@ -759,81 +746,206 @@ Constraints:
 - Prefer small, independent tests. Avoid flaky or slow tests.
 %s
 
-Return a single JSON object with fields:
-{
-  "python": "<full .py file contents>",
-  "builder": {
-    "class_name": "<TestClassName>",
-    "tests": [
-      {
-        "name": "test_...",
-        "description": "...",
-        "weight": "1",
-        "timeLimit": "1",
-        "assertions": [
-          // Allowed assertion objects (match exactly these shapes):
-          {"kind": "equals", "args": ["..."], "expected": "..."},
-          {"kind": "notEquals", "args": ["..."], "expected": "..."},
-          {"kind": "contains", "args": ["..."], "expected": "..."},
-          {"kind": "notContains", "args": ["..."], "expected": "..."},
-          {"kind": "regex", "args": ["..."], "pattern": "^...$"},
-          {"kind": "raises", "args": ["..."], "exception": "ValueError"},
-          {"kind": "custom", "code": "self.assertTrue(...)"}
-        ]
-      }
-    ]
-  }
-}
+Return ONLY a JSON object conforming to the provided JSON Schema.
 
 Assignment title: %s
-Assignment description:\n%s
+Assignment description:
+%s
 
 Additional guidance (optional): %s
 
 Teacher solution (reference only):
 %s
 `
-		user = fmt.Sprintf(basePrompt, callInstruction, referenceInstruction, additionalGuidance, assign.Title, assign.Description, req.Instructions, teacherContext)
+		user = fmt.Sprintf(basePrompt, callInstruction, refInstruction, additional, assign.Title, assign.Description, req.Instructions, teacherContext)
 	}
 
-	// Call OpenAI Chat Completions
-	payload := map[string]any{
-		"model": model,
-		"messages": []map[string]string{
-			{"role": "system", "content": sys},
-			{"role": "user", "content": user},
+	// -------- JSON Schemas for Structured Outputs (Strict) --------
+	// NOTE: Structured Outputs requires JSON Schema objects with additionalProperties=false
+	// See docs: platform.openai.com/docs/guides/structured-outputs
+	jsonValueDef := map[string]any{
+		"anyOf": []any{
+			map[string]any{"type": "string"},
+			map[string]any{"type": "number"},
+			map[string]any{"type": "integer"},
+			map[string]any{"type": "boolean"},
+			map[string]any{"type": "null"},
+			map[string]any{
+				"type": "array",
+				"items": map[string]any{
+					"$ref": "#/$defs/json_value",
+				},
+			},
+			map[string]any{
+				"type":                 "object",
+				"additionalProperties": map[string]any{"$ref": "#/$defs/json_value"},
+			},
 		},
 	}
-	body, _ := json.Marshal(payload)
-	endpoint := strings.TrimRight(base, "/") + "/chat/completions"
-	reqHTTP, _ := http.NewRequest("POST", endpoint, bytes.NewReader(body))
-	reqHTTP.Header.Set("Authorization", "Bearer "+apiKey)
-	reqHTTP.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(reqHTTP)
-	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "llm request failed"})
-		return
+	anyJSON := map[string]any{
+		"$ref": "#/$defs/json_value",
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 300 {
-		data, _ := io.ReadAll(resp.Body)
-		c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("llm error: %s", strings.TrimSpace(string(data)))})
-		return
-	}
-	var raw struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil || len(raw.Choices) == 0 {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "invalid llm response"})
-		return
-	}
-	content := strings.TrimSpace(raw.Choices[0].Message.Content)
 
-	// Try to parse as JSON bundle
+	functionSchema := map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"$defs": map[string]any{
+			"json_value": jsonValueDef,
+		},
+		"properties": map[string]any{
+			"python": map[string]any{"type": "string"},
+			"function_builder": map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+				"properties": map[string]any{
+					"function_name": map[string]any{"type": "string", "minLength": 1},
+					"description":   map[string]any{"type": "string"},
+					"cases": map[string]any{
+						"type": "array",
+						"items": map[string]any{
+							"type":                 "object",
+							"additionalProperties": false,
+							"properties": map[string]any{
+								"name":        map[string]any{"type": "string"},
+								"description": map[string]any{"type": "string"},
+								"args": map[string]any{
+									"type":  "array",
+									"items": anyJSON,
+								},
+								"kwargs": map[string]any{
+									"type":                 "object",
+									"additionalProperties": anyJSON,
+								},
+								"expected":   anyJSON,
+								"weight":     map[string]any{"type": "number"},
+								"time_limit": map[string]any{"type": "number"},
+								"notes":      map[string]any{"type": "string"},
+							},
+							"required": []string{"name", "args", "kwargs", "expected", "weight", "time_limit"},
+						},
+					},
+				},
+				"required": []string{"function_name", "cases"},
+			},
+		},
+		"required": []string{"function_builder"},
+	}
+
+	unittestSchema := map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"$defs": map[string]any{
+			"json_value": jsonValueDef,
+		},
+		"properties": map[string]any{
+			"python": map[string]any{"type": "string", "minLength": 1},
+			"builder": map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+				"properties": map[string]any{
+					"class_name": map[string]any{"type": "string", "minLength": 1},
+					"tests": map[string]any{
+						"type": "array",
+						"items": map[string]any{
+							"type":                 "object",
+							"additionalProperties": false,
+							"properties": map[string]any{
+								"name":        map[string]any{"type": "string"},
+								"description": map[string]any{"type": "string"},
+								"weight":      map[string]any{"type": "string"}, // keep as string for compatibility
+								"timeLimit":   map[string]any{"type": "string"}, // keep as string for compatibility
+								"callMode":    map[string]any{"type": "string"}, // "stdin" | "function"
+								"functionName": map[string]any{
+									"type": "string",
+								},
+								"assertions": unittestAssertionsSchema(anyJSON),
+							},
+							"required": []string{"name", "description", "weight", "timeLimit", "callMode", "functionName", "assertions"},
+						},
+					},
+				},
+				"required": []string{"class_name", "tests"},
+			},
+		},
+		"required": []string{"python", "builder"},
+	}
+
+	// -------- assemble Responses API params with Structured Outputs --------
+
+	// Select schema based on mode
+	var schema map[string]any
+	var schemaName string
+	if mode == "function" {
+		schema = functionSchema
+		schemaName = "FunctionTestBundle"
+	} else {
+		schema = unittestSchema
+		schemaName = "UnittestBundle"
+	}
+
+	maxOutputTokens := int64(32768)
+	if custom := strings.TrimSpace(os.Getenv("OPENAI_MAX_OUTPUT_TOKENS")); custom != "" {
+		if parsed, err := strconv.ParseInt(custom, 10, 64); err == nil && parsed > 0 {
+			maxOutputTokens = parsed
+		}
+	}
+	params := responses.ResponseNewParams{
+		// models in the Go SDK are string aliases, cast is fine
+		Model:        openai.ChatModel(model),
+		Instructions: openai.String(sys), // acts like system prompt
+		Text: responses.ResponseTextConfigParam{
+			Format: responses.ResponseFormatTextConfigUnionParam{
+				OfJSONSchema: &responses.ResponseFormatTextJSONSchemaConfigParam{
+					Type:        "json_schema",
+					Name:        schemaName,
+					Schema:      schema,
+					Strict:      openai.Bool(true),
+					Description: openai.String("Schema for AI-generated tests bundle"),
+				},
+			},
+		},
+		Input: responses.ResponseNewParamsInputUnion{
+			OfString: openai.String(user),
+		},
+		// keep outputs brief/deterministic
+		MaxOutputTokens: openai.Int(maxOutputTokens),
+	}
+
+	log.Printf(
+		"generateAITests: requesting %s (difficulty=%s mode=%s call_mode=%s auto_tests=%t num_tests=%d max_tokens=%d prompt_len=%d instructions_len=%d)",
+		model,
+		difficulty,
+		mode,
+		callMode,
+		req.AutoTests,
+		req.NumTests,
+		maxOutputTokens,
+		len(user),
+		len(sys),
+	)
+
+	ctx := context.Background()
+	resp, err := client.Responses.New(ctx, params)
+	if err != nil {
+		log.Printf("generateAITests: Responses API error: %v", err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": "llm request failed", "detail": err.Error()})
+		return
+	}
+
+	// With Structured Outputs, OutputText() is guaranteed to be valid JSON matching the schema.
+	rawJSON := resp.OutputText()
+	preview := rawJSON
+	if len(preview) > 512 {
+		preview = preview[:512] + "...(truncated)"
+	}
+	log.Printf(
+		"generateAITests: response id=%s status=%s usage=%+v output_len=%d preview=%s",
+		resp.ID,
+		resp.Status,
+		resp.Usage,
+		len(rawJSON),
+		preview,
+	)
 	var bundle struct {
 		Python  string `json:"python"`
 		Builder struct {
@@ -846,29 +958,11 @@ Teacher solution (reference only):
 			Cases        json.RawMessage `json:"cases"`
 		} `json:"function_builder"`
 	}
-	parsed := json.Unmarshal([]byte(content), &bundle) == nil
-	if parsed {
-		hasContent := strings.TrimSpace(bundle.Python) != "" || strings.TrimSpace(bundle.Builder.ClassName) != "" || len(bundle.Builder.Tests) > 0 || strings.TrimSpace(bundle.FunctionBuilder.FunctionName) != "" || len(bundle.FunctionBuilder.Cases) > 0
-		if !hasContent {
-			parsed = false
-		}
-	}
-	if !parsed {
-		// try to extract fenced JSON``` blocks
-		start := strings.Index(content, "{")
-		end := strings.LastIndex(content, "}")
-		if start >= 0 && end > start {
-			_ = json.Unmarshal([]byte(content[start:end+1]), &bundle)
-			parsed = true
-		}
-	}
 
-	if !parsed {
-		// Fall back: return raw content as python code
-		bundle.Python = content
-		bundle.Builder.ClassName = "TestAssignment"
-		bundle.Builder.Tests = json.RawMessage([]byte("[]"))
-		bundle.FunctionBuilder.Cases = json.RawMessage([]byte("[]"))
+	if err := json.Unmarshal([]byte(rawJSON), &bundle); err != nil {
+		// Extremely unlikely due to Strict schema, but keep a safe fallback
+		c.JSON(http.StatusBadGateway, gin.H{"error": "invalid structured output", "detail": err.Error(), "raw": rawJSON})
+		return
 	}
 
 	result := gin.H{
@@ -880,6 +974,7 @@ Teacher solution (reference only):
 	if teacherSolution != "" {
 		result["teacher_solution"] = teacherSolution
 	}
+	// include builder + function_builder if present
 	if strings.TrimSpace(bundle.Builder.ClassName) != "" || len(bundle.Builder.Tests) > 0 {
 		result["builder"] = gin.H{
 			"class_name": bundle.Builder.ClassName,
@@ -888,7 +983,7 @@ Teacher solution (reference only):
 	}
 	if mode == "function" || strings.TrimSpace(bundle.FunctionBuilder.FunctionName) != "" || strings.TrimSpace(bundle.FunctionBuilder.Description) != "" || len(bundle.FunctionBuilder.Cases) > 0 {
 		cases := bundle.FunctionBuilder.Cases
-		if cases == nil {
+		if len(cases) == 0 {
 			cases = json.RawMessage([]byte("[]"))
 		}
 		result["function_builder"] = gin.H{
@@ -899,6 +994,31 @@ Teacher solution (reference only):
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+func unittestAssertionsSchema(anyJSON map[string]any) map[string]any {
+	return map[string]any{
+		"type": "array",
+		"items": map[string]any{
+			"type":                 "object",
+			"additionalProperties": false,
+			"properties": map[string]any{
+				"kind": map[string]any{
+					"type": "string",
+					"enum": []string{"equals", "notEquals", "contains", "notContains", "regex", "raises", "custom"},
+				},
+				"args": map[string]any{
+					"type":  "array",
+					"items": anyJSON,
+				},
+				"expected":  anyJSON,
+				"pattern":   map[string]any{"type": "string"},
+				"exception": map[string]any{"type": "string"},
+				"code":      map[string]any{"type": "string"},
+			},
+			"required": []string{"kind", "args", "expected", "pattern", "exception", "code"},
+		},
+	}
 }
 
 // getTemplate: GET /api/assignments/:id/template
