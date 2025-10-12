@@ -885,7 +885,7 @@ Teacher solution (reference only):
 		schemaName = "UnittestBundle"
 	}
 
-	maxOutputTokens := int64(32768)
+	maxOutputTokens := int64(65536)
 	if custom := strings.TrimSpace(os.Getenv("OPENAI_MAX_OUTPUT_TOKENS")); custom != "" {
 		if parsed, err := strconv.ParseInt(custom, 10, 64); err == nil && parsed > 0 {
 			maxOutputTokens = parsed
