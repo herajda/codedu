@@ -80,6 +80,16 @@ import traceback
 MARKER = "===GRADER_JSON==="
 
 
+def normalize_value(value):
+    if isinstance(value, tuple):
+        return [normalize_value(v) for v in value]
+    if isinstance(value, list):
+        return [normalize_value(v) for v in value]
+    if isinstance(value, dict):
+        return {k: normalize_value(v) for k, v in value.items()}
+    return value
+
+
 def load_module(path: str):
     spec = importlib.util.spec_from_file_location("student_module", path)
     module = importlib.util.module_from_spec(spec)
@@ -119,23 +129,34 @@ def main():
         sentinel = object()
         expected = cfg.get('expected', sentinel)
         if expected is not sentinel:
+            normalized_expected = normalize_value(expected)
+            normalized_value = normalize_value(value)
             try:
-                equal = value == expected
+                equal = normalized_value == normalized_expected
             except Exception as cmp_exc:  # noqa: BLE001
                 equal = False
                 result['compare_exception'] = repr(cmp_exc)
             result['passed'] = bool(equal)
             result['expected_repr'] = repr(expected)
             try:
-                result['expected_json'] = json.dumps(expected)
+                result['expected_json'] = json.dumps(normalized_expected)
             except TypeError:
                 result['expected_json'] = None
+            if isinstance(value, tuple):
+                result['comparison_note'] = 'Compared after normalizing tuple return to list.'
+        else:
+            normalized_value = normalize_value(value)
 
         result['return_repr'] = repr(value)
         try:
             result['return_json'] = json.dumps(value)
         except TypeError:
             result['return_json'] = None
+        if normalized_value is not value:
+            try:
+                result['return_json_normalized'] = json.dumps(normalized_value)
+            except TypeError:
+                result['return_json_normalized'] = None
 
     except Exception as exc:  # noqa: BLE001
         result['status'] = 'exception'

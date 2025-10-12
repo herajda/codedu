@@ -636,102 +636,108 @@ func runSubmission(id uuid.UUID) {
 	allPass := true
 	totalWeight := 0.0
 	earnedWeight := 0.0
-        for _, tc := range tests {
-                timeout := time.Duration(tc.TimeLimitSec * float64(time.Second))
-                var stdout, stderr string
-                var exitCode int
-                var timedOut bool
-                var runtime time.Duration
-                var actualReturn *string
-                mode := strings.TrimSpace(tc.ExecutionMode)
-                if mode == "" {
-                        if tc.UnittestName != nil {
-                                mode = "unittest"
-                        } else if tc.FunctionName != nil {
-                                mode = "function"
-                        } else {
-                                mode = "stdin_stdout"
-                        }
-                }
+	for _, tc := range tests {
+		timeout := time.Duration(tc.TimeLimitSec * float64(time.Second))
+		var stdout, stderr string
+		var exitCode int
+		var timedOut bool
+		var runtime time.Duration
+		var actualReturn *string
+		mode := strings.TrimSpace(tc.ExecutionMode)
+		if mode == "" {
+			if tc.UnittestName != nil {
+				mode = "unittest"
+			} else if tc.FunctionName != nil {
+				mode = "function"
+			} else {
+				mode = "stdin_stdout"
+			}
+		}
 
-                var funcMeta *functionCallResult
-                var funcErr error
+		var funcMeta *functionCallResult
+		var funcErr error
 
-                switch mode {
-                case "unittest":
-                        stdout, stderr, exitCode, timedOut, runtime = executePythonUnit(tmpDir, mainFile, stringOrEmpty(tc.UnittestCode), stringOrEmpty(tc.UnittestName), timeout)
-                case "function":
-                        fn := strings.TrimSpace(stringOrEmpty(tc.FunctionName))
-                        cfg := functionCallConfig{FunctionName: fn, ArgsJSON: tc.FunctionArgs, KwargsJSON: tc.FunctionKwargs, ExpectedJSON: tc.ExpectedReturn}
-                        stdout, stderr, exitCode, timedOut, runtime, funcMeta, funcErr = runFunctionCall(tmpDir, mainFile, cfg, timeout)
-                        if funcErr != nil {
-                                stderr = funcErr.Error()
-                                exitCode = -1
-                        }
-                        if funcMeta != nil {
-                                if funcMeta.Stdout != "" {
-                                        stdout = funcMeta.Stdout
-                                }
-                                if funcMeta.ReturnJSON != nil && *funcMeta.ReturnJSON != "" {
-                                        actualReturn = funcMeta.ReturnJSON
-                                } else if strings.TrimSpace(funcMeta.ReturnRepr) != "" {
-                                        rr := funcMeta.ReturnRepr
-                                        actualReturn = &rr
-                                }
-                                if funcMeta.Traceback != "" {
-                                        stderr = funcMeta.Traceback
-                                }
-                                if funcMeta.Status == "exception" && stderr == "" {
-                                        stderr = funcMeta.Exception
-                                }
-                        }
-                default:
-                        stdout, stderr, exitCode, timedOut, runtime = executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
-                }
+		switch mode {
+		case "unittest":
+			stdout, stderr, exitCode, timedOut, runtime = executePythonUnit(tmpDir, mainFile, stringOrEmpty(tc.UnittestCode), stringOrEmpty(tc.UnittestName), timeout)
+		case "function":
+			fn := strings.TrimSpace(stringOrEmpty(tc.FunctionName))
+			cfg := functionCallConfig{FunctionName: fn, ArgsJSON: tc.FunctionArgs, KwargsJSON: tc.FunctionKwargs, ExpectedJSON: tc.ExpectedReturn}
+			stdout, stderr, exitCode, timedOut, runtime, funcMeta, funcErr = runFunctionCall(tmpDir, mainFile, cfg, timeout)
+			if funcErr != nil {
+				stderr = funcErr.Error()
+				exitCode = -1
+			}
+			if funcMeta != nil {
+				if funcMeta.Stdout != "" {
+					stdout = funcMeta.Stdout
+				}
+				if funcMeta.ReturnJSON != nil && *funcMeta.ReturnJSON != "" {
+					actualReturn = funcMeta.ReturnJSON
+				} else if strings.TrimSpace(funcMeta.ReturnRepr) != "" {
+					rr := funcMeta.ReturnRepr
+					actualReturn = &rr
+				}
+				if funcMeta.Traceback != "" {
+					stderr = funcMeta.Traceback
+				}
+				if funcMeta.Status == "exception" && stderr == "" {
+					stderr = funcMeta.Exception
+				}
+			}
+		default:
+			stdout, stderr, exitCode, timedOut, runtime = executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
+			stdout = trimTrailingNewline(stdout)
+		}
 
-                status := "passed"
-                switch mode {
-                case "unittest":
-                        if timedOut {
-                                status = "time_limit_exceeded"
-                        } else if exitCode != 0 {
-                                if strings.Contains(stdout, "===JUDGE:ASSERT_FAIL===") {
-                                        status = "wrong_output"
-                                } else {
-                                        status = "runtime_error"
-                                }
-                        }
-                case "function":
-                        if funcErr != nil {
-                                status = "runtime_error"
-                        } else if timedOut {
-                                status = "time_limit_exceeded"
-                        } else if funcMeta != nil {
-                                if funcMeta.Status == "exception" {
-                                        status = "runtime_error"
-                                } else if !funcMeta.Passed {
-                                        status = "wrong_output"
-                                }
-                        } else if exitCode != 0 {
-                                status = "runtime_error"
-                        }
-                default:
-                        switch {
-                        case timedOut:
-                                status = "time_limit_exceeded"
-                        case exitCode != 0:
-                                status = "runtime_error"
-                        case strings.TrimSpace(stdout) != strings.TrimSpace(tc.ExpectedStdout):
-                                status = "wrong_output"
-                        }
-                }
+		expectedStdout := tc.ExpectedStdout
+		if mode == "stdin_stdout" {
+			expectedStdout = trimTrailingNewline(expectedStdout)
+		}
 
-                res := &Result{SubmissionID: id, TestCaseID: tc.ID, Status: status, ActualStdout: stdout, Stderr: stderr, ExitCode: exitCode, RuntimeMS: int(runtime.Milliseconds()), ActualReturn: actualReturn}
-                CreateResult(res)
-                totalWeight += tc.Weight
-                if status != "passed" {
-                        allPass = false
-                } else {
+		status := "passed"
+		switch mode {
+		case "unittest":
+			if timedOut {
+				status = "time_limit_exceeded"
+			} else if exitCode != 0 {
+				if strings.Contains(stdout, "===JUDGE:ASSERT_FAIL===") {
+					status = "wrong_output"
+				} else {
+					status = "runtime_error"
+				}
+			}
+		case "function":
+			if funcErr != nil {
+				status = "runtime_error"
+			} else if timedOut {
+				status = "time_limit_exceeded"
+			} else if funcMeta != nil {
+				if funcMeta.Status == "exception" {
+					status = "runtime_error"
+				} else if !funcMeta.Passed {
+					status = "wrong_output"
+				}
+			} else if exitCode != 0 {
+				status = "runtime_error"
+			}
+		default:
+			switch {
+			case timedOut:
+				status = "time_limit_exceeded"
+			case exitCode != 0:
+				status = "runtime_error"
+			case stdout != expectedStdout:
+				status = "wrong_output"
+			}
+		}
+
+		res := &Result{SubmissionID: id, TestCaseID: tc.ID, Status: status, ActualStdout: stdout, Stderr: stderr, ExitCode: exitCode, RuntimeMS: int(runtime.Milliseconds()), ActualReturn: actualReturn}
+		CreateResult(res)
+		totalWeight += tc.Weight
+		if status != "passed" {
+			allPass = false
+		} else {
 			earnedWeight += tc.Weight
 		}
 	}
@@ -1948,7 +1954,7 @@ func executePythonUnit(dir, mainFile, testCode, testName string, timeout time.Du
 	_ = ensureDockerImage(pythonImage)
 	abs, _ := filepath.Abs(dir)
 	testPath := filepath.Join(dir, "run_test.py")
-        content := fmt.Sprintf(`import sys, unittest, builtins, io, types
+	content := fmt.Sprintf(`import sys, unittest, builtins, io, types
 
 # prevent provided test modules from auto-running all tests (e.g., unittest.main())
 # so that we can selectively run a single test method by name below

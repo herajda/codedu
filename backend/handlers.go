@@ -717,9 +717,9 @@ Teacher solution (reference only):
 `
 		user = fmt.Sprintf(basePrompt, constraint, assign.Title, assign.Description, req.Instructions, teacherContext)
 	} else {
-		callInstruction := "- Each test must call student_code(...) to execute the student's program with stdin-style inputs and assert on stdout."
+		callInstruction := "- Each test must call student_code(...) to execute the student's program with stdin-style inputs and assert on stdout.\n- Pass each stdin value as a separate argument (e.g., student_code(\"1\", \"2\", \"3\")) in the order the program reads them.\n- Compare stdout against the exact expected string, using \\n for multi-line output when needed.\n- Avoid adding a trailing newline at the end of expected stdout; encode intentional blank lines explicitly within the string."
 		if callMode == "function" {
-			callInstruction = "- Each test must call student_function('function_name', ...) to import the student's solution function and assert on the returned value."
+			callInstruction = "- Each test must call student_function('function_name', ...) to import the student's solution function and assert on the returned value.\n- When the function returns multiple values, encode the expected tuple as a JSON array (e.g., [value1, value2]) so the builder knows each element."
 		}
 		refInstruction := "- Define a helper reference_solution(...) inside the test module and compare student results to it."
 		additional := ""
@@ -730,10 +730,12 @@ Teacher solution (reference only):
 		}
 		if callMode == "function" {
 			additional += ` 
-- Populate builder.callMode with "function" and include builder.functionName for each generated test.`
+- Populate builder.callMode with "function" and include builder.functionName for each generated test.
+- Represent tuple or multi-value returns in builder.cases[].expected as JSON arrays in the order they appear in the tuple.`
 		} else {
 			additional += `
-- Populate builder.callMode with "stdin" and leave builder.functionName empty.`
+- Populate builder.callMode with "stdin" and leave builder.functionName empty.
+- Provide builder.tests[].assertions[].args as a JSON array of stdin values in read order (e.g., ["1", "2", "3"]). Use \\n inside expected stdout when it spans multiple lines.`
 		}
 
 		basePrompt := `Create a Python unittest module for the following programming assignment.
@@ -1522,6 +1524,78 @@ func createSubmission(c *gin.Context) {
 	c.JSON(http.StatusCreated, sub)
 }
 
+type previewTestPayload struct {
+	ExecutionMode  string   `json:"execution_mode"`
+	UnittestCode   string   `json:"unittest_code"`
+	UnittestName   string   `json:"unittest_name"`
+	TimeLimitSec   *float64 `json:"time_limit_sec"`
+	Weight         *float64 `json:"weight"`
+	Stdin          string   `json:"stdin"`
+	ExpectedStdout string   `json:"expected_stdout"`
+	FunctionName   *string  `json:"function_name"`
+	FunctionArgs   *string  `json:"function_args"`
+	FunctionKwargs *string  `json:"function_kwargs"`
+	ExpectedReturn *string  `json:"expected_return"`
+}
+
+func (p previewTestPayload) toTestCase(aid uuid.UUID) (TestCase, error) {
+	mode := strings.TrimSpace(p.ExecutionMode)
+	if mode == "" {
+		mode = "unittest"
+	}
+	tc := TestCase{
+		AssignmentID:   aid,
+		ExecutionMode:  mode,
+		Weight:         1,
+		TimeLimitSec:   1,
+		Stdin:          p.Stdin,
+		ExpectedStdout: p.ExpectedStdout,
+	}
+	if p.Weight != nil && *p.Weight >= 0 {
+		tc.Weight = *p.Weight
+	}
+	if p.TimeLimitSec != nil && *p.TimeLimitSec > 0 {
+		tc.TimeLimitSec = *p.TimeLimitSec
+	}
+
+	switch mode {
+	case "unittest":
+		code := strings.TrimSpace(p.UnittestCode)
+		name := strings.TrimSpace(p.UnittestName)
+		if code == "" || name == "" {
+			return TestCase{}, fmt.Errorf("preview unittest missing code or name")
+		}
+		tc.UnittestCode = &code
+		tc.UnittestName = &name
+	case "function":
+		if p.FunctionName == nil {
+			return TestCase{}, fmt.Errorf("preview function test missing function_name")
+		}
+		fn := strings.TrimSpace(*p.FunctionName)
+		if fn == "" {
+			return TestCase{}, fmt.Errorf("preview function test missing function_name")
+		}
+		tc.FunctionName = &fn
+		if p.FunctionArgs != nil {
+			args := *p.FunctionArgs
+			tc.FunctionArgs = &args
+		}
+		if p.FunctionKwargs != nil {
+			kwargs := *p.FunctionKwargs
+			tc.FunctionKwargs = &kwargs
+		}
+		if p.ExpectedReturn != nil {
+			ret := *p.ExpectedReturn
+			tc.ExpectedReturn = &ret
+		}
+	case "stdin_stdout":
+		// nothing extra required
+	default:
+		return TestCase{}, fmt.Errorf("invalid preview execution mode")
+	}
+	return tc, nil
+}
+
 // runTeacherSolution: POST /api/assignments/:id/solution-run
 // Allows a teacher/admin to upload a reference solution and run all tests.
 // Does not persist a submission or results; returns a summary JSON immediately.
@@ -1622,7 +1696,7 @@ func runTeacherSolution(c *gin.Context) {
 	})
 	_ = ensureSandboxPerms(tmpDir)
 
-	tests, err := ListTestCases(aid)
+	persistedTests, err := ListTestCases(aid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
@@ -1634,12 +1708,49 @@ func runTeacherSolution(c *gin.Context) {
 		return
 	}
 
+	type runCase struct {
+		TestCase
+		Preview bool
+		TempID  string
+	}
+	runCases := make([]runCase, 0, len(persistedTests))
+	for _, tc := range persistedTests {
+		runCases = append(runCases, runCase{TestCase: tc})
+	}
+
+	previewRaw := strings.TrimSpace(c.PostForm("preview_tests"))
+	if previewRaw == "" && c.Request.MultipartForm != nil {
+		if vals := c.Request.MultipartForm.Value["preview_tests"]; len(vals) > 0 {
+			previewRaw = strings.TrimSpace(vals[0])
+		}
+	}
+	if previewRaw != "" {
+		var payload []previewTestPayload
+		if err := json.Unmarshal([]byte(previewRaw), &payload); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid preview tests"})
+			return
+		}
+		previewIdx := 1
+		for _, p := range payload {
+			tc, convErr := p.toTestCase(aid)
+			if convErr != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": convErr.Error()})
+				return
+			}
+			tempID := fmt.Sprintf("preview-%d", previewIdx)
+			runCases = append(runCases, runCase{TestCase: tc, Preview: true, TempID: tempID})
+			previewIdx++
+		}
+	}
+
 	// Execute all tests and gather results without persisting
-	results := make([]map[string]any, 0, len(tests))
-	passed := 0
-	totalWeight := 0.0
-	earnedWeight := 0.0
-	for _, tc := range tests {
+	results := make([]map[string]any, 0, len(runCases))
+	summaryPassed := 0
+	persistedPassed := 0
+	persistedTotalWeight := 0.0
+	persistedEarnedWeight := 0.0
+	for _, rc := range runCases {
+		tc := rc.TestCase
 		timeout := time.Duration(tc.TimeLimitSec * float64(time.Second))
 		var stdout, stderr string
 		var exitCode int
@@ -1701,6 +1812,12 @@ func runTeacherSolution(c *gin.Context) {
 			}
 		default:
 			stdout, stderr, exitCode, timedOut, runtime = executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
+			stdout = trimTrailingNewline(stdout)
+		}
+
+		expectedStdout := tc.ExpectedStdout
+		if mode == "stdin_stdout" {
+			expectedStdout = trimTrailingNewline(expectedStdout)
 		}
 
 		status := "passed"
@@ -1735,19 +1852,23 @@ func runTeacherSolution(c *gin.Context) {
 				status = "time_limit_exceeded"
 			case exitCode != 0:
 				status = "runtime_error"
-			case strings.TrimSpace(stdout) != strings.TrimSpace(tc.ExpectedStdout):
+			case stdout != expectedStdout:
 				status = "wrong_output"
 			}
 		}
 
 		if status == "passed" {
-			passed++
-			earnedWeight += tc.Weight
+			summaryPassed++
+			if !rc.Preview {
+				persistedPassed++
+				persistedEarnedWeight += tc.Weight
+			}
 		}
-		totalWeight += tc.Weight
+		if !rc.Preview {
+			persistedTotalWeight += tc.Weight
+		}
 
 		item := map[string]any{
-			"test_case_id":    tc.ID,
 			"unittest_name":   tc.UnittestName,
 			"status":          status,
 			"runtime_ms":      int(runtime.Milliseconds()),
@@ -1768,6 +1889,16 @@ func runTeacherSolution(c *gin.Context) {
 			if actualReturn != nil {
 				item["actual_return"] = *actualReturn
 			}
+		}
+		if rc.Preview {
+			item["preview"] = true
+			if rc.TempID != "" {
+				item["test_case_id"] = rc.TempID
+			} else {
+				item["test_case_id"] = fmt.Sprintf("preview-%d", len(results)+1)
+			}
+		} else {
+			item["test_case_id"] = tc.ID
 		}
 		results = append(results, item)
 	}
@@ -1808,9 +1939,20 @@ func runTeacherSolution(c *gin.Context) {
 		_ = CreateSubmission(sub)
 	}
 	// Save per-test results to DB (so later details are available)
-	for i, tc := range tests {
+	for i, rc := range runCases {
+		if rc.Preview {
+			continue
+		}
 		item := results[i]
-		r := &Result{SubmissionID: sub.ID, TestCaseID: tc.ID, Status: item["status"].(string), ActualStdout: fmt.Sprint(item["actual_stdout"]), Stderr: fmt.Sprint(item["stderr"]), ExitCode: item["exit_code"].(int), RuntimeMS: item["runtime_ms"].(int)}
+		r := &Result{
+			SubmissionID: sub.ID,
+			TestCaseID:   rc.ID,
+			Status:       item["status"].(string),
+			ActualStdout: fmt.Sprint(item["actual_stdout"]),
+			Stderr:       fmt.Sprint(item["stderr"]),
+			ExitCode:     item["exit_code"].(int),
+			RuntimeMS:    item["runtime_ms"].(int),
+		}
 		if ar, ok := item["actual_return"].(string); ok && ar != "" {
 			r.ActualReturn = &ar
 		}
@@ -1818,7 +1960,7 @@ func runTeacherSolution(c *gin.Context) {
 	}
 
 	// Compute and persist overall status and points similar to worker
-	allPass := passed == len(tests)
+	allPass := persistedPassed == len(persistedTests)
 	if !assignment.LLMInteractive {
 		score := 0.0
 		switch assignment.GradingPolicy {
@@ -1828,8 +1970,8 @@ func runTeacherSolution(c *gin.Context) {
 			}
 		case "weighted":
 			// normalize to MaxPoints
-			if totalWeight > 0 {
-				score = earnedWeight * (float64(assignment.MaxPoints) / totalWeight)
+			if persistedTotalWeight > 0 {
+				score = persistedEarnedWeight * (float64(assignment.MaxPoints) / persistedTotalWeight)
 			}
 		}
 
@@ -1856,9 +1998,16 @@ func runTeacherSolution(c *gin.Context) {
 	}
 
 	// Save teacher baseline (plan+results) on assignment so student runs can use it as standard
+	persistedResultPayload := make([]map[string]any, 0, len(persistedTests))
+	for i, rc := range runCases {
+		if rc.Preview {
+			continue
+		}
+		persistedResultPayload = append(persistedResultPayload, results[i])
+	}
 	baseline := map[string]any{
-		"tests":      results,
-		"summary":    map[string]any{"total": len(tests), "passed": passed},
+		"tests":      persistedResultPayload,
+		"summary":    map[string]any{"total": len(persistedTests), "passed": persistedPassed},
 		"created_at": time.Now().Format(time.RFC3339Nano),
 	}
 	if b, e := json.Marshal(baseline); e == nil {
@@ -1869,9 +2018,9 @@ func runTeacherSolution(c *gin.Context) {
 
 	resp := gin.H{
 		"submission_id": sub.ID,
-		"total":         len(tests),
-		"passed":        passed,
-		"failed":        len(tests) - passed,
+		"total":         len(runCases),
+		"passed":        summaryPassed,
+		"failed":        len(runCases) - summaryPassed,
 		"results":       results,
 	}
 

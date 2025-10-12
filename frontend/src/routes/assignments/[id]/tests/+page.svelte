@@ -100,12 +100,28 @@
   let fnMeta: FnMeta | null = null
   let fnCases: FnCase[] = []
 
+  type GeneratedStateSnapshot = {
+    aiCode: string
+    utClassName: string
+    utSetup: string
+    utTeardown: string
+    utTests: UTTest[]
+    hasAIBuilder: boolean
+    builderMode: typeof builderMode
+    utPreviewCode: string
+    utShowPreview: boolean
+    showAdvanced: boolean
+  }
+
   // ──────────────────────────────────────────────────────
   // Unittest per-method view/edit helpers
   // ──────────────────────────────────────────────────────
   let editDialog: HTMLDialogElement
   let editingTest: any = null
   let editingMethodCode = ''
+  let saveModal: HTMLDialogElement
+  let undoPending: { testIds: string[]; snapshot: GeneratedStateSnapshot | null } | null = null
+  let undoLoading = false
 
   function normalizeIndent(block: string): { lines: string[]; base: number } {
     const raw = String(block || '').replace(/\r\n?/g, '\n')
@@ -881,6 +897,158 @@
     } catch {}
   }
 
+  function cloneUTAssertion(a: UTAssertion): UTAssertion {
+    switch (a.kind) {
+      case 'custom':
+        return { kind: 'custom', code: a.code }
+      case 'regex':
+        return { kind: 'regex', args: [...a.args], pattern: a.pattern }
+      case 'raises':
+        return { kind: 'raises', args: [...a.args], exception: a.exception }
+      default:
+        return { kind: a.kind, args: [...a.args], expected: a.expected }
+    }
+  }
+
+  function cloneUTTests(list: UTTest[]): UTTest[] {
+    return list.map((t) => ({
+      ...t,
+      assertions: t.assertions.map((a) => cloneUTAssertion(a))
+    }))
+  }
+
+  function captureGeneratedState(): GeneratedStateSnapshot | null {
+    if (!aiCode.trim() && utTests.length === 0) {
+      return null
+    }
+    return {
+      aiCode,
+      utClassName,
+      utSetup,
+      utTeardown,
+      utTests: cloneUTTests(utTests),
+      hasAIBuilder,
+      builderMode,
+      utPreviewCode,
+      utShowPreview,
+      showAdvanced
+    }
+  }
+
+  function restoreGeneratedState(snapshot: GeneratedStateSnapshot | null) {
+    if (!snapshot) return
+    aiCode = snapshot.aiCode
+    utClassName = snapshot.utClassName
+    utSetup = snapshot.utSetup
+    utTeardown = snapshot.utTeardown
+    utTests = cloneUTTests(snapshot.utTests)
+    hasAIBuilder = snapshot.hasAIBuilder
+    builderMode = snapshot.builderMode
+    utPreviewCode = snapshot.utPreviewCode
+    utShowPreview = snapshot.utShowPreview
+    showAdvanced = snapshot.showAdvanced
+  }
+
+  function clearGeneratedState() {
+    aiCode = ''
+    hasAIBuilder = false
+    utShowPreview = false
+    utClassName = 'TestAssignment'
+    utSetup = ''
+    utTeardown = ''
+    utTests = []
+    utPreviewCode = ''
+    showAdvanced = false
+    copiedPreview = false
+    builderMode = 'unittest'
+    teacherRun = null
+    fnCases = []
+    fnMeta = null
+    fnSignature = ''
+    fnSignatureError = ''
+    hasFunctionBuilder = false
+  }
+
+  function parseUnittestMethodsFromCode(src: string): string[] {
+    const lines = src.split('\n')
+    const classRE = /^class\s+(\w+)\s*\(.*unittest\.TestCase.*\):/
+    const methodRE = /^\s*def\s+(test_[A-Za-z0-9_]+)\s*\(/
+    const methods: string[] = []
+    let current = ''
+    let indent = 0
+    for (const line of lines) {
+      const classMatch = line.match(classRE)
+      if (classMatch) {
+        current = classMatch[1]
+        indent = line.length - line.trimStart().length
+        continue
+      }
+      if (!current) continue
+      if (line.trim() !== '' && line.length - line.trimStart().length <= indent) {
+        current = ''
+        continue
+      }
+      const methodMatch = line.match(methodRE)
+      if (methodMatch && current) {
+        methods.push(`${current}.${methodMatch[1]}`)
+      }
+    }
+    return methods
+  }
+
+  function collectPreviewTestsForRun(): any[] {
+    if (builderMode !== 'unittest') return []
+    const builderHasTests = utTests.length > 0
+    const code = builderHasTests ? generateUnittestCode() : aiCode
+    const trimmed = String(code || '').trim()
+    if (!trimmed) return []
+
+    if (builderHasTests) {
+      const className = (utClassName || 'TestAssignment').trim() || 'TestAssignment'
+      return utTests.map((t) => {
+        const methodName = t.name.startsWith('test_') ? t.name : `test_${t.name}`
+        const parsedTime = Number.parseFloat(String(t.timeLimit ?? ''))
+        const parsedWeight = Number.parseFloat(String(t.weight ?? ''))
+        const timeLimit = Number.isFinite(parsedTime) && parsedTime > 0 ? parsedTime : 1
+        const useWeight =
+          assignment?.grading_policy === 'weighted'
+            ? Number.isFinite(parsedWeight) && parsedWeight >= 0
+              ? parsedWeight
+              : 1
+            : 1
+        return {
+          execution_mode: 'unittest',
+          unittest_code: trimmed,
+          unittest_name: `${className}.${methodName}`,
+          time_limit_sec: timeLimit,
+          weight: useWeight
+        }
+      })
+    }
+
+    const methods = parseUnittestMethodsFromCode(trimmed)
+    if (methods.length === 0) return []
+    return methods.map((name) => ({
+      execution_mode: 'unittest',
+      unittest_code: trimmed,
+      unittest_name: name,
+      time_limit_sec: 1,
+      weight: 1
+    }))
+  }
+
+  function clickExistingTestsTab() {
+    const label = translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::existing_tests')
+    const existingTab = document.querySelector(`input[name="tests-tab"][aria-label="${label}"]`) as HTMLInputElement | null
+    existingTab?.click()
+  }
+
+  function clickAITestsTab() {
+    const label = translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_generate')
+    const aiTab = document.querySelector(`input[name="tests-tab"][aria-label="${label}"]`) as HTMLInputElement | null
+    aiTab?.click()
+  }
+
   // ──────────────────────────────────────────────────────
   // AI generator actions
   // ──────────────────────────────────────────────────────
@@ -1202,23 +1370,37 @@
     }
     if (!aiCode.trim()) return
     try {
+      const snapshot = captureGeneratedState()
+      const beforeIds = new Set((tests ?? []).map((t: any) => String(t.id)))
       const blob = new Blob([aiCode], { type: 'text/x-python' })
       const file = new File([blob], 'ai_tests.py', { type: 'text/x-python' })
       const fd = new FormData()
       fd.append('file', file)
       await apiFetch(`/api/assignments/${id}/tests/upload`, { method: 'POST', body: fd })
       await load()
+      const newIds = (tests ?? [])
+        .map((t: any) => String(t.id))
+        .filter((tid) => !beforeIds.has(tid))
+      undoPending = { testIds: newIds, snapshot }
+      clearGeneratedState()
+      clickExistingTestsTab()
+      saveModal?.showModal()
     } catch (e: any) {
       err = e.message
     }
   }
   async function runTeacherSolution() {
     if (!teacherSolutionFile) return
+    teacherRun = null
     teacherRunLoading = true
     err = ''
     try {
       const fd = new FormData()
       fd.append('file', teacherSolutionFile)
+      const previewTests = collectPreviewTestsForRun()
+      if (previewTests.length) {
+        fd.append('preview_tests', JSON.stringify(previewTests))
+      }
       const res = await apiJSON(`/api/assignments/${id}/solution-run`, { method: 'POST', body: fd })
       teacherRun = res
     } catch (e: any) {
@@ -1230,6 +1412,8 @@
 
   async function uploadGeneratedUnitTests() {
     try {
+      const snapshot = captureGeneratedState()
+      const beforeIds = new Set((tests ?? []).map((t: any) => String(t.id)))
       const code = generateUnittestCode()
       const normalizedCode = code.replace(/\r\n/g, '\n')
       const blob = new Blob([code], { type: 'text/x-python' })
@@ -1295,19 +1479,41 @@
         })
       }
       await load()
-      utShowPreview = false
-      utClassName = 'TestAssignment'
-      utSetup = ''
-      utTeardown = ''
-      utTests = []
-      utPreviewCode = ''
-      showAdvanced = false
-      copiedPreview = false
-      const existingTab = document.querySelector('input[name="tests-tab"][aria-label="Existing tests"]') as HTMLInputElement | null
-      existingTab?.click()
+      const newIds = (tests ?? [])
+        .map((t: any) => String(t.id))
+        .filter((tid) => !beforeIds.has(tid))
+      undoPending = { testIds: newIds, snapshot }
+      clearGeneratedState()
+      clickExistingTestsTab()
+      saveModal?.showModal()
       err = ''
     } catch (e: any) {
       err = e.message
+    }
+  }
+
+  async function undoLastSave() {
+    if (!undoPending) {
+      saveModal?.close()
+      return
+    }
+    undoLoading = true
+    err = ''
+    try {
+      for (const tid of undoPending.testIds) {
+        if (!tid) continue
+        await apiFetch(`/api/tests/${tid}`, { method: 'DELETE' })
+      }
+      await load()
+      restoreGeneratedState(undoPending.snapshot ?? null)
+      teacherRun = null
+      undoPending = null
+      clickAITestsTab()
+      saveModal?.close()
+    } catch (e: any) {
+      err = e.message
+    } finally {
+      undoLoading = false
     }
   }
 
@@ -1560,11 +1766,11 @@
                   <div class="grid sm:grid-cols-2 gap-2">
                     <label class="form-control w-full space-y-1">
                       <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::input')}</span>
-                      <input class="input input-bordered w-full" placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin')} bind:value={t.stdin}>
+                      <textarea class="textarea textarea-bordered w-full" rows="3" placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin')} bind:value={t.stdin}></textarea>
                     </label>
                     <label class="form-control w-full space-y-1">
                       <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_output')}</span>
-                      <input class="input input-bordered w-full" placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_stdout')} bind:value={t.expected_stdout}>
+                      <textarea class="textarea textarea-bordered w-full" rows="3" placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_stdout')} bind:value={t.expected_stdout}></textarea>
                     </label>
                   </div>
                 {/if}
@@ -1593,11 +1799,11 @@
             <div class="grid gap-2" class:sm:grid-cols-2={assignment?.grading_policy === 'weighted'}>
               <label class="form-control w-full space-y-1">
                 <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::input')}</span>
-                <input class="input input-bordered w-full" placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin')} bind:value={tStdin}>
+                <textarea class="textarea textarea-bordered w-full" rows="3" placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin')} bind:value={tStdin}></textarea>
               </label>
               <label class="form-control w-full space-y-1">
                 <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_output')}</span>
-                <input class="input input-bordered w-full" placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_stdout')} bind:value={tStdout}>
+                <textarea class="textarea textarea-bordered w-full" rows="3" placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_stdout')} bind:value={tStdout}></textarea>
               </label>
               <label class="form-control w-full space-y-1">
                 <span class="label-text flex items-center gap-1"><Clock size={14}/> <span>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::time_limit_s')}</span></span>
@@ -1609,6 +1815,7 @@
                   <input class="input input-bordered w-full" placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::points_placeholder')} bind:value={tWeight}>
                 </label>
               {/if}
+              <p class="hint sm:col-span-2">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin_stdout_multiline_hint')}</p>
             </div>
             <div>
               <button class="btn btn-primary" on:click={addTest} disabled={!tStdin || !tStdout}><Plus size={16}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::add')}</button>
@@ -1763,12 +1970,12 @@
                             </label>
                             <label class="form-control w-full space-y-1">
                               <span class="label-text">{ut.callMode === 'function' ? translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_python_expression') : translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_output')}</span>
-                              <input
-                                class="input input-bordered w-full"
+                              <textarea
+                                class="textarea textarea-bordered h-24"
                                 value={getExpected(a)}
-                                on:input={(e) => setExpected(a, (e.target as HTMLInputElement).value)}
+                                on:input={(e) => setExpected(a, (e.target as HTMLTextAreaElement).value)}
                                 placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::example_expected_5')}
-                              >
+                              ></textarea>
                             </label>
                           </div>
                         {/if}
@@ -2048,7 +2255,7 @@
                   <div class="space-y-2">
                     <span class="section-label">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::additional_instructions_optional')}</span>
                     <textarea class="textarea textarea-bordered min-h-[110px]" bind:value={aiInstructions} placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::edge_cases_to_cover_placeholder')}></textarea>
-                    <p class="hint">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_edit_hint')}</p>
+                    <p class="hint">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_instructions_hint')}</p>
                   </div>
                 </section>
 
@@ -2099,7 +2306,11 @@
                             <div class="result-item">
                               <div class="flex items-center justify-between text-xs font-medium">
                                 <div class="flex items-center gap-2">
-                                  <span class="badge badge-outline badge-sm">#{r.test_case_id}</span>
+                                  {#if r.preview}
+                                    <span class="badge badge-secondary badge-sm">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::preview_badge')}</span>
+                                  {:else if r.test_case_id}
+                                    <span class="badge badge-outline badge-sm">#{r.test_case_id}</span>
+                                  {/if}
                                   {#if r.unittest_name}<span class="badge badge-primary badge-sm">{r.unittest_name}</span>{/if}
                                 </div>
                                 <span class="badge {r.status === 'passed' ? 'badge-success' : 'badge-error'} badge-sm">
@@ -2189,6 +2400,23 @@
       <button class="btn" on:click={saveEditUnitTest}><Save size={16}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::save')}</button>
       <form method="dialog">
         <button class="btn btn-ghost" on:click={closeEditUnitTest}>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::close')}</button>
+      </form>
+    </div>
+  </div>
+</dialog>
+
+<dialog bind:this={saveModal} class="modal" on:close={() => { if (!undoLoading) undoPending = null }}>
+  <div class="modal-box space-y-3">
+    <h3 class="font-semibold">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::tests_saved_title')}</h3>
+    <p class="text-sm opacity-80">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::tests_saved_body')}</p>
+    <div class="modal-action">
+      {#if undoPending && (undoPending.testIds.length > 0 || undoPending.snapshot)}
+        <button class="btn btn-outline" on:click={undoLastSave} disabled={undoLoading}>
+          {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::undo_save_button')}
+        </button>
+      {/if}
+      <form method="dialog">
+        <button class="btn" disabled={undoLoading}>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::close')}</button>
       </form>
     </div>
   </div>
