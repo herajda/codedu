@@ -15,3 +15,34 @@ func trimTrailingNewline(out string) string {
 	}
 	return out
 }
+
+// normalizeLineEndings maps CRLF/CR to LF for easier comparisons.
+func normalizeLineEndings(s string) string {
+	if !strings.Contains(s, "\r") {
+		return s
+	}
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	return strings.ReplaceAll(s, "\r", "\n")
+}
+
+// interpretCommonEscapes expands simple escape sequences (e.g., \n, \t) found in literals.
+func interpretCommonEscapes(s string) string {
+	if !strings.Contains(s, `\`) {
+		return s
+	}
+	replacer := strings.NewReplacer(
+		`\r\n`, "\n",
+		`\n`, "\n",
+		`\r`, "\n",
+		`\t`, "\t",
+	)
+	return replacer.Replace(s)
+}
+
+func normalizeActualStdout(s string) string {
+	return normalizeLineEndings(s)
+}
+
+func normalizeExpectedStdout(s string) string {
+	return interpretCommonEscapes(normalizeLineEndings(s))
+}

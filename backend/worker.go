@@ -687,12 +687,12 @@ func runSubmission(id uuid.UUID) {
 			}
 		default:
 			stdout, stderr, exitCode, timedOut, runtime = executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
-			stdout = trimTrailingNewline(stdout)
+			stdout = normalizeActualStdout(trimTrailingNewline(stdout))
 		}
 
 		expectedStdout := tc.ExpectedStdout
 		if mode == "stdin_stdout" {
-			expectedStdout = trimTrailingNewline(expectedStdout)
+			expectedStdout = normalizeExpectedStdout(trimTrailingNewline(expectedStdout))
 		}
 
 		status := "passed"
@@ -1965,6 +1965,72 @@ unittest.main = __grader_noop__
 
 student_source = open('%s').read()
 
+def _normalize_line_endings(text):
+    if isinstance(text, str):
+        return text.replace('\r\n', '\n').replace('\r', '\n')
+    return text
+
+def _interpret_escape_sequences(text):
+    if isinstance(text, str) and '\\' in text:
+        text = text.replace('\\r\\n', '\n')
+        text = text.replace('\\n', '\n')
+        text = text.replace('\\r', '\n')
+        text = text.replace('\\t', '\t')
+    return text
+
+def _normalize_expected_value(value):
+    if isinstance(value, str):
+        return _normalize_line_endings(_interpret_escape_sequences(value))
+    return value
+
+class _StudentOutput(str):
+    __slots__ = ()
+    __student_output__ = True
+
+_orig_assert_equal = unittest.TestCase.assertEqual
+def _patched_assert_equal(self, first, second, msg=None):
+    if getattr(first, '__student_output__', False):
+        first_norm = _normalize_line_endings(str(first))
+        second_norm = _normalize_expected_value(second)
+    elif getattr(second, '__student_output__', False):
+        first_norm = _normalize_expected_value(first)
+        second_norm = _normalize_line_endings(str(second))
+    else:
+        return _orig_assert_equal(self, first, second, msg)
+    return _orig_assert_equal(self, first_norm, second_norm, msg)
+unittest.TestCase.assertEqual = _patched_assert_equal
+
+_orig_assert_not_equal = unittest.TestCase.assertNotEqual
+def _patched_assert_not_equal(self, first, second, msg=None):
+    if getattr(first, '__student_output__', False):
+        first_norm = _normalize_line_endings(str(first))
+        second_norm = _normalize_expected_value(second)
+    elif getattr(second, '__student_output__', False):
+        first_norm = _normalize_expected_value(first)
+        second_norm = _normalize_line_endings(str(second))
+    else:
+        return _orig_assert_not_equal(self, first, second, msg)
+    return _orig_assert_not_equal(self, first_norm, second_norm, msg)
+unittest.TestCase.assertNotEqual = _patched_assert_not_equal
+
+_orig_assert_in = unittest.TestCase.assertIn
+def _patched_assert_in(self, member, container, msg=None):
+    if getattr(container, '__student_output__', False):
+        container = _normalize_line_endings(str(container))
+    if isinstance(member, str):
+        member = _normalize_expected_value(member)
+    return _orig_assert_in(self, member, container, msg)
+unittest.TestCase.assertIn = _patched_assert_in
+
+_orig_assert_not_in = unittest.TestCase.assertNotIn
+def _patched_assert_not_in(self, member, container, msg=None):
+    if getattr(container, '__student_output__', False):
+        container = _normalize_line_endings(str(container))
+    if isinstance(member, str):
+        member = _normalize_expected_value(member)
+    return _orig_assert_not_in(self, member, container, msg)
+unittest.TestCase.assertNotIn = _patched_assert_not_in
+
 def _load_student_module():
     module = types.ModuleType('__student__')
     exec(student_source, module.__dict__)
@@ -1990,7 +2056,7 @@ def student_code(*args):
     glb = {'__name__':'__main__'}
     exec(student_source, glb)
     sys.stdout = old
-    return out.getvalue().strip()
+    return _StudentOutput(_normalize_line_endings(out.getvalue()).strip())
 
 def student_function(function_path, *args, **kwargs):
     module = _load_student_module()
