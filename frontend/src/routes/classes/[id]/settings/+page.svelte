@@ -25,6 +25,7 @@
   let search = '';
   let addDialog: HTMLDialogElement;
   let deleteDialog: HTMLDialogElement;
+  let removeStudentDialog: HTMLDialogElement;
   let existingStudentIds: Set<number> = new Set();
   $: existingStudentIds = new Set(students.map((s) => s.id));
   // reactive filtered students for add modal
@@ -101,11 +102,28 @@
     } catch (e: any) { err = e.message }
   }
 
+  let studentToRemove: any = null;
+
+  function promptRemoveStudent(student: any) {
+    studentToRemove = student;
+    removeStudentDialog?.showModal();
+  }
+
   async function removeStudent(sid: number) {
     try {
       await apiFetch(`/api/classes/${id}/students/${sid}`, { method: 'DELETE' });
       await load();
-    } catch (e: any) { err = e.message }
+      return true;
+    } catch (e: any) { err = e.message; return false; }
+  }
+
+  async function confirmRemoveStudent() {
+    if (!studentToRemove) return;
+    const ok = await removeStudent(studentToRemove.id);
+    if (ok) {
+      removeStudentDialog?.close();
+      studentToRemove = null;
+    }
   }
 
   function openAddModal() {
@@ -214,7 +232,7 @@
                       <p class="text-xs text-base-content/60 truncate">ID: {s.id}</p>
                     </div>
                     {#if role === 'teacher' || role === 'admin'}
-                      <button class="btn btn-ghost btn-xs text-error ml-auto" title={t('frontend/src/routes/classes/[id]/settings/+page.svelte::remove_student')} on:click={() => removeStudent(s.id)}>
+                      <button class="btn btn-ghost btn-xs text-error ml-auto" title={t('frontend/src/routes/classes/[id]/settings/+page.svelte::remove_student')} on:click={() => promptRemoveStudent(s)}>
                         <UserMinus class="size-4" />
                       </button>
                     {/if}
@@ -316,6 +334,27 @@
           <button class="btn btn-ghost" on:click={() => { selectedIDs = []; }} disabled={!selectedIDs.length}>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::clear')}</button>
           <button class="btn btn-primary" on:click={addStudents} disabled={!selectedIDs.length}>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::add_selected')}</button>
         </div>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::close')}</button></form>
+  </dialog>
+
+  <!-- Remove student confirm modal -->
+  <dialog bind:this={removeStudentDialog} class="modal" on:close={() => (studentToRemove = null)}>
+    <div class="modal-box">
+      <h3 class="font-bold text-lg flex items-center gap-2 text-error">
+        <UserMinus class="size-5" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::remove_student_modal_title')}
+      </h3>
+      <p class="py-3">
+        {translate('frontend/src/routes/classes/[id]/settings/+page.svelte::remove_student_modal_body', {
+          name: studentToRemove ? displayName(studentToRemove) : ''
+        })}
+      </p>
+      <div class="modal-action">
+        <form method="dialog" class="mr-auto">
+          <button class="btn">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::cancel')}</button>
+        </form>
+        <button class="btn btn-error" on:click={confirmRemoveStudent}>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::remove_student_modal_confirm')}</button>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::close')}</button></form>
