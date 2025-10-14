@@ -1046,6 +1046,7 @@
   "frontend/src/routes/login/+page.svelte::couldnt_fetch_user_info": "Nepodařilo se načíst uživatelské informace",
   "frontend/src/routes/login/+page.svelte::email_placeholder": "E-mail",
   "frontend/src/routes/login/+page.svelte::email_tab": "E-mail",
+  "frontend/src/routes/login/+page.svelte::bakalari_tab": "Bakaláři",
   "frontend/src/routes/login/+page.svelte::log_in_button": "Přihlásit se",
   "frontend/src/routes/login/+page.svelte::log_in_title": "Přihlášení",
   "frontend/src/routes/login/+page.svelte::login_failed": "Přihlášení se nezdařilo",

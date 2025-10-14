@@ -124,13 +124,29 @@
   </script>
   
   <h1 class="text-3xl font-bold text-center mb-6">{t('frontend/src/routes/login/+page.svelte::log_in_title')}</h1>
-    <div role="tablist" class="tabs tabs-boxed justify-center mb-6">
-    <a role="tab" class="tab {mode==='local' ? 'tab-active' : ''}" on:click={() => mode = 'local'}>{t('frontend/src/routes/login/+page.svelte::email_tab')}</a>
-    {#if hasBakalari}
-      <a role="tab" class="tab {mode==='bakalari' ? 'tab-active' : ''}" on:click={() => mode = 'bakalari'}>
-        <img src="/bakalari-logo.svg" alt="Bakalari" class="w-16 h-16" />
-      </a>
-    {/if}
+  <div role="tablist" aria-label="Login method" class="flex justify-center mb-6">
+    <div class="inline-flex items-center gap-1 rounded-lg bg-base-200 p-1">
+      <button
+        role="tab"
+        aria-selected={mode === 'local'}
+        class="px-4 py-2 rounded-md transition font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 {mode==='local' ? 'bg-base-100 text-primary shadow ring-1 ring-primary/30' : 'text-base-content/70 hover:text-base-content'}"
+        on:click={() => mode = 'local'}
+      >
+        {t('frontend/src/routes/login/+page.svelte::email_tab')}
+      </button>
+      {#if hasBakalari}
+        <button
+          role="tab"
+          aria-selected={mode === 'bakalari'}
+          class="px-4 py-2 rounded-md transition font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 {mode==='bakalari' ? 'bg-base-100 text-primary shadow ring-1 ring-primary/30' : 'text-base-content/70 hover:text-base-content'}"
+          on:click={() => mode = 'bakalari'}
+        >
+          <span class="inline-flex items-center gap-2">
+            {t('frontend/src/routes/login/+page.svelte::bakalari_tab')}
+          </span>
+        </button>
+      {/if}
+    </div>
   </div>
   <div class="flex justify-center">
     {#if mode === 'local' || !hasBakalari}
