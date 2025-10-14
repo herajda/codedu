@@ -186,7 +186,7 @@ func FindUserByEmail(email string) (*User, error) {
 	err := DB.Get(&u, `
             SELECT id, email, password_hash, name, role, email_verified, email_verified_at, bk_class, bk_uid
               FROM users
-             WHERE email = $1`,
+             WHERE LOWER(email) = LOWER($1)`,
 		email,
 	)
 	if err != nil {
