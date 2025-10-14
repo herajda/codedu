@@ -48,6 +48,7 @@ docker-compose.override.yml
 volumes/
 tmp/
 *.pid
+backups/
 
 # ---------------------
 # PostgreSQL (dev)

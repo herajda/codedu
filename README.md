@@ -97,6 +97,13 @@ The system is fully Dockerized for simple setup using `docker-compose`.
 
 Stopping the application (`docker compose down`) keeps the database running because it lives in its own Compose project. When you really need to shut the database down, run `docker compose -f docker-compose.db.yml down`.
 
+### Database Backups
+- The `docker-compose.yml` stack also starts a `db-backup` service that connects to the shared `codedu_appnet` network and performs a `pg_dump` every three hours (`0 */3 * * *`).
+- Backups are written in gzip-compressed format to `./backups/local` (for on-host recovery) and `./backups/gcs` (as a staging area for your GCS bucket sync). Both directories are created automatically if they do not exist.
+- Old archives in each directory are pruned after seven days. Longer retention can be handled by your GCS bucket lifecycle policies once you sync the staged files.
+- Inspect the container logs with `docker compose logs -f db-backup` to verify dumps or troubleshoot connection issues.
+- The service also triggers an initial dump when it starts so you can confirm connectivity immediately.
+
 ### Environment Variables
 The backend expects several variables to be set (usually via a `.env` file):
 

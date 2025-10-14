@@ -72,6 +72,27 @@ services:
       - runner_shared:/sandbox:z
     networks: [appnet]
 
+  db-backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    user: "0:0"
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: codedu_db
+      POSTGRES_USER: codedu_user
+      POSTGRES_PASSWORD: supersecret
+      LOCAL_BACKUP_DIR: /backups/local
+      SECONDARY_BACKUP_DIR: /backups/gcs
+      RETENTION_DAYS: "7"
+    volumes:
+      - ./deploy/backup/run_backup.sh:/opt/run_backup.sh:ro,z
+      - ./deploy/backup/entrypoint.sh:/opt/entrypoint.sh:ro,z
+      - ./backups/local:/backups/local:rw,z
+      - ./backups/gcs:/backups/gcs:rw,z
+    entrypoint: ["/bin/sh","/opt/entrypoint.sh"]
+    networks: [appnet]
+
 
 volumes:
   docker_data:
