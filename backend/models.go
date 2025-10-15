@@ -77,11 +77,12 @@ type AssignmentDeadlineOverride struct {
 	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
 }
 type Class struct {
-	ID        uuid.UUID `db:"id"        json:"id"`
-	Name      string    `db:"name"      json:"name"`
-	TeacherID uuid.UUID `db:"teacher_id" json:"teacher_id"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	ID          uuid.UUID `db:"id"        json:"id"`
+	Name        string    `db:"name"      json:"name"`
+	TeacherID   uuid.UUID `db:"teacher_id" json:"teacher_id"`
+	Description string    `db:"description" json:"description"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 }
 
 type Submission struct {
@@ -715,21 +716,59 @@ func mergeUsersTx(tx *sqlx.Tx, targetID, sourceID uuid.UUID) error {
 
 func CreateClass(c *Class) error {
 	return DB.QueryRow(`
-        INSERT INTO classes (name, teacher_id)
-        VALUES ($1,$2)
+        INSERT INTO classes (name, teacher_id, description)
+        VALUES ($1,$2,$3)
         RETURNING id, created_at, updated_at`,
-		c.Name, c.TeacherID,
+		c.Name, c.TeacherID, c.Description,
 	).Scan(&c.ID, &c.CreatedAt, &c.UpdatedAt)
 }
 
 func UpdateClassName(id uuid.UUID, teacherID uuid.UUID, name string) error {
+	trimmed := strings.TrimSpace(name)
+	return UpdateClassMeta(id, teacherID, &trimmed, nil)
+}
+
+func UpdateClassMeta(id uuid.UUID, teacherID uuid.UUID, name, description *string) error {
 	if teacherID != uuid.Nil {
 		var x int
 		if err := DB.Get(&x, `SELECT 1 FROM classes WHERE id=$1 AND teacher_id=$2`, id, teacherID); err != nil {
 			return err
 		}
 	}
-	res, err := DB.Exec(`UPDATE classes SET name=$1, updated_at=now() WHERE id=$2`, name, id)
+
+	var (
+		setClauses []string
+		args       []any
+	)
+
+	if name != nil {
+		trimmed := strings.TrimSpace(*name)
+		if trimmed == "" {
+			return fmt.Errorf("name cannot be empty")
+		}
+		nameArg := trimmed
+		setClauses = append(setClauses, fmt.Sprintf("name=$%d", len(args)+1))
+		args = append(args, nameArg)
+	}
+
+	if description != nil {
+		setClauses = append(setClauses, fmt.Sprintf("description=$%d", len(args)+1))
+		args = append(args, *description)
+	}
+
+	if len(setClauses) == 0 {
+		return fmt.Errorf("no fields to update")
+	}
+
+	setClauses = append(setClauses, fmt.Sprintf("updated_at=now()"))
+
+	args = append(args, id)
+	query := fmt.Sprintf(`UPDATE classes SET %s WHERE id=$%d`,
+		strings.Join(setClauses, ", "),
+		len(args),
+	)
+
+	res, err := DB.Exec(query, args...)
 	if err != nil {
 		return err
 	}

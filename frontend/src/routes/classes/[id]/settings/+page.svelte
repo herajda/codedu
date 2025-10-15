@@ -2,11 +2,14 @@
   import { onMount, tick } from 'svelte';
   import { auth } from '$lib/auth';
   import { apiFetch, apiJSON } from '$lib/api';
+  import { MarkdownEditor } from '$lib';
   import { login as bkLogin, getAtoms, getStudents, hasBakalari } from '$lib/bakalari';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { classesStore } from '$lib/stores/classes';
-  import { BookOpen, Pencil, Trash2, UserPlus, UserMinus, Search as SearchIcon, Loader2, Check, X, Users, Download } from 'lucide-svelte';
+  import { BookOpen, FileText, Pencil, Trash2, UserPlus, UserMinus, Search as SearchIcon, Loader2, Check, X, Users, Download } from 'lucide-svelte';
+  import DOMPurify from 'dompurify';
+  import { marked } from 'marked';
   import { t, translator } from '$lib/i18n';
 
   let translate;
@@ -36,6 +39,25 @@
   let newName = '';
   let renaming = false;
   let renameInput: HTMLInputElement;
+  let descriptionDialog: HTMLDialogElement;
+  let descriptionDraft = '';
+  let savingDescription = false;
+  let currentDescription = '';
+  let safeCurrentDescription = '';
+  let safeDescriptionPreview = '';
+
+  function sanitizeMarkdown(input: string): string {
+    if (!input) return '';
+    try {
+      return DOMPurify.sanitize((marked.parse(input) as string) || '');
+    } catch {
+      return '';
+    }
+  }
+
+  $: currentDescription = cls?.description ?? '';
+  $: safeCurrentDescription = sanitizeMarkdown(currentDescription);
+  $: safeDescriptionPreview = sanitizeMarkdown(descriptionDraft);
 
   function displayName(user: any): string {
     return user?.name ?? user?.email ?? t('frontend/src/routes/classes/[id]/settings/+page.svelte::unknown_user');
@@ -72,6 +94,33 @@
   function startRename() {
     renaming = true;
     tick().then(() => renameInput?.focus());
+  }
+
+  function openDescriptionModal() {
+    descriptionDraft = cls?.description ?? '';
+    descriptionDialog?.showModal();
+  }
+
+  function closeDescriptionModal() {
+    descriptionDialog?.close();
+  }
+
+  async function saveDescription() {
+    savingDescription = true;
+    err = '';
+    try {
+      await apiFetch(`/api/classes/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: descriptionDraft })
+      });
+      if (cls) cls.description = descriptionDraft;
+      classesStore.updateClass(id, { description: descriptionDraft });
+      descriptionDialog?.close();
+    } catch (e: any) {
+      err = e.message;
+    }
+    savingDescription = false;
   }
 
   async function renameClass() {
@@ -199,6 +248,32 @@
           {/if}
         </div>
       {/if}
+    </div>
+  </section>
+
+  <section class="mt-6">
+    <div class="card bg-base-100/80 backdrop-blur border border-base-300/60 shadow-md">
+      <div class="card-body space-y-4">
+        <div class="flex items-center justify-between gap-3 flex-wrap">
+          <h2 class="card-title flex items-center gap-2">
+            <FileText class="size-5" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::class_description_heading')}
+          </h2>
+          {#if role === 'teacher' || role === 'admin'}
+            <button class="btn btn-ghost btn-sm" on:click={openDescriptionModal}>
+              <FileText class="size-4" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::edit_description')}
+            </button>
+          {/if}
+        </div>
+        {#if safeCurrentDescription}
+          <div class="prose max-w-none assignment-description text-base-content/90">
+            {@html safeCurrentDescription}
+          </div>
+        {:else}
+          <div class="rounded-xl border border-dashed border-base-300/80 bg-base-200/40 p-6 text-sm text-base-content/70">
+            {t('frontend/src/routes/classes/[id]/settings/+page.svelte::class_description_empty')}
+          </div>
+        {/if}
+      </div>
     </div>
   </section>
 
@@ -334,6 +409,47 @@
           <button class="btn btn-ghost" on:click={() => { selectedIDs = []; }} disabled={!selectedIDs.length}>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::clear')}</button>
           <button class="btn btn-primary" on:click={addStudents} disabled={!selectedIDs.length}>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::add_selected')}</button>
         </div>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::close')}</button></form>
+  </dialog>
+
+  <!-- Class description modal -->
+  <dialog bind:this={descriptionDialog} class="modal" on:close={() => { descriptionDraft = cls?.description ?? ''; savingDescription = false; }}>
+    <div class="modal-box w-full max-w-4xl">
+      <h3 class="font-bold text-lg flex items-center gap-2">
+        <FileText class="size-5" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::description_modal_title')}
+      </h3>
+      <p class="text-sm text-base-content/70 mt-2">
+        {t('frontend/src/routes/classes/[id]/settings/+page.svelte::description_modal_help')}
+      </p>
+      <div class="mt-4 space-y-4">
+        <MarkdownEditor bind:value={descriptionDraft} placeholder={t('frontend/src/routes/classes/[id]/settings/+page.svelte::description_placeholder')} />
+        <div>
+          <h4 class="font-semibold text-base flex items-center gap-2">
+            <FileText class="size-4" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::description_preview_title')}
+          </h4>
+          {#if safeDescriptionPreview}
+            <div class="prose max-w-none assignment-description mt-2 rounded-xl border border-base-300/70 bg-base-200/40 p-4">
+              {@html safeDescriptionPreview}
+            </div>
+          {:else}
+            <div class="mt-2 rounded-xl border border-dashed border-base-300/70 p-5 text-sm text-base-content/60">
+              {t('frontend/src/routes/classes/[id]/settings/+page.svelte::description_preview_empty')}
+            </div>
+          {/if}
+        </div>
+      </div>
+      <div class="modal-action">
+        <form method="dialog">
+          <button class="btn btn-ghost" on:click={closeDescriptionModal}>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::cancel')}</button>
+        </form>
+        <button class="btn btn-primary gap-2" on:click|preventDefault={saveDescription} disabled={savingDescription}>
+          {#if savingDescription}
+            <Loader2 class="size-4 animate-spin" />
+          {/if}
+          <span>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::description_save')}</span>
+        </button>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::close')}</button></form>

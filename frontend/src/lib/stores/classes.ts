@@ -6,6 +6,7 @@ export interface ClassSummary {
   id: string | number;
   name: string;
   teacher_id?: string | number;
+  description?: string;
   created_at?: string;
   updated_at?: string;
 }

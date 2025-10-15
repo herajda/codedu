@@ -6,6 +6,8 @@ import { page } from '$app/stores';
 import { formatDateTime } from "$lib/date";
 import { Trophy, CalendarClock, ListChecks, Target, PlayCircle, FolderOpen, MessageSquare, MessageCircle } from 'lucide-svelte';
 import { t, translator } from '$lib/i18n';
+import DOMPurify from 'dompurify';
+import { marked } from 'marked';
 
 let translate;
 $: translate = $translator;
@@ -17,6 +19,16 @@ let cls:any = null;
 let submissions:any[] = [];
 let loading = true;
 let err = '';
+let safeClassDescription = '';
+
+function sanitizeMarkdown(input: string): string {
+  if (!input) return '';
+  try {
+    return DOMPurify.sanitize((marked.parse(input) as string) || '');
+  } catch {
+    return '';
+  }
+}
 
 function percent(done:number,total:number){
   return total ? Math.round((done/total)*100) : 0;
@@ -29,11 +41,18 @@ async function load(){
       apiJSON(`/api/classes/${id}`),
       apiJSON('/api/my-submissions')
     ]);
-    const normalizedClass = classData ?? null;
-    const assignments:any[] = Array.isArray(normalizedClass?.assignments)
-      ? normalizedClass.assignments
-      : [];
-    cls = normalizedClass ? { ...normalizedClass, assignments } : null;
+    const detail = classData ?? null;
+    const baseClass = detail?.class ?? detail ?? null;
+    const assignments:any[] = Array.isArray(detail?.assignments)
+      ? detail.assignments
+      : Array.isArray(baseClass?.assignments)
+        ? baseClass.assignments
+        : [];
+    const teacher = detail?.teacher ?? baseClass?.teacher ?? null;
+    const students = Array.isArray(detail?.students) ? detail.students : baseClass?.students ?? [];
+    cls = baseClass
+      ? { ...baseClass, teacher, students, assignments }
+      : null;
     submissions = Array.isArray(submissionData) ? submissionData : [];
   } catch(e:any){ err = e.message; cls = null; submissions = []; }
   loading = false;
@@ -95,6 +114,7 @@ $: teacherMessageQuery = (() => {
   return q ? `?${q}` : '';
 })();
 $: teacherMessageUrl = teacherId ? `/messages/${teacherId}${teacherMessageQuery}` : '';
+$: safeClassDescription = sanitizeMarkdown(cls?.description ?? '');
 
 function badgeFor(a: any) {
   const best = assignmentProgress.find((p: any) => p.id === a.id)?.best ?? 0;
@@ -153,6 +173,14 @@ function badgeFor(a: any) {
       </div>
     </div>
   </section>
+
+  {#if safeClassDescription}
+    <div class="card-elevated px-5 py-5 mb-6">
+      <div class="prose max-w-none assignment-description text-base-content/90">
+        {@html safeClassDescription}
+      </div>
+    </div>
+  {/if}
 
   {#if teacherId}
     <div class="card-elevated flex flex-wrap items-center gap-4 px-5 py-4 mb-6">

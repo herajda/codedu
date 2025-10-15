@@ -3167,13 +3167,17 @@ func createTeacher(c *gin.Context) {
 // ---- TEACHER creates a class ----
 func createClass(c *gin.Context) {
 	var req struct {
-		Name string `json:"name" binding:"required"`
+		Name        string  `json:"name" binding:"required"`
+		Description *string `json:"description"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	cl := &Class{Name: req.Name, TeacherID: getUserID(c)}
+	if req.Description != nil {
+		cl.Description = *req.Description
+	}
 	if err := CreateClass(cl); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
@@ -3185,17 +3189,31 @@ func createClass(c *gin.Context) {
 func updateClass(c *gin.Context) {
 	id, _ := uuid.Parse(c.Param("id"))
 	var req struct {
-		Name string `json:"name" binding:"required"`
+		Name        *string `json:"name"`
+		Description *string `json:"description"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.Name == nil && req.Description == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no fields to update"})
 		return
 	}
 	teacherID := uuid.Nil
 	if c.GetString("role") == "teacher" {
 		teacherID = getUserID(c)
 	}
-	if err := UpdateClassName(id, teacherID, req.Name); err != nil {
+	var namePtr *string
+	if req.Name != nil {
+		trimmed := strings.TrimSpace(*req.Name)
+		if trimmed == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "name cannot be empty"})
+			return
+		}
+		namePtr = &trimmed
+	}
+	if err := UpdateClassMeta(id, teacherID, namePtr, req.Description); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}

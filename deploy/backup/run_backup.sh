@@ -10,9 +10,8 @@ set -euo pipefail
 # Ensure pg_dump is available even under the limited cron PATH.
 export PATH="/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:${PATH:-}"
 
-# Allow overriding backup target directories via env vars, but default to mounted volumes.
+# Allow overriding backup target directory via env vars, but default to mounted volume.
 LOCAL_BACKUP_DIR="${LOCAL_BACKUP_DIR:-/backups/local}"
-SECONDARY_BACKUP_DIR="${SECONDARY_BACKUP_DIR:-/backups/gcs}"
 RETENTION_DAYS="${RETENTION_DAYS:-7}"
 
 log() {
@@ -39,12 +38,9 @@ pg_dump \
   "${POSTGRES_DB}" \
   | gzip -9 > "${WORK_FILE}"
 
-for DIR in "${LOCAL_BACKUP_DIR}" "${SECONDARY_BACKUP_DIR}"; do
-  [ -n "${DIR}" ] || continue
-  mkdir -p "${DIR}"
-  cp "${WORK_FILE}" "${DIR}/${ARCHIVE_NAME}"
-  log "Stored ${ARCHIVE_NAME} in ${DIR}."
-done
+mkdir -p "${LOCAL_BACKUP_DIR}"
+cp "${WORK_FILE}" "${LOCAL_BACKUP_DIR}/${ARCHIVE_NAME}"
+log "Stored ${ARCHIVE_NAME} in ${LOCAL_BACKUP_DIR}."
 
 rm -f "${WORK_FILE}"
 
@@ -61,6 +57,4 @@ prune_old_backups() {
 }
 
 prune_old_backups "${LOCAL_BACKUP_DIR}"
-prune_old_backups "${SECONDARY_BACKUP_DIR}"
-
 log "Backup completed."
