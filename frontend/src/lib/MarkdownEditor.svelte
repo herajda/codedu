@@ -6,6 +6,7 @@
   import { sidebarCollapsed, sidebarOpen } from '$lib/sidebar';
   import '@fortawesome/fontawesome-free/css/all.min.css';
   import { compressImage } from '$lib/utils/compressImage';
+  import { renderMarkdown } from '$lib/markdown';
   import { t } from '$lib/i18n';
 
   let EasyMDE: any;
@@ -197,6 +198,14 @@
       placeholder,
       autoDownloadFontAwesome: false,
       spellChecker: false,
+      previewRender: (plainText: string) => {
+        try {
+          return renderMarkdown(plainText);
+        } catch (err) {
+          console.warn('Failed to render markdown preview', err);
+          return plainText;
+        }
+      },
       toolbar: [
         'bold',
         'italic',

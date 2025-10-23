@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { marked } from "marked";
+  import { renderMarkdown } from "$lib/markdown";
   import { tick } from 'svelte';
   import { MarkdownEditor } from '$lib';
   import {
@@ -234,7 +234,7 @@
     </div>
   {:else}
   <div class="markdown">
-    {@html marked.parse(sourceStr)}
+    {@html renderMarkdown(sourceStr)}
     </div>
   {/if}
 </div>
