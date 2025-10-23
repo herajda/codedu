@@ -20,13 +20,29 @@
   let tab: Tab = 'overview';
 
   // Data models
+  type RawUser = { id?: string; email?: string | null; name?: string | null; role?: string | null; created_at?: string | null };
   type User = { id: string; email: string; name?: string | null; role: string; created_at: string };
+  type RawClass = { id?: string; name?: string | null; teacher_id?: string | null; created_at?: string | null };
   type Class = { id: string; name: string; teacher_id: string; created_at: string };
+  type RawAssignment = {
+    id?: string;
+    title?: string | null;
+    description?: string | null;
+    class_id?: string | null;
+    deadline?: string | null;
+    max_points?: number | null;
+    grading_policy?: string | null;
+    published?: boolean | null;
+    show_traceback?: boolean | null;
+    manual_review?: boolean | null;
+    created_at?: string | null;
+  };
   type Assignment = {
     id: string; title: string; description: string; class_id: string;
     deadline: string; max_points: number; grading_policy: string; published: boolean;
     show_traceback: boolean; manual_review: boolean; created_at: string
   };
+  type RawOnlineUser = { id?: string | null; name?: string | null; avatar?: string | null; email?: string | null };
   type OnlineUser = { id: string; name: string; avatar: string; email: string };
 
   // Collections
@@ -58,35 +74,101 @@
   let confirmModal: InstanceType<typeof ConfirmModal>;
   let promptModal: InstanceType<typeof PromptModal>;
 
+  function sanitizeUsers(payload: unknown): User[] {
+    if (!Array.isArray(payload)) return [];
+    return payload
+      .filter((entry): entry is RawUser => !!entry && typeof entry === 'object')
+      .filter((entry) => typeof entry.id === 'string' && typeof entry.email === 'string' && typeof entry.role === 'string')
+      .map((entry) => ({
+        id: entry.id!,
+        email: entry.email!,
+        role: entry.role!,
+        created_at: typeof entry.created_at === 'string' ? entry.created_at : entry.created_at ?? '',
+        name: typeof entry.name === 'string' ? entry.name : entry.name ?? null
+      }));
+  }
+
+  function sanitizeClasses(payload: unknown): Class[] {
+    if (!Array.isArray(payload)) return [];
+    return payload
+      .filter((entry): entry is RawClass => !!entry && typeof entry === 'object')
+      .filter((entry) => typeof entry.id === 'string')
+      .map((entry) => ({
+        id: entry.id!,
+        name: typeof entry.name === 'string' ? entry.name : entry.name ?? '',
+        teacher_id: typeof entry.teacher_id === 'string' ? entry.teacher_id : entry.teacher_id ?? '',
+        created_at: typeof entry.created_at === 'string' ? entry.created_at : entry.created_at ?? ''
+      }));
+  }
+
+  function sanitizeAssignments(payload: unknown): Assignment[] {
+    if (!Array.isArray(payload)) return [];
+    return payload
+      .filter((entry): entry is RawAssignment => !!entry && typeof entry === 'object')
+      .filter((entry) => typeof entry.id === 'string')
+      .map((entry) => ({
+        id: entry.id!,
+        title: entry.title ?? '',
+        description: entry.description ?? '',
+        class_id: entry.class_id ?? '',
+        deadline: entry.deadline ?? '',
+        max_points: entry.max_points ?? 0,
+        grading_policy: entry.grading_policy ?? '',
+        published: Boolean(entry.published),
+        show_traceback: Boolean(entry.show_traceback),
+        manual_review: Boolean(entry.manual_review),
+        created_at: entry.created_at ?? ''
+      }));
+  }
+
   async function loadUsers() {
     loadingUsers = true; err = '';
-    try { users = await apiJSON('/api/users'); } catch (e: any) { err = e.message; }
+    try { users = sanitizeUsers(await apiJSON('/api/users')); } catch (e: any) { err = e.message; users = []; }
     loadingUsers = false;
   }
   async function loadClasses() {
     loadingClasses = true; err = '';
     try {
-      classes = await apiJSON('/api/classes/all');
+      classes = sanitizeClasses(await apiJSON('/api/classes/all'));
       // Update the store with all classes for admin view
       classesStore.setClasses(classes);
-    } catch (e: any) { err = e.message; }
+    } catch (e: any) { err = e.message; classes = []; classesStore.setClasses([]); }
     loadingClasses = false;
   }
   async function loadAssignments() {
     loadingAssignments = true; err = '';
-    try { assignments = await apiJSON('/api/assignments'); } catch (e: any) { err = e.message; }
+    try { assignments = sanitizeAssignments(await apiJSON('/api/assignments')); } catch (e: any) { err = e.message; assignments = []; }
     loadingAssignments = false;
   }
 
   async function loadOnlineUsers() {
     try {
-      onlineUsers = await apiJSON('/api/online-users');
+      const response = await apiJSON<RawOnlineUser[]>('/api/online-users');
+      onlineUsers = Array.isArray(response)
+        ? response
+            .filter((entry): entry is RawOnlineUser => !!entry && typeof entry === 'object')
+            .map((entry): OnlineUser => ({
+              id: entry.id ?? '',
+              name: entry.name ?? '',
+              email: entry.email ?? '',
+              avatar: entry.avatar ?? ''
+            }))
+            .filter((entry) => Boolean(entry.id))
+        : [];
     } catch (e) {
       console.error('Failed to load online users', e);
+      onlineUsers = [];
     }
   }
 
-  onMount(() => { loadUsers(); loadClasses(); loadAssignments(); loadOnlineUsers(); });
+  onMount(() => {
+    loadUsers();
+    loadClasses();
+    loadAssignments();
+    loadOnlineUsers();
+    const presenceTimer = setInterval(loadOnlineUsers, 30000);
+    return () => clearInterval(presenceTimer);
+  });
 
   function refreshUsers() {
     loadUsers();
@@ -257,17 +339,54 @@
 {/if}
 
 {#if tab === 'overview'}
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+  <div class="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-4">
     <div class="card bg-base-100 shadow">
       <div class="card-body">
         <h2 class="card-title mb-2">{t('frontend/src/lib/AdminPanel.svelte::platform_stats_title')}</h2>
         <div class="stats stats-vertical sm:stats-horizontal shadow">
           <div class="stat"><div class="stat-figure"><Users2 class="w-5 h-5" /></div><div class="stat-title">{t('frontend/src/lib/AdminPanel.svelte::users_stat_title')}</div><div class="stat-value">{users.length}</div></div>
           <div class="stat"><div class="stat-figure"><GraduationCap class="w-5 h-5" /></div><div class="stat-title">{t('frontend/src/lib/AdminPanel.svelte::teachers_stat_title')}</div><div class="stat-value">{teachers.length}</div></div>
-          <div class="stat"><div class="stat-figure"><Users2 class="w-5 h-5" /></div><div class="stat-title">Online</div><div class="stat-value">{onlineUsers.length}</div></div>
+          <div class="stat"><div class="stat-figure"><Users2 class="w-5 h-5" /></div><div class="stat-title">{t('frontend/src/lib/AdminPanel.svelte::online_stat_title')}</div><div class="stat-value">{onlineUsers.length}</div></div>
           <div class="stat"><div class="stat-figure"><School class="w-5 h-5" /></div><div class="stat-title">{t('frontend/src/lib/AdminPanel.svelte::classes_stat_title')}</div><div class="stat-value">{classes.length}</div></div>
           <div class="stat"><div class="stat-figure"><BookOpen class="w-5 h-5" /></div><div class="stat-title">{t('frontend/src/lib/AdminPanel.svelte::assignments_stat_title')}</div><div class="stat-value">{assignments.length}</div></div>
         </div>
+      </div>
+    </div>
+    <div class="card bg-base-100 shadow">
+      <div class="card-body space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::online_users_card_title')}</h2>
+          <button class="btn btn-ghost btn-xs" on:click={loadOnlineUsers} aria-label={t('frontend/src/lib/AdminPanel.svelte::refresh_online_users_button')}>
+            <RefreshCw class="w-4 h-4" />
+          </button>
+        </div>
+        <ul class="space-y-3 max-h-60 overflow-auto">
+          {#if onlineUsers.length}
+            {#each onlineUsers as online}
+              <li class="flex items-center gap-3">
+                <div class="avatar">
+                  {#if online.avatar}
+                    <div class="w-10 rounded-full">
+                      <img src={online.avatar} alt={t('frontend/src/lib/AdminPanel.svelte::online_user_avatar_alt', { name: online.name || online.email })} loading="lazy" />
+                    </div>
+                  {:else}
+                    <div class="placeholder w-10 rounded-full bg-primary/10 text-primary font-semibold flex items-center justify-center">
+                      {(online.name || online.email || '?').charAt(0).toUpperCase()}
+                    </div>
+                  {/if}
+                </div>
+                <div class="flex flex-col leading-tight">
+                  <span class="font-medium">{online.name || online.email || '?'}</span>
+                  {#if online.name}
+                    <span class="text-xs text-base-content/60">{online.email}</span>
+                  {/if}
+                </div>
+              </li>
+            {/each}
+          {:else}
+            <li class="text-sm text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::no_online_users_message')}</li>
+          {/if}
+        </ul>
       </div>
     </div>
     <div class="card bg-base-100 shadow">
