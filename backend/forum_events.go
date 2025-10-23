@@ -47,6 +47,22 @@ func broadcastForumMsg(m *ForumMessage) {
 	forumSubsMu.Unlock()
 }
 
+func broadcastForumDelete(classID, messageID uuid.UUID) {
+	payload := struct {
+		ID uuid.UUID `json:"id"`
+	}{ID: messageID}
+	forumSubsMu.Lock()
+	for sub := range forumSubs {
+		if sub.classID == classID {
+			select {
+			case sub.ch <- sse.Event{Event: "deleted", Data: payload}:
+			default:
+			}
+		}
+	}
+	forumSubsMu.Unlock()
+}
+
 func forumEventsHandler(c *gin.Context) {
 	cid, err := uuid.Parse(c.Param("id"))
 	if err != nil {

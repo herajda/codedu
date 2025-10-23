@@ -1816,6 +1816,22 @@ func ListForumMessages(classID uuid.UUID, limit, offset int) ([]ForumMessage, er
 	return msgs, err
 }
 
+func DeleteForumMessage(classID, messageID uuid.UUID) error {
+	res, err := DB.Exec(`DELETE FROM forum_messages WHERE id=$1 AND class_id=$2`, messageID, classID)
+	if err != nil {
+		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return sql.ErrNoRows
+	}
+	broadcastForumDelete(classID, messageID)
+	return nil
+}
+
 type UserPresence struct {
 	UserID    uuid.UUID `db:"user_id" json:"user_id"`
 	IsOnline  bool      `db:"is_online" json:"is_online"`

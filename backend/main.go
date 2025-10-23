@@ -327,6 +327,7 @@ func main() {
 		// Class forums
 		api.GET("/classes/:id/forum", RoleGuard("teacher", "student", "admin"), listForumMessagesHandler)
 		api.POST("/classes/:id/forum", RoleGuard("teacher", "student", "admin"), createForumMessageHandler)
+		api.DELETE("/classes/:id/forum/:messageID", RoleGuard("teacher", "student", "admin"), deleteForumMessageHandler)
 		api.GET("/classes/:id/forum/events", RoleGuard("teacher", "student", "admin"), forumEventsHandler)
 
 		// Class file system

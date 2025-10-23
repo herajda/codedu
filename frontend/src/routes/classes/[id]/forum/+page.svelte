@@ -4,11 +4,12 @@
   import { apiJSON, apiFetch } from '$lib/api';
   import { createEventSource } from '$lib/sse';
   import { auth } from '$lib/auth';
-  import { Paperclip, ImagePlus, Smile, Send, X, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-svelte';
+  import { Paperclip, ImagePlus, Smile, Send, X, ChevronLeft, ChevronRight, MessageSquare, Trash2 } from 'lucide-svelte';
   import { compressImage } from '$lib/utils/compressImage';
   import { fade, scale } from 'svelte/transition';
   import { sidebarCollapsed } from '$lib/sidebar';
   import { t, translator } from '$lib/i18n';
+  import ConfirmModal from '$lib/components/ConfirmModal.svelte';
 
   let translate;
   $: translate = $translator;
@@ -38,6 +39,8 @@
   let showAttachmentMenu = false;
   let showEmojiPicker = false;
   let esCtrl: { close: () => void } | null = null;
+  let deleting: Record<string, boolean> = {};
+  let confirmModal: InstanceType<typeof ConfirmModal>;
 
   // Pagination & scroll preservation (mirrors chat behavior)
   const pageSize = 20;
@@ -111,7 +114,10 @@
       const list: any[] = await apiJSON(`/api/classes/${id}/forum?limit=${pageSize}&offset=${offset}`);
       // Backend returns newest-first; reverse to show oldest->newest within chunk
       list.reverse();
-      for (const m of list) (m as any).showTime = false;
+      for (const m of list) {
+        (m as any).showTime = false;
+        (m as any)._fromHistory = true;
+      }
       if (more) msgs = [...list, ...msgs];
       else msgs = list;
       offset += list.length;
@@ -130,8 +136,18 @@
       es.addEventListener('message', e => {
         try {
           const m = JSON.parse((e as MessageEvent).data);
+          if (!m || !m.id) return;
+          if (msgs.some(existing => existing.id === m.id)) return;
           (m as any).showTime = false;
+          (m as any)._fromHistory = false;
           msgs = [...msgs, m];
+        } catch {}
+      });
+      es.addEventListener('deleted', e => {
+        try {
+          const payload = JSON.parse((e as MessageEvent).data);
+          if (!payload || !payload.id) return;
+          removeLocalMessage(payload.id);
         } catch {}
       });
     });
@@ -234,6 +250,52 @@
     return m.avatar ?? placeholderAvatar(String(m.user_id ?? m.email ?? 'x'));
   }
 
+  function canDelete(m: any): boolean {
+    if (!$auth) return false;
+    if (m.user_id === $auth.id) return true;
+    if ($auth.role === 'admin') return true;
+    if ($auth.role === 'teacher' && cls?.class?.teacher_id === $auth.id) return true;
+    return false;
+  }
+
+  function removeLocalMessage(id: string) {
+    const existing = msgs.find(msg => msg.id === id);
+    if (!existing) return;
+    const wasHistory = !!existing._fromHistory;
+    if (modalImage && existing.image === modalImage) {
+      closeLightbox();
+    }
+    msgs = msgs.filter(msg => msg.id !== id);
+    if (wasHistory && offset > 0) {
+      offset = Math.max(0, offset - 1);
+    }
+  }
+
+  async function deleteMessage(m: any) {
+    if (!canDelete(m) || deleting[m.id]) return;
+    const confirmed = await confirmModal?.open({
+      title: translate('frontend/src/routes/classes/[id]/forum/+page.svelte::delete_message_confirm'),
+      confirmLabel: translate('frontend/src/routes/classes/[id]/forum/+page.svelte::delete_message_label'),
+      confirmClass: 'btn btn-error',
+      cancelClass: 'btn'
+    });
+    if (!confirmed) return;
+    deleting = { ...deleting, [m.id]: true };
+    try {
+      const res = await apiFetch(`/api/classes/${id}/forum/${m.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const message = await res.text();
+        throw new Error(message || t('frontend/src/routes/classes/[id]/forum/+page.svelte::delete_message_error'));
+      }
+      removeLocalMessage(m.id);
+    } catch (e: any) {
+      err = e?.message ?? t('frontend/src/routes/classes/[id]/forum/+page.svelte::delete_message_error');
+    } finally {
+      const { [m.id]: _removed, ...rest } = deleting;
+      deleting = rest;
+    }
+  }
+
   function choosePhoto() { photoInput?.click(); }
   function chooseFile() { fileInput?.click(); }
 
@@ -318,8 +380,22 @@
             {/if}
 
             <div class="relative flex flex-col">
-              <div class="text-xs opacity-70 mb-1">
-                {m.user_id === $auth?.id ? translate('frontend/src/routes/classes/[id]/forum/+page.svelte::you') : displayName(m)}
+              <div class={`flex items-center gap-2 mb-1 ${m.user_id === $auth?.id ? 'justify-end text-right' : ''}`}>
+                <div class={`text-xs opacity-70 ${m.user_id === $auth?.id ? 'text-right' : ''}`}>
+                  {m.user_id === $auth?.id ? translate('frontend/src/routes/classes/[id]/forum/+page.svelte::you') : displayName(m)}
+                </div>
+                {#if canDelete(m)}
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-xs px-2 h-6 min-h-6 text-base-content/60 hover:text-error focus-visible:ring-2 focus-visible:ring-error/40"
+                    disabled={!!deleting[m.id]}
+                    title={t('frontend/src/routes/classes/[id]/forum/+page.svelte::delete_message_label')}
+                    aria-label={t('frontend/src/routes/classes/[id]/forum/+page.svelte::delete_message_label')}
+                    on:click|stopPropagation={() => deleteMessage(m)}
+                  >
+                    <Trash2 class="w-3.5 h-3.5" />
+                  </button>
+                {/if}
               </div>
 
               {#if m.image}
@@ -531,6 +607,8 @@
     {/if}
   </div>
 {/if}
+
+<ConfirmModal bind:this={confirmModal} />
 
 <style>
   .message-bubble {

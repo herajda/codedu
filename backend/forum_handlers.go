@@ -1,6 +1,8 @@
 package main
 
 import (
+	"database/sql"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -10,22 +12,24 @@ import (
 )
 
 func ensureClassMember(c *gin.Context, classID uuid.UUID) bool {
-    uid := getUserID(c)
-    role := c.GetString("role")
-    if role == "admin" {
-        return true
-    }
-    // Special-case: Teachers' group is accessible to any teacher/admin
-    if classID == TeacherGroupID {
-        if role == "teacher" { return true }
-        c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-        return false
-    }
-    var ok bool
-    var err error
-    if role == "teacher" {
-        ok, err = IsTeacherOfClass(classID, uid)
-    } else {
+	uid := getUserID(c)
+	role := c.GetString("role")
+	if role == "admin" {
+		return true
+	}
+	// Special-case: Teachers' group is accessible to any teacher/admin
+	if classID == TeacherGroupID {
+		if role == "teacher" {
+			return true
+		}
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return false
+	}
+	var ok bool
+	var err error
+	if role == "teacher" {
+		ok, err = IsTeacherOfClass(classID, uid)
+	} else {
 		ok, err = IsStudentOfClass(classID, uid)
 	}
 	if err != nil || !ok {
@@ -101,4 +105,67 @@ func listForumMessagesHandler(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, msgs)
+}
+
+func deleteForumMessageHandler(c *gin.Context) {
+	cid, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	mid, err := uuid.Parse(c.Param("messageID"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if !ensureClassMember(c, cid) {
+		return
+	}
+
+	var stored struct {
+		ClassID uuid.UUID `db:"class_id"`
+		UserID  uuid.UUID `db:"user_id"`
+	}
+	if err := DB.Get(&stored, `SELECT class_id, user_id FROM forum_messages WHERE id=$1`, mid); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	if stored.ClassID != cid {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+
+	userID := getUserID(c)
+	role := c.GetString("role")
+	allowed := stored.UserID == userID
+
+	if !allowed {
+		switch role {
+		case "admin":
+			allowed = true
+		case "teacher":
+			if cid != TeacherGroupID {
+				allowed = true
+			}
+		}
+	}
+
+	if !allowed {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+
+	if err := DeleteForumMessage(cid, mid); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
