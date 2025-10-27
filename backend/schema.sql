@@ -52,6 +52,9 @@ CREATE TABLE IF NOT EXISTS assignments (
   show_traceback BOOLEAN NOT NULL DEFAULT FALSE,
   show_test_details BOOLEAN NOT NULL DEFAULT FALSE,
   manual_review BOOLEAN NOT NULL DEFAULT FALSE,
+  banned_functions TEXT[] NOT NULL DEFAULT '{}',
+  banned_modules TEXT[] NOT NULL DEFAULT '{}',
+  banned_tool_rules TEXT,
   template_path TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -62,6 +65,9 @@ ALTER TABLE assignments ADD COLUMN IF NOT EXISTS template_path TEXT;
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS show_traceback BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS show_test_details BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS manual_review BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS banned_functions TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS banned_modules TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS banned_tool_rules TEXT;
 -- LLM interactive testing configuration
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_interactive BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_feedback BOOLEAN NOT NULL DEFAULT FALSE; -- show LLM feedback to students
@@ -146,6 +152,8 @@ DO $$ BEGIN
 EXCEPTION
     WHEN duplicate_object THEN NULL;
 END $$;
+
+ALTER TYPE result_status ADD VALUE IF NOT EXISTS 'illegal_tool_use';
 
 CREATE TABLE IF NOT EXISTS results (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

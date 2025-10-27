@@ -401,25 +401,27 @@ func updateAssignment(c *gin.Context) {
 		return
 	}
 
-	a := &Assignment{
-		ID:              id,
-		Title:           req.Title,
-		Description:     req.Description,
-		Deadline:        dl,
-		MaxPoints:       req.MaxPoints,
-		GradingPolicy:   req.GradingPolicy,
-		ShowTraceback:   req.ShowTraceback,
-		ShowTestDetails: req.ShowTestDetails,
-		ManualReview:    req.ManualReview,
-		LLMInteractive:  req.LLMInteractive,
-		LLMFeedback:     req.LLMFeedback,
-		LLMAutoAward:    req.LLMAutoAward,
-		LLMScenariosRaw: req.LLMScenariosRaw,
+	a, err := GetAssignment(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
 	}
+
+	a.Title = req.Title
+	a.Description = req.Description
+	a.Deadline = dl
+	a.MaxPoints = req.MaxPoints
+	a.GradingPolicy = req.GradingPolicy
+	a.ShowTraceback = req.ShowTraceback
+	a.ShowTestDetails = req.ShowTestDetails
+	a.ManualReview = req.ManualReview
+	a.LLMInteractive = req.LLMInteractive
+	a.LLMFeedback = req.LLMFeedback
+	a.LLMAutoAward = req.LLMAutoAward
+	a.LLMScenariosRaw = req.LLMScenariosRaw
+
 	if req.LLMStrictness != nil {
 		a.LLMStrictness = *req.LLMStrictness
-	} else {
-		a.LLMStrictness = 50
 	}
 	if req.LLMRubric != nil {
 		a.LLMRubric = req.LLMRubric
@@ -428,12 +430,17 @@ func updateAssignment(c *gin.Context) {
 		a.LLMTeacherBaseline = req.LLMTeacherBaseline
 	}
 	if req.SecondDeadline != nil {
-		dl, err := time.Parse(time.RFC3339Nano, *req.SecondDeadline)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid second deadline"})
-			return
+		trimmed := strings.TrimSpace(*req.SecondDeadline)
+		if trimmed == "" {
+			a.SecondDeadline = nil
+		} else {
+			sd, err := time.Parse(time.RFC3339Nano, trimmed)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid second deadline"})
+				return
+			}
+			a.SecondDeadline = &sd
 		}
-		a.SecondDeadline = &dl
 	}
 	if req.LatePenaltyRatio != nil {
 		a.LatePenaltyRatio = *req.LatePenaltyRatio
@@ -443,6 +450,44 @@ func updateAssignment(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, a)
+}
+
+func updateAssignmentTestingConstraints(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if c.GetString("role") == "teacher" {
+		if ok, err := IsTeacherOfAssignment(id, getUserID(c)); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+
+	var payload BannedToolsConfig
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	cfg := cloneConfig(&payload)
+	funcs, mods, _ := cfg.normalize()
+	cfgJSON, err := serializeBannedToolsConfig(cfg)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := UpdateAssignmentConstraints(id, funcs, mods, cfgJSON); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not update"})
+		return
+	}
+	updated, err := GetAssignment(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not load"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"assignment": updated})
 }
 
 // deleteAssignment: DELETE /api/assignments/:id
@@ -1749,158 +1794,221 @@ func runTeacherSolution(c *gin.Context) {
 	persistedPassed := 0
 	persistedTotalWeight := 0.0
 	persistedEarnedWeight := 0.0
-	for _, rc := range runCases {
-		tc := rc.TestCase
-		timeout := time.Duration(tc.TimeLimitSec * float64(time.Second))
-		var stdout, stderr string
-		var exitCode int
-		var timedOut bool
-		var runtime time.Duration
-		var actualReturn *string
-		mode := strings.TrimSpace(tc.ExecutionMode)
-		if mode == "" {
-			if tc.UnittestName != nil {
-				mode = "unittest"
-			} else if tc.FunctionName != nil {
-				mode = "function"
-			} else {
-				mode = "stdin_stdout"
+	illegalDetected := false
+	illegalMessage := ""
+	noteMap := notesFromAssignment(assignment)
+	if assignment != nil {
+		bannedFuncs := copyStringArray(assignment.BannedFunctions)
+		bannedMods := copyStringArray(assignment.BannedModules)
+		if len(bannedFuncs) > 0 || len(bannedMods) > 0 {
+			if findings, detErr := detectIllegalToolUse(tmpDir, bannedFuncs, bannedMods); detErr != nil {
+				fmt.Printf("[teacher-run] illegal tool detection failed for assignment %s: %v\n", aid, detErr)
+			} else if len(findings) > 0 {
+				illegalDetected = true
+				illegalMessage = formatIllegalToolMessage(findings, noteMap)
 			}
 		}
+	}
 
-		var funcMeta *functionCallResult
-		var funcErr error
-
-		switch mode {
-		case "unittest":
-			code := ""
-			if tc.UnittestCode != nil {
-				code = *tc.UnittestCode
-			}
-			name := ""
-			if tc.UnittestName != nil {
-				name = *tc.UnittestName
-			}
-			stdout, stderr, exitCode, timedOut, runtime = executePythonUnit(tmpDir, mainFile, code, name, timeout)
-		case "function":
-			fn := ""
-			if tc.FunctionName != nil {
-				fn = strings.TrimSpace(*tc.FunctionName)
-			}
-			cfg := functionCallConfig{FunctionName: fn, ArgsJSON: tc.FunctionArgs, KwargsJSON: tc.FunctionKwargs, ExpectedJSON: tc.ExpectedReturn}
-			stdout, stderr, exitCode, timedOut, runtime, funcMeta, funcErr = runFunctionCall(tmpDir, mainFile, cfg, timeout)
-			if funcErr != nil {
-				stderr = funcErr.Error()
-				exitCode = -1
-			}
-			if funcMeta != nil {
-				if funcMeta.Stdout != "" {
-					stdout = funcMeta.Stdout
-				}
-				if funcMeta.ReturnJSON != nil && strings.TrimSpace(*funcMeta.ReturnJSON) != "" {
-					actualReturn = funcMeta.ReturnJSON
-				} else if strings.TrimSpace(funcMeta.ReturnRepr) != "" {
-					rr := funcMeta.ReturnRepr
-					actualReturn = &rr
-				}
-				if funcMeta.Traceback != "" {
-					stderr = funcMeta.Traceback
-				}
-				if funcMeta.Status == "exception" && stderr == "" {
-					stderr = funcMeta.Exception
-				}
-			}
-		default:
-			stdout, stderr, exitCode, timedOut, runtime = executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
-			stdout = trimTrailingNewline(stdout)
-		}
-
-		expectedStdout := tc.ExpectedStdout
-		if mode == "stdin_stdout" {
-			expectedStdout = trimTrailingNewline(expectedStdout)
-		}
-
-		status := "passed"
-		switch mode {
-		case "unittest":
-			if timedOut {
-				status = "time_limit_exceeded"
-			} else if exitCode != 0 {
-				if strings.Contains(stdout, "===JUDGE:ASSERT_FAIL===") {
-					status = "wrong_output"
+	if illegalDetected {
+		for _, rc := range runCases {
+			tc := rc.TestCase
+			mode := strings.TrimSpace(tc.ExecutionMode)
+			if mode == "" {
+				if tc.UnittestName != nil {
+					mode = "unittest"
+				} else if tc.FunctionName != nil {
+					mode = "function"
 				} else {
-					status = "runtime_error"
+					mode = "stdin_stdout"
 				}
 			}
-		case "function":
-			if funcErr != nil {
-				status = "runtime_error"
-			} else if timedOut {
-				status = "time_limit_exceeded"
-			} else if funcMeta != nil {
-				if funcMeta.Status == "exception" {
+			item := map[string]any{
+				"unittest_name":   tc.UnittestName,
+				"status":          "illegal_tool_use",
+				"runtime_ms":      0,
+				"exit_code":       -1,
+				"actual_stdout":   "",
+				"expected_stdout": tc.ExpectedStdout,
+				"stderr":          illegalMessage,
+			}
+			if mode == "function" {
+				if tc.FunctionName != nil {
+					item["function_name"] = strings.TrimSpace(*tc.FunctionName)
+				}
+				item["function_args"] = tc.FunctionArgs
+				item["function_kwargs"] = tc.FunctionKwargs
+				if tc.ExpectedReturn != nil {
+					item["expected_return"] = *tc.ExpectedReturn
+				}
+			}
+			if rc.Preview {
+				item["preview"] = true
+				if rc.TempID != "" {
+					item["test_case_id"] = rc.TempID
+				} else {
+					item["test_case_id"] = fmt.Sprintf("preview-%d", len(results)+1)
+				}
+			} else {
+				item["test_case_id"] = tc.ID
+				persistedTotalWeight += tc.Weight
+			}
+			results = append(results, item)
+		}
+	} else {
+		for _, rc := range runCases {
+			tc := rc.TestCase
+			timeout := time.Duration(tc.TimeLimitSec * float64(time.Second))
+			var stdout, stderr string
+			var exitCode int
+			var timedOut bool
+			var runtime time.Duration
+			var actualReturn *string
+			mode := strings.TrimSpace(tc.ExecutionMode)
+			if mode == "" {
+				if tc.UnittestName != nil {
+					mode = "unittest"
+				} else if tc.FunctionName != nil {
+					mode = "function"
+				} else {
+					mode = "stdin_stdout"
+				}
+			}
+
+			var funcMeta *functionCallResult
+			var funcErr error
+
+			switch mode {
+			case "unittest":
+				code := ""
+				if tc.UnittestCode != nil {
+					code = *tc.UnittestCode
+				}
+				name := ""
+				if tc.UnittestName != nil {
+					name = *tc.UnittestName
+				}
+				stdout, stderr, exitCode, timedOut, runtime = executePythonUnit(tmpDir, mainFile, code, name, timeout)
+			case "function":
+				fn := ""
+				if tc.FunctionName != nil {
+					fn = strings.TrimSpace(*tc.FunctionName)
+				}
+				cfg := functionCallConfig{FunctionName: fn, ArgsJSON: tc.FunctionArgs, KwargsJSON: tc.FunctionKwargs, ExpectedJSON: tc.ExpectedReturn}
+				stdout, stderr, exitCode, timedOut, runtime, funcMeta, funcErr = runFunctionCall(tmpDir, mainFile, cfg, timeout)
+				if funcErr != nil {
+					stderr = funcErr.Error()
+					exitCode = -1
+				}
+				if funcMeta != nil {
+					if funcMeta.Stdout != "" {
+						stdout = funcMeta.Stdout
+					}
+					if funcMeta.ReturnJSON != nil && strings.TrimSpace(*funcMeta.ReturnJSON) != "" {
+						actualReturn = funcMeta.ReturnJSON
+					} else if strings.TrimSpace(funcMeta.ReturnRepr) != "" {
+						rr := funcMeta.ReturnRepr
+						actualReturn = &rr
+					}
+					if funcMeta.Traceback != "" {
+						stderr = funcMeta.Traceback
+					}
+					if funcMeta.Status == "exception" && stderr == "" {
+						stderr = funcMeta.Exception
+					}
+				}
+			default:
+				stdout, stderr, exitCode, timedOut, runtime = executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
+				stdout = trimTrailingNewline(stdout)
+			}
+
+			expectedStdout := tc.ExpectedStdout
+			if mode == "stdin_stdout" {
+				expectedStdout = trimTrailingNewline(expectedStdout)
+			}
+
+			status := "passed"
+			switch mode {
+			case "unittest":
+				if timedOut {
+					status = "time_limit_exceeded"
+				} else if exitCode != 0 {
+					if strings.Contains(stdout, "===JUDGE:ASSERT_FAIL===") {
+						status = "wrong_output"
+					} else {
+						status = "runtime_error"
+					}
+				}
+			case "function":
+				if funcErr != nil {
 					status = "runtime_error"
-				} else if !funcMeta.Passed {
+				} else if timedOut {
+					status = "time_limit_exceeded"
+				} else if funcMeta != nil {
+					if funcMeta.Status == "exception" {
+						status = "runtime_error"
+					} else if !funcMeta.Passed {
+						status = "wrong_output"
+					}
+				} else if exitCode != 0 {
+					status = "runtime_error"
+				}
+			default:
+				switch {
+				case timedOut:
+					status = "time_limit_exceeded"
+				case exitCode != 0:
+					status = "runtime_error"
+				case stdout != expectedStdout:
 					status = "wrong_output"
 				}
-			} else if exitCode != 0 {
-				status = "runtime_error"
 			}
-		default:
-			switch {
-			case timedOut:
-				status = "time_limit_exceeded"
-			case exitCode != 0:
-				status = "runtime_error"
-			case stdout != expectedStdout:
-				status = "wrong_output"
-			}
-		}
 
-		if status == "passed" {
-			summaryPassed++
+			if status == "passed" {
+				summaryPassed++
+				if !rc.Preview {
+					persistedPassed++
+					persistedEarnedWeight += tc.Weight
+				}
+			}
 			if !rc.Preview {
-				persistedPassed++
-				persistedEarnedWeight += tc.Weight
+				persistedTotalWeight += tc.Weight
 			}
-		}
-		if !rc.Preview {
-			persistedTotalWeight += tc.Weight
-		}
 
-		item := map[string]any{
-			"unittest_name":   tc.UnittestName,
-			"status":          status,
-			"runtime_ms":      int(runtime.Milliseconds()),
-			"exit_code":       exitCode,
-			"actual_stdout":   stdout,
-			"expected_stdout": tc.ExpectedStdout,
-			"stderr":          stderr,
-		}
-		if mode == "function" {
-			if tc.FunctionName != nil {
-				item["function_name"] = strings.TrimSpace(*tc.FunctionName)
+			item := map[string]any{
+				"unittest_name":   tc.UnittestName,
+				"status":          status,
+				"runtime_ms":      int(runtime.Milliseconds()),
+				"exit_code":       exitCode,
+				"actual_stdout":   stdout,
+				"expected_stdout": tc.ExpectedStdout,
+				"stderr":          stderr,
 			}
-			item["function_args"] = tc.FunctionArgs
-			item["function_kwargs"] = tc.FunctionKwargs
-			if tc.ExpectedReturn != nil {
-				item["expected_return"] = *tc.ExpectedReturn
+			if mode == "function" {
+				if tc.FunctionName != nil {
+					item["function_name"] = strings.TrimSpace(*tc.FunctionName)
+				}
+				item["function_args"] = tc.FunctionArgs
+				item["function_kwargs"] = tc.FunctionKwargs
+				if tc.ExpectedReturn != nil {
+					item["expected_return"] = *tc.ExpectedReturn
+				}
+				if actualReturn != nil {
+					item["actual_return"] = *actualReturn
+				}
 			}
-			if actualReturn != nil {
-				item["actual_return"] = *actualReturn
-			}
-		}
-		if rc.Preview {
-			item["preview"] = true
-			if rc.TempID != "" {
-				item["test_case_id"] = rc.TempID
+			if rc.Preview {
+				item["preview"] = true
+				if rc.TempID != "" {
+					item["test_case_id"] = rc.TempID
+				} else {
+					item["test_case_id"] = fmt.Sprintf("preview-%d", len(results)+1)
+				}
 			} else {
-				item["test_case_id"] = fmt.Sprintf("preview-%d", len(results)+1)
+				item["test_case_id"] = tc.ID
 			}
-		} else {
-			item["test_case_id"] = tc.ID
+			results = append(results, item)
 		}
-		results = append(results, item)
 	}
 
 	// Persist this run as a teacher submission for later viewing
@@ -1961,6 +2069,9 @@ func runTeacherSolution(c *gin.Context) {
 
 	// Compute and persist overall status and points similar to worker
 	allPass := persistedPassed == len(persistedTests)
+	if illegalDetected {
+		allPass = false
+	}
 	if !assignment.LLMInteractive {
 		score := 0.0
 		switch assignment.GradingPolicy {
@@ -2024,7 +2135,7 @@ func runTeacherSolution(c *gin.Context) {
 		"results":       results,
 	}
 
-	if assignment.LLMInteractive {
+	if assignment.LLMInteractive && !illegalDetected {
 		UpdateSubmissionStatus(sub.ID, "running")
 		runLLMInteractive(sub, assignment)
 		if llm, err := GetLatestLLMRun(sub.ID); err == nil && llm != nil {
@@ -2057,6 +2168,9 @@ func getSubmission(c *gin.Context) {
 	if role == "student" {
 		if assignment != nil && !assignment.ShowTraceback {
 			for i := range results {
+				if strings.EqualFold(results[i].Status, "illegal_tool_use") {
+					continue
+				}
 				results[i].Stderr = ""
 			}
 		}

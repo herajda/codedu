@@ -10,6 +10,7 @@ import (
 	"github.com/gin-contrib/sse"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -36,21 +37,24 @@ type User struct {
 }
 
 type Assignment struct {
-	ID              uuid.UUID `db:"id" json:"id"`
-	Title           string    `db:"title" json:"title"`
-	Description     string    `db:"description" json:"description"`
-	CreatedBy       uuid.UUID `db:"created_by" json:"created_by"`
-	Deadline        time.Time `db:"deadline" json:"deadline"`
-	MaxPoints       int       `db:"max_points" json:"max_points"`
-	GradingPolicy   string    `db:"grading_policy" json:"grading_policy"`
-	Published       bool      `db:"published" json:"published"`
-	ShowTraceback   bool      `db:"show_traceback" json:"show_traceback"`
-	ShowTestDetails bool      `db:"show_test_details" json:"show_test_details"`
-	ManualReview    bool      `db:"manual_review" json:"manual_review"`
-	TemplatePath    *string   `db:"template_path" json:"template_path"`
-	CreatedAt       time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time `db:"updated_at" json:"updated_at"`
-	ClassID         uuid.UUID `db:"class_id" json:"class_id"`
+	ID              uuid.UUID      `db:"id" json:"id"`
+	Title           string         `db:"title" json:"title"`
+	Description     string         `db:"description" json:"description"`
+	CreatedBy       uuid.UUID      `db:"created_by" json:"created_by"`
+	Deadline        time.Time      `db:"deadline" json:"deadline"`
+	MaxPoints       int            `db:"max_points" json:"max_points"`
+	GradingPolicy   string         `db:"grading_policy" json:"grading_policy"`
+	Published       bool           `db:"published" json:"published"`
+	ShowTraceback   bool           `db:"show_traceback" json:"show_traceback"`
+	ShowTestDetails bool           `db:"show_test_details" json:"show_test_details"`
+	ManualReview    bool           `db:"manual_review" json:"manual_review"`
+	BannedFunctions pq.StringArray `db:"banned_functions" json:"banned_functions"`
+	BannedModules   pq.StringArray `db:"banned_modules" json:"banned_modules"`
+	BannedToolRules *string        `db:"banned_tool_rules" json:"banned_tool_rules,omitempty"`
+	TemplatePath    *string        `db:"template_path" json:"template_path"`
+	CreatedAt       time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time      `db:"updated_at" json:"updated_at"`
+	ClassID         uuid.UUID      `db:"class_id" json:"class_id"`
 
 	// LLM-interactive testing configuration
 	LLMInteractive     bool    `db:"llm_interactive" json:"llm_interactive"`
@@ -64,6 +68,24 @@ type Assignment struct {
 	// Second deadline feature
 	SecondDeadline   *time.Time `db:"second_deadline" json:"second_deadline"`
 	LatePenaltyRatio float64    `db:"late_penalty_ratio" json:"late_penalty_ratio"`
+}
+
+func copyStringArray(arr pq.StringArray) []string {
+	if len(arr) == 0 {
+		return []string{}
+	}
+	out := make([]string, len(arr))
+	copy(out, arr)
+	return out
+}
+
+func cloneStrings(list []string) []string {
+	if len(list) == 0 {
+		return []string{}
+	}
+	out := make([]string, len(list))
+	copy(out, list)
+	return out
 }
 
 // AssignmentDeadlineOverride stores a per-student custom deadline for an assignment
@@ -224,12 +246,15 @@ func ListAllClasses() ([]Class, error) {
 // ──────────────────────────────────────────────────────────────────────────────
 func CreateAssignment(a *Assignment) error {
 	const q = `
-          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, show_test_details, manual_review, template_path, class_id, second_deadline, late_penalty_ratio)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, show_test_details, manual_review, banned_functions, banned_modules, banned_tool_rules, template_path, class_id, second_deadline, late_penalty_ratio)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
           RETURNING id, created_at, updated_at`
 	return DB.QueryRow(q,
 		a.Title, a.Description, a.CreatedBy, a.Deadline,
-		a.MaxPoints, a.GradingPolicy, a.Published, a.ShowTraceback, a.ShowTestDetails, a.ManualReview, a.TemplatePath, a.ClassID,
+		a.MaxPoints, a.GradingPolicy, a.Published, a.ShowTraceback, a.ShowTestDetails, a.ManualReview,
+		pq.Array(copyStringArray(a.BannedFunctions)), pq.Array(copyStringArray(a.BannedModules)),
+		a.BannedToolRules,
+		a.TemplatePath, a.ClassID,
 		a.SecondDeadline, a.LatePenaltyRatio,
 	).Scan(&a.ID, &a.CreatedAt, &a.UpdatedAt)
 }
@@ -243,7 +268,11 @@ func ListAssignments(role string, userID uuid.UUID) ([]Assignment, error) {
 	var args []any
 	query := `
     SELECT a.id, a.title, a.description, a.created_by, ` + deadlineExpr + ` AS deadline,
-           a.max_points, a.grading_policy, a.published, a.show_traceback, a.show_test_details, a.manual_review, a.template_path,
+           a.max_points, a.grading_policy, a.published, a.show_traceback, a.show_test_details, a.manual_review,
+           COALESCE(a.banned_functions,'{}') AS banned_functions,
+           COALESCE(a.banned_modules,'{}')   AS banned_modules,
+           a.banned_tool_rules,
+           a.template_path,
            a.created_at, a.updated_at, a.class_id,
            COALESCE(a.llm_interactive,false) AS llm_interactive,
            COALESCE(a.llm_feedback,false) AS llm_feedback,
@@ -267,7 +296,11 @@ func ListAssignments(role string, userID uuid.UUID) ([]Assignment, error) {
 		// rebuild query with override-aware deadline
 		query = `
     SELECT a.id, a.title, a.description, a.created_by, COALESCE(ado.new_deadline, a.deadline) AS deadline,
-           a.max_points, a.grading_policy, a.published, a.show_traceback, a.show_test_details, a.manual_review, a.template_path,
+           a.max_points, a.grading_policy, a.published, a.show_traceback, a.show_test_details, a.manual_review,
+           COALESCE(a.banned_functions,'{}') AS banned_functions,
+           COALESCE(a.banned_modules,'{}')   AS banned_modules,
+           a.banned_tool_rules,
+           a.template_path,
            a.created_at, a.updated_at, a.class_id,
            COALESCE(a.llm_interactive,false) AS llm_interactive,
            COALESCE(a.llm_feedback,false) AS llm_feedback,
@@ -353,7 +386,11 @@ func DeleteDeadlineOverride(aid, studentID uuid.UUID) error {
 func GetAssignment(id uuid.UUID) (*Assignment, error) {
 	var a Assignment
 	err := DB.Get(&a, `
-    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, show_test_details, manual_review, template_path, created_at, updated_at, class_id,
+    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, show_test_details, manual_review,
+           COALESCE(banned_functions,'{}') AS banned_functions,
+           COALESCE(banned_modules,'{}')   AS banned_modules,
+           banned_tool_rules,
+           template_path, created_at, updated_at, class_id,
            COALESCE(llm_interactive,false) AS llm_interactive,
            COALESCE(llm_feedback,false) AS llm_feedback,
            COALESCE(llm_auto_award,true) AS llm_auto_award,
@@ -376,7 +413,11 @@ func GetAssignmentForSubmission(subID uuid.UUID) (*Assignment, error) {
 	var a Assignment
 	err := DB.Get(&a, `
         SELECT a.id, a.title, a.description, a.created_by, a.deadline,
-               a.max_points, a.grading_policy, a.published, a.show_traceback, a.show_test_details, a.manual_review, a.template_path,
+               a.max_points, a.grading_policy, a.published, a.show_traceback, a.show_test_details, a.manual_review,
+               COALESCE(a.banned_functions,'{}') AS banned_functions,
+               COALESCE(a.banned_modules,'{}')   AS banned_modules,
+               a.banned_tool_rules,
+               a.template_path,
                a.created_at, a.updated_at, a.class_id,
                COALESCE(a.llm_interactive,false) AS llm_interactive,
                COALESCE(a.llm_feedback,false) AS llm_feedback,
@@ -402,13 +443,15 @@ func UpdateAssignment(a *Assignment) error {
     UPDATE assignments
        SET title=$1, description=$2, deadline=$3,
            max_points=$4, grading_policy=$5, show_traceback=$6, show_test_details=$7, manual_review=$8,
-           llm_interactive=$9, llm_feedback=$10, llm_auto_award=$11, llm_scenarios_json=$12,
-           llm_strictness=$13, llm_rubric=$14, llm_teacher_baseline_json=$15,
-           second_deadline=$16, late_penalty_ratio=$17,
+           banned_functions=$9, banned_modules=$10, banned_tool_rules=$11,
+           llm_interactive=$12, llm_feedback=$13, llm_auto_award=$14, llm_scenarios_json=$15,
+           llm_strictness=$16, llm_rubric=$17, llm_teacher_baseline_json=$18,
+           second_deadline=$19, late_penalty_ratio=$20,
            updated_at=now()
-     WHERE id=$18`,
+     WHERE id=$21`,
 		a.Title, a.Description, a.Deadline,
 		a.MaxPoints, a.GradingPolicy, a.ShowTraceback, a.ShowTestDetails, a.ManualReview,
+		pq.Array(copyStringArray(a.BannedFunctions)), pq.Array(copyStringArray(a.BannedModules)), a.BannedToolRules,
 		a.LLMInteractive, a.LLMFeedback, a.LLMAutoAward, a.LLMScenariosRaw,
 		a.LLMStrictness, a.LLMRubric, a.LLMTeacherBaseline,
 		a.SecondDeadline, a.LatePenaltyRatio,
@@ -420,6 +463,22 @@ func UpdateAssignment(a *Assignment) error {
 		return fmt.Errorf("no rows updated")
 	}
 	return nil
+}
+
+func UpdateAssignmentConstraints(id uuid.UUID, bannedFunctions, bannedModules []string, configJSON *string) error {
+	_, err := DB.Exec(`
+        UPDATE assignments
+           SET banned_functions=$1,
+               banned_modules=$2,
+               banned_tool_rules=$3,
+               updated_at=now()
+         WHERE id=$4`,
+		pq.Array(cloneStrings(bannedFunctions)),
+		pq.Array(cloneStrings(bannedModules)),
+		configJSON,
+		id,
+	)
+	return err
 }
 
 // DeleteAssignment removes an assignment (and cascades test_cases/submissions).
@@ -456,7 +515,10 @@ func CloneAssignmentWithTests(sourceID, targetClassID, createdBy uuid.UUID) (uui
 		GradingPolicy:    src.GradingPolicy,
 		Published:        false,
 		ShowTraceback:    src.ShowTraceback,
+		ShowTestDetails:  src.ShowTestDetails,
 		ManualReview:     src.ManualReview,
+		BannedFunctions:  append(pq.StringArray(nil), src.BannedFunctions...),
+		BannedModules:    append(pq.StringArray(nil), src.BannedModules...),
 		TemplatePath:     src.TemplatePath,
 		CreatedBy:        createdBy,
 		SecondDeadline:   src.SecondDeadline,
@@ -469,6 +531,10 @@ func CloneAssignmentWithTests(sourceID, targetClassID, createdBy uuid.UUID) (uui
 		LLMStrictness:      src.LLMStrictness,
 		LLMRubric:          src.LLMRubric,
 		LLMTeacherBaseline: src.LLMTeacherBaseline,
+	}
+	if src.BannedToolRules != nil {
+		clone := *src.BannedToolRules
+		dst.BannedToolRules = &clone
 	}
 	if err := CreateAssignment(dst); err != nil {
 		return uuid.Nil, err

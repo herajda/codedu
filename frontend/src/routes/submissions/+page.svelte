@@ -31,6 +31,7 @@
     if(s === 'passed') return 'badge-success';
     if(s === 'wrong_output') return 'badge-error';
     if(s === 'runtime_error') return 'badge-error';
+    if(s === 'illegal_tool_use') return 'badge-error';
     if(s === 'time_limit_exceeded' || s==='memory_limit_exceeded') return 'badge-warning';
     return '';
   }
