@@ -166,6 +166,7 @@ $: id = $page.params.id
     if(s==='passed') return 'badge-success'
     if(s==='wrong_output') return 'badge-error'
     if(s==='runtime_error') return 'badge-error'
+    if(s==='illegal_tool_use') return 'badge-error'
     if(s==='time_limit_exceeded' || s==='memory_limit_exceeded') return 'badge-warning'
     return ''
   }
@@ -174,6 +175,7 @@ $: id = $page.params.id
     if(s === 'passed') return 'badge-success'
     if(s === 'wrong_output') return 'badge-error'
     if(s === 'runtime_error') return 'badge-error'
+    if(s === 'illegal_tool_use') return 'badge-error'
     if(s === 'time_limit_exceeded' || s==='memory_limit_exceeded') return 'badge-warning'
     return ''
   }
@@ -197,7 +199,7 @@ $: id = $page.params.id
 
   $: totalTests = results?.length ?? 0
   $: passedCount = results.filter((r)=> r.status==='passed').length
-  $: failedCount = results.filter((r)=> ['wrong_output','runtime_error','failed'].includes(r.status)).length
+  $: failedCount = results.filter((r)=> ['wrong_output','runtime_error','failed','illegal_tool_use'].includes(r.status)).length
   $: warnedCount = results.filter((r)=> ['time_limit_exceeded','memory_limit_exceeded'].includes(r.status)).length
 
   // ----- LLM UI helpers -----
@@ -456,7 +458,8 @@ $: id = $page.params.id
             <div class="space-y-2">
               {#each results as r, i}
                 {@const mode = r.execution_mode ?? (r.unittest_name ? 'unittest' : r.function_name ? 'function' : 'stdin_stdout')}
-                {#if allowTestDetails || allowTraceback}
+                {@const allowLog = allowTraceback || r.status === 'illegal_tool_use'}
+                {#if allowTestDetails || allowLog}
                   <details class="collapse collapse-arrow rounded-box bg-base-200">
                     <summary class="collapse-title">
                       <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -567,7 +570,7 @@ $: id = $page.params.id
                           {/if}
                         </section>
                       {/if}
-                      {#if allowTraceback}
+                      {#if allowLog}
                         <section class="rounded-2xl border border-base-300/70 bg-base-100 p-4 shadow-sm">
                           <header class="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-base-content/70">
                             <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

@@ -525,14 +525,15 @@ func runSubmission(id uuid.UUID) {
 		return
 	}
 	// Determine assignment mode
-	if a, err := GetAssignment(sub.AssignmentID); err == nil {
-		if a.LLMInteractive {
+	assignment, assignErr := GetAssignment(sub.AssignmentID)
+	if assignErr == nil {
+		if assignment.LLMInteractive {
 			UpdateSubmissionStatus(id, "running")
-			runLLMInteractive(sub, a)
+			runLLMInteractive(sub, assignment)
 			return
 		}
 		// Early exit for manual-review assignments when not using LLM
-		if a.ManualReview {
+		if assignment.ManualReview {
 			return
 		}
 	}
@@ -631,6 +632,36 @@ func runSubmission(id uuid.UUID) {
 	if err != nil {
 		UpdateSubmissionStatus(id, "failed")
 		return
+	}
+
+	if assignment != nil {
+		noteMap := notesFromAssignment(assignment)
+		bannedFuncs := copyStringArray(assignment.BannedFunctions)
+		bannedMods := copyStringArray(assignment.BannedModules)
+		if len(bannedFuncs) > 0 || len(bannedMods) > 0 {
+			findings, detErr := detectIllegalToolUse(tmpDir, bannedFuncs, bannedMods)
+			if detErr != nil {
+				fmt.Printf("[worker] illegal tool detection failed for submission %s: %v\n", id, detErr)
+			} else if len(findings) > 0 {
+				message := formatIllegalToolMessage(findings, noteMap)
+				totalWeight := 0.0
+				for _, tc := range tests {
+					res := &Result{
+						SubmissionID: sub.ID,
+						TestCaseID:   tc.ID,
+						Status:       "illegal_tool_use",
+						ActualStdout: "",
+						Stderr:       message,
+						ExitCode:     -1,
+						RuntimeMS:    0,
+					}
+					_ = CreateResult(res)
+					totalWeight += tc.Weight
+				}
+				finalizeSubmissionOutcome(sub, assignment, false, totalWeight, 0)
+				return
+			}
+		}
 	}
 
 	allPass := true
@@ -742,49 +773,62 @@ func runSubmission(id uuid.UUID) {
 		}
 	}
 
-	a, err := GetAssignment(sub.AssignmentID)
-	if err == nil {
-		score := 0.0
-		switch a.GradingPolicy {
-		case "all_or_nothing":
+	finalizeSubmissionOutcome(sub, assignment, allPass, totalWeight, earnedWeight)
+}
+
+func finalizeSubmissionOutcome(sub *Submission, assignment *Assignment, allPass bool, totalWeight, earnedWeight float64) {
+	if assignment == nil {
+		var err error
+		assignment, err = GetAssignment(sub.AssignmentID)
+		if err != nil {
 			if allPass {
-				score = float64(a.MaxPoints)
-			}
-		case "weighted":
-			// normalize to MaxPoints
-			if totalWeight > 0 {
-				score = earnedWeight * (float64(a.MaxPoints) / totalWeight)
-			}
-		}
-
-		// Handle late submission logic with per-student extension and second deadline
-		effDeadline := a.Deadline
-		effSecond := a.SecondDeadline
-		if o, err := GetDeadlineOverride(sub.AssignmentID, sub.StudentID); err == nil && o != nil {
-			// override main deadline
-			effDeadline = o.NewDeadline
-			// allow late period up to max(second_deadline, new_deadline)
-			if effSecond == nil || o.NewDeadline.After(*effSecond) {
-				tmp := o.NewDeadline
-				effSecond = &tmp
-			}
-		}
-		if sub.CreatedAt.After(effDeadline) {
-			_ = SetSubmissionLate(id, true)
-			if effSecond != nil && sub.CreatedAt.Before(*effSecond) {
-				score = score * a.LatePenaltyRatio
+				_ = UpdateSubmissionStatus(sub.ID, "completed")
 			} else {
-				score = 0.0
+				_ = UpdateSubmissionStatus(sub.ID, "failed")
 			}
+			return
 		}
-
-		SetSubmissionPoints(id, score)
 	}
 
+	score := 0.0
+	switch assignment.GradingPolicy {
+	case "all_or_nothing":
+		if allPass {
+			score = float64(assignment.MaxPoints)
+		}
+	case "weighted":
+		if totalWeight > 0 {
+			score = earnedWeight * (float64(assignment.MaxPoints) / totalWeight)
+		}
+	default:
+		if allPass {
+			score = float64(assignment.MaxPoints)
+		}
+	}
+
+	effDeadline := assignment.Deadline
+	effSecond := assignment.SecondDeadline
+	if o, err := GetDeadlineOverride(sub.AssignmentID, sub.StudentID); err == nil && o != nil {
+		effDeadline = o.NewDeadline
+		if effSecond == nil || o.NewDeadline.After(*effSecond) {
+			tmp := o.NewDeadline
+			effSecond = &tmp
+		}
+	}
+	if sub.CreatedAt.After(effDeadline) {
+		_ = SetSubmissionLate(sub.ID, true)
+		if effSecond != nil && sub.CreatedAt.Before(*effSecond) {
+			score = score * assignment.LatePenaltyRatio
+		} else {
+			score = 0.0
+		}
+	}
+
+	_ = SetSubmissionPoints(sub.ID, score)
 	if allPass {
-		UpdateSubmissionStatus(id, "completed")
+		_ = UpdateSubmissionStatus(sub.ID, "completed")
 	} else {
-		UpdateSubmissionStatus(id, "failed")
+		_ = UpdateSubmissionStatus(sub.ID, "failed")
 	}
 }
 

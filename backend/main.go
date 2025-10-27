@@ -190,6 +190,7 @@ func main() {
 		api.POST("/assignments", RoleGuard("teacher", "admin"), createAssignment)
 		api.GET("/assignments/:id", RoleGuard("student", "teacher", "admin"), getAssignment)
 		api.PUT("/assignments/:id", RoleGuard("teacher", "admin"), updateAssignment)
+		api.PUT("/assignments/:id/testing-constraints", RoleGuard("teacher", "admin"), updateAssignmentTestingConstraints)
 		api.DELETE("/assignments/:id", RoleGuard("teacher", "admin"), deleteAssignment)
 		api.PUT("/assignments/:id/publish", RoleGuard("teacher", "admin"), publishAssignment)
 		// allow optional trailing slash for template endpoints

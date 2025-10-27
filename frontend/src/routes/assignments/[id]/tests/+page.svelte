@@ -7,7 +7,8 @@
   import { extractMethodFromUnittest, leadingIndent, parseUnitTestQualifiedName } from '$lib/unittests'
   import CodeMirror from '$lib/components/ui/CodeMirror.svelte'
   import { python } from '@codemirror/lang-python'
-  import { Plus, Save, Trash2, Eye, FlaskConical, FileUp, Code, Copy, Clock, Scale, Upload as UploadIcon } from 'lucide-svelte'
+  import { bannedCatalog, type CatalogFunction } from '$lib/bannedCatalog'
+  import { Plus, Save, Trash2, Eye, FlaskConical, FileUp, Code, Copy, Clock, Scale, Shield, Upload as UploadIcon } from 'lucide-svelte'
   import ConfirmModal from '$lib/components/ConfirmModal.svelte'
   import { strictnessGuidance } from '$lib/llmStrictness'
   import { t, translator } from '$lib/i18n'
@@ -37,6 +38,18 @@
   let tLimit = ''
   let tWeight = '1'
   let unittestFile: File | null = null
+
+  type ToolMode = 'structured' | 'advanced'
+  type StructuredToolRule = { library: string; function: string; note: string }
+
+  let toolMode: ToolMode = 'structured'
+  let structuredRules: StructuredToolRule[] = []
+  let draftLibrary = bannedCatalog[0]?.library ?? 'builtins'
+  let draftFunction = ''
+  let draftNote = ''
+  let advancedPatternsText = ''
+  let bannedSaving = false
+  let bannedSaved = false
 
   // function-test inputs removed
 
@@ -275,6 +288,116 @@
     utTests = [...utTests]
   }
 
+  const libraryLabelMap = new Map(bannedCatalog.map((entry) => [entry.library, entry.label]))
+  let functionOptions: CatalogFunction[] = bannedCatalog[0]?.functions ?? []
+  $: functionOptions = (bannedCatalog.find((entry) => entry.library === draftLibrary)?.functions ?? [])
+
+  function libraryLabel(id: string): string {
+    return libraryLabelMap.get(id) ?? id
+  }
+
+  function resetDraftRule() {
+    draftFunction = ''
+    draftNote = ''
+  }
+
+  function addStructuredRule() {
+    const library = (draftLibrary || '').trim().toLowerCase()
+    if (!library) return
+    let fn = (draftFunction || '').trim().toLowerCase()
+    if (fn === '' || fn === '*') {
+      fn = '*'
+    }
+    const note = draftNote.trim()
+    const existingIndex = structuredRules.findIndex((rule) => rule.library === library && rule.function === fn)
+    if (existingIndex >= 0) {
+      structuredRules = structuredRules.map((rule, idx) => (idx === existingIndex ? { ...rule, note } : rule))
+    } else {
+      structuredRules = [...structuredRules, { library, function: fn, note }]
+    }
+    bannedSaved = false
+    resetDraftRule()
+  }
+
+  function removeStructuredRule(index: number) {
+    structuredRules = structuredRules.filter((_, i) => i !== index)
+    bannedSaved = false
+  }
+
+  function updateStructuredNote(index: number, note: string) {
+    structuredRules = structuredRules.map((rule, idx) => (idx === index ? { ...rule, note } : rule))
+    bannedSaved = false
+  }
+
+  function structuredRuleDisplay(rule: StructuredToolRule): string {
+    return `${rule.library}.${rule.function === '*' ? '*' : rule.function}`
+  }
+
+  function parseAdvancedPatterns(raw: string): string[] {
+    return raw
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+  }
+
+  function applyBannedConfig(source: any) {
+    let mode: ToolMode = 'structured'
+    let nextStructured: StructuredToolRule[] = []
+    let nextAdvanced = ''
+
+    const raw = typeof source?.banned_tool_rules === 'string' ? source.banned_tool_rules : ''
+    if (raw.trim()) {
+      try {
+        const parsed = JSON.parse(raw)
+        if (parsed && typeof parsed === 'object') {
+          if (Array.isArray(parsed.structured)) {
+            nextStructured = parsed.structured
+              .map((rule: any) => ({
+                library: String(rule?.library || '').trim().toLowerCase() || 'builtins',
+                function: String(rule?.function || '').trim().toLowerCase() || '*',
+                note: String(rule?.note || '').trim()
+              }))
+          }
+          if (Array.isArray(parsed.advanced)) {
+            nextAdvanced = parsed.advanced.join('\n')
+          }
+          if (parsed.mode === 'advanced') {
+            mode = 'advanced'
+          } else if (parsed.mode === 'structured') {
+            mode = 'structured'
+          }
+        }
+      } catch {
+        // ignore malformed JSON and fall back to legacy arrays
+      }
+    }
+
+    if (!nextStructured.length && !nextAdvanced) {
+      const fallbackFunctions = Array.isArray(source?.banned_functions) ? source.banned_functions : []
+      const fallbackModules = Array.isArray(source?.banned_modules) ? source.banned_modules : []
+      const combined: string[] = []
+      for (const fn of fallbackFunctions) {
+        const trimmed = String(fn || '').trim()
+        if (trimmed) combined.push(trimmed.toLowerCase())
+      }
+      for (const mod of fallbackModules) {
+        const trimmed = String(mod || '').trim()
+        if (!trimmed) continue
+        combined.push(trimmed.includes('*') ? trimmed.toLowerCase() : `${trimmed.toLowerCase()}.*`)
+      }
+      if (combined.length) {
+        nextAdvanced = combined.join('\n')
+        mode = 'advanced'
+      }
+    }
+
+    structuredRules = nextStructured
+    advancedPatternsText = nextAdvanced
+    toolMode = nextStructured.length ? mode : (nextAdvanced ? 'advanced' : mode)
+    draftLibrary = structuredRules.length ? structuredRules[structuredRules.length - 1].library : (bannedCatalog[0]?.library ?? 'builtins')
+    resetDraftRule()
+  }
+
   // Auto-generate preview code reactively when inputs change
   $: {
     utClassName; utSetup; utTeardown; utTests;
@@ -289,6 +412,8 @@
     try {
       const data = await apiJSON(`/api/assignments/${id}`)
       assignment = data.assignment
+      applyBannedConfig(assignment)
+      bannedSaved = false
       tests = data.tests ?? []
       // init llm state
       llmFeedback = !!assignment.llm_feedback
@@ -298,6 +423,33 @@
       llmRubric = assignment.llm_rubric ?? ''
     } catch (e: any) {
       err = e.message
+    }
+  }
+
+  async function saveBannedTools() {
+    bannedSaving = true
+    bannedSaved = false
+    err = ''
+    try {
+      const payload = {
+        mode: toolMode,
+        structured: toolMode === 'advanced' ? [] : structuredRules.map((rule) => ({ ...rule, note: rule.note.trim() })),
+        advanced: toolMode === 'structured' ? [] : parseAdvancedPatterns(advancedPatternsText)
+      }
+      const res = await apiJSON(`/api/assignments/${id}/testing-constraints`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      if (res?.assignment) {
+        assignment = res.assignment
+        applyBannedConfig(assignment)
+      }
+      bannedSaved = true
+    } catch (e: any) {
+      err = e.message
+    } finally {
+      bannedSaving = false
     }
   }
 
@@ -1789,6 +1941,109 @@
               </div>
             {/each}
             {#if !(tests && tests.length)}<p><i>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::no_tests')}</i></p>{/if}
+          </div>
+        </div>
+
+        <input type="radio" name="tests-tab" role="tab" class="tab" aria-label={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_tools_tab')}>
+        <div role="tabpanel" class="tab-content bg-base-100 border-base-300 rounded-box p-4 space-y-4">
+          <div class="space-y-2">
+            <h4 class="text-lg font-semibold flex items-center gap-2"><Shield size={18}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_tools_heading')}</h4>
+            <p class="text-sm opacity-70">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_tools_hint')}</p>
+          </div>
+          <div class="flex flex-wrap gap-4">
+            <label class="label cursor-pointer gap-2">
+              <input type="radio" class="radio" value="structured" bind:group={toolMode} on:change={() => (bannedSaved = false)}>
+              <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_mode_structured')}</span>
+            </label>
+            <label class="label cursor-pointer gap-2">
+              <input type="radio" class="radio" value="advanced" bind:group={toolMode} on:change={() => (bannedSaved = false)}>
+              <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_mode_advanced')}</span>
+            </label>
+          </div>
+
+          {#if toolMode === 'structured'}
+            <div class="space-y-4">
+              <div class="grid gap-4 md:grid-cols-2">
+                <label class="form-control w-full">
+                  <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_library_label')}</span>
+                  <select class="select select-bordered w-full" bind:value={draftLibrary} on:change={() => (bannedSaved = false)}>
+                    {#each bannedCatalog as entry}
+                      <option value={entry.library}>{entry.label}</option>
+                    {/each}
+                  </select>
+                </label>
+                <label class="form-control w-full">
+                  <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_function_label')}</span>
+                  <div class="flex gap-2">
+                    <input class="input input-bordered flex-1" list="banned-function-options" bind:value={draftFunction} placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_function_placeholder')} on:input={() => (bannedSaved = false)}>
+                    <datalist id="banned-function-options">
+                      {#each functionOptions as fn}
+                        <option value={fn.name}>{fn.label ?? fn.name}</option>
+                      {/each}
+                    </datalist>
+                    <button type="button" class="btn btn-outline" on:click={() => { draftFunction = '*'; bannedSaved = false }}>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_any_button')}</button>
+                  </div>
+                  <span class="label-text-alt text-xs">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_function_hint')}</span>
+                </label>
+                <label class="form-control md:col-span-2">
+                  <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_note_label')}</span>
+                  <input class="input input-bordered w-full" bind:value={draftNote} placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_note_placeholder')} on:input={() => (bannedSaved = false)}>
+                  <span class="label-text-alt text-xs">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_note_hint')}</span>
+                </label>
+                <div class="md:col-span-2 flex justify-end">
+                  <button type="button" class="btn" on:click={addStructuredRule}>
+                    <Plus size={16}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_add_button')}
+                  </button>
+                </div>
+              </div>
+
+              {#if structuredRules.length}
+                <div class="space-y-2">
+                  <h5 class="font-semibold">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_rules_heading')}</h5>
+                  <p class="text-xs opacity-70">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_rules_hint')}</p>
+                  <div class="space-y-2">
+                    {#each structuredRules as rule, idx}
+                      <div class="rounded-lg border border-base-300/60 p-3 space-y-2 md:space-y-0 md:flex md:items-center md:gap-3">
+                        <div class="font-mono text-sm md:w-48">{structuredRuleDisplay(rule)}</div>
+                        <div class="flex-1 w-full">
+                          <label class="form-control w-full">
+                            <span class="label-text text-xs">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_rule_note_label')}</span>
+                            <input class="input input-bordered w-full" value={rule.note} on:input={(event) => updateStructuredNote(idx, (event.target as HTMLInputElement).value)} placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_note_placeholder')}>
+                          </label>
+                        </div>
+                        <button type="button" class="btn btn-ghost btn-sm" on:click={() => removeStructuredRule(idx)}>
+                          <Trash2 size={14}/> {translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_remove_button')}
+                        </button>
+                      </div>
+                    {/each}
+                  </div>
+                </div>
+              {:else}
+                <p class="text-sm opacity-70">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_empty_state')}</p>
+              {/if}
+            </div>
+          {:else}
+            <div class="space-y-2">
+              <label class="form-control w-full">
+                <span class="label-text">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::advanced_label')}</span>
+                <textarea class="textarea textarea-bordered h-48" bind:value={advancedPatternsText} placeholder={translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::advanced_placeholder')} on:input={() => (bannedSaved = false)}></textarea>
+                <span class="label-text-alt text-xs">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::advanced_tip')}</span>
+              </label>
+            </div>
+          {/if}
+
+          <div class="flex items-center gap-3">
+            <button class="btn btn-primary" on:click={saveBannedTools} disabled={bannedSaving}>
+              {#if bannedSaving}
+                <span class="loading loading-spinner loading-sm"></span>
+              {:else}
+                <Save size={16}/>
+              {/if}
+              <span>{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::save_banned_tools')}</span>
+            </button>
+            {#if bannedSaved}
+              <span class="text-sm text-success">{translate('frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_tools_saved')}</span>
+            {/if}
           </div>
         </div>
 

@@ -58,6 +58,30 @@ import { t, translator } from '$lib/i18n';
 
   }
 
+  function deriveDownloadName(): string {
+    if (!nb) return 'notebook.ipynb';
+    const nameFields = [
+      nb?.metadata?.name,
+      nb?.metadata?.title
+    ];
+    for (const candidate of nameFields) {
+      if (typeof candidate === 'string') {
+        const trimmed = candidate.trim();
+        if (trimmed) {
+          return trimmed.toLowerCase().endsWith('.ipynb') ? trimmed : `${trimmed}.ipynb`;
+        }
+      }
+    }
+    return 'notebook.ipynb';
+  }
+
+  function exportNotebook() {
+    if (!nb) return;
+    const json = serializeNotebook(nb);
+    const blob = new Blob([json], { type: 'application/json' });
+    saveAs(blob, deriveDownloadName());
+  }
+
   async function saveNotebook() {
     // Run all cells to include outputs; avoid blocking on input for save.
     await runAllCells(false);
@@ -84,12 +108,19 @@ import { t, translator } from '$lib/i18n';
 
 {#if nb}
   <div class="space-y-3" bind:this={container}>
-    <div class="flex justify-end">
+    <div class="flex justify-end gap-2">
       <button
         on:click={runAllCells}
         class="px-3 py-1 rounded text-green-600 hover:text-white hover:bg-green-600 hover:scale-110 transition-transform"
       >
         {translate('frontend/src/lib/components/NotebookEditor.svelte::run_all')}
+      </button>
+      <button
+        on:click={exportNotebook}
+        aria-label={translate('frontend/src/lib/components/NotebookEditor.svelte::download')}
+        class="px-3 py-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
+      >
+        {translate('frontend/src/lib/components/NotebookEditor.svelte::download')}
       </button>
     </div>
     {#each nb.cells as cell, i (cell.id)}
@@ -130,6 +161,13 @@ import { t, translator } from '$lib/i18n';
           <path d="M16 18l6-6-6-6M8 6L2 12l6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
       </button>
+      <button
+        on:click={exportNotebook}
+        aria-label={translate('frontend/src/lib/components/NotebookEditor.svelte::download')}
+        class="px-3 py-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
+      >
+        {translate('frontend/src/lib/components/NotebookEditor.svelte::download')}
+      </button>
       {#if $auth?.role === 'teacher' && fileId}
         <button
           on:click={saveNotebook}
@@ -141,12 +179,19 @@ import { t, translator } from '$lib/i18n';
       {/if}
     </div>
     {#if showBottomButton}
-      <div class="flex justify-end">
+      <div class="flex justify-end gap-2">
         <button
           on:click={runAllCells}
           class="px-3 py-1 rounded text-green-600 hover:text-white hover:bg-green-600 hover:scale-110 transition-transform"
         >
           {translate('frontend/src/lib/components/NotebookEditor.svelte::run_all')}
+        </button>
+        <button
+          on:click={exportNotebook}
+          aria-label={translate('frontend/src/lib/components/NotebookEditor.svelte::download')}
+          class="px-3 py-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
+        >
+          {translate('frontend/src/lib/components/NotebookEditor.svelte::download')}
         </button>
       </div>
     {/if}
