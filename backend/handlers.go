@@ -4332,53 +4332,146 @@ func linkLocalAccount(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "already linked"})
 		return
 	}
-	if mailer == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Email verification is temporarily unavailable"})
-		return
-	}
 	email := strings.TrimSpace(req.Email)
 	existing, err := FindUserByEmail(email)
-	if err == nil && existing.ID != uid {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "email already in use"})
-		return
-	}
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	var mergeExisting bool
+	var existingDetail *User
+	switch {
+	case err == nil:
+		if existing.ID != uid {
+			if err := bcrypt.CompareHashAndPassword([]byte(existing.PasswordHash), []byte(req.Password)); err != nil {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+				return
+			}
+			existingDetail, err = GetUser(existing.ID)
+			if err != nil {
+				log.Printf("[linkLocalAccount] GetUser existing error: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+				return
+			}
+			mergeExisting = true
+		}
+	case errors.Is(err, sql.ErrNoRows):
+		// no existing local account, proceed to create new credentials
+	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
 	hash, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	emailVerified := false
+	var emailVerifiedAt *time.Time
+	if mergeExisting {
+		emailVerified = existingDetail.EmailVerified
+		emailVerifiedAt = existingDetail.EmailVerifiedAt
+	}
+	needsVerification := !emailVerified
+	if needsVerification && mailer == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Email verification is temporarily unavailable"})
+		return
+	}
+	finalName := user.Name
+	if mergeExisting && (finalName == nil || strings.TrimSpace(*finalName) == "") {
+		if existingDetail.Name != nil && strings.TrimSpace(*existingDetail.Name) != "" {
+			finalName = existingDetail.Name
+		}
+	}
+	finalAvatar := user.Avatar
+	if mergeExisting && finalAvatar == nil && existingDetail.Avatar != nil {
+		finalAvatar = existingDetail.Avatar
+	}
+	finalRole := user.Role
+	switch finalRole {
+	case "admin":
+	case "teacher":
+	default:
+		if mergeExisting && existingDetail.Role == "teacher" {
+			finalRole = "teacher"
+		} else {
+			finalRole = "student"
+		}
+	}
+	finalPreferredLocale := user.PreferredLocale
+	if mergeExisting && existingDetail.PreferredLocale != nil {
+		finalPreferredLocale = existingDetail.PreferredLocale
+	}
+	finalTheme := user.Theme
+	if mergeExisting && existingDetail.Theme == "dark" && finalTheme != "dark" {
+		finalTheme = "dark"
+	}
+	finalEmailNotifications := user.EmailNotifications
+	finalEmailMessageDigest := user.EmailMessageDigest
+	if mergeExisting {
+		finalEmailNotifications = existingDetail.EmailNotifications
+		finalEmailMessageDigest = existingDetail.EmailMessageDigest
+	}
 	tx, err := DB.Beginx()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
 	defer func() { _ = tx.Rollback() }()
+	if mergeExisting {
+		if err := mergeUsersTx(tx, uid, existingDetail.ID); err != nil {
+			log.Printf("[linkLocalAccount] mergeUsersTx error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+			return
+		}
+		if _, err := tx.Exec(`DELETE FROM users WHERE id=$1`, existingDetail.ID); err != nil {
+			log.Printf("[linkLocalAccount] delete existing user error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+			return
+		}
+	}
 	if _, err := tx.Exec(`UPDATE users
 	                         SET email=$1,
 	                             password_hash=$2,
-	                             email_verified=FALSE,
-	                             email_verified_at=NULL
-	                       WHERE id=$3`, email, string(hash), uid); err != nil {
+	                             name=$3,
+	                             avatar=$4,
+	                             role=$5,
+	                             preferred_locale=$6,
+	                             email_notifications=$7,
+	                             email_message_digest=$8,
+	                             email_verified=$9,
+	                             email_verified_at=$10,
+	                             theme=$11,
+	                             updated_at=now()
+	                       WHERE id=$12`, email, string(hash), finalName, finalAvatar, finalRole, finalPreferredLocale, finalEmailNotifications, finalEmailMessageDigest, emailVerified, emailVerifiedAt, finalTheme, uid); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
-	token, err := issueEmailVerificationTokenTx(tx, uid)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-		return
+	var token string
+	if needsVerification {
+		token, err = issueEmailVerificationTokenTx(tx, uid)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+			return
+		}
+	} else {
+		if _, err := tx.Exec(`DELETE FROM email_verification_tokens WHERE user_id=$1`, uid); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+			return
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
-	if err := mailer.sendVerificationEmail(email, token); err != nil {
-		log.Printf("could not send verification email for user %s: %v", uid, err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not send verification email"})
+	if needsVerification {
+		if err := mailer.sendVerificationEmail(email, token); err != nil {
+			log.Printf("could not send verification email for user %s: %v", uid, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "could not send verification email"})
+			return
+		}
+		c.JSON(http.StatusAccepted, gin.H{
+			"message":           "Verification email sent",
+			"needsVerification": true,
+			"email":             email,
+		})
 		return
 	}
-	c.JSON(http.StatusAccepted, gin.H{
-		"message":           "Verification email sent",
-		"needsVerification": true,
+	c.JSON(http.StatusOK, gin.H{
+		"message":           "Accounts merged",
+		"needsVerification": false,
 		"email":             email,
 	})
 }

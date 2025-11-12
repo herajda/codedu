@@ -663,6 +663,20 @@ func mergeUsersTx(tx *sqlx.Tx, targetID, sourceID uuid.UUID) error {
 	if _, err := tx.Exec(`UPDATE class_students SET student_id=$1 WHERE student_id=$2`, targetID, sourceID); err != nil {
 		return err
 	}
+	if _, err := tx.Exec(`DELETE FROM assignment_deadline_overrides ado
+		WHERE ado.student_id=$2
+		  AND EXISTS (
+			SELECT 1 FROM assignment_deadline_overrides ado2
+			WHERE ado2.assignment_id = ado.assignment_id AND ado2.student_id = $1
+		)`, targetID, sourceID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE assignment_deadline_overrides SET student_id=$1 WHERE student_id=$2`, targetID, sourceID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE assignment_deadline_overrides SET created_by=$1 WHERE created_by=$2`, targetID, sourceID); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(`UPDATE submissions SET student_id=$1 WHERE student_id=$2`, targetID, sourceID); err != nil {
 		return err
 	}
@@ -759,6 +773,17 @@ func mergeUsersTx(tx *sqlx.Tx, targetID, sourceID uuid.UUID) error {
 	if _, err := tx.Exec(`UPDATE forum_messages SET user_id=$1 WHERE user_id=$2`, targetID, sourceID); err != nil {
 		return err
 	}
+	if _, err := tx.Exec(`DELETE FROM notification_log nl
+		WHERE nl.user_id=$2
+		  AND EXISTS (
+			SELECT 1 FROM notification_log nl2
+			WHERE nl2.user_id=$1 AND nl2.notification_type=nl.notification_type AND nl2.context=nl.context
+		)`, targetID, sourceID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE notification_log SET user_id=$1 WHERE user_id=$2`, targetID, sourceID); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(`
 		INSERT INTO user_presence (user_id, is_online, last_seen, created_at, updated_at)
 		SELECT $1, src.is_online, src.last_seen, src.created_at, src.updated_at
@@ -771,10 +796,13 @@ func mergeUsersTx(tx *sqlx.Tx, targetID, sourceID uuid.UUID) error {
 	`, targetID, sourceID); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`DELETE FROM user_presence WHERE user_id=$2`, targetID, sourceID); err != nil {
+	if _, err := tx.Exec(`DELETE FROM user_presence WHERE user_id=$1`, sourceID); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(`UPDATE password_reset_tokens SET user_id=$1 WHERE user_id=$2`, targetID, sourceID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE email_verification_tokens SET user_id=$1 WHERE user_id=$2`, targetID, sourceID); err != nil {
 		return err
 	}
 	return nil
