@@ -6,7 +6,7 @@
   import { classesStore } from '$lib/stores/classes';
   import {
     Users2, GraduationCap, School, BookOpen, Plus, Trash2, RefreshCw,
-    Shield, Search, Edit, ArrowRightLeft, Check
+    Shield, Search, Edit, ArrowRightLeft, Check, KeyRound, MailCheck
   } from 'lucide-svelte';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   import PromptModal from '$lib/components/PromptModal.svelte';
@@ -20,8 +20,8 @@
   let tab: Tab = 'overview';
 
   // Data models
-  type RawUser = { id?: string; email?: string | null; name?: string | null; role?: string | null; created_at?: string | null };
-  type User = { id: string; email: string; name?: string | null; role: string; created_at: string };
+  type RawUser = { id?: string; email?: string | null; name?: string | null; role?: string | null; created_at?: string | null; bk_uid?: string | null };
+  type User = { id: string; email: string; name?: string | null; role: string; created_at: string; bk_uid?: string | null };
   type RawClass = { id?: string; name?: string | null; teacher_id?: string | null; created_at?: string | null };
   type Class = { id: string; name: string; teacher_id: string; created_at: string };
   type RawAssignment = {
@@ -73,6 +73,8 @@
   let ok = '', err = '';
   let confirmModal: InstanceType<typeof ConfirmModal>;
   let promptModal: InstanceType<typeof PromptModal>;
+  let emailPingTarget = '';
+  let sendingEmailPing = false;
 
   function sanitizeUsers(payload: unknown): User[] {
     if (!Array.isArray(payload)) return [];
@@ -84,7 +86,8 @@
         email: entry.email!,
         role: entry.role!,
         created_at: typeof entry.created_at === 'string' ? entry.created_at : entry.created_at ?? '',
-        name: typeof entry.name === 'string' ? entry.name : entry.name ?? null
+        name: typeof entry.name === 'string' ? entry.name : entry.name ?? null,
+        bk_uid: typeof entry.bk_uid === 'string' ? entry.bk_uid : entry.bk_uid ?? null
       }));
   }
 
@@ -196,6 +199,32 @@
   }
 
   // ───────────────────────────
+  // Student management
+  // ───────────────────────────
+  let studentEmail = '', studentPassword = '', studentName = '';
+  async function addStudent() {
+    err = ok = '';
+    const payload: Record<string, string> = {
+      email: studentEmail,
+      password: await sha256(studentPassword)
+    };
+    const trimmedName = studentName.trim();
+    if (trimmedName) payload.name = trimmedName;
+    const r = await apiFetch('/api/students', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (r.status === 201) {
+      ok = t('frontend/src/lib/AdminPanel.svelte::student_created_success');
+      studentEmail = studentPassword = studentName = '';
+      await loadUsers();
+    } else {
+      const j = await r.json().catch(() => ({}));
+      err = j.error || t('frontend/src/lib/AdminPanel.svelte::failed_to_create_student');
+    }
+  }
+
+  // ───────────────────────────
   // User management
   // ───────────────────────────
   const roles = ['student', 'teacher', 'admin'];
@@ -226,6 +255,56 @@
     a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
     a.download = 'users.csv';
     a.click();
+  }
+
+  async function sendEmailPing() {
+    const target = emailPingTarget.trim();
+    if (!target) return;
+    err = ok = '';
+    sendingEmailPing = true;
+    try {
+      const res = await apiFetch('/api/admin/email-ping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: target })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        ok = t('frontend/src/lib/AdminPanel.svelte::email_ping_success', { email: target });
+        emailPingTarget = '';
+      } else {
+        err = data.error ?? t('frontend/src/lib/AdminPanel.svelte::email_ping_failed');
+      }
+    } catch (e: any) {
+      err = e.message;
+    } finally {
+      sendingEmailPing = false;
+    }
+  }
+
+  async function promptSetPassword(user: User) {
+    if (!promptModal) return;
+    const password = await promptModal.open({
+      title: t('frontend/src/lib/AdminPanel.svelte::set_password_modal_title', { email: user.email }),
+      label: t('frontend/src/lib/AdminPanel.svelte::set_password_modal_label'),
+      helpText: t('frontend/src/lib/AdminPanel.svelte::set_password_modal_help'),
+      inputType: 'password',
+      confirmLabel: t('frontend/src/lib/AdminPanel.svelte::set_password_confirm_label'),
+      validate: (value) => value.trim().length >= 6 ? null : t('frontend/src/lib/AdminPanel.svelte::set_password_validation_error')
+    });
+    if (!password) return;
+    err = ok = '';
+    const res = await apiFetch(`/api/users/${user.id}/password`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: await sha256(password) })
+    });
+    if (res.ok) {
+      ok = t('frontend/src/lib/AdminPanel.svelte::set_password_success');
+    } else {
+      const data = await res.json().catch(() => ({}));
+      err = data.error ?? t('frontend/src/lib/AdminPanel.svelte::set_password_failed');
+    }
   }
 
   // ───────────────────────────
@@ -400,6 +479,20 @@
       </div>
     </div>
     <div class="card bg-base-100 shadow">
+      <div class="card-body space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="card-title flex items-center gap-2"><MailCheck class="w-5 h-5" /> {t('frontend/src/lib/AdminPanel.svelte::email_ping_card_title')}</h2>
+        </div>
+        <p class="text-sm text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::email_ping_description')}</p>
+        <form class="space-y-2" on:submit|preventDefault={sendEmailPing}>
+          <input type="email" class="input input-bordered w-full" placeholder={t('frontend/src/lib/AdminPanel.svelte::email_ping_placeholder')} bind:value={emailPingTarget} required />
+          <button class="btn btn-primary btn-sm" disabled={sendingEmailPing}>
+            {sendingEmailPing ? t('frontend/src/lib/AdminPanel.svelte::sending_button') : t('frontend/src/lib/AdminPanel.svelte::email_ping_button')}
+          </button>
+        </form>
+      </div>
+    </div>
+    <div class="card bg-base-100 shadow">
       <div class="card-body">
         <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::unpublished_assignments_title')}</h2>
         <ul class="space-y-2 max-h-60 overflow-auto">
@@ -422,18 +515,31 @@
 <PromptModal bind:this={promptModal} />
 
 {#if tab === 'teachers'}
-  <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-    <div class="card bg-base-100 shadow">
-      <div class="card-body space-y-4">
-        <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::add_teacher_card_title')}</h2>
-        <form on:submit|preventDefault={addTeacher} class="space-y-3">
-          <input type="email" bind:value={teacherEmail} placeholder={t('frontend/src/lib/AdminPanel.svelte::email_label')} required class="input input-bordered w-full" />
-          <input type="password" bind:value={teacherPassword} placeholder={t('frontend/src/lib/AdminPanel.svelte::password_label')} required class="input input-bordered w-full" />
-          <button class="btn btn-primary">{t('frontend/src/lib/AdminPanel.svelte::add_button')}</button>
-        </form>
+  <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <div class="space-y-6">
+      <div class="card bg-base-100 shadow">
+        <div class="card-body space-y-4">
+          <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::add_teacher_card_title')}</h2>
+          <form on:submit|preventDefault={addTeacher} class="space-y-3">
+            <input type="email" bind:value={teacherEmail} placeholder={t('frontend/src/lib/AdminPanel.svelte::email_label')} required class="input input-bordered w-full" />
+            <input type="password" bind:value={teacherPassword} placeholder={t('frontend/src/lib/AdminPanel.svelte::password_label')} required class="input input-bordered w-full" />
+            <button class="btn btn-primary">{t('frontend/src/lib/AdminPanel.svelte::add_button')}</button>
+          </form>
+        </div>
+      </div>
+      <div class="card bg-base-100 shadow">
+        <div class="card-body space-y-4">
+          <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::add_student_card_title')}</h2>
+          <form on:submit|preventDefault={addStudent} class="space-y-3">
+            <input type="text" bind:value={studentName} placeholder={t('frontend/src/lib/AdminPanel.svelte::student_name_placeholder')} class="input input-bordered w-full" />
+            <input type="email" bind:value={studentEmail} placeholder={t('frontend/src/lib/AdminPanel.svelte::email_label')} required class="input input-bordered w-full" />
+            <input type="password" bind:value={studentPassword} placeholder={t('frontend/src/lib/AdminPanel.svelte::password_label')} required class="input input-bordered w-full" />
+            <button class="btn btn-primary">{t('frontend/src/lib/AdminPanel.svelte::add_button')}</button>
+          </form>
+        </div>
       </div>
     </div>
-    <div class="card bg-base-100 shadow">
+    <div class="card bg-base-100 shadow xl:col-span-2">
       <div class="card-body">
         <div class="flex items-center justify-between mb-3">
           <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::teachers_card_title')}</h2>
@@ -493,7 +599,17 @@
                 </td>
                 <td>{formatDate(u.created_at)}</td>
                 <td class="text-right">
-                  <button class="btn btn-ghost btn-xs text-error" on:click={()=>deleteUser(u.id)}><Trash2 class="w-4 h-4" /></button>
+                  <div class="flex justify-end gap-1">
+                    <button
+                      class="btn btn-ghost btn-xs"
+                      title={u.bk_uid ? t('frontend/src/lib/AdminPanel.svelte::set_password_disabled_tooltip') : t('frontend/src/lib/AdminPanel.svelte::set_password_button_label')}
+                      disabled={Boolean(u.bk_uid)}
+                      on:click={() => { if (!u.bk_uid) promptSetPassword(u); }}
+                    >
+                      <KeyRound class="w-4 h-4" />
+                    </button>
+                    <button class="btn btn-ghost btn-xs text-error" on:click={()=>deleteUser(u.id)}><Trash2 class="w-4 h-4" /></button>
+                  </div>
                 </td>
               </tr>
             {/each}

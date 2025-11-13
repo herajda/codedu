@@ -225,8 +225,11 @@ func main() {
 
 		// ADMIN → add teacher
 		api.POST("/teachers", RoleGuard("admin"), createTeacher)
-		api.GET("/users", RoleGuard("admin"), listUsers)               // new
-		api.PUT("/users/:id/role", RoleGuard("admin"), updateUserRole) // new
+		api.POST("/students", RoleGuard("admin"), adminCreateStudent)
+		api.GET("/users", RoleGuard("admin"), listUsers)
+		api.PUT("/users/:id/role", RoleGuard("admin"), updateUserRole)
+		api.PUT("/users/:id/password", RoleGuard("admin"), adminSetUserPassword)
+		api.POST("/admin/email-ping", RoleGuard("admin"), adminEmailPing)
 
 		// TEACHER only
 		api.POST("/classes", RoleGuard("teacher"), createClass)

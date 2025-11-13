@@ -3458,6 +3458,87 @@ func updateUserRole(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+func adminCreateStudent(c *gin.Context) {
+	var req struct {
+		Email    string  `json:"email" binding:"required,email"`
+		Password string  `json:"password" binding:"required,min=6"`
+		Name     *string `json:"name"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	var namePtr *string
+	if req.Name != nil {
+		if trimmed := strings.TrimSpace(*req.Name); trimmed != "" {
+			nameValue := trimmed
+			namePtr = &nameValue
+		}
+	}
+	hash, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err := CreateStudent(req.Email, string(hash), namePtr, nil, nil); err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "user exists"})
+		return
+	}
+	c.Status(http.StatusCreated)
+}
+
+func adminSetUserPassword(c *gin.Context) {
+	uid, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var req struct {
+		Password string `json:"password" binding:"required,min=6"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	user, err := GetUser(uid)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	if user.BkUID != nil && strings.TrimSpace(*user.BkUID) != "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot set password for Bakalari-linked users"})
+		return
+	}
+	hash, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if _, err := DB.Exec(`UPDATE users SET password_hash=$1, updated_at=now() WHERE id=$2`, string(hash), uid); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func adminEmailPing(c *gin.Context) {
+	if mailer == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "mailer not configured"})
+		return
+	}
+	var req struct {
+		Email string `json:"email" binding:"required,email"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	body := fmt.Sprintf("CodEdu email ping requested by user %s at %s.\nIf you received this message, outgoing email works.",
+		getUserID(c).String(), time.Now().Format(time.RFC3339))
+	if err := mailer.sendPlainText(req.Email, "CodEdu email ping", body); err != nil {
+		log.Printf("email ping failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "email send failed"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "sent"})
+}
+
 func listAllClasses(c *gin.Context) {
 	list, err := ListAllClasses()
 	if err != nil {
