@@ -1102,44 +1102,41 @@ func stringOrEmpty(p *string) string {
 
 // smokePythonProgram tries to run the program briefly (expecting input). Timeout is OK.
 func smokePythonProgram(dir, file string) (bool, string) {
-	abs, _ := filepath.Abs(dir)
-	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond+dockerExtraTime)
+	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond+vmBootTimeout+vmExtraTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", "-i",
-		"--network=none",
-		"--user", dockerUser,
-		"--cpus", dockerCPUs,
-		"--memory", dockerMemory,
-		"--memory-swap", dockerMemory,
-		"--pids-limit", "128",
-		"--read-only",
-		"--cap-drop=ALL",
-		"--security-opt", "no-new-privileges",
-		"--security-opt", "label=disable",
-		"--mount", "type=tmpfs,destination=/tmp,tmpfs-size=16m",
-		"-v", fmt.Sprintf("%s:/code:ro", abs),
-		pythonImage, "bash", "-lc", fmt.Sprintf("PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 python -u /code/%s", strings.ReplaceAll(file, "'", "'\\''")))
+
+	vm, remoteDir, err := startVMWithWorkspace(ctx, dir, nil)
+	if err != nil {
+		return false, fmt.Sprintf("vm start failed: %v", err)
+	}
+	defer vm.Close()
+
+	script := fmt.Sprintf("PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 python -u '%s'", strings.ReplaceAll(file, "'", "'\\''"))
+	cmd, stdinPipe, stdoutPipe, stderrPipe, err := vm.startInteractive(ctx, remoteDir, script)
+	if err != nil {
+		return false, fmt.Sprintf("vm exec failed: %v", err)
+	}
+	// Keep stdin open so input() blocks instead of seeing EOF like the docker version
+	defer stdinPipe.Close()
+
 	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
-	// Keep stdin open so input() blocks instead of seeing EOF
-	pr, pw := io.Pipe()
-	cmd.Stdin = pr
-	_ = cmd.Start()
-	done := make(chan struct{})
-	go func() { _ = cmd.Wait(); close(done) }()
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() { defer wg.Done(); _, _ = io.Copy(&stdoutBuf, stdoutPipe) }()
+	go func() { defer wg.Done(); _, _ = io.Copy(&stderrBuf, stderrPipe) }()
+
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+
 	select {
 	case <-ctx.Done():
 		if cmd.Process != nil {
 			_ = cmd.Process.Kill()
 		}
-		_ = pw.Close()
-		if ctx.Err() == context.DeadlineExceeded {
-			return true, "timeout while waiting for input"
-		}
 	case <-done:
-		_ = pw.Close()
 	}
+	wg.Wait()
+
 	if ctx.Err() == context.DeadlineExceeded {
 		return true, "timeout while waiting for input"
 	}
@@ -1148,8 +1145,10 @@ func smokePythonProgram(dir, file string) (bool, string) {
 	if strings.Contains(errS, "Traceback (most recent call last):") {
 		return false, strings.TrimSpace(errS)
 	}
-	if st, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok && st.ExitStatus() == 0 {
-		return true, "exited cleanly"
+	if cmd.ProcessState != nil {
+		if st, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok && st.ExitStatus() == 0 {
+			return true, "exited cleanly"
+		}
 	}
 	if errS != "" && out == "" {
 		return false, strings.TrimSpace(errS)
@@ -1379,7 +1378,6 @@ func runInteractiveScenarios(dir, mainFile string, scenarios []interactiveScenar
 	const maxOut = 64 * 1024
 	const maxTranscript = 128 * 1024
 
-	abs, _ := filepath.Abs(dir)
 	transcript := &strings.Builder{}
 	calls := 0
 	overallDeadline := time.Now().Add(maxWall)
@@ -1433,35 +1431,50 @@ func runInteractiveScenarios(dir, mainFile string, scenarios []interactiveScenar
 			break
 		}
 
-		// Start fresh container for this scenario
-		ctx, cancel := context.WithTimeout(context.Background(), remaining+dockerExtraTime)
+		// Start fresh VM for this scenario
+		ctx, cancel := context.WithTimeout(context.Background(), remaining+vmBootTimeout+vmExtraTimeout)
 
-		script := fmt.Sprintf("start=$(date +%%s%%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 python -u /code/%s", strings.ReplaceAll(mainFile, "'", "'\\''"))
-		cmd := exec.CommandContext(ctx, "docker", "run", "--rm", "-i",
-			"--network=none",
-			"--user", dockerUser,
-			"--cpus", dockerCPUs,
-			"--memory", dockerMemory,
-			"--memory-swap", dockerMemory,
-			"--pids-limit", "128",
-			"--read-only",
-			"--cap-drop=ALL",
-			"--security-opt", "no-new-privileges",
-			"--security-opt", "label=disable",
-			"--mount", "type=tmpfs,destination=/tmp,tmpfs-size=16m",
-			"-v", fmt.Sprintf("%s:/code:ro", abs),
-			pythonImage, "bash", "-lc", script)
-		stdoutPipe, _ := cmd.StdoutPipe()
-		stderrPipe, _ := cmd.StderrPipe()
-		stdinPipe, _ := cmd.StdinPipe()
-		if err := cmd.Start(); err != nil {
+		vm, remoteDir, err := startVMWithWorkspace(ctx, dir, nil)
+		if err != nil {
 			verdict = "RUNTIME_ERROR"
-			reason = "container start failed"
+			reason = fmt.Sprintf("vm start failed: %v", err)
 			overallPass = false
 			scenPass = false
 			results = append(results, sr)
 			cancel()
 			break
+		}
+
+		script := fmt.Sprintf("start=$(date +%%s%%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 python -u '%s'", strings.ReplaceAll(mainFile, "'", "'\\''"))
+		cmd, stdinPipe, stdoutPipe, stderrPipe, err := vm.startInteractive(ctx, remoteDir, script)
+		if err != nil {
+			verdict = "RUNTIME_ERROR"
+			reason = "vm exec start failed"
+			overallPass = false
+			scenPass = false
+			results = append(results, sr)
+			vm.Close()
+			cancel()
+			break
+		}
+
+		cleaned := false
+		cleanup := func(kill bool) {
+			if cleaned {
+				return
+			}
+			cleaned = true
+			if stdinPipe != nil {
+				_ = stdinPipe.Close()
+			}
+			if cmd != nil {
+				if kill && cmd.Process != nil && cmd.ProcessState == nil {
+					_ = cmd.Process.Kill()
+				}
+				_ = cmd.Wait()
+			}
+			vm.Close()
+			cancel()
 		}
 
 		outReader := bufio.NewReader(stdoutPipe)
@@ -1604,9 +1617,7 @@ func runInteractiveScenarios(dir, mainFile string, scenarios []interactiveScenar
 				overallPass = false
 				verdict = "RUNTIME_ERROR"
 				reason = "stdin write failed"
-				_ = stdinPipe.Close()
-				_ = cmd.Wait()
-				cancel()
+				cleanup(true)
 				break
 			}
 			calls++
@@ -1616,9 +1627,7 @@ func runInteractiveScenarios(dir, mainFile string, scenarios []interactiveScenar
 				if err != nil {
 					sr.Steps = append(sr.Steps, stepRes{Step: i + 1, Sent: sentDisplay, Expect: expAfter, Pass: false, Notes: "invalid regex(after)"})
 					scenPass = false
-					_ = stdinPipe.Close()
-					_ = cmd.Wait()
-					cancel()
+					cleanup(true)
 					break
 				}
 				if !readUntil(re, perStep) {
@@ -1649,12 +1658,10 @@ func runInteractiveScenarios(dir, mainFile string, scenarios []interactiveScenar
 			mu.Unlock()
 		}
 
-		_ = stdinPipe.Close()
-		_ = cmd.Wait()
+		cleanup(false)
 		if tail := drainNewOutput(); tail != "" {
 			transcript.WriteString("PROGRAM> " + tail + "\n")
 		}
-		cancel()
 
 		sr.Pass = scenPass
 		if !scenPass {
@@ -1921,51 +1928,30 @@ func parseAgentEvalOutput(out []byte) (*agentEvalResult, error) {
 // lastN helper removed (unused)
 
 func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, string, int, bool, time.Duration) {
-	// Best-effort ensure image exists; ignore error so we don't misattribute infra issues to student
-	_ = ensureDockerImage(pythonImage)
-	// Ensure staged files are readable by the unprivileged container user.
 	_ = ensureSandboxPerms(dir)
 	abs, _ := filepath.Abs(dir)
-	fmt.Printf("[worker] Running: %s/%s with timeout %v\n", abs, file, timeout)
-	// allow some extra time for container startup and shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), timeout+dockerExtraTime)
+	fmt.Printf("[worker] Running in VM: %s/%s with timeout %v\n", abs, file, timeout)
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout+vmBootTimeout+vmExtraTimeout)
 	defer cancel()
 
-	mount := fmt.Sprintf("%s:/code:ro", abs)
+	vm, remoteDir, err := startVMWithWorkspace(ctx, dir, nil)
+	if err != nil {
+		timedOut := ctx.Err() == context.DeadlineExceeded
+		return "", fmt.Sprintf("vm start failed: %v", err), -1, timedOut, 0
+	}
+	defer vm.Close()
 
-	// Measure runtime inside the container. A shell script records timestamps
-	// before and after executing the Python program and prints the elapsed
-	// milliseconds as the last line of stdout with a unique prefix.
-	script := fmt.Sprintf("start=$(date +%%s%%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 python -u /code/%s; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status", file)
+	escaped := strings.ReplaceAll(file, "'", "'\\''")
+	script := fmt.Sprintf("start=$(date +%%s%%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 python -u '%s'; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status", escaped)
 
-	cmd := exec.CommandContext(ctx, "docker", "run",
-		"--rm",
-		"-i",
-		"--network=none",
-		"--user", dockerUser,
-		"--cpus", dockerCPUs,
-		"--memory", dockerMemory,
-		"--memory-swap", dockerMemory,
-		"--pids-limit", "128",
-		"--read-only",
-		"--cap-drop=ALL",
-		"--security-opt", "no-new-privileges",
-		"--mount", "type=tmpfs,destination=/tmp,tmpfs-size=16m",
-		"-v", mount,
-		pythonImage, "bash", "-c", script)
-	cmd.Stdin = strings.NewReader(stdin)
-
-	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
-
-	start := time.Now()
-	err := cmd.Run()
-	duration := time.Since(start)
+	startWall := time.Now()
+	outRaw, errRaw, exitCode, runErr := vm.runCommand(ctx, remoteDir, script, strings.NewReader(stdin))
+	duration := time.Since(startWall)
 
 	ctxTimedOut := ctx.Err() == context.DeadlineExceeded
 
-	out := strings.TrimSpace(stdoutBuf.String())
+	out := strings.TrimSpace(outRaw)
 	var runtime time.Duration
 	if lines := strings.Split(out, "\n"); len(lines) > 0 && strings.HasPrefix(lines[len(lines)-1], "===RUNTIME_MS===") {
 		rstr := strings.TrimSpace(strings.TrimPrefix(lines[len(lines)-1], "===RUNTIME_MS==="))
@@ -1981,22 +1967,14 @@ func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, s
 	runtimeExceeded := runtime > timeout
 	timedOut := ctxTimedOut || runtimeExceeded
 
-	exitCode := 0
-	if err != nil {
-		if ee, ok := err.(*exec.ExitError); ok {
-			exitCode = ee.ExitCode()
-		} else {
-			exitCode = -1
-		}
+	if runErr != nil && exitCode == 0 {
+		exitCode = -1
 	}
 
-	return out, strings.TrimSpace(stderrBuf.String()), exitCode, timedOut, runtime
+	return out, strings.TrimSpace(errRaw), exitCode, timedOut, runtime
 }
 
 func executePythonUnit(dir, mainFile, testCode, testName string, timeout time.Duration) (string, string, int, bool, time.Duration) {
-	// Best-effort ensure image exists; ignore error so we don't misattribute infra issues to student
-	_ = ensureDockerImage(pythonImage)
-	abs, _ := filepath.Abs(dir)
 	testPath := filepath.Join(dir, "run_test.py")
 	content := fmt.Sprintf(`import sys, unittest, builtins, io, types
 
@@ -2123,33 +2101,25 @@ if __name__ == '__main__':
 	_ = os.Chmod(testPath, 0644)
 	_ = ensureSandboxPerms(dir)
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout+dockerExtraTime)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout+vmBootTimeout+vmExtraTimeout)
 	defer cancel()
-	mount := fmt.Sprintf("%s:/code:ro", abs)
-	script := fmt.Sprintf("start=$(date +%%s%%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 python -u /code/run_test.py; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status")
-	cmd := exec.CommandContext(ctx, "docker", "run",
-		"--rm", "-i", "--network=none", "--user", dockerUser,
-		"--cpus", dockerCPUs, "--memory", dockerMemory,
-		"--memory-swap", dockerMemory,
-		"--pids-limit", "128",
-		"--read-only",
-		"--cap-drop=ALL",
-		"--security-opt", "no-new-privileges",
-		"--security-opt", "label=disable",
-		"--mount", "type=tmpfs,destination=/tmp,tmpfs-size=16m",
-		"-v", mount, pythonImage, "bash", "-c", script)
 
-	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
+	vm, remoteDir, err := startVMWithWorkspace(ctx, dir, nil)
+	if err != nil {
+		timedOut := ctx.Err() == context.DeadlineExceeded
+		return "", fmt.Sprintf("vm start failed: %v", err), -1, timedOut, 0
+	}
+	defer vm.Close()
 
-	start := time.Now()
-	err := cmd.Run()
-	duration := time.Since(start)
+	script := "start=$(date +%s%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 python -u run_test.py; status=$?; end=$(date +%s%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status"
+
+	startWall := time.Now()
+	outRaw, errRaw, exitCode, runErr := vm.runCommand(ctx, remoteDir, script, nil)
+	duration := time.Since(startWall)
 
 	ctxTimedOut := ctx.Err() == context.DeadlineExceeded
 
-	out := strings.TrimSpace(stdoutBuf.String())
+	out := strings.TrimSpace(outRaw)
 	var runtime time.Duration
 	if lines := strings.Split(out, "\n"); len(lines) > 0 && strings.HasPrefix(lines[len(lines)-1], "===RUNTIME_MS===") {
 		rstr := strings.TrimSpace(strings.TrimPrefix(lines[len(lines)-1], "===RUNTIME_MS==="))
@@ -2165,16 +2135,11 @@ if __name__ == '__main__':
 	runtimeExceeded := runtime > timeout
 	timedOut := ctxTimedOut || runtimeExceeded
 
-	exitCode := 0
-	if err != nil {
-		if ee, ok := err.(*exec.ExitError); ok {
-			exitCode = ee.ExitCode()
-		} else {
-			exitCode = -1
-		}
+	if runErr != nil && exitCode == 0 {
+		exitCode = -1
 	}
 
-	return out, strings.TrimSpace(stderrBuf.String()), exitCode, timedOut, runtime
+	return out, strings.TrimSpace(errRaw), exitCode, timedOut, runtime
 }
 
 // presenceCleanupTask periodically cleans up inactive users

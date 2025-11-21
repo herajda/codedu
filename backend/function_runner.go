@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -32,8 +31,9 @@ type functionCallResult struct {
 }
 
 func writeFunctionRunnerFiles(dir, mainFile string, cfg functionCallConfig) (string, string, error) {
+	modulePath := fmt.Sprintf("%s/%s", strings.TrimRight(vmWorkspacePath(), "/"), strings.ReplaceAll(mainFile, "\\", "/"))
 	payload := map[string]any{
-		"module_path":   fmt.Sprintf("/code/%s", strings.ReplaceAll(mainFile, "\\", "/")),
+		"module_path":   modulePath,
 		"function_name": cfg.FunctionName,
 	}
 	if cfg.ArgsJSON != nil && strings.TrimSpace(*cfg.ArgsJSON) != "" {
@@ -183,7 +183,6 @@ if __name__ == '__main__':
 }
 
 func runFunctionCall(dir, mainFile string, cfg functionCallConfig, timeout time.Duration) (string, string, int, bool, time.Duration, *functionCallResult, error) {
-	_ = ensureDockerImage(pythonImage)
 	configPath, runnerPath, err := writeFunctionRunnerFiles(dir, mainFile, cfg)
 	if err != nil {
 		return "", "", 0, false, 0, nil, err
@@ -194,41 +193,28 @@ func runFunctionCall(dir, mainFile string, cfg functionCallConfig, timeout time.
 	_ = os.Chmod(runnerPath, 0644)
 	_ = ensureSandboxPerms(dir)
 
-	abs, _ := filepath.Abs(dir)
-	script := fmt.Sprintf("start=$(date +%%s%%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 python -u /code/%s; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status", filepath.Base(runnerPath))
+	script := fmt.Sprintf("start=$(date +%%s%%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 python -u '%s'; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status", filepath.Base(runnerPath))
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout+dockerExtraTime)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout+vmBootTimeout+vmExtraTimeout)
 	defer cancel()
 
-	mount := fmt.Sprintf("%s:/code:ro", abs)
-	cmd := exec.CommandContext(ctx, "docker", "run",
-		"--rm", "-i",
-		"--network=none",
-		"--user", dockerUser,
-		"--cpus", dockerCPUs,
-		"--memory", dockerMemory,
-		"--memory-swap", dockerMemory,
-		"--pids-limit", "128",
-		"--read-only",
-		"--cap-drop=ALL",
-		"--security-opt", "no-new-privileges",
-		"--security-opt", "label=disable",
-		"--mount", "type=tmpfs,destination=/tmp,tmpfs-size=16m",
-		"-v", mount,
-		pythonImage, "bash", "-c", script)
+	vm, remoteDir, err := startVMWithWorkspace(ctx, dir, nil)
+	if err != nil {
+		return "", "", -1, ctx.Err() == context.DeadlineExceeded, 0, nil, fmt.Errorf("vm start failed: %w", err)
+	}
+	defer vm.Close()
 
 	var stdoutBuf, stderrBuf strings.Builder
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
-
 	start := time.Now()
-	runErr := cmd.Run()
+	rawOut, rawErr, exitCode, runErr := vm.runCommand(ctx, remoteDir, script, nil)
 	duration := time.Since(start)
+	stdoutBuf.WriteString(rawOut)
+	stderrBuf.WriteString(rawErr)
 
 	ctxTimedOut := ctx.Err() == context.DeadlineExceeded
-	rawOut := stdoutBuf.String()
+	combinedOut := stdoutBuf.String()
 	var runtime time.Duration
-	out := rawOut
+	out := combinedOut
 	const runtimeMarker = "===RUNTIME_MS==="
 	if idx := strings.LastIndex(out, runtimeMarker); idx != -1 {
 		tail := out[idx+len(runtimeMarker):]
@@ -246,13 +232,8 @@ func runFunctionCall(dir, mainFile string, cfg functionCallConfig, timeout time.
 		runtime = duration
 	}
 
-	exitCode := 0
-	if runErr != nil {
-		if ee, ok := runErr.(*exec.ExitError); ok {
-			exitCode = ee.ExitCode()
-		} else {
-			exitCode = -1
-		}
+	if runErr != nil && exitCode == 0 {
+		exitCode = -1
 	}
 
 	const marker = "===GRADER_JSON==="

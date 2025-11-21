@@ -1,0 +1,18 @@
+#cloud-config
+users:
+  - name: runner
+    ssh-authorized-keys:
+    - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCwClrfp10m7H64wL2/OjJXv/bgBqit3EmVtUZaX8aUVPxxqfae4TL4B+e6uWBIkYTQ4XTsqIH7FDyQlhnVHdjdBIBgU8BOE8Ywe2y4bedl5dI5uOEJJmuizB1C8ac6JhauDKAOmSQ1Qvn2Q0Kawe4ycRPuODeKpPOgvJNTEa8XoGrl+XpvMmrVjW1urCRG3L7oX7Yu3Mfz8lZf5r17Iq6tOp+LMcLQym1yXyJA5kYviNNU0W8aP/LcpCsvxx9inamzi6o6vs5ZMDwHYqjwFqlFfNEux/G1VreMKqPQUkWgqzRWHe14Q5C9Q3eNArov8aRhosixfWwRQayxurPcg2n7UDKKh4FBIEAY8GcuRA/J3djyX5CpnuvgJaetyk/iBxXX5ecHxVk+ryMGIwoY/L5ZDe9hGvJWR4aNAxJjKOO+aTdkeXy0y/YlJRqYsiuvyk1HHhF9rehw0udnoW4EAuCc9U8noPEPlpaJF1KPVa7ZJhTUwv5kYi6dZ0F9CyG1DuMdgF/uF7Ksw3aCC8mccEWsZaGu5w4KxojxlChFW8CjMU0fOJfXmF4eg6nm1V+LL8TcL72ZhMOwCFcNEWSpdwB+Wz+tJMP6Oo1lG+v56hLpvZA7DBNnwdoDQvL6P9LKZsq0bVypWKpkxm5t5pTqcDBy/xZtTPNVcTCoUKdggcepSw== herajda@fedora
+
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+ssh_pwauth: false
+disable_root: true
+package_update: true
+packages:
+  - python3
+  - python3-pip
+  - python3-venv
+  - openssh-server
+runcmd:
+  - [systemctl, enable, --now, ssh]

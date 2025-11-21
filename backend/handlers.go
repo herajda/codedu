@@ -59,6 +59,7 @@ type RunSession struct {
 	// process and IO
 	Cmd   *exec.Cmd
 	Stdin io.WriteCloser
+	VM    *vmInstance
 
 	// output buffers (accumulated for replay on reattach)
 	BufOut []byte
@@ -2689,6 +2690,10 @@ func submissionRunWS(c *gin.Context) {
 				if s.Cmd != nil && s.Cmd.Process != nil {
 					_ = s.Cmd.Process.Kill()
 				}
+				if s.VM != nil {
+					s.VM.Close()
+					s.VM = nil
+				}
 				if s.ContainerName != "" {
 					_ = exec.Command("docker", "rm", "-f", s.ContainerName).Run()
 				}
@@ -2954,34 +2959,16 @@ func submissionRunWS(c *gin.Context) {
 			}
 
 			// Headless mode (no GUI)
-			safeID := strings.ToLower(sub.ID.String())
-			containerName := fmt.Sprintf("run-%s-%d", safeID, time.Now().UnixNano())
-			script := fmt.Sprintf("cd /code && python '%s'", escapedMain)
-			// Ensure the image is available to avoid long pull hangs during interactive runs
-			_ = ensureDockerImage(pythonImage)
-			cmd := exec.Command("docker", "run", "--rm", "--name", containerName, "-i",
-				"--network=none",
-				"--user", dockerUser,
-				"--cpus", dockerCPUs,
-				"--memory", dockerMemory,
-				"--memory-swap", dockerMemory,
-				"--pids-limit", "128",
-				"--read-only",
-				"--cap-drop=ALL",
-				"--security-opt", "no-new-privileges",
-				"--security-opt", "label=disable",
-				"--mount", "type=tmpfs,destination=/tmp,tmpfs-size=16m",
-				"-v", fmt.Sprintf("%s:/code:ro", abs),
-				pythonImage, "bash", "-lc", script)
-			stdoutPipe, e1 := cmd.StdoutPipe()
-			stderrPipe, e2 := cmd.StderrPipe()
-			stdinPipe, e3 := cmd.StdinPipe()
-			if e1 != nil || e2 != nil || e3 != nil {
-				ch <- map[string]any{"type": "error", "message": "container start failed"}
+			vm, remoteDir, vmErr := startVMWithWorkspace(context.Background(), td, nil)
+			if vmErr != nil {
+				ch <- map[string]any{"type": "error", "message": fmt.Sprintf("vm start failed: %v", vmErr)}
 				continue
 			}
-			if err := cmd.Start(); err != nil {
-				ch <- map[string]any{"type": "error", "message": "container start failed"}
+			runScript := fmt.Sprintf("PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 python -u '%s'", escapedMain)
+			cmd, stdinPipe, stdoutPipe, stderrPipe, startErr := vm.startInteractive(context.Background(), remoteDir, runScript)
+			if startErr != nil {
+				vm.Close()
+				ch <- map[string]any{"type": "error", "message": "vm exec start failed"}
 				continue
 			}
 
@@ -2990,13 +2977,14 @@ func submissionRunWS(c *gin.Context) {
 			runSessionsMu.Unlock()
 			if s == nil {
 				_ = cmd.Process.Kill()
-				_ = exec.Command("docker", "rm", "-f", containerName).Run()
+				vm.Close()
 				continue
 			}
 			s.Mu.Lock()
 			s.Cmd = cmd
 			s.Stdin = stdinPipe
-			s.ContainerName = containerName
+			s.VM = vm
+			s.ContainerName = ""
 			s.Running = true
 			s.Ended = false
 			s.LastActive = time.Now()
@@ -3064,6 +3052,10 @@ func submissionRunWS(c *gin.Context) {
 					s.Running = false
 					s.Ended = true
 					s.ExitCode = exitCode
+					if s.VM != nil {
+						s.VM.Close()
+						s.VM = nil
+					}
 					s.Mu.Unlock()
 				}
 				broadcast(map[string]any{"type": "exit", "code": exitCode, "timedOut": false})
@@ -3181,9 +3173,13 @@ func submissionRunWS(c *gin.Context) {
 				cmd := s.Cmd
 				cname := s.ContainerName
 				gname := s.GuiContainerName
+				vm := s.VM
 				s.Mu.Unlock()
 				if cmd != nil && cmd.Process != nil {
 					_ = cmd.Process.Kill()
+				}
+				if vm != nil {
+					vm.Close()
 				}
 				if cname != "" {
 					_ = exec.Command("docker", "rm", "-f", cname).Run()
@@ -3201,6 +3197,7 @@ func submissionRunWS(c *gin.Context) {
 					s.GuiEnabled = false
 					s.GuiHostPort = 0
 					s.GuiContainerName = ""
+					s.VM = nil
 					s.Mu.Unlock()
 				}
 				runSessionsMu.Unlock()
@@ -3234,14 +3231,19 @@ func submissionRunWS(c *gin.Context) {
 				running := ss.Running
 				cmd := ss.Cmd
 				cname := ss.ContainerName
+				vm := ss.VM
 				tmp := ss.TmpDir
 				ss.Running = false
 				ss.Ended = true
 				ss.TimedOut = true
 				ss.ExitCode = -1
+				ss.VM = nil
 				ss.Mu.Unlock()
 				if running && cmd != nil && cmd.Process != nil {
 					_ = cmd.Process.Kill()
+				}
+				if vm != nil {
+					vm.Close()
 				}
 				if cname != "" {
 					_ = exec.Command("docker", "rm", "-f", cname).Run()
