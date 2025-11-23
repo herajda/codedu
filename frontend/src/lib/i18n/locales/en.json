@@ -647,7 +647,7 @@
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_remove_button": "Remove",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_empty_state": "No structured rules yet. Add one above to block specific functions.",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::advanced_label": "Patterns (one per line)",
-  "frontend/src/routes/assignments/[id]/tests/+page.svelte::advanced_placeholder": "builtins.max\nnumpy.*\nre.compile",
+  "frontend/src/routes/assignments/[id]/tests/+page.svelte::advanced_placeholder": "builtins.max\nnumpy.*\n*.reverse",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::advanced_tip": "Tip: Use * to block an entire module (for example numpy.*). Lines starting with # are ignored.",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::save_banned_tools": "Save banned tools",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_tools_saved": "Saved. Future submissions will be blocked before tests run.",

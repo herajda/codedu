@@ -647,7 +647,7 @@
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_remove_button": "Odebrat",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_empty_state": "Zatím nejsou definována žádná strukturovaná pravidla. Přidejte je výše.",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::advanced_label": "Vzory (každý na samostatný řádek)",
-  "frontend/src/routes/assignments/[id]/tests/+page.svelte::advanced_placeholder": "builtins.max\nnumpy.*\nre.compile",
+  "frontend/src/routes/assignments/[id]/tests/+page.svelte::advanced_placeholder": "builtins.max\nnumpy.*\n*.reverse",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::advanced_tip": "Tip: Hvězdička * zablokuje celou knihovnu (např. numpy.*). Řádky začínající # se ignorují.",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::save_banned_tools": "Uložit zakázané nástroje",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_tools_saved": "Uloženo. Budoucí odevzdání se zablokují ještě před spuštěním testů.",

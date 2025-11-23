@@ -155,6 +155,8 @@ root = pathlib.Path(sys.argv[3])
 func_exact = {}
 func_simple = {}
 func_prefixes = []
+func_suffixes = []
+func_suffix_seen = set()
 for item in funcs:
     if not isinstance(item, str):
         continue
@@ -162,6 +164,17 @@ for item in funcs:
     if not name:
         continue
     lower = name.lower()
+    if lower.startswith('*.'):
+        suffix = lower[1:]
+        if suffix and suffix not in func_suffix_seen:
+            func_suffixes.append((suffix, name))
+            func_suffix_seen.add(suffix)
+        continue
+    if lower.startswith('.'):
+        if lower not in func_suffix_seen:
+            func_suffixes.append((lower, name))
+            func_suffix_seen.add(lower)
+        continue
     if lower.endswith('.*'):
         base = lower[:-2].strip()
         if base:
@@ -327,13 +340,22 @@ for path in py_files:
                 if simple in local_defs or simple in assigned_names:
                     self.generic_visit(node)
                     return
+                matched = False
                 if lower in func_exact:
                     add_result('function_call', func_exact[lower], name, rel, node)
+                    matched = True
                 elif simple in func_simple and '.' not in lower:
                     add_result('function_call', func_simple[simple], name, rel, node)
+                    matched = True
                 else:
                     for prefix, rule_name in func_prefixes:
                         if lower.startswith(prefix):
+                            add_result('function_call', rule_name, name, rel, node)
+                            matched = True
+                            break
+                if not matched:
+                    for suffix, rule_name in func_suffixes:
+                        if lower.endswith(suffix):
                             add_result('function_call', rule_name, name, rel, node)
                             break
             self.generic_visit(node)
