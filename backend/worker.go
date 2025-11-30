@@ -668,109 +668,38 @@ func runSubmission(id uuid.UUID) {
 	allPass := true
 	totalWeight := 0.0
 	earnedWeight := 0.0
-	for _, tc := range tests {
-		timeout := time.Duration(tc.TimeLimitSec * float64(time.Second))
-		var stdout, stderr string
-		var exitCode int
-		var timedOut bool
-		var runtime time.Duration
-		var actualReturn *string
-		mode := strings.TrimSpace(tc.ExecutionMode)
-		if mode == "" {
-			if tc.UnittestName != nil {
-				mode = "unittest"
-			} else if tc.FunctionName != nil {
-				mode = "function"
-			} else {
-				mode = "stdin_stdout"
-			}
+	parallelism := maxParallelVMs
+	if parallelism < 1 {
+		parallelism = 1
+	}
+
+	sem := make(chan struct{}, parallelism)
+	outcomes := make(chan testOutcome, len(tests))
+	var wg sync.WaitGroup
+
+	for i := range tests {
+		tc := tests[i]
+		wg.Add(1)
+		go func(tc TestCase) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			outcomes <- runTestCase(sub.ID, tc, tmpDir, mainFile)
+		}(tc)
+	}
+
+	wg.Wait()
+	close(outcomes)
+
+	for outcome := range outcomes {
+		if outcome.result != nil {
+			CreateResult(outcome.result)
 		}
-
-		var funcMeta *functionCallResult
-		var funcErr error
-
-		switch mode {
-		case "unittest":
-			stdout, stderr, exitCode, timedOut, runtime = executePythonUnit(tmpDir, mainFile, stringOrEmpty(tc.UnittestCode), stringOrEmpty(tc.UnittestName), timeout)
-		case "function":
-			fn := strings.TrimSpace(stringOrEmpty(tc.FunctionName))
-			cfg := functionCallConfig{FunctionName: fn, ArgsJSON: tc.FunctionArgs, KwargsJSON: tc.FunctionKwargs, ExpectedJSON: tc.ExpectedReturn}
-			stdout, stderr, exitCode, timedOut, runtime, funcMeta, funcErr = runFunctionCall(tmpDir, mainFile, cfg, timeout)
-			if funcErr != nil {
-				stderr = funcErr.Error()
-				exitCode = -1
-			}
-			if funcMeta != nil {
-				if funcMeta.Stdout != "" {
-					stdout = funcMeta.Stdout
-				}
-				if funcMeta.ReturnJSON != nil && *funcMeta.ReturnJSON != "" {
-					actualReturn = funcMeta.ReturnJSON
-				} else if strings.TrimSpace(funcMeta.ReturnRepr) != "" {
-					rr := funcMeta.ReturnRepr
-					actualReturn = &rr
-				}
-				if funcMeta.Traceback != "" {
-					stderr = funcMeta.Traceback
-				}
-				if funcMeta.Status == "exception" && stderr == "" {
-					stderr = funcMeta.Exception
-				}
-			}
-		default:
-			stdout, stderr, exitCode, timedOut, runtime = executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
-			stdout = normalizeActualStdout(trimTrailingNewline(stdout))
-		}
-
-		expectedStdout := tc.ExpectedStdout
-		if mode == "stdin_stdout" {
-			expectedStdout = normalizeExpectedStdout(trimTrailingNewline(expectedStdout))
-		}
-
-		status := "passed"
-		switch mode {
-		case "unittest":
-			if timedOut {
-				status = "time_limit_exceeded"
-			} else if exitCode != 0 {
-				if strings.Contains(stdout, "===JUDGE:ASSERT_FAIL===") {
-					status = "wrong_output"
-				} else {
-					status = "runtime_error"
-				}
-			}
-		case "function":
-			if funcErr != nil {
-				status = "runtime_error"
-			} else if timedOut {
-				status = "time_limit_exceeded"
-			} else if funcMeta != nil {
-				if funcMeta.Status == "exception" {
-					status = "runtime_error"
-				} else if !funcMeta.Passed {
-					status = "wrong_output"
-				}
-			} else if exitCode != 0 {
-				status = "runtime_error"
-			}
-		default:
-			switch {
-			case timedOut:
-				status = "time_limit_exceeded"
-			case exitCode != 0:
-				status = "runtime_error"
-			case stdout != expectedStdout:
-				status = "wrong_output"
-			}
-		}
-
-		res := &Result{SubmissionID: id, TestCaseID: tc.ID, Status: status, ActualStdout: stdout, Stderr: stderr, ExitCode: exitCode, RuntimeMS: int(runtime.Milliseconds()), ActualReturn: actualReturn}
-		CreateResult(res)
-		totalWeight += tc.Weight
-		if status != "passed" {
-			allPass = false
+		totalWeight += outcome.weight
+		if outcome.passed {
+			earnedWeight += outcome.weight
 		} else {
-			earnedWeight += tc.Weight
+			allPass = false
 		}
 	}
 
@@ -830,6 +759,186 @@ func finalizeSubmissionOutcome(sub *Submission, assignment *Assignment, allPass 
 		_ = UpdateSubmissionStatus(sub.ID, "completed")
 	} else {
 		_ = UpdateSubmissionStatus(sub.ID, "failed")
+	}
+}
+
+type testOutcome struct {
+	result *Result
+	weight float64
+	passed bool
+}
+
+func cloneWorkspace(baseDir string) (string, func(), error) {
+	dest, err := os.MkdirTemp(execRoot, "case-")
+	if err != nil {
+		return "", func() {}, err
+	}
+	cleanup := func() { _ = os.RemoveAll(dest) }
+	copyErr := filepath.Walk(baseDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(baseDir, path)
+		if rel == "." {
+			return nil
+		}
+		target := filepath.Join(dest, rel)
+		if info.IsDir() {
+			return os.MkdirAll(target, info.Mode())
+		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+		if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+			return err
+		}
+		in, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer in.Close()
+		out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
+		if err != nil {
+			return err
+		}
+		if _, err := io.Copy(out, in); err != nil {
+			out.Close()
+			return err
+		}
+		return out.Close()
+	})
+	if copyErr != nil {
+		cleanup()
+		return "", func() {}, copyErr
+	}
+	return dest, cleanup, nil
+}
+
+func runTestCase(subID uuid.UUID, tc TestCase, baseDir, mainFile string) testOutcome {
+	timeout := time.Duration(tc.TimeLimitSec * float64(time.Second))
+	var stdout, stderr string
+	var exitCode int
+	var timedOut bool
+	var runtime time.Duration
+	var actualReturn *string
+	mode := strings.TrimSpace(tc.ExecutionMode)
+	if mode == "" {
+		if tc.UnittestName != nil {
+			mode = "unittest"
+		} else if tc.FunctionName != nil {
+			mode = "function"
+		} else {
+			mode = "stdin_stdout"
+		}
+	}
+
+	workDir, cleanup, err := cloneWorkspace(baseDir)
+	if err != nil {
+		return testOutcome{
+			result: &Result{
+				SubmissionID: subID,
+				TestCaseID:   tc.ID,
+				Status:       "runtime_error",
+				Stderr:       fmt.Sprintf("prepare workspace: %v", err),
+				ExitCode:     -1,
+			},
+			weight: tc.Weight,
+			passed: false,
+		}
+	}
+	defer cleanup()
+
+	var funcMeta *functionCallResult
+	var funcErr error
+
+	switch mode {
+	case "unittest":
+		stdout, stderr, exitCode, timedOut, runtime = executePythonUnit(workDir, mainFile, stringOrEmpty(tc.UnittestCode), stringOrEmpty(tc.UnittestName), timeout)
+	case "function":
+		fn := strings.TrimSpace(stringOrEmpty(tc.FunctionName))
+		cfg := functionCallConfig{FunctionName: fn, ArgsJSON: tc.FunctionArgs, KwargsJSON: tc.FunctionKwargs, ExpectedJSON: tc.ExpectedReturn}
+		stdout, stderr, exitCode, timedOut, runtime, funcMeta, funcErr = runFunctionCall(workDir, mainFile, cfg, timeout)
+		if funcErr != nil {
+			stderr = funcErr.Error()
+			exitCode = -1
+		}
+		if funcMeta != nil {
+			if funcMeta.Stdout != "" {
+				stdout = funcMeta.Stdout
+			}
+			if funcMeta.ReturnJSON != nil && *funcMeta.ReturnJSON != "" {
+				actualReturn = funcMeta.ReturnJSON
+			} else if strings.TrimSpace(funcMeta.ReturnRepr) != "" {
+				rr := funcMeta.ReturnRepr
+				actualReturn = &rr
+			}
+			if funcMeta.Traceback != "" {
+				stderr = funcMeta.Traceback
+			}
+			if funcMeta.Status == "exception" && stderr == "" {
+				stderr = funcMeta.Exception
+			}
+		}
+	default:
+		stdout, stderr, exitCode, timedOut, runtime = executePythonDir(workDir, mainFile, tc.Stdin, timeout)
+		stdout = normalizeActualStdout(trimTrailingNewline(stdout))
+	}
+
+	expectedStdout := tc.ExpectedStdout
+	if mode == "stdin_stdout" {
+		expectedStdout = normalizeExpectedStdout(trimTrailingNewline(expectedStdout))
+	}
+
+	status := "passed"
+	switch mode {
+	case "unittest":
+		if timedOut {
+			status = "time_limit_exceeded"
+		} else if exitCode != 0 {
+			if strings.Contains(stdout, "===JUDGE:ASSERT_FAIL===") {
+				status = "wrong_output"
+			} else {
+				status = "runtime_error"
+			}
+		}
+	case "function":
+		if funcErr != nil {
+			status = "runtime_error"
+		} else if timedOut {
+			status = "time_limit_exceeded"
+		} else if funcMeta != nil {
+			if funcMeta.Status == "exception" {
+				status = "runtime_error"
+			} else if !funcMeta.Passed {
+				status = "wrong_output"
+			}
+		} else if exitCode != 0 {
+			status = "runtime_error"
+		}
+	default:
+		switch {
+		case timedOut:
+			status = "time_limit_exceeded"
+		case exitCode != 0:
+			status = "runtime_error"
+		case stdout != expectedStdout:
+			status = "wrong_output"
+		}
+	}
+
+	return testOutcome{
+		result: &Result{
+			SubmissionID: subID,
+			TestCaseID:   tc.ID,
+			Status:       status,
+			ActualStdout: stdout,
+			Stderr:       stderr,
+			ExitCode:     exitCode,
+			RuntimeMS:    int(runtime.Milliseconds()),
+			ActualReturn: actualReturn,
+		},
+		weight: tc.Weight,
+		passed: status == "passed",
 	}
 }
 
@@ -1103,7 +1212,7 @@ func stringOrEmpty(p *string) string {
 
 // smokePythonProgram tries to run the program briefly (expecting input). Timeout is OK.
 func smokePythonProgram(dir, file string) (bool, string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond+vmBootTimeout+vmExtraTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond+vmBootTimeout+vmExtraTimeout+vmQueueTimeout)
 	defer cancel()
 
 	vm, remoteDir, err := startVMWithWorkspace(ctx, dir, nil)
@@ -1935,7 +2044,7 @@ func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, s
 	abs, _ := filepath.Abs(dir)
 	fmt.Printf("[worker] Running in VM: %s/%s with timeout %v\n", abs, file, timeout)
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout+vmBootTimeout+vmExtraTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout+vmBootTimeout+vmExtraTimeout+vmQueueTimeout)
 	defer cancel()
 
 	vm, remoteDir, err := startVMWithWorkspace(ctx, dir, nil)
@@ -2106,7 +2215,7 @@ if __name__ == '__main__':
 	_ = os.Chmod(testPath, 0644)
 	_ = ensureSandboxPerms(dir)
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout+vmBootTimeout+vmExtraTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout+vmBootTimeout+vmExtraTimeout+vmQueueTimeout)
 	defer cancel()
 
 	vm, remoteDir, err := startVMWithWorkspace(ctx, dir, nil)

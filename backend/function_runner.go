@@ -195,7 +195,7 @@ func runFunctionCall(dir, mainFile string, cfg functionCallConfig, timeout time.
 
 	script := fmt.Sprintf("start=$(date +%%s%%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 %s -u '%s'; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status", pythonBinary, filepath.Base(runnerPath))
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout+vmBootTimeout+vmExtraTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout+vmBootTimeout+vmExtraTimeout+vmQueueTimeout)
 	defer cancel()
 
 	vm, remoteDir, err := startVMWithWorkspace(ctx, dir, nil)

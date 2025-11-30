@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -33,6 +34,16 @@ var (
 	qemuVNCBind    = getenvOr("QEMU_VNC_BIND", "0.0.0.0")
 	vmBootTimeout  = getenvDurationOr("QEMU_BOOT_TIMEOUT", 2*time.Minute)
 	vmExtraTimeout = 5 * time.Second // small buffer on top of caller timeouts
+	// Global VM/test execution throttling
+	maxParallelVMs = getenvIntOr("MAX_PARALLEL_TESTS", 4)
+	vmQueueTimeout = getenvDurationOr("VM_QUEUE_TIMEOUT", 10*time.Minute)
+	// CPU isolation via cgroups (best-effort)
+	qemuCPUQuotaUS   = strings.TrimSpace(os.Getenv("QEMU_CPU_QUOTA_US"))
+	qemuCPUPeriodUS  = strings.TrimSpace(getenvOr("QEMU_CPU_PERIOD_US", "100000"))
+	qemuCPUWeight    = strings.TrimSpace(os.Getenv("QEMU_CPU_WEIGHT"))
+	qemuCPUSet       = strings.TrimSpace(os.Getenv("QEMU_CPUSET"))
+	qemuCgroupRoot   = filepath.Clean(getenvOr("QEMU_CGROUP_ROOT", "/sys/fs/cgroup/codedu-vm"))
+	qemuCPUIsolation = strings.TrimSpace(getenvOr("QEMU_CPU_ISOLATION", "1"))
 )
 
 func vmWorkspacePath() string {
@@ -50,6 +61,8 @@ type vmInstance struct {
 	sshKeyPath  string
 	qemuStdout  *bytes.Buffer
 	qemuStderr  *bytes.Buffer
+	cgroupPath  string
+	slotHeld    bool
 }
 
 func getenvDurationOr(k string, def time.Duration) time.Duration {
@@ -61,6 +74,56 @@ func getenvDurationOr(k string, def time.Duration) time.Duration {
 		return d
 	}
 	return def
+}
+
+func getenvIntOr(k string, def int) int {
+	raw := strings.TrimSpace(os.Getenv(k))
+	if raw == "" {
+		return def
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil || v == 0 {
+		return def
+	}
+	return v
+}
+
+var (
+	vmSlotOnce sync.Once
+	vmSlotChan chan struct{}
+)
+
+func initVMLimiter() {
+	vmSlotOnce.Do(func() {
+		if maxParallelVMs < 1 {
+			maxParallelVMs = 1
+		}
+		vmSlotChan = make(chan struct{}, maxParallelVMs)
+	})
+}
+
+func acquireVMSlot(ctx context.Context) error {
+	initVMLimiter()
+	queueCtx, cancel := context.WithTimeout(context.Background(), vmQueueTimeout)
+	defer cancel()
+	for {
+		select {
+		case vmSlotChan <- struct{}{}:
+			return nil
+		case <-queueCtx.Done():
+			return queueCtx.Err()
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func releaseVMSlot() {
+	initVMLimiter()
+	select {
+	case <-vmSlotChan:
+	default:
+	}
 }
 
 // acquireEphemeralPort reserves a TCP port on localhost and then closes the
@@ -150,6 +213,161 @@ func resolveVMPath(p string) string {
 	return clean
 }
 
+func cpuIsolationEnabled() bool {
+	v := strings.ToLower(strings.TrimSpace(qemuCPUIsolation))
+	return !(v == "0" || v == "false" || v == "no")
+}
+
+func normalizedCgroupRoot() string {
+	root := qemuCgroupRoot
+	if !strings.HasPrefix(root, "/sys/fs/cgroup") {
+		root = filepath.Join("/sys/fs/cgroup", strings.TrimLeft(root, "/"))
+	}
+	return root
+}
+
+func defaultCPUQuota() string {
+	if strings.TrimSpace(qemuCPUQuotaUS) != "" {
+		return qemuCPUQuotaUS
+	}
+	if cpus, err := strconv.Atoi(qemuCPUs); err == nil && cpus > 0 {
+		return strconv.Itoa(cpus * 100000)
+	}
+	return ""
+}
+
+func enableV2Controllers(root string, controllers ...string) error {
+	ctrlPath := filepath.Join(root, "cgroup.controllers")
+	data, err := os.ReadFile(ctrlPath)
+	if err != nil {
+		return err
+	}
+	available := map[string]struct{}{}
+	for _, c := range strings.Fields(string(data)) {
+		available[c] = struct{}{}
+	}
+	subtree := filepath.Join(root, "cgroup.subtree_control")
+	for _, c := range controllers {
+		if _, ok := available[c]; !ok {
+			return fmt.Errorf("controller %s not available at %s", c, root)
+		}
+		current, _ := os.ReadFile(subtree)
+		if bytes.Contains(current, []byte(c)) {
+			continue
+		}
+		f, ferr := os.OpenFile(subtree, os.O_WRONLY|os.O_APPEND, 0644)
+		if ferr != nil {
+			return ferr
+		}
+		if _, ferr = f.WriteString("+" + c); ferr != nil {
+			f.Close()
+			return ferr
+		}
+		f.Close()
+	}
+	return nil
+}
+
+func configureV2CPUGroup(root string, pid int) (string, error) {
+	if err := os.MkdirAll(root, 0755); err != nil {
+		return "", err
+	}
+	if err := enableV2Controllers(root, "cpu"); err != nil {
+		return "", err
+	}
+
+	group := filepath.Join(root, fmt.Sprintf("vm-%d", time.Now().UnixNano()))
+	if err := os.Mkdir(group, 0755); err != nil {
+		return "", err
+	}
+
+	period := strings.TrimSpace(qemuCPUPeriodUS)
+	if period == "" {
+		period = "100000"
+	}
+	quota := strings.TrimSpace(defaultCPUQuota())
+	if quota != "" {
+		val := fmt.Sprintf("%s %s", quota, period)
+		if err := os.WriteFile(filepath.Join(group, "cpu.max"), []byte(val), 0644); err != nil {
+			fmt.Printf("[vm] warn: cpu.max apply failed: %v\n", err)
+		}
+	}
+	if strings.TrimSpace(qemuCPUWeight) != "" {
+		if err := os.WriteFile(filepath.Join(group, "cpu.weight"), []byte(strings.TrimSpace(qemuCPUWeight)), 0644); err != nil {
+			fmt.Printf("[vm] warn: cpu.weight apply failed: %v\n", err)
+		}
+	}
+
+	// Optional cpuset pinning (best-effort).
+	if strings.TrimSpace(qemuCPUSet) != "" {
+		if err := enableV2Controllers(root, "cpuset"); err == nil {
+			parentMems, _ := os.ReadFile(filepath.Join(root, "cpuset.mems"))
+			parentMems = bytes.TrimSpace(parentMems)
+			if len(parentMems) == 0 {
+				parentMems = []byte("0")
+			}
+			_ = os.WriteFile(filepath.Join(group, "cpuset.mems"), parentMems, 0644)
+			if err := os.WriteFile(filepath.Join(group, "cpuset.cpus"), []byte(qemuCPUSet), 0644); err != nil {
+				fmt.Printf("[vm] warn: cpuset apply failed: %v\n", err)
+			}
+		}
+	}
+
+	if err := os.WriteFile(filepath.Join(group, "cgroup.procs"), []byte(strconv.Itoa(pid)), 0644); err != nil {
+		return "", err
+	}
+	return group, nil
+}
+
+func configureV1CPUGroup(root string, pid int) (string, error) {
+	cpuRoot := filepath.Join("/sys/fs/cgroup/cpu", strings.TrimPrefix(root, "/sys/fs/cgroup/"))
+	if err := os.MkdirAll(cpuRoot, 0755); err != nil {
+		return "", err
+	}
+	group := filepath.Join(cpuRoot, fmt.Sprintf("vm-%d", time.Now().UnixNano()))
+	if err := os.Mkdir(group, 0755); err != nil {
+		return "", err
+	}
+
+	if quota := strings.TrimSpace(defaultCPUQuota()); quota != "" {
+		if quota == "max" {
+			quota = "-1"
+		}
+		if err := os.WriteFile(filepath.Join(group, "cpu.cfs_quota_us"), []byte(quota), 0644); err != nil {
+			fmt.Printf("[vm] warn: cpu quota apply failed: %v\n", err)
+		}
+	}
+	if period := strings.TrimSpace(qemuCPUPeriodUS); period != "" {
+		if err := os.WriteFile(filepath.Join(group, "cpu.cfs_period_us"), []byte(period), 0644); err != nil {
+			fmt.Printf("[vm] warn: cpu period apply failed: %v\n", err)
+		}
+	}
+	if shares := strings.TrimSpace(qemuCPUWeight); shares != "" {
+		if err := os.WriteFile(filepath.Join(group, "cpu.shares"), []byte(shares), 0644); err != nil {
+			fmt.Printf("[vm] warn: cpu shares apply failed: %v\n", err)
+		}
+	}
+
+	if err := os.WriteFile(filepath.Join(group, "tasks"), []byte(strconv.Itoa(pid)), 0644); err != nil {
+		return "", err
+	}
+	return group, nil
+}
+
+func createCPUGroup(pid int) (string, error) {
+	if !cpuIsolationEnabled() {
+		return "", nil
+	}
+	if _, err := os.Stat("/sys/fs/cgroup"); err != nil {
+		return "", fmt.Errorf("cgroup filesystem missing: %w", err)
+	}
+	root := normalizedCgroupRoot()
+	if _, err := os.Stat("/sys/fs/cgroup/cgroup.controllers"); err == nil {
+		return configureV2CPUGroup(root, pid)
+	}
+	return configureV1CPUGroup(root, pid)
+}
+
 // startVM boots a QEMU instance with user networking and SSH port forwarding.
 // optionalForwards maps guest ports to specific host ports (e.g., 6080->host).
 func startVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, error) {
@@ -164,14 +382,21 @@ func startVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, er
 	}
 	fmt.Printf("[vm] resolved paths base=%s key=%s\n", baseImg, sshKey)
 
+	if err := acquireVMSlot(ctx); err != nil {
+		return nil, fmt.Errorf("waiting for VM slot: %w", err)
+	}
+	slotHeld := true
+
 	tmp, err := os.MkdirTemp(execRoot, "vm-")
 	if err != nil {
+		releaseVMSlot()
 		return nil, err
 	}
 	overlay := filepath.Join(tmp, "overlay.qcow2")
 	imgArgs := []string{"create", "-f", "qcow2", "-b", baseImg, "-F", "qcow2", overlay}
 	if err := exec.CommandContext(ctx, qemuImgBinary, imgArgs...).Run(); err != nil {
 		os.RemoveAll(tmp)
+		releaseVMSlot()
 		return nil, fmt.Errorf("qemu-img create: %w", err)
 	}
 	fmt.Printf("[vm] created overlay %s\n", overlay)
@@ -179,6 +404,7 @@ func startVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, er
 	sshPort, err := acquireEphemeralPort()
 	if err != nil {
 		os.RemoveAll(tmp)
+		releaseVMSlot()
 		return nil, fmt.Errorf("allocate ssh port: %w", err)
 	}
 
@@ -188,6 +414,7 @@ func startVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, er
 			h, herr := acquireEphemeralPort()
 			if herr != nil {
 				os.RemoveAll(tmp)
+				releaseVMSlot()
 				return nil, fmt.Errorf("allocate host port for guest %d: %w", guest, herr)
 			}
 			host = h
@@ -207,6 +434,7 @@ func startVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, er
 		vncPort, vncDisplay, err = acquireVNCPort()
 		if err != nil {
 			os.RemoveAll(tmp)
+			releaseVMSlot()
 			return nil, fmt.Errorf("allocate vnc port: %w", err)
 		}
 		fmt.Printf("[vm] VNC binding %s:%d (display=%d)\n", qemuVNCBind, vncPort, vncDisplay)
@@ -251,14 +479,6 @@ func startVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, er
 	cmd.Stdout = qStdout
 	cmd.Stderr = qStderr
 
-	if err := cmd.Start(); err != nil {
-		os.RemoveAll(tmp)
-		return nil, fmt.Errorf("qemu start: %w", err)
-	}
-	if enableVNC {
-		fmt.Printf("[vm] VNC listening on %s:%d (display=%d)\n", qemuVNCBind, vncPort, vncDisplay)
-	}
-
 	vm := &vmInstance{
 		tmpDir:      tmp,
 		overlayPath: overlay,
@@ -270,12 +490,50 @@ func startVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, er
 		sshKeyPath:  sshKey,
 		qemuStdout:  qStdout,
 		qemuStderr:  qStderr,
+		slotHeld:    slotHeld,
+	}
+
+	if err := cmd.Start(); err != nil {
+		vm.Close()
+		return nil, fmt.Errorf("qemu start: %w", err)
+	}
+	if enableVNC {
+		fmt.Printf("[vm] VNC listening on %s:%d (display=%d)\n", qemuVNCBind, vncPort, vncDisplay)
+	}
+
+	if err := vm.applyCPUConstraints(); err != nil {
+		fmt.Printf("[vm] warn: CPU limits not applied: %v\n", err)
 	}
 	if err := vm.waitForSSH(ctx); err != nil {
 		vm.Close()
 		return nil, err
 	}
 	return vm, nil
+}
+
+func (v *vmInstance) applyCPUConstraints() error {
+	if v.cmd == nil || v.cmd.Process == nil {
+		return nil
+	}
+	group, err := createCPUGroup(v.cmd.Process.Pid)
+	if err != nil {
+		return err
+	}
+	if group != "" {
+		v.cgroupPath = group
+		fmt.Printf("[vm] CPU group applied at %s\n", group)
+	}
+	return nil
+}
+
+func (v *vmInstance) cleanupCPUGroup() {
+	if v.cgroupPath == "" {
+		return
+	}
+	if err := os.Remove(v.cgroupPath); err != nil && !os.IsNotExist(err) {
+		fmt.Printf("[vm] warn: cleanup cgroup %s failed: %v\n", v.cgroupPath, err)
+	}
+	v.cgroupPath = ""
 }
 
 func (v *vmInstance) waitForSSH(ctx context.Context) error {
@@ -505,7 +763,12 @@ func (v *vmInstance) Close() {
 		_ = v.cmd.Process.Kill()
 		_, _ = v.cmd.Process.Wait()
 	}
+	v.cleanupCPUGroup()
 	if v.tmpDir != "" {
 		_ = os.RemoveAll(v.tmpDir)
+	}
+	if v.slotHeld {
+		releaseVMSlot()
+		v.slotHeld = false
 	}
 }
