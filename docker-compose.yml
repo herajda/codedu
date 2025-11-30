@@ -56,6 +56,8 @@ services:
     depends_on:
       docker-engine:
         condition: service_started
+    devices:
+      - /dev/kvm:/dev/kvm
     volumes:
       - runner_shared:/sandbox:z
       - ./.env:/app/.env:ro

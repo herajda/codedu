@@ -26,12 +26,12 @@ var (
 	qemuCPUs      = getenvOr("QEMU_CPUS", "2")
 	qemuMemory    = getenvOr("QEMU_MEMORY", "1024M")
 	qemuAccel     = strings.TrimSpace(os.Getenv("QEMU_ACCEL"))
-	qemuEnableKVM = strings.TrimSpace(os.Getenv("QEMU_ENABLE_KVM"))
+	qemuEnableKVM = strings.TrimSpace(getenvOr("QEMU_ENABLE_KVM", "1"))
 	qemuEnableVNC = strings.TrimSpace(getenvOr("QEMU_ENABLE_VNC", "1"))
 	qemuVNCPort   = strings.TrimSpace(getenvOr("QEMU_VNC_PORT", "5900"))
 	// Default to 0.0.0.0 so the VNC port can be published from containers; override to 127.0.0.1 for local-only.
 	qemuVNCBind    = getenvOr("QEMU_VNC_BIND", "0.0.0.0")
-	vmBootTimeout  = getenvDurationOr("QEMU_BOOT_TIMEOUT", 5*time.Minute)
+	vmBootTimeout  = getenvDurationOr("QEMU_BOOT_TIMEOUT", 2*time.Minute)
 	vmExtraTimeout = 5 * time.Second // small buffer on top of caller timeouts
 )
 
