@@ -85,6 +85,7 @@ var (
 	dockerCPUs      = getenvOr("DOCKER_CPUS", "0.5")
 	dockerMemory    = getenvOr("DOCKER_MEMORY", "256m")
 	runnerTmpfsSize = getenvOr("RUNNER_TMPFS_SIZE", "32m")
+	pythonBinary    = getenvOr("PYTHON_BIN", "python3")
 	// additional grace period for docker startup/shutdown
 	dockerExtraTime = 10 * time.Second
 )
@@ -1111,7 +1112,8 @@ func smokePythonProgram(dir, file string) (bool, string) {
 	}
 	defer vm.Close()
 
-	script := fmt.Sprintf("PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 python -u '%s'", strings.ReplaceAll(file, "'", "'\\''"))
+	remoteMain := filepath.Join(remoteDir, file)
+	script := fmt.Sprintf("PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 %s -u '%s'", pythonBinary, strings.ReplaceAll(remoteMain, "'", "'\\''"))
 	cmd, stdinPipe, stdoutPipe, stderrPipe, err := vm.startInteractive(ctx, remoteDir, script)
 	if err != nil {
 		return false, fmt.Sprintf("vm exec failed: %v", err)
@@ -1445,7 +1447,8 @@ func runInteractiveScenarios(dir, mainFile string, scenarios []interactiveScenar
 			break
 		}
 
-		script := fmt.Sprintf("start=$(date +%%s%%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 python -u '%s'", strings.ReplaceAll(mainFile, "'", "'\\''"))
+		remoteMain := filepath.Join(remoteDir, mainFile)
+		script := fmt.Sprintf("start=$(date +%%s%%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 %s -u '%s'", pythonBinary, strings.ReplaceAll(remoteMain, "'", "'\\''"))
 		cmd, stdinPipe, stdoutPipe, stderrPipe, err := vm.startInteractive(ctx, remoteDir, script)
 		if err != nil {
 			verdict = "RUNTIME_ERROR"
@@ -1743,7 +1746,7 @@ func runAgentEvaluation(workspace, mainFile string, a *Assignment, review map[st
 		"--session-timeout", "90",
 		"--idle-timeout", "20",
 		"--model", modelName,
-		"--default-command", fmt.Sprintf("python -u %s", mainFile),
+		"--default-command", fmt.Sprintf("%s -u %s", pythonBinary, mainFile),
 		"--assignment-json", assignmentFile,
 		"--max-turns", maxTurns,
 	}
@@ -1942,8 +1945,9 @@ func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, s
 	}
 	defer vm.Close()
 
-	escaped := strings.ReplaceAll(file, "'", "'\\''")
-	script := fmt.Sprintf("start=$(date +%%s%%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 python -u '%s'; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status", escaped)
+	remoteMain := filepath.Join(remoteDir, file)
+	escaped := strings.ReplaceAll(remoteMain, "'", "'\\''")
+	script := fmt.Sprintf("start=$(date +%%s%%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 %s -u '%s'; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status", pythonBinary, escaped)
 
 	startWall := time.Now()
 	outRaw, errRaw, exitCode, runErr := vm.runCommand(ctx, remoteDir, script, strings.NewReader(stdin))
@@ -1976,7 +1980,7 @@ func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, s
 
 func executePythonUnit(dir, mainFile, testCode, testName string, timeout time.Duration) (string, string, int, bool, time.Duration) {
 	testPath := filepath.Join(dir, "run_test.py")
-	content := fmt.Sprintf(`import sys, unittest, builtins, io, types
+	content := fmt.Sprintf(`import sys, unittest, builtins, io, types, pathlib
 
 # prevent provided test modules from auto-running all tests (e.g., unittest.main())
 # so that we can selectively run a single test method by name below
@@ -1985,7 +1989,8 @@ def __grader_noop__(*args, **kwargs):
     return None
 unittest.main = __grader_noop__
 
-student_source = open('%s').read()
+ROOT = pathlib.Path(__file__).parent
+student_source = (ROOT / '%s').read_text()
 
 def _normalize_line_endings(text):
     if isinstance(text, str):
@@ -2094,7 +2099,7 @@ if __name__ == '__main__':
     if not ok:
         print("===JUDGE:ASSERT_FAIL===")
     sys.exit(0 if ok else 1)
-`, "/code/"+mainFile, testCode, testName)
+	`, mainFile, testCode, testName)
 	os.WriteFile(testPath, []byte(content), 0644)
 	// Ensure permissions are readable by container user (nobody)
 	_ = os.Chmod(dir, 0755)
@@ -2111,7 +2116,8 @@ if __name__ == '__main__':
 	}
 	defer vm.Close()
 
-	script := "start=$(date +%s%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 python -u run_test.py; status=$?; end=$(date +%s%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status"
+	remoteTest := filepath.Join(remoteDir, "run_test.py")
+	script := fmt.Sprintf("start=$(date +%%s%%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 %s -u '%s'; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status", pythonBinary, strings.ReplaceAll(remoteTest, "'", "'\\''"))
 
 	startWall := time.Now()
 	outRaw, errRaw, exitCode, runErr := vm.runCommand(ctx, remoteDir, script, nil)

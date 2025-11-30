@@ -2964,7 +2964,8 @@ func submissionRunWS(c *gin.Context) {
 				ch <- map[string]any{"type": "error", "message": fmt.Sprintf("vm start failed: %v", vmErr)}
 				continue
 			}
-			runScript := fmt.Sprintf("PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 python -u '%s'", escapedMain)
+			remoteMain := filepath.Join(remoteDir, mainFile)
+			runScript := fmt.Sprintf("PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 %s -u '%s'", pythonBinary, strings.ReplaceAll(remoteMain, "'", "'\\''"))
 			cmd, stdinPipe, stdoutPipe, stderrPipe, startErr := vm.startInteractive(context.Background(), remoteDir, runScript)
 			if startErr != nil {
 				vm.Close()
