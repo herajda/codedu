@@ -61,8 +61,6 @@ services:
     volumes:
       - runner_shared:/sandbox:z
       - ./.env:/app/.env:ro
-    ports:
-      - "${QEMU_VNC_PORT:-5900}:${QEMU_VNC_PORT:-5900}"
     networks: [appnet]
 
   docker-engine:
