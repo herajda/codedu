@@ -19,15 +19,15 @@ import (
 // QEMU-backed sandbox configuration. Base image must have an SSH server running
 // with the configured user/key whitelisted for passwordless login.
 var (
-	qemuBinary    = getenvOr("QEMU_BINARY", "qemu-system-x86_64")
-	qemuImgBinary = getenvOr("QEMU_IMG_BINARY", "qemu-img")
-	qemuBaseImage = getenvOr("QEMU_BASE_IMAGE", "vm/base.img")
-	qemuSSHUser   = getenvOr("QEMU_SSH_USER", "runner")
-	qemuSSHKey    = getenvOr("QEMU_SSH_KEY", "vm/rsa_key")
-	qemuCPUs      = getenvOr("QEMU_CPUS", "2")
-	qemuMemory    = getenvOr("QEMU_MEMORY", "1024M")
-	qemuAccel     = strings.TrimSpace(os.Getenv("QEMU_ACCEL"))
-	qemuEnableKVM = strings.TrimSpace(getenvOr("QEMU_ENABLE_KVM", "1"))
+	qemuBinary     = getenvOr("QEMU_BINARY", "qemu-system-x86_64")
+	qemuImgBinary  = getenvOr("QEMU_IMG_BINARY", "qemu-img")
+	qemuBaseImage  = getenvOr("QEMU_BASE_IMAGE", "vm/base.img")
+	qemuSSHUser    = getenvOr("QEMU_SSH_USER", "runner")
+	qemuSSHKey     = getenvOr("QEMU_SSH_KEY", "vm/rsa_key")
+	qemuCPUs       = getenvOr("QEMU_CPUS", "2")
+	qemuMemory     = getenvOr("QEMU_MEMORY", "1024M")
+	qemuAccel      = strings.TrimSpace(os.Getenv("QEMU_ACCEL"))
+	qemuEnableKVM  = strings.TrimSpace(getenvOr("QEMU_ENABLE_KVM", "1"))
 	vmBootTimeout  = getenvDurationOr("QEMU_BOOT_TIMEOUT", 2*time.Minute)
 	vmExtraTimeout = 5 * time.Second // small buffer on top of caller timeouts
 	// Global VM/test execution throttling
