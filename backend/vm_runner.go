@@ -28,10 +28,6 @@ var (
 	qemuMemory    = getenvOr("QEMU_MEMORY", "1024M")
 	qemuAccel     = strings.TrimSpace(os.Getenv("QEMU_ACCEL"))
 	qemuEnableKVM = strings.TrimSpace(getenvOr("QEMU_ENABLE_KVM", "1"))
-	qemuEnableVNC = strings.TrimSpace(getenvOr("QEMU_ENABLE_VNC", "1"))
-	qemuVNCPort   = strings.TrimSpace(getenvOr("QEMU_VNC_PORT", "5900"))
-	// Default to 0.0.0.0 so the VNC port can be published from containers; override to 127.0.0.1 for local-only.
-	qemuVNCBind    = getenvOr("QEMU_VNC_BIND", "0.0.0.0")
 	vmBootTimeout  = getenvDurationOr("QEMU_BOOT_TIMEOUT", 2*time.Minute)
 	vmExtraTimeout = 5 * time.Second // small buffer on top of caller timeouts
 	// Global VM/test execution throttling
@@ -55,8 +51,6 @@ type vmInstance struct {
 	overlayPath string
 	sshPort     int
 	additional  map[int]int // guest port -> host port
-	vncPort     int         // host port for QEMU's VNC server (0 if disabled)
-	vncDisplay  int         // QEMU VNC display number (port = 5900 + display)
 	cmd         *exec.Cmd
 	sshKeyPath  string
 	qemuStdout  *bytes.Buffer
@@ -135,38 +129,6 @@ func acquireEphemeralPort() (int, error) {
 	}
 	defer ln.Close()
 	return ln.Addr().(*net.TCPAddr).Port, nil
-}
-
-// acquireVNCPort reserves a TCP port suitable for QEMU's VNC display in the 5900-5999 range.
-// QEMU expects "-vnc :<display>" where display = port-5900 (typically 0-99).
-func acquireVNCPort() (port int, display int, err error) {
-	// Helper that validates range and checks availability on the requested bind host.
-	check := func(p int) (int, int, error) {
-		if p < 5900 || p > 5999 {
-			return 0, 0, fmt.Errorf("VNC port must be in 5900-5999 (got %d)", p)
-		}
-		ln, lerr := net.Listen("tcp", fmt.Sprintf("%s:%d", qemuVNCBind, p))
-		if lerr != nil {
-			return 0, 0, lerr
-		}
-		_ = ln.Close()
-		return p, p - 5900, nil
-	}
-
-	if qemuVNCPort != "" {
-		p, perr := strconv.Atoi(qemuVNCPort)
-		if perr != nil || p <= 0 {
-			return 0, 0, fmt.Errorf("invalid QEMU_VNC_PORT %q", qemuVNCPort)
-		}
-		return check(p)
-	}
-
-	for p := 5900; p <= 5999; p++ {
-		if hp, disp, herr := check(p); herr == nil {
-			return hp, disp, nil
-		}
-	}
-	return 0, 0, fmt.Errorf("no free VNC port found in 5900-5999 on %s", qemuVNCBind)
 }
 
 // resolveVMPath tries to find the given path relative to common roots (cwd, parents, exe dir).
@@ -427,19 +389,6 @@ func startVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, er
 		forwards = append(forwards, fmt.Sprintf("hostfwd=tcp::%d-:%d", host, guest))
 	}
 
-	enableVNC := strings.ToLower(qemuEnableVNC) == "1" || strings.ToLower(qemuEnableVNC) == "true" || strings.ToLower(qemuEnableVNC) == "yes"
-	vncPort := 0
-	vncDisplay := 0
-	if enableVNC {
-		vncPort, vncDisplay, err = acquireVNCPort()
-		if err != nil {
-			os.RemoveAll(tmp)
-			releaseVMSlot()
-			return nil, fmt.Errorf("allocate vnc port: %w", err)
-		}
-		fmt.Printf("[vm] VNC binding %s:%d (display=%d)\n", qemuVNCBind, vncPort, vncDisplay)
-	}
-
 	args := []string{
 		"-m", qemuMemory,
 		"-smp", qemuCPUs,
@@ -448,17 +397,8 @@ func startVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, er
 		"-device", "virtio-net-pci,netdev=net0",
 		"-serial", "stdio",
 		"-monitor", "none",
-	}
-	if enableVNC {
-		args = append(args,
-			"-vnc", fmt.Sprintf("%s:%d", qemuVNCBind, vncDisplay),
-			"-vga", "std",
-		)
-	} else {
-		args = append(args,
-			"-nographic",
-			"-display", "none",
-		)
+		"-nographic",
+		"-display", "none",
 	}
 	if qemuAccel != "" {
 		args = append([]string{"-accel", qemuAccel}, args...)
@@ -467,11 +407,7 @@ func startVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, er
 		args = append(args, "-enable-kvm")
 	}
 
-	vncInfo := "disabled"
-	if enableVNC {
-		vncInfo = fmt.Sprintf("%s:%d (display=%d)", qemuVNCBind, vncPort, vncDisplay)
-	}
-	fmt.Printf("[vm] starting qemu with image=%s overlay=%s ssh_port=%d forwards=%v accel=%s vnc=%s\n", baseImg, overlay, sshPort, additional, qemuAccel, vncInfo)
+	fmt.Printf("[vm] starting qemu with image=%s overlay=%s ssh_port=%d forwards=%v accel=%s\n", baseImg, overlay, sshPort, additional, qemuAccel)
 	cmd := exec.CommandContext(ctx, qemuBinary, args...)
 	// Avoid cluttering logs; QEMU stays attached to the process for lifecycle control.
 	qStdout := &bytes.Buffer{}
@@ -484,8 +420,6 @@ func startVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, er
 		overlayPath: overlay,
 		sshPort:     sshPort,
 		additional:  additional,
-		vncPort:     vncPort,
-		vncDisplay:  vncDisplay,
 		cmd:         cmd,
 		sshKeyPath:  sshKey,
 		qemuStdout:  qStdout,
@@ -496,9 +430,6 @@ func startVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, er
 	if err := cmd.Start(); err != nil {
 		vm.Close()
 		return nil, fmt.Errorf("qemu start: %w", err)
-	}
-	if enableVNC {
-		fmt.Printf("[vm] VNC listening on %s:%d (display=%d)\n", qemuVNCBind, vncPort, vncDisplay)
 	}
 
 	if err := vm.applyCPUConstraints(); err != nil {
@@ -594,6 +525,7 @@ func (v *vmInstance) sshArgs() []string {
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "UserKnownHostsFile=/dev/null",
 		"-o", "ConnectTimeout=5",
+		"-o", "LogLevel=ERROR",
 		"-i", v.sshKeyPath,
 		"-p", strconv.Itoa(v.sshPort),
 		fmt.Sprintf("%s@127.0.0.1", qemuSSHUser),
@@ -667,6 +599,7 @@ func (v *vmInstance) syncWorkspace(ctx context.Context, dir string) (string, err
 		"-r",
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "UserKnownHostsFile=/dev/null",
+		"-o", "LogLevel=ERROR",
 		"-i", v.sshKeyPath,
 		"-P", strconv.Itoa(v.sshPort),
 		filepath.Clean(dir) + "/.",
