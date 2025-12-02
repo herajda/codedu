@@ -2,9 +2,9 @@
 FROM golang:1.23 AS build
 WORKDIR /src
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
-COPY go.mod go.sum ./
+COPY backend/go.mod backend/go.sum ./
 RUN go mod download
-COPY . .
+COPY backend/. .
 # Build package (all files), output to /out
 RUN mkdir -p /out \
  && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/codegrader .
@@ -17,15 +17,19 @@ RUN apt-get update \
         tzdata \
         bash \
         docker.io \
+        qemu-system-x86 \
+        qemu-utils \
+        openssh-client \
         python3 \
         python3-venv \
         python3-pip \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /out/codegrader /usr/local/bin/codegrader
-COPY schema.sql ./schema.sql
-COPY llm_agent /app/llm_agent
-COPY scripts /app/scripts
+COPY backend/schema.sql ./schema.sql
+COPY backend/llm_agent /app/llm_agent
+COPY backend/scripts /app/scripts
+COPY vm /app/vm
 # Install agent dependencies into an isolated virtualenv to satisfy PEP 668.
 RUN python3 -m venv /opt/llm-agent-venv \
     && /opt/llm-agent-venv/bin/pip install --no-cache-dir -r /app/llm_agent/requirements.txt \

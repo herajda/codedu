@@ -30,8 +30,8 @@ services:
 
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./backend/Dockerfile
     environment:
       PORT: "8080"
       DATABASE_URL: postgres://codedu_user:supersecret@db:5432/codedu_db?sslmode=disable
@@ -49,11 +49,15 @@ services:
       DOCKER_CPUS: "0.5"
       DOCKER_MEMORY: "256m"
       GIN_MODE: release
+      QEMU_VNC_PORT: "${QEMU_VNC_PORT:-5900}"
+      QEMU_VNC_BIND: "${QEMU_VNC_BIND:-0.0.0.0}"
     env_file:
       - .env
     depends_on:
       docker-engine:
         condition: service_started
+    devices:
+      - /dev/kvm:/dev/kvm
     volumes:
       - runner_shared:/sandbox:z
       - ./.env:/app/.env:ro

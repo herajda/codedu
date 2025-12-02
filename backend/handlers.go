@@ -59,6 +59,7 @@ type RunSession struct {
 	// process and IO
 	Cmd   *exec.Cmd
 	Stdin io.WriteCloser
+	VM    *vmInstance
 
 	// output buffers (accumulated for replay on reattach)
 	BufOut []byte
@@ -1789,11 +1790,7 @@ func runTeacherSolution(c *gin.Context) {
 	}
 
 	// Execute all tests and gather results without persisting
-	results := make([]map[string]any, 0, len(runCases))
-	summaryPassed := 0
-	persistedPassed := 0
-	persistedTotalWeight := 0.0
-	persistedEarnedWeight := 0.0
+	results := make([]map[string]any, len(runCases))
 	illegalDetected := false
 	illegalMessage := ""
 	noteMap := notesFromAssignment(assignment)
@@ -1811,7 +1808,7 @@ func runTeacherSolution(c *gin.Context) {
 	}
 
 	if illegalDetected {
-		for _, rc := range runCases {
+		for i, rc := range runCases {
 			tc := rc.TestCase
 			mode := strings.TrimSpace(tc.ExecutionMode)
 			if mode == "" {
@@ -1847,167 +1844,194 @@ func runTeacherSolution(c *gin.Context) {
 				if rc.TempID != "" {
 					item["test_case_id"] = rc.TempID
 				} else {
-					item["test_case_id"] = fmt.Sprintf("preview-%d", len(results)+1)
+					item["test_case_id"] = fmt.Sprintf("preview-%d", i+1)
 				}
 			} else {
 				item["test_case_id"] = tc.ID
-				persistedTotalWeight += tc.Weight
 			}
-			results = append(results, item)
+			results[i] = item
 		}
 	} else {
-		for _, rc := range runCases {
-			tc := rc.TestCase
-			timeout := time.Duration(tc.TimeLimitSec * float64(time.Second))
-			var stdout, stderr string
-			var exitCode int
-			var timedOut bool
-			var runtime time.Duration
-			var actualReturn *string
-			mode := strings.TrimSpace(tc.ExecutionMode)
-			if mode == "" {
-				if tc.UnittestName != nil {
-					mode = "unittest"
-				} else if tc.FunctionName != nil {
-					mode = "function"
-				} else {
-					mode = "stdin_stdout"
-				}
-			}
+		parallelism := maxParallelVMs
+		if parallelism < 1 {
+			parallelism = 1
+		}
 
-			var funcMeta *functionCallResult
-			var funcErr error
+		sem := make(chan struct{}, parallelism)
+		var wg sync.WaitGroup
 
-			switch mode {
-			case "unittest":
-				code := ""
-				if tc.UnittestCode != nil {
-					code = *tc.UnittestCode
-				}
-				name := ""
-				if tc.UnittestName != nil {
-					name = *tc.UnittestName
-				}
-				stdout, stderr, exitCode, timedOut, runtime = executePythonUnit(tmpDir, mainFile, code, name, timeout)
-			case "function":
-				fn := ""
-				if tc.FunctionName != nil {
-					fn = strings.TrimSpace(*tc.FunctionName)
-				}
-				cfg := functionCallConfig{FunctionName: fn, ArgsJSON: tc.FunctionArgs, KwargsJSON: tc.FunctionKwargs, ExpectedJSON: tc.ExpectedReturn}
-				stdout, stderr, exitCode, timedOut, runtime, funcMeta, funcErr = runFunctionCall(tmpDir, mainFile, cfg, timeout)
-				if funcErr != nil {
-					stderr = funcErr.Error()
-					exitCode = -1
-				}
-				if funcMeta != nil {
-					if funcMeta.Stdout != "" {
-						stdout = funcMeta.Stdout
-					}
-					if funcMeta.ReturnJSON != nil && strings.TrimSpace(*funcMeta.ReturnJSON) != "" {
-						actualReturn = funcMeta.ReturnJSON
-					} else if strings.TrimSpace(funcMeta.ReturnRepr) != "" {
-						rr := funcMeta.ReturnRepr
-						actualReturn = &rr
-					}
-					if funcMeta.Traceback != "" {
-						stderr = funcMeta.Traceback
-					}
-					if funcMeta.Status == "exception" && stderr == "" {
-						stderr = funcMeta.Exception
-					}
-				}
-			default:
-				stdout, stderr, exitCode, timedOut, runtime = executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
-				stdout = trimTrailingNewline(stdout)
-			}
+		for i := range runCases {
+			wg.Add(1)
+			go func(idx int) {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
 
-			expectedStdout := tc.ExpectedStdout
-			if mode == "stdin_stdout" {
-				expectedStdout = trimTrailingNewline(expectedStdout)
-			}
-
-			status := "passed"
-			switch mode {
-			case "unittest":
-				if timedOut {
-					status = "time_limit_exceeded"
-				} else if exitCode != 0 {
-					if strings.Contains(stdout, "===JUDGE:ASSERT_FAIL===") {
-						status = "wrong_output"
+				rc := runCases[idx]
+				tc := rc.TestCase
+				timeout := time.Duration(tc.TimeLimitSec * float64(time.Second))
+				var stdout, stderr string
+				var exitCode int
+				var timedOut bool
+				var runtime time.Duration
+				var actualReturn *string
+				mode := strings.TrimSpace(tc.ExecutionMode)
+				if mode == "" {
+					if tc.UnittestName != nil {
+						mode = "unittest"
+					} else if tc.FunctionName != nil {
+						mode = "function"
 					} else {
-						status = "runtime_error"
+						mode = "stdin_stdout"
 					}
 				}
-			case "function":
-				if funcErr != nil {
-					status = "runtime_error"
-				} else if timedOut {
-					status = "time_limit_exceeded"
-				} else if funcMeta != nil {
-					if funcMeta.Status == "exception" {
+
+				var funcMeta *functionCallResult
+				var funcErr error
+
+				switch mode {
+				case "unittest":
+					code := ""
+					if tc.UnittestCode != nil {
+						code = *tc.UnittestCode
+					}
+					name := ""
+					if tc.UnittestName != nil {
+						name = *tc.UnittestName
+					}
+					stdout, stderr, exitCode, timedOut, runtime = executePythonUnit(tmpDir, mainFile, code, name, timeout)
+				case "function":
+					fn := ""
+					if tc.FunctionName != nil {
+						fn = strings.TrimSpace(*tc.FunctionName)
+					}
+					cfg := functionCallConfig{FunctionName: fn, ArgsJSON: tc.FunctionArgs, KwargsJSON: tc.FunctionKwargs, ExpectedJSON: tc.ExpectedReturn}
+					stdout, stderr, exitCode, timedOut, runtime, funcMeta, funcErr = runFunctionCall(tmpDir, mainFile, cfg, timeout)
+					if funcErr != nil {
+						stderr = funcErr.Error()
+						exitCode = -1
+					}
+					if funcMeta != nil {
+						if funcMeta.Stdout != "" {
+							stdout = funcMeta.Stdout
+						}
+						if funcMeta.ReturnJSON != nil && strings.TrimSpace(*funcMeta.ReturnJSON) != "" {
+							actualReturn = funcMeta.ReturnJSON
+						} else if strings.TrimSpace(funcMeta.ReturnRepr) != "" {
+							rr := funcMeta.ReturnRepr
+							actualReturn = &rr
+						}
+						if funcMeta.Traceback != "" {
+							stderr = funcMeta.Traceback
+						}
+						if funcMeta.Status == "exception" && stderr == "" {
+							stderr = funcMeta.Exception
+						}
+					}
+				default:
+					stdout, stderr, exitCode, timedOut, runtime = executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
+					stdout = trimTrailingNewline(stdout)
+				}
+
+				expectedStdout := tc.ExpectedStdout
+				if mode == "stdin_stdout" {
+					expectedStdout = trimTrailingNewline(expectedStdout)
+				}
+
+				status := "passed"
+				switch mode {
+				case "unittest":
+					if timedOut {
+						status = "time_limit_exceeded"
+					} else if exitCode != 0 {
+						if strings.Contains(stdout, "===JUDGE:ASSERT_FAIL===") {
+							status = "wrong_output"
+						} else {
+							status = "runtime_error"
+						}
+					}
+				case "function":
+					if funcErr != nil {
 						status = "runtime_error"
-					} else if !funcMeta.Passed {
+					} else if timedOut {
+						status = "time_limit_exceeded"
+					} else if funcMeta != nil {
+						if funcMeta.Status == "exception" {
+							status = "runtime_error"
+						} else if !funcMeta.Passed {
+							status = "wrong_output"
+						}
+					} else if exitCode != 0 {
+						status = "runtime_error"
+					}
+				default:
+					switch {
+					case timedOut:
+						status = "time_limit_exceeded"
+					case exitCode != 0:
+						status = "runtime_error"
+					case stdout != expectedStdout:
 						status = "wrong_output"
 					}
-				} else if exitCode != 0 {
-					status = "runtime_error"
 				}
-			default:
-				switch {
-				case timedOut:
-					status = "time_limit_exceeded"
-				case exitCode != 0:
-					status = "runtime_error"
-				case stdout != expectedStdout:
-					status = "wrong_output"
-				}
-			}
 
-			if status == "passed" {
-				summaryPassed++
-				if !rc.Preview {
-					persistedPassed++
-					persistedEarnedWeight += tc.Weight
+				item := map[string]any{
+					"unittest_name":   tc.UnittestName,
+					"status":          status,
+					"runtime_ms":      int(runtime.Milliseconds()),
+					"exit_code":       exitCode,
+					"actual_stdout":   stdout,
+					"expected_stdout": tc.ExpectedStdout,
+					"stderr":          stderr,
 				}
-			}
-			if !rc.Preview {
-				persistedTotalWeight += tc.Weight
-			}
-
-			item := map[string]any{
-				"unittest_name":   tc.UnittestName,
-				"status":          status,
-				"runtime_ms":      int(runtime.Milliseconds()),
-				"exit_code":       exitCode,
-				"actual_stdout":   stdout,
-				"expected_stdout": tc.ExpectedStdout,
-				"stderr":          stderr,
-			}
-			if mode == "function" {
-				if tc.FunctionName != nil {
-					item["function_name"] = strings.TrimSpace(*tc.FunctionName)
+				if mode == "function" {
+					if tc.FunctionName != nil {
+						item["function_name"] = strings.TrimSpace(*tc.FunctionName)
+					}
+					item["function_args"] = tc.FunctionArgs
+					item["function_kwargs"] = tc.FunctionKwargs
+					if tc.ExpectedReturn != nil {
+						item["expected_return"] = *tc.ExpectedReturn
+					}
+					if actualReturn != nil {
+						item["actual_return"] = *actualReturn
+					}
 				}
-				item["function_args"] = tc.FunctionArgs
-				item["function_kwargs"] = tc.FunctionKwargs
-				if tc.ExpectedReturn != nil {
-					item["expected_return"] = *tc.ExpectedReturn
-				}
-				if actualReturn != nil {
-					item["actual_return"] = *actualReturn
-				}
-			}
-			if rc.Preview {
-				item["preview"] = true
-				if rc.TempID != "" {
-					item["test_case_id"] = rc.TempID
+				if rc.Preview {
+					item["preview"] = true
+					if rc.TempID != "" {
+						item["test_case_id"] = rc.TempID
+					} else {
+						item["test_case_id"] = fmt.Sprintf("preview-%d", idx+1)
+					}
 				} else {
-					item["test_case_id"] = fmt.Sprintf("preview-%d", len(results)+1)
+					item["test_case_id"] = tc.ID
 				}
-			} else {
-				item["test_case_id"] = tc.ID
+				results[idx] = item
+			}(i)
+		}
+		wg.Wait()
+	}
+
+	summaryPassed := 0
+	persistedPassed := 0
+	persistedTotalWeight := 0.0
+	persistedEarnedWeight := 0.0
+	for i, rc := range runCases {
+		tc := rc.TestCase
+		if !rc.Preview {
+			persistedTotalWeight += tc.Weight
+		}
+		item := results[i]
+		if item == nil {
+			continue
+		}
+		if status, ok := item["status"].(string); ok && status == "passed" {
+			summaryPassed++
+			if !rc.Preview {
+				persistedPassed++
+				persistedEarnedWeight += tc.Weight
 			}
-			results = append(results, item)
 		}
 	}
 
@@ -2689,6 +2713,10 @@ func submissionRunWS(c *gin.Context) {
 				if s.Cmd != nil && s.Cmd.Process != nil {
 					_ = s.Cmd.Process.Kill()
 				}
+				if s.VM != nil {
+					s.VM.Close()
+					s.VM = nil
+				}
 				if s.ContainerName != "" {
 					_ = exec.Command("docker", "rm", "-f", s.ContainerName).Run()
 				}
@@ -2954,34 +2982,17 @@ func submissionRunWS(c *gin.Context) {
 			}
 
 			// Headless mode (no GUI)
-			safeID := strings.ToLower(sub.ID.String())
-			containerName := fmt.Sprintf("run-%s-%d", safeID, time.Now().UnixNano())
-			script := fmt.Sprintf("cd /code && python '%s'", escapedMain)
-			// Ensure the image is available to avoid long pull hangs during interactive runs
-			_ = ensureDockerImage(pythonImage)
-			cmd := exec.Command("docker", "run", "--rm", "--name", containerName, "-i",
-				"--network=none",
-				"--user", dockerUser,
-				"--cpus", dockerCPUs,
-				"--memory", dockerMemory,
-				"--memory-swap", dockerMemory,
-				"--pids-limit", "128",
-				"--read-only",
-				"--cap-drop=ALL",
-				"--security-opt", "no-new-privileges",
-				"--security-opt", "label=disable",
-				"--mount", "type=tmpfs,destination=/tmp,tmpfs-size=16m",
-				"-v", fmt.Sprintf("%s:/code:ro", abs),
-				pythonImage, "bash", "-lc", script)
-			stdoutPipe, e1 := cmd.StdoutPipe()
-			stderrPipe, e2 := cmd.StderrPipe()
-			stdinPipe, e3 := cmd.StdinPipe()
-			if e1 != nil || e2 != nil || e3 != nil {
-				ch <- map[string]any{"type": "error", "message": "container start failed"}
+			vm, remoteDir, vmErr := startVMWithWorkspace(context.Background(), td, nil)
+			if vmErr != nil {
+				ch <- map[string]any{"type": "error", "message": fmt.Sprintf("vm start failed: %v", vmErr)}
 				continue
 			}
-			if err := cmd.Start(); err != nil {
-				ch <- map[string]any{"type": "error", "message": "container start failed"}
+			remoteMain := filepath.Join(remoteDir, mainFile)
+			runScript := fmt.Sprintf("PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 %s -u '%s'", pythonBinary, strings.ReplaceAll(remoteMain, "'", "'\\''"))
+			cmd, stdinPipe, stdoutPipe, stderrPipe, startErr := vm.startInteractive(context.Background(), remoteDir, runScript)
+			if startErr != nil {
+				vm.Close()
+				ch <- map[string]any{"type": "error", "message": "vm exec start failed"}
 				continue
 			}
 
@@ -2990,13 +3001,14 @@ func submissionRunWS(c *gin.Context) {
 			runSessionsMu.Unlock()
 			if s == nil {
 				_ = cmd.Process.Kill()
-				_ = exec.Command("docker", "rm", "-f", containerName).Run()
+				vm.Close()
 				continue
 			}
 			s.Mu.Lock()
 			s.Cmd = cmd
 			s.Stdin = stdinPipe
-			s.ContainerName = containerName
+			s.VM = vm
+			s.ContainerName = ""
 			s.Running = true
 			s.Ended = false
 			s.LastActive = time.Now()
@@ -3064,6 +3076,10 @@ func submissionRunWS(c *gin.Context) {
 					s.Running = false
 					s.Ended = true
 					s.ExitCode = exitCode
+					if s.VM != nil {
+						s.VM.Close()
+						s.VM = nil
+					}
 					s.Mu.Unlock()
 				}
 				broadcast(map[string]any{"type": "exit", "code": exitCode, "timedOut": false})
@@ -3181,9 +3197,13 @@ func submissionRunWS(c *gin.Context) {
 				cmd := s.Cmd
 				cname := s.ContainerName
 				gname := s.GuiContainerName
+				vm := s.VM
 				s.Mu.Unlock()
 				if cmd != nil && cmd.Process != nil {
 					_ = cmd.Process.Kill()
+				}
+				if vm != nil {
+					vm.Close()
 				}
 				if cname != "" {
 					_ = exec.Command("docker", "rm", "-f", cname).Run()
@@ -3201,6 +3221,7 @@ func submissionRunWS(c *gin.Context) {
 					s.GuiEnabled = false
 					s.GuiHostPort = 0
 					s.GuiContainerName = ""
+					s.VM = nil
 					s.Mu.Unlock()
 				}
 				runSessionsMu.Unlock()
@@ -3234,14 +3255,19 @@ func submissionRunWS(c *gin.Context) {
 				running := ss.Running
 				cmd := ss.Cmd
 				cname := ss.ContainerName
+				vm := ss.VM
 				tmp := ss.TmpDir
 				ss.Running = false
 				ss.Ended = true
 				ss.TimedOut = true
 				ss.ExitCode = -1
+				ss.VM = nil
 				ss.Mu.Unlock()
 				if running && cmd != nil && cmd.Process != nil {
 					_ = cmd.Process.Kill()
+				}
+				if vm != nil {
+					vm.Close()
 				}
 				if cname != "" {
 					_ = exec.Command("docker", "rm", "-f", cname).Run()
