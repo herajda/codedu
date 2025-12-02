@@ -31,7 +31,7 @@ var (
 	vmBootTimeout  = getenvDurationOr("QEMU_BOOT_TIMEOUT", 2*time.Minute)
 	vmExtraTimeout = 5 * time.Second // small buffer on top of caller timeouts
 	// Global VM/test execution throttling
-	maxParallelVMs = getenvIntOr("MAX_PARALLEL_TESTS", 4)
+	maxParallelVMs = getenvIntOr("MAX_PARALLEL_TESTS", 8)
 	vmQueueTimeout = getenvDurationOr("VM_QUEUE_TIMEOUT", 10*time.Minute)
 	// CPU isolation via cgroups (best-effort)
 	qemuCPUQuotaUS   = strings.TrimSpace(os.Getenv("QEMU_CPU_QUOTA_US"))
