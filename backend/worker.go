@@ -2044,6 +2044,40 @@ func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, s
 	abs, _ := filepath.Abs(dir)
 	fmt.Printf("[worker] Running in VM: %s/%s with timeout %v\n", abs, file, timeout)
 
+	// Create a runner script that overrides input() to suppress prompts
+	runnerName := "__runner__.py"
+	runnerPath := filepath.Join(dir, runnerName)
+	runnerContent := fmt.Sprintf(`import sys, builtins, os
+
+# Override input to not print prompt
+def _input(prompt=None):
+    s = sys.stdin.readline()
+    if not s:
+        raise EOFError()
+    return s.rstrip('\n')
+
+builtins.input = _input
+
+# Ensure we are in the correct directory
+script_dir = os.path.dirname(os.path.abspath(__file__))
+os.chdir(script_dir)
+
+target = %q
+if target:
+    sys.argv = [target]
+    sys.path.insert(0, script_dir)
+    with open(target, 'rb') as f:
+        code = compile(f.read(), target, 'exec')
+    globs = {'__name__': '__main__', '__file__': target, '__doc__': None}
+    exec(code, globs)
+`, file)
+
+	if err := os.WriteFile(runnerPath, []byte(runnerContent), 0644); err != nil {
+		return "", fmt.Sprintf("failed to write runner: %v", err), -1, false, 0
+	}
+	// Ensure runner is readable
+	_ = os.Chmod(runnerPath, 0644)
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeout+vmBootTimeout+vmExtraTimeout+vmQueueTimeout)
 	defer cancel()
 
@@ -2054,9 +2088,9 @@ func executePythonDir(dir, file, stdin string, timeout time.Duration) (string, s
 	}
 	defer vm.Close()
 
-	remoteMain := filepath.Join(remoteDir, file)
-	escaped := strings.ReplaceAll(remoteMain, "'", "'\\''")
-	script := fmt.Sprintf("start=$(date +%%s%%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 %s -u '%s'; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status", pythonBinary, escaped)
+	remoteRunner := filepath.Join(remoteDir, runnerName)
+	// We run the runner script, which internally runs the student file
+	script := fmt.Sprintf("start=$(date +%%s%%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 %s -u '%s'; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status", pythonBinary, strings.ReplaceAll(remoteRunner, "'", "'\\''"))
 
 	startWall := time.Now()
 	outRaw, errRaw, exitCode, runErr := vm.runCommand(ctx, remoteDir, script, strings.NewReader(stdin))
