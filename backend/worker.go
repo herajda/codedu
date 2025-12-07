@@ -1212,18 +1212,23 @@ func stringOrEmpty(p *string) string {
 
 // smokePythonProgram tries to run the program briefly (expecting input). Timeout is OK.
 func smokePythonProgram(dir, file string) (bool, string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond+vmBootTimeout+vmExtraTimeout+vmQueueTimeout)
-	defer cancel()
+	// Boot context: generous timeout for VM acquisition and boot
+	bootCtx, bootCancel := context.WithTimeout(context.Background(), vmBootTimeout+vmExtraTimeout+vmQueueTimeout)
+	defer bootCancel()
 
-	vm, remoteDir, err := startVMWithWorkspace(ctx, dir, nil)
+	vm, remoteDir, err := startVMWithWorkspace(bootCtx, dir, nil)
 	if err != nil {
 		return false, fmt.Sprintf("vm start failed: %v", err)
 	}
 	defer vm.Close()
 
+	// Execution context: strict 1.5s timeout for the smoke test
+	execCtx, execCancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+	defer execCancel()
+
 	remoteMain := filepath.Join(remoteDir, file)
 	script := fmt.Sprintf("PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 %s -u '%s'", pythonBinary, strings.ReplaceAll(remoteMain, "'", "'\\''"))
-	cmd, stdinPipe, stdoutPipe, stderrPipe, err := vm.startInteractive(ctx, remoteDir, script)
+	cmd, stdinPipe, stdoutPipe, stderrPipe, err := vm.startInteractive(execCtx, remoteDir, script)
 	if err != nil {
 		return false, fmt.Sprintf("vm exec failed: %v", err)
 	}
@@ -1240,7 +1245,7 @@ func smokePythonProgram(dir, file string) (bool, string) {
 	go func() { done <- cmd.Wait() }()
 
 	select {
-	case <-ctx.Done():
+	case <-execCtx.Done():
 		if cmd.Process != nil {
 			_ = cmd.Process.Kill()
 		}
@@ -1248,7 +1253,7 @@ func smokePythonProgram(dir, file string) (bool, string) {
 	}
 	wg.Wait()
 
-	if ctx.Err() == context.DeadlineExceeded {
+	if execCtx.Err() == context.DeadlineExceeded {
 		return true, "timeout while waiting for input"
 	}
 	out := stdoutBuf.String()
@@ -2078,12 +2083,13 @@ if target:
 	// Ensure runner is readable
 	_ = os.Chmod(runnerPath, 0644)
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout+vmBootTimeout+vmExtraTimeout+vmQueueTimeout)
-	defer cancel()
+	// Boot context: generous timeout for VM acquisition and boot
+	bootCtx, bootCancel := context.WithTimeout(context.Background(), vmBootTimeout+vmExtraTimeout+vmQueueTimeout)
+	defer bootCancel()
 
-	vm, remoteDir, err := startVMWithWorkspace(ctx, dir, nil)
+	vm, remoteDir, err := startVMWithWorkspace(bootCtx, dir, nil)
 	if err != nil {
-		timedOut := ctx.Err() == context.DeadlineExceeded
+		timedOut := bootCtx.Err() == context.DeadlineExceeded
 		return "", fmt.Sprintf("vm start failed: %v", err), -1, timedOut, 0
 	}
 	defer vm.Close()
@@ -2092,11 +2098,15 @@ if target:
 	// We run the runner script, which internally runs the student file
 	script := fmt.Sprintf("start=$(date +%%s%%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 %s -u '%s'; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status", pythonBinary, strings.ReplaceAll(remoteRunner, "'", "'\\''"))
 
+	// Execution context: strict timeout for the actual test
+	execCtx, execCancel := context.WithTimeout(context.Background(), timeout)
+	defer execCancel()
+
 	startWall := time.Now()
-	outRaw, errRaw, exitCode, runErr := vm.runCommand(ctx, remoteDir, script, strings.NewReader(stdin))
+	outRaw, errRaw, exitCode, runErr := vm.runCommand(execCtx, remoteDir, script, strings.NewReader(stdin))
 	duration := time.Since(startWall)
 
-	ctxTimedOut := ctx.Err() == context.DeadlineExceeded
+	ctxTimedOut := execCtx.Err() == context.DeadlineExceeded
 
 	out := strings.TrimSpace(outRaw)
 	var runtime time.Duration
@@ -2249,12 +2259,13 @@ if __name__ == '__main__':
 	_ = os.Chmod(testPath, 0644)
 	_ = ensureSandboxPerms(dir)
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout+vmBootTimeout+vmExtraTimeout+vmQueueTimeout)
-	defer cancel()
+	// Boot context: generous timeout for VM acquisition and boot
+	bootCtx, bootCancel := context.WithTimeout(context.Background(), vmBootTimeout+vmExtraTimeout+vmQueueTimeout)
+	defer bootCancel()
 
-	vm, remoteDir, err := startVMWithWorkspace(ctx, dir, nil)
+	vm, remoteDir, err := startVMWithWorkspace(bootCtx, dir, nil)
 	if err != nil {
-		timedOut := ctx.Err() == context.DeadlineExceeded
+		timedOut := bootCtx.Err() == context.DeadlineExceeded
 		return "", fmt.Sprintf("vm start failed: %v", err), -1, timedOut, 0
 	}
 	defer vm.Close()
@@ -2262,11 +2273,15 @@ if __name__ == '__main__':
 	remoteTest := filepath.Join(remoteDir, "run_test.py")
 	script := fmt.Sprintf("start=$(date +%%s%%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 %s -u '%s'; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status", pythonBinary, strings.ReplaceAll(remoteTest, "'", "'\\''"))
 
+	// Execution context: strict timeout for the actual test
+	execCtx, execCancel := context.WithTimeout(context.Background(), timeout)
+	defer execCancel()
+
 	startWall := time.Now()
-	outRaw, errRaw, exitCode, runErr := vm.runCommand(ctx, remoteDir, script, nil)
+	outRaw, errRaw, exitCode, runErr := vm.runCommand(execCtx, remoteDir, script, nil)
 	duration := time.Since(startWall)
 
-	ctxTimedOut := ctx.Err() == context.DeadlineExceeded
+	ctxTimedOut := execCtx.Err() == context.DeadlineExceeded
 
 	out := strings.TrimSpace(outRaw)
 	var runtime time.Duration
