@@ -66,3 +66,5 @@ uploads/
 .gocache/
 *.pyc
 vm/
+*.qcow2
+*.state
