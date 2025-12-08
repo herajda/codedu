@@ -103,6 +103,18 @@ var defaultAvatars = []string{
 }
 
 func main() {
+	// Check for snapshot preparation flag first
+	for _, arg := range os.Args {
+		if arg == "--prepare-snapshot" {
+			// Ensure the shared execution root exists with permissive traversal
+			ensureExecRoot(execRoot)
+			if err := PrepareSnapshot(); err != nil {
+				log.Fatalf("snapshot preparation failed: %v", err)
+			}
+			return
+		}
+	}
+
 	// 1) Init DB and auth
 	InitDB()
 	InitAuth()

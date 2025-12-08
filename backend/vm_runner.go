@@ -389,7 +389,15 @@ func startVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, er
 		forwards = append(forwards, fmt.Sprintf("hostfwd=tcp::%d-:%d", host, guest))
 	}
 
+	// Check for "vm.state" file
+	vmState := filepath.Join(filepath.Dir(baseImg), "vm.state")
+	hasSnapshot := false
+	if _, err := os.Stat(vmState); err == nil {
+		hasSnapshot = true
+	}
+
 	args := []string{
+		"-M", "pc-i440fx-7.2",
 		"-m", qemuMemory,
 		"-smp", qemuCPUs,
 		"-drive", fmt.Sprintf("file=%s,if=virtio,cache=writeback", overlay),
@@ -400,6 +408,11 @@ func startVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, er
 		"-nographic",
 		"-display", "none",
 	}
+	if hasSnapshot {
+		args = append(args, "-incoming", fmt.Sprintf("exec:cat %s", vmState))
+		fmt.Println("[vm] using snapshot state from vm.state")
+	}
+
 	if qemuAccel != "" {
 		args = append([]string{"-accel", qemuAccel}, args...)
 	}
@@ -407,7 +420,7 @@ func startVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, er
 		args = append(args, "-enable-kvm")
 	}
 
-	fmt.Printf("[vm] starting qemu with image=%s overlay=%s ssh_port=%d forwards=%v accel=%s\n", baseImg, overlay, sshPort, additional, qemuAccel)
+	fmt.Printf("[vm] starting qemu with image=%s overlay=%s ssh_port=%d forwards=%v accel=%s snapshot=%v\n", baseImg, overlay, sshPort, additional, qemuAccel, hasSnapshot)
 	cmd := exec.CommandContext(ctx, qemuBinary, args...)
 	// Avoid cluttering logs; QEMU stays attached to the process for lifecycle control.
 	qStdout := &bytes.Buffer{}
@@ -440,6 +453,124 @@ func startVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, er
 		return nil, err
 	}
 	return vm, nil
+}
+
+// PrepareSnapshot boots the base image, waits for SSH, and saves a "vm.state" file.
+func PrepareSnapshot() error {
+	baseImg := resolveVMPath(qemuBaseImage)
+	sshKey := resolveVMPath(qemuSSHKey)
+
+	if _, err := os.Stat(baseImg); err != nil {
+		return fmt.Errorf("qemu base image not found: %w", err)
+	}
+	if _, err := os.Stat(sshKey); err != nil {
+		return fmt.Errorf("qemu ssh key not found: %w", err)
+	}
+
+	// We need a monitor socket to send migrate command
+	monitorSock := filepath.Join(os.TempDir(), fmt.Sprintf("qemu-monitor-%d.sock", time.Now().UnixNano()))
+	sshPort, err := acquireEphemeralPort()
+	if err != nil {
+		return fmt.Errorf("allocate ssh port: %w", err)
+	}
+
+	// Important: Use exact same device configuration as startVM (except hostfwd port)
+	args := []string{
+		"-M", "pc-i440fx-7.2",
+		"-m", qemuMemory,
+		"-smp", qemuCPUs,
+		"-drive", fmt.Sprintf("file=%s,if=virtio,cache=writeback", baseImg), // Direct RW access to base
+		"-netdev", fmt.Sprintf("user,id=net0,hostfwd=tcp::%d-:22", sshPort),
+		"-device", "virtio-net-pci,netdev=net0",
+		"-serial", "stdio",
+		"-monitor", fmt.Sprintf("unix:%s,server,nowait", monitorSock),
+		"-nographic",
+		"-display", "none",
+	}
+	if qemuAccel != "" {
+		args = append([]string{"-accel", qemuAccel}, args...)
+	}
+	if strings.ToLower(qemuEnableKVM) == "1" || strings.ToLower(qemuEnableKVM) == "true" {
+		args = append(args, "-enable-kvm")
+	}
+
+	fmt.Printf("[snapshot] starting qemu for snapshotting image=%s ssh_port=%d\n", baseImg, sshPort)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, qemuBinary, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("qemu start: %w", err)
+	}
+	defer func() {
+		if cmd.Process != nil {
+			cmd.Process.Kill()
+		}
+	}()
+
+	// Wait for SSH to be ready
+	vm := &vmInstance{
+		sshPort:    sshPort,
+		sshKeyPath: sshKey,
+		qemuStdout: bytes.NewBuffer(nil),
+		qemuStderr: bytes.NewBuffer(nil),
+	}
+	fmt.Println("[snapshot] waiting for SSH...")
+	if err := vm.waitForSSH(ctx); err != nil {
+		return fmt.Errorf("ssh wait failed: %w", err)
+	}
+	fmt.Println("[snapshot] SSH ready, saving snapshot...")
+
+	// Connect to monitor and save snapshot
+	conn, err := net.Dial("unix", monitorSock)
+	if err != nil {
+		return fmt.Errorf("monitor dial: %w", err)
+	}
+	defer conn.Close()
+
+	// Read banner
+	buf := make([]byte, 1024)
+	n, _ := conn.Read(buf)
+	fmt.Printf("[snapshot] monitor banner: %s\n", string(buf[:n]))
+
+	// Migrate to file
+	vmState := filepath.Join(filepath.Dir(baseImg), "vm.state")
+	fmt.Printf("[snapshot] migrating to %s\n", vmState)
+	cmdStr := fmt.Sprintf("migrate \"exec:cat > %s\"\n", vmState)
+	fmt.Fprintf(conn, cmdStr)
+
+	// Poll for completion
+	for {
+		fmt.Fprintf(conn, "info migrate\n")
+		conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+		n, err := conn.Read(buf)
+		if err != nil {
+			fmt.Printf("[snapshot] read error: %v\n", err)
+			break
+		}
+		out := string(buf[:n])
+		if strings.Contains(out, "completed") {
+			fmt.Println("[snapshot] migration completed")
+			break
+		}
+		if strings.Contains(out, "failed") {
+			return fmt.Errorf("migration failed: %s", out)
+		}
+		time.Sleep(1 * time.Second)
+	}
+
+	fmt.Println("[snapshot] sending quit...")
+	fmt.Fprintf(conn, "quit\n")
+
+	// Wait for process to exit
+	if err := cmd.Wait(); err != nil {
+		fmt.Printf("[snapshot] qemu exit: %v\n", err)
+	}
+	fmt.Println("[snapshot] snapshot state created successfully")
+	return nil
 }
 
 func (v *vmInstance) applyCPUConstraints() error {
@@ -609,9 +740,11 @@ func (v *vmInstance) syncWorkspace(ctx context.Context, dir string) (string, err
 	defer cancel()
 	var scpErr error
 	for attempt := 1; attempt <= 5; attempt++ {
-		if err := exec.CommandContext(copyCtx, "scp", args...).Run(); err != nil {
+		cmd := exec.CommandContext(copyCtx, "scp", args...)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
 			scpErr = err
-			fmt.Printf("[vm] scp attempt=%d failed: %v\n", attempt, err)
+			fmt.Printf("[vm] scp attempt=%d failed: %v output=%q\n", attempt, err, string(out))
 			time.Sleep(1 * time.Second)
 			continue
 		}
