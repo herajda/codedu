@@ -402,7 +402,7 @@ func startVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, er
 		"-smp", qemuCPUs,
 		"-drive", fmt.Sprintf("file=%s,if=virtio,cache=writeback", overlay),
 		"-netdev", fmt.Sprintf("user,id=net0,%s", strings.Join(forwards, ",")),
-		"-device", "virtio-net-pci,netdev=net0",
+		"-device", "virtio-net-pci,netdev=net0,romfile=",
 		"-serial", "stdio",
 		"-monitor", "none",
 		"-nographic",
@@ -481,7 +481,7 @@ func PrepareSnapshot() error {
 		"-smp", qemuCPUs,
 		"-drive", fmt.Sprintf("file=%s,if=virtio,cache=writeback", baseImg), // Direct RW access to base
 		"-netdev", fmt.Sprintf("user,id=net0,hostfwd=tcp::%d-:22", sshPort),
-		"-device", "virtio-net-pci,netdev=net0",
+		"-device", "virtio-net-pci,netdev=net0,romfile=",
 		"-serial", "stdio",
 		"-monitor", fmt.Sprintf("unix:%s,server,nowait", monitorSock),
 		"-nographic",
