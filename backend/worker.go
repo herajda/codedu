@@ -1210,6 +1210,46 @@ func stringOrEmpty(p *string) string {
 	return *p
 }
 
+// normalizeLeadingTabsToSpaces converts leading tabs to spaces, matching Python's tab stop rules.
+// This keeps generated Python harness code valid even if test snippets mix tabs/spaces.
+func normalizeLeadingTabsToSpaces(text string) string {
+	const tabWidth = 8 // Python treats tabs as moving to the next 8-column boundary
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		var b strings.Builder
+		col := 0
+		changed := false
+		j := 0
+		for j < len(line) {
+			ch := line[j]
+			if ch == ' ' {
+				b.WriteByte(' ')
+				col++
+				j++
+				continue
+			}
+			if ch == '\t' {
+				// Expand to the next tab stop to preserve alignment the way Python computes indentation
+				spaces := tabWidth - (col % tabWidth)
+				for k := 0; k < spaces; k++ {
+					b.WriteByte(' ')
+					col++
+				}
+				changed = true
+				j++
+				continue
+			}
+			break
+		}
+		if !changed {
+			continue
+		}
+		b.WriteString(line[j:])
+		lines[i] = b.String()
+	}
+	return strings.Join(lines, "\n")
+}
+
 // smokePythonProgram tries to run the program briefly (expecting input). Timeout is OK.
 func smokePythonProgram(dir, file string) (bool, string) {
 	// Boot context: generous timeout for VM acquisition and boot
@@ -2252,7 +2292,8 @@ if __name__ == '__main__':
     if not ok:
         print("===JUDGE:ASSERT_FAIL===")
     sys.exit(0 if ok else 1)
-	`, mainFile, testCode, testName)
+`, mainFile, testCode, testName)
+	content = normalizeLeadingTabsToSpaces(content)
 	os.WriteFile(testPath, []byte(content), 0644)
 	// Ensure permissions are readable by container user (nobody)
 	_ = os.Chmod(dir, 0755)
