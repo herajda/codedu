@@ -40,7 +40,73 @@ var (
 	qemuCPUSet       = strings.TrimSpace(os.Getenv("QEMU_CPUSET"))
 	qemuCgroupRoot   = filepath.Clean(getenvOr("QEMU_CGROUP_ROOT", "/sys/fs/cgroup/codedu-vm"))
 	qemuCPUIsolation = strings.TrimSpace(getenvOr("QEMU_CPU_ISOLATION", "1"))
+	// Warm pool config
+	vmPoolSize = getenvIntOr("VM_POOL_SIZE", 4)
 )
+
+var (
+	vmPool      chan *vmInstance
+	vmPoolMutex sync.Mutex
+)
+
+func initVMPool() {
+	if vmPoolSize < 0 {
+		vmPoolSize = 0
+	}
+	vmPool = make(chan *vmInstance, vmPoolSize)
+	go maintainVMPool()
+}
+
+func maintainVMPool() {
+	for {
+		// If pool is full, wait a bit
+		if len(vmPool) >= vmPoolSize {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		// Create a new VM for the pool
+		// We use context.Background() because the VM needs to persist after this function returns.
+		// startVMInternal handles boot timeouts internally (via waitForSSH).
+		fmt.Println("[vm-pool] pre-booting new VM...")
+		vm, err := startVMInternal(context.Background(), nil)
+
+		if err != nil {
+			fmt.Printf("[vm-pool] failed to pre-boot VM: %v\n", err)
+			time.Sleep(5 * time.Second) // Backoff on failure
+			continue
+		}
+
+		// Verify it's still good (SSH check is done in startVMInternal)
+		select {
+		case vmPool <- vm:
+			fmt.Printf("[vm-pool] added VM to pool (len=%d)\n", len(vmPool))
+		default:
+			// Pool filled up while we were booting
+			fmt.Println("[vm-pool] pool full, discarding extra VM")
+			vm.Close()
+		}
+	}
+}
+
+func getVMFromPool(ctx context.Context) *vmInstance {
+	select {
+	case vm := <-vmPool:
+		// Validate the VM is still alive
+		if vm.cmd.ProcessState != nil && vm.cmd.ProcessState.Exited() {
+			fmt.Println("[vm-pool] discarded dead VM from pool")
+			return nil
+		}
+		// Quick SSH ping to ensure it's responsive?
+		// startVMInternal already waited for SSH, so it should be ready.
+		// But if it sat in the pool for a long time, maybe check?
+		// For now, assume it's good.
+		fmt.Println("[vm-pool] acquired VM from pool")
+		return vm
+	default:
+		return nil
+	}
+}
 
 func vmWorkspacePath() string {
 	return fmt.Sprintf("/home/%s/code", qemuSSHUser)
@@ -330,9 +396,22 @@ func createCPUGroup(pid int) (string, error) {
 	return configureV1CPUGroup(root, pid)
 }
 
-// startVM boots a QEMU instance with user networking and SSH port forwarding.
+// startVM boots a QEMU instance, preferring a warm one from the pool.
 // optionalForwards maps guest ports to specific host ports (e.g., 6080->host).
 func startVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, error) {
+	// Only use pool if no custom forwards are requested (pool VMs have default forwards)
+	if len(optionalForwards) == 0 {
+		if vm := getVMFromPool(ctx); vm != nil {
+			return vm, nil
+		}
+	}
+	// Fallback to cold boot
+	return startVMInternal(ctx, optionalForwards)
+}
+
+// startVMInternal boots a QEMU instance with user networking and SSH port forwarding.
+// optionalForwards maps guest ports to specific host ports (e.g., 6080->host).
+func startVMInternal(ctx context.Context, optionalForwards map[int]int) (*vmInstance, error) {
 	baseImg := resolveVMPath(qemuBaseImage)
 	sshKey := resolveVMPath(qemuSSHKey)
 
@@ -348,6 +427,7 @@ func startVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, er
 		return nil, fmt.Errorf("waiting for VM slot: %w", err)
 	}
 	slotHeld := true
+	t0 := time.Now()
 
 	tmp, err := os.MkdirTemp(execRoot, "vm-")
 	if err != nil {
@@ -361,7 +441,8 @@ func startVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, er
 		releaseVMSlot()
 		return nil, fmt.Errorf("qemu-img create: %w", err)
 	}
-	fmt.Printf("[vm] created overlay %s\n", overlay)
+	t1 := time.Now()
+	fmt.Printf("[vm] created overlay %s (took %v)\n", overlay, t1.Sub(t0))
 
 	sshPort, err := acquireEphemeralPort()
 	if err != nil {
@@ -402,7 +483,7 @@ func startVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, er
 		"-smp", qemuCPUs,
 		"-drive", fmt.Sprintf("file=%s,if=virtio,cache=writeback", overlay),
 		"-netdev", fmt.Sprintf("user,id=net0,%s", strings.Join(forwards, ",")),
-		"-device", "virtio-net-pci,netdev=net0",
+		"-device", "virtio-net-pci,netdev=net0,romfile=",
 		"-serial", "stdio",
 		"-monitor", "none",
 		"-nographic",
@@ -444,6 +525,8 @@ func startVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, er
 		vm.Close()
 		return nil, fmt.Errorf("qemu start: %w", err)
 	}
+	t2 := time.Now()
+	fmt.Printf("[vm] qemu process started (took %v)\n", t2.Sub(t1))
 
 	if err := vm.applyCPUConstraints(); err != nil {
 		fmt.Printf("[vm] warn: CPU limits not applied: %v\n", err)
@@ -452,6 +535,8 @@ func startVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, er
 		vm.Close()
 		return nil, err
 	}
+	t3 := time.Now()
+	fmt.Printf("[vm] ssh ready (took %v)\n", t3.Sub(t2))
 	return vm, nil
 }
 
@@ -481,7 +566,7 @@ func PrepareSnapshot() error {
 		"-smp", qemuCPUs,
 		"-drive", fmt.Sprintf("file=%s,if=virtio,cache=writeback", baseImg), // Direct RW access to base
 		"-netdev", fmt.Sprintf("user,id=net0,hostfwd=tcp::%d-:22", sshPort),
-		"-device", "virtio-net-pci,netdev=net0",
+		"-device", "virtio-net-pci,netdev=net0,romfile=",
 		"-serial", "stdio",
 		"-monitor", fmt.Sprintf("unix:%s,server,nowait", monitorSock),
 		"-nographic",
@@ -690,6 +775,7 @@ rm -rf -- "$dest" && mkdir -p -- "$dest"
 
 // syncWorkspace copies the given directory into the VM under /home/<user>/code.
 func (v *vmInstance) syncWorkspace(ctx context.Context, dir string) (string, error) {
+	tStart := time.Now()
 	dest := vmWorkspacePath()
 	fmt.Printf("[vm] syncing workspace %s -> %s\n", dir, dest)
 	// Some images may have restrictive permissions under /home; fall back to /tmp if prep fails.
@@ -762,7 +848,7 @@ func (v *vmInstance) syncWorkspace(ctx context.Context, dir string) (string, err
 		}
 		return "", fmt.Errorf("copy workspace: %w", scpErr)
 	}
-	fmt.Printf("[vm] workspace synced to %s\n", dest)
+	fmt.Printf("[vm] workspace synced to %s (took %v)\n", dest, time.Since(tStart))
 	return dest, nil
 }
 
