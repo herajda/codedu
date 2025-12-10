@@ -12,11 +12,27 @@ func TestExecutePythonDirTimeoutLogic(t *testing.T) {
 		t.Skip("Skipping VM tests")
 	}
 
-	// Setup
+	// Setup execRoot FIRST so the pool uses the temp dir
 	tempExecRoot := t.TempDir()
 	origExecRoot := execRoot
 	execRoot = tempExecRoot
 	defer func() { execRoot = origExecRoot }()
+
+	// Initialize pool and wait for at least one VM
+	initVMPool()
+	// Wait for pool to have a VM (up to 10s)
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(vmPool) > 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if len(vmPool) == 0 {
+		t.Log("Warning: VM pool empty after waiting, test might use cold boot")
+	}
+
+	t.Setenv("DOCKER_USER", "1000:1000")
 
 	t.Setenv("DOCKER_USER", "1000:1000")
 	t.Setenv("PYTHON_BIN", "python3")
