@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -31,7 +32,7 @@ var (
 	vmBootTimeout  = getenvDurationOr("QEMU_BOOT_TIMEOUT", 2*time.Minute)
 	vmExtraTimeout = 5 * time.Second // small buffer on top of caller timeouts
 	// Global VM/test execution throttling
-	maxParallelVMs = getenvIntOr("MAX_PARALLEL_TESTS", 12)
+	maxParallelVMs = getenvIntOr("MAX_PARALLEL_TESTS", 6)
 	vmQueueTimeout = getenvDurationOr("VM_QUEUE_TIMEOUT", 10*time.Minute)
 	// CPU isolation via cgroups (best-effort)
 	qemuCPUQuotaUS   = strings.TrimSpace(os.Getenv("QEMU_CPU_QUOTA_US"))
@@ -41,12 +42,13 @@ var (
 	qemuCgroupRoot   = filepath.Clean(getenvOr("QEMU_CGROUP_ROOT", "/sys/fs/cgroup/codedu-vm"))
 	qemuCPUIsolation = strings.TrimSpace(getenvOr("QEMU_CPU_ISOLATION", "1"))
 	// Warm pool config
-	vmPoolSize = getenvIntOr("VM_POOL_SIZE", 12)
+	vmPoolSize = getenvIntOr("VM_POOL_SIZE", 6)
 )
 
 var (
-	vmPool      chan *vmInstance
-	vmPoolMutex sync.Mutex
+	vmPool       chan *vmInstance
+	vmPoolMutex  sync.Mutex
+	pendingBoots int32
 )
 
 func initVMPool() {
@@ -59,33 +61,42 @@ func initVMPool() {
 
 func maintainVMPool() {
 	for {
-		// If pool is full, wait a bit
-		if len(vmPool) >= vmPoolSize {
-			time.Sleep(1 * time.Second)
+		current := len(vmPool)
+		pending := atomic.LoadInt32(&pendingBoots)
+
+		// If pool + pending boots is enough, wait a bit
+		if current+int(pending) >= vmPoolSize {
+			time.Sleep(100 * time.Millisecond)
 			continue
 		}
 
-		// Create a new VM for the pool
-		// We use context.Background() because the VM needs to persist after this function returns.
-		// startVMInternal handles boot timeouts internally (via waitForSSH).
-		fmt.Println("[vm-pool] pre-booting new VM...")
-		vm, err := startVMInternal(context.Background(), nil)
+		// Spawn a new boot task
+		atomic.AddInt32(&pendingBoots, 1)
+		go func() {
+			defer atomic.AddInt32(&pendingBoots, -1)
 
-		if err != nil {
-			fmt.Printf("[vm-pool] failed to pre-boot VM: %v\n", err)
-			time.Sleep(5 * time.Second) // Backoff on failure
-			continue
-		}
+			// Create a new VM for the pool
+			// We use context.Background() because the VM needs to persist after this function returns.
+			// startVMInternal handles boot timeouts internally (via waitForSSH).
+			fmt.Println("[vm-pool] pre-booting new VM...")
+			vm, err := startVMInternal(context.Background(), nil)
 
-		// Verify it's still good (SSH check is done in startVMInternal)
-		select {
-		case vmPool <- vm:
-			fmt.Printf("[vm-pool] added VM to pool (len=%d)\n", len(vmPool))
-		default:
-			// Pool filled up while we were booting
-			fmt.Println("[vm-pool] pool full, discarding extra VM")
-			vm.Close()
-		}
+			if err != nil {
+				fmt.Printf("[vm-pool] failed to pre-boot VM: %v\n", err)
+				// No need to sleep here, the main loop controls the rate via pending count check
+				return
+			}
+
+			// Verify it's still good (SSH check is done in startVMInternal)
+			select {
+			case vmPool <- vm:
+				fmt.Printf("[vm-pool] added VM to pool (len=%d)\n", len(vmPool))
+			default:
+				// Pool filled up while we were booting
+				fmt.Println("[vm-pool] pool full, discarding extra VM")
+				vm.Close()
+			}
+		}()
 	}
 }
 
