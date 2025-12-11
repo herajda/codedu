@@ -68,3 +68,5 @@ uploads/
 vm/
 *.qcow2
 *.state
+
+.cache/

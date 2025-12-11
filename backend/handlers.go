@@ -1888,49 +1888,60 @@ func runTeacherSolution(c *gin.Context) {
 
 				var funcMeta *functionCallResult
 				var funcErr error
+				workDir := tmpDir
+				cloneDir, cleanup, cloneErr := cloneWorkspace(tmpDir)
+				if cloneErr != nil {
+					stderr = fmt.Sprintf("prepare workspace: %v", cloneErr)
+					exitCode = -1
+				} else {
+					workDir = cloneDir
+					defer cleanup()
+				}
 
-				switch mode {
-				case "unittest":
-					code := ""
-					if tc.UnittestCode != nil {
-						code = *tc.UnittestCode
-					}
-					name := ""
-					if tc.UnittestName != nil {
-						name = *tc.UnittestName
-					}
-					stdout, stderr, exitCode, timedOut, runtime = executePythonUnit(tmpDir, mainFile, code, name, timeout)
-				case "function":
-					fn := ""
-					if tc.FunctionName != nil {
-						fn = strings.TrimSpace(*tc.FunctionName)
-					}
-					cfg := functionCallConfig{FunctionName: fn, ArgsJSON: tc.FunctionArgs, KwargsJSON: tc.FunctionKwargs, ExpectedJSON: tc.ExpectedReturn}
-					stdout, stderr, exitCode, timedOut, runtime, funcMeta, funcErr = runFunctionCall(tmpDir, mainFile, cfg, timeout)
-					if funcErr != nil {
-						stderr = funcErr.Error()
-						exitCode = -1
-					}
-					if funcMeta != nil {
-						if funcMeta.Stdout != "" {
-							stdout = funcMeta.Stdout
+				if cloneErr == nil {
+					switch mode {
+					case "unittest":
+						code := ""
+						if tc.UnittestCode != nil {
+							code = *tc.UnittestCode
 						}
-						if funcMeta.ReturnJSON != nil && strings.TrimSpace(*funcMeta.ReturnJSON) != "" {
-							actualReturn = funcMeta.ReturnJSON
-						} else if strings.TrimSpace(funcMeta.ReturnRepr) != "" {
-							rr := funcMeta.ReturnRepr
-							actualReturn = &rr
+						name := ""
+						if tc.UnittestName != nil {
+							name = *tc.UnittestName
 						}
-						if funcMeta.Traceback != "" {
-							stderr = funcMeta.Traceback
+						stdout, stderr, exitCode, timedOut, runtime = executePythonUnit(workDir, mainFile, code, name, timeout)
+					case "function":
+						fn := ""
+						if tc.FunctionName != nil {
+							fn = strings.TrimSpace(*tc.FunctionName)
 						}
-						if funcMeta.Status == "exception" && stderr == "" {
-							stderr = funcMeta.Exception
+						cfg := functionCallConfig{FunctionName: fn, ArgsJSON: tc.FunctionArgs, KwargsJSON: tc.FunctionKwargs, ExpectedJSON: tc.ExpectedReturn}
+						stdout, stderr, exitCode, timedOut, runtime, funcMeta, funcErr = runFunctionCall(workDir, mainFile, cfg, timeout)
+						if funcErr != nil {
+							stderr = funcErr.Error()
+							exitCode = -1
 						}
+						if funcMeta != nil {
+							if funcMeta.Stdout != "" {
+								stdout = funcMeta.Stdout
+							}
+							if funcMeta.ReturnJSON != nil && strings.TrimSpace(*funcMeta.ReturnJSON) != "" {
+								actualReturn = funcMeta.ReturnJSON
+							} else if strings.TrimSpace(funcMeta.ReturnRepr) != "" {
+								rr := funcMeta.ReturnRepr
+								actualReturn = &rr
+							}
+							if funcMeta.Traceback != "" {
+								stderr = funcMeta.Traceback
+							}
+							if funcMeta.Status == "exception" && stderr == "" {
+								stderr = funcMeta.Exception
+							}
+						}
+					default:
+						stdout, stderr, exitCode, timedOut, runtime = executePythonDir(workDir, mainFile, tc.Stdin, timeout)
+						stdout = trimTrailingNewline(stdout)
 					}
-				default:
-					stdout, stderr, exitCode, timedOut, runtime = executePythonDir(tmpDir, mainFile, tc.Stdin, timeout)
-					stdout = trimTrailingNewline(stdout)
 				}
 
 				expectedStdout := tc.ExpectedStdout

@@ -90,6 +90,22 @@ After editing `.env`, (re)start the services with `docker compose up -d`.
 
 —
 
+## VM Snapshot Setup
+
+To optimize VM boot times, you must generate a snapshot of the base image. This is a one-time setup step (or whenever the base image changes).
+
+1. Ensure `vm/base.img` is present.
+2. Run the snapshot preparation command from the `backend` directory:
+
+```bash
+cd backend
+go run . --prepare-snapshot
+```
+
+This will boot the VM, wait for it to be ready, and save the state to `vm/vm.state`. Subsequent VM launches will use this snapshot for sub-second boot times.
+
+—
+
 ## Backup & Restore
 - Automated periodic backups of the database are created and stored locally in the `backups` folder.
 - To restore from a backup, stop the app, restore the database from the desired archive, and start the app again.

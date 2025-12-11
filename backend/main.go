@@ -133,6 +133,9 @@ func main() {
 		log.Printf("could not assign default avatars: %v", err)
 	}
 
+	// Initialize VM pool
+	initVMPool()
+
 	// 2) Router
 	r := gin.Default()
 
