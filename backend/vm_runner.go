@@ -32,7 +32,7 @@ var (
 	vmBootTimeout  = getenvDurationOr("QEMU_BOOT_TIMEOUT", 2*time.Minute)
 	vmExtraTimeout = 5 * time.Second // small buffer on top of caller timeouts
 	// Global VM/test execution throttling
-	maxParallelVMs = getenvIntOr("MAX_PARALLEL_TESTS", 6)
+	maxParallelVMs = getenvIntOr("MAX_PARALLEL_TESTS", 12)
 	vmQueueTimeout = getenvDurationOr("VM_QUEUE_TIMEOUT", 10*time.Minute)
 	// CPU isolation via cgroups (best-effort)
 	qemuCPUQuotaUS   = strings.TrimSpace(os.Getenv("QEMU_CPU_QUOTA_US"))
@@ -42,7 +42,7 @@ var (
 	qemuCgroupRoot   = filepath.Clean(getenvOr("QEMU_CGROUP_ROOT", "/sys/fs/cgroup/codedu-vm"))
 	qemuCPUIsolation = strings.TrimSpace(getenvOr("QEMU_CPU_ISOLATION", "1"))
 	// Warm pool config
-	vmPoolSize = getenvIntOr("VM_POOL_SIZE", 6)
+	vmPoolSize = getenvIntOr("VM_POOL_SIZE", 12)
 )
 
 var (
