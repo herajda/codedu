@@ -26,82 +26,61 @@
     return total ? Math.round((done/total)*100) : 0;
   }
 
+  let studentStats: any = null;
+  let teacherStats: any = null;
+
   async function refreshData() {
     try {
       loading = true;
       err = '';
-      const me = await apiJSON('/api/me');
-      role = me.role;
+      // We still need /api/me to know who we are initially, or we can rely on dashboard returning role
+      // But the current code uses /api/me first. Let's keep it for safety or just use dashboard.
+      // Actually dashboard returns role.
+      
+      const data = await apiJSON('/api/dashboard');
+      role = data.role;
+      
       if (role === 'admin') {
         loading = false;
         return;
       }
-      const result = await apiJSON('/api/classes');
-      classes = Array.isArray(result) ? result : [];
 
+      classes = data.classes || [];
+      
       if (role === 'student') {
-        submissions = await apiJSON('/api/my-submissions');
+        studentStats = {
+          totalClasses: data.student_stats.total_classes,
+          totalAssignments: data.student_stats.total_assignments,
+          completedAssignments: data.student_stats.completed_assignments,
+          pointsEarned: data.student_stats.points_earned,
+          pointsTotal: data.student_stats.points_total
+        };
+        upcoming = (data.upcoming || []).map((u:any) => ({
+          ...u,
+          class: u.class_name
+        }));
+        // Map backend fields to frontend expectations if needed
+        classes = classes.map(c => ({
+          ...c,
+          completed: c.completed_count,
+          assignments: new Array(c.assignments_count).fill(0), // Dummy for length checks if needed, or update UI to use counts
+          assignmentProgress: c.assignment_progress || []
+        }));
+      } else if (role === 'teacher') {
+        teacherStats = {
+          studentsTotal: data.teacher_stats.students_total,
+          activeAssignments: data.teacher_stats.active_assignments
+        };
+        classes = classes.map(c => ({
+          ...c,
+          students: new Array(c.students_count).fill(0), // Dummy
+          assignments: c.assignment_progress || [], // Use the progress list which has titles
+          progress: c.assignment_progress.map((p:any) => ({...p, done: p.done_count})), // Map done_count to done for UI compatibility
+          notFinished: c.not_finished_count
+        }));
       }
-
-      for (const c of classes) {
-        const detail = await apiJSON(`/api/classes/${c.id}`);
-        c.assignments = detail.assignments ?? [];
-        c.students = detail.students ?? [];
-        c.pointsTotal = (c.assignments ?? []).reduce((s:any,a:any)=>s+a.max_points,0);
-        if (role === 'student') {
-          c.assignmentProgress = c.assignments.map((a:any)=>{
-            const best = submissions
-              .filter((s:any)=>s.assignment_id===a.id)
-              .reduce((m:number,s:any)=>{
-                const p = s.override_points ?? s.points ?? 0;
-                return p>m ? p : m;
-              },0);
-            return { id:a.id, title:a.title, done: best >= a.max_points };
-          });
-          c.completed = c.assignmentProgress.filter((p:any)=>p.done).length;
-          c.pointsEarned = (c.assignments ?? []).reduce((tot:any,a:any)=>{
-            const best = submissions
-              .filter((s:any)=>s.assignment_id===a.id)
-              .reduce((m:number,s:any)=>{
-                const p = s.override_points ?? s.points ?? 0;
-                return p>m ? p : m;
-              },0);
-            return tot + best;
-          },0);
-        } else if (role === 'teacher') {
-          c.progress = [];
-          const studentIds = new Set((c.students ?? []).map((s: any) => s.id));
-          for (const a of c.assignments) {
-            const data = await apiJSON(`/api/assignments/${a.id}`);
-            const subs = Array.isArray(data.submissions) ? data.submissions : [];
-            const done = new Set(
-              subs
-                .filter((s: any) =>
-                  s.status === 'completed' &&
-                  !s.is_teacher_run &&
-                  (s.student_id ? studentIds.has(s.student_id) : false)
-                )
-                .map((s: any) => s.student_id)
-            ).size;
-            c.progress.push({ id:a.id, title:a.title, done });
-          }
-          c.assignments.sort((a:any,b:any)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime());
-          c.notFinished = c.assignments.filter((a:any)=>{
-            const done = c.progress.find((p:any)=>p.id===a.id)?.done ?? 0;
-            return done < c.students.length;
-          }).length;
-        }
-      }
-
-      if (role === 'student') {
-        const now = new Date();
-        const soon = new Date();
-        soon.setDate(soon.getDate()+7);
-        upcoming = classes.flatMap(c => (c.assignments ?? []).map((a: any) => ({ class: c.name, ...a })))
-          .filter(a=>new Date(a.deadline)>now && new Date(a.deadline)<=soon)
-          .sort((a,b)=>new Date(a.deadline).getTime()-new Date(b.deadline).getTime());
-      }
-      // Force Svelte reactivity after enriching class objects
+      
+      // Force Svelte reactivity
       classes = [...classes];
     } catch(e:any){
       err = e.message;
@@ -136,11 +115,10 @@
         body:JSON.stringify({name:newClassName})
       });
       // Add the new class to both local state and the store
-      classes = [...classes, { ...cl, assignments: [], students: [] }];
-      classesStore.addClass(cl);
+      // For dashboard we might just reload to get proper stats structure
+      // or try to append a dummy structure
       newClassName='';
       showNewClassInput = false;
-      // Refresh data to get updated statistics
       await refreshData();
     }catch(e:any){ err = e.message; }
   }
@@ -151,28 +129,10 @@
     newClassInput?.focus();
   }
 
-  // Derived small stats for nicer UI
+  // Derived small stats for nicer UI - NOW FROM API
   $: totalClasses = classes.length;
-  $: studentStats = role === 'student' ? (() => {
-    const totalAssignments = classes.reduce((sum: number, c: any) => sum + (c.assignments ?? []).length, 0);
-    const completedAssignments = classes.reduce((sum: number, c: any) => sum + (c.completed ?? 0), 0);
-    const pointsEarned = classes.reduce((sum: number, c: any) => sum + (c.pointsEarned ?? 0), 0);
-    const pointsTotal = classes.reduce((sum: number, c: any) => sum + (c.pointsTotal ?? 0), 0);
-    return { totalAssignments, completedAssignments, pointsEarned, pointsTotal };
-  })() : null;
+  // studentStats and teacherStats are now populated directly from API
 
-  $: teacherStats = role === 'teacher' ? (() => {
-    // Deduplicate students across classes in case some are enrolled in multiple classes
-    const uniqueStudentIds = new Set<string>();
-    for (const c of classes) {
-      for (const s of (c.students ?? [])) {
-        if (s.id) uniqueStudentIds.add(s.id);
-      }
-    }
-    const studentsTotal = uniqueStudentIds.size;
-    const activeAssignments = classes.reduce((sum: number, c: any) => sum + (c.assignments ?? []).length, 0);
-    return { studentsTotal, activeAssignments };
-  })() : null;
 </script>
 
 {#if loading}

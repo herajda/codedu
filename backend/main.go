@@ -321,6 +321,9 @@ func main() {
 		api.DELETE("/users/:id/block", RoleGuard("student", "teacher", "admin"), unblockUser)
 		api.GET("/blocked-users", RoleGuard("student", "teacher", "admin"), listBlockedUsers)
 
+		// Dashboard
+		api.GET("/dashboard", RoleGuard("student", "teacher", "admin"), getDashboard)
+
 		// Messaging
 		api.GET("/user-search", RoleGuard("student", "teacher", "admin"), searchUsers)
 		api.GET("/messages", RoleGuard("student", "teacher", "admin"), listConversations)
