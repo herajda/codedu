@@ -531,7 +531,10 @@ func bootVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, err
 	}
 	if hasSnapshot {
 		args = append(args, "-incoming", fmt.Sprintf("exec:cat %s", vmState))
+		args = append(args, "-incoming", fmt.Sprintf("exec:cat %s", vmState))
 		fmt.Println("[vm] using snapshot state from vm.state")
+	} else {
+		fmt.Println("[vm] starting FRESH boot (no snapshot found)")
 	}
 
 	if qemuAccel != "" {
@@ -763,7 +766,7 @@ func (v *vmInstance) waitForSSH(ctx context.Context) error {
 			fmt.Printf("[vm] ssh probe context error: %v\n", ctx.Err())
 			return ctx.Err()
 		}
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 	}
 	stdoutTail := strings.TrimSpace(v.qemuStdout.String())
 	stderrTail := strings.TrimSpace(v.qemuStderr.String())
@@ -780,7 +783,7 @@ func (v *vmInstance) sshArgs() []string {
 	return []string{
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "UserKnownHostsFile=/dev/null",
-		"-o", "ConnectTimeout=5",
+		"-o", "ConnectTimeout=1",
 		"-o", "LogLevel=ERROR",
 		"-i", v.sshKeyPath,
 		"-p", strconv.Itoa(v.sshPort),
