@@ -410,33 +410,62 @@ func createCPUGroup(pid int) (string, error) {
 // startVM boots a QEMU instance, preferring a warm one from the pool.
 // optionalForwards maps guest ports to specific host ports (e.g., 6080->host).
 func startVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, error) {
-	// Only use pool if no custom forwards are requested (pool VMs have default forwards)
-	if len(optionalForwards) == 0 {
-		if vm := getVMFromPool(ctx); vm != nil {
-			return vm, nil
-		}
+	// If custom forwards are requested, we must cold boot (pool VMs have default forwards).
+	if len(optionalForwards) > 0 {
+		return startVMInternal(ctx, optionalForwards)
 	}
-	// Fallback to cold boot
-	return startVMInternal(ctx, optionalForwards)
+
+	initVMLimiter()
+	queueCtx, cancel := context.WithTimeout(ctx, vmQueueTimeout)
+	defer cancel()
+
+	// Wait for EITHER a pool VM OR a free slot to cold boot.
+	// This prevents deadlock when the pool is full (holding all slots) but we want a VM.
+	select {
+	case vm := <-vmPool:
+		// Validate the VM is still alive
+		if vm.cmd.ProcessState != nil && vm.cmd.ProcessState.Exited() {
+			fmt.Println("[vm-pool] discarded dead VM from pool (in startVM)")
+			// Recurse or fall through? Better to just try again.
+			return startVM(ctx, optionalForwards)
+		}
+		fmt.Println("[vm-pool] acquired VM from pool")
+		return vm, nil
+
+	case vmSlotChan <- struct{}{}:
+		// We acquired a slot! Proceed to cold boot.
+		// Note: bootVM assumes slot is held.
+		return bootVM(ctx, optionalForwards)
+
+	case <-queueCtx.Done():
+		return nil, fmt.Errorf("timeout waiting for VM (pool or slot): %w", queueCtx.Err())
+	}
 }
 
-// startVMInternal boots a QEMU instance with user networking and SSH port forwarding.
-// optionalForwards maps guest ports to specific host ports (e.g., 6080->host).
+// startVMInternal acquires a slot and boots a VM.
+// Used by maintainVMPool and startVM (fallback).
 func startVMInternal(ctx context.Context, optionalForwards map[int]int) (*vmInstance, error) {
+	if err := acquireVMSlot(ctx); err != nil {
+		return nil, fmt.Errorf("waiting for VM slot: %w", err)
+	}
+	return bootVM(ctx, optionalForwards)
+}
+
+// bootVM boots a QEMU instance. Assumes a VM slot is ALREADY ACQUIRED.
+func bootVM(ctx context.Context, optionalForwards map[int]int) (*vmInstance, error) {
 	baseImg := resolveVMPath(qemuBaseImage)
 	sshKey := resolveVMPath(qemuSSHKey)
 
 	if _, err := os.Stat(baseImg); err != nil {
+		releaseVMSlot()
 		return nil, fmt.Errorf("qemu base image not found: %w", err)
 	}
 	if _, err := os.Stat(sshKey); err != nil {
+		releaseVMSlot()
 		return nil, fmt.Errorf("qemu ssh key not found: %w", err)
 	}
 	fmt.Printf("[vm] resolved paths base=%s key=%s\n", baseImg, sshKey)
 
-	if err := acquireVMSlot(ctx); err != nil {
-		return nil, fmt.Errorf("waiting for VM slot: %w", err)
-	}
 	slotHeld := true
 	t0 := time.Now()
 
