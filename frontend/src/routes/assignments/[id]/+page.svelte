@@ -62,6 +62,7 @@ $: testsPercent = results.length ? Math.round(testsPassed / results.length * 100
   let eLLMScenarios=''
   let eLLMStrictness:number=50
   let eLLMRubric=''
+  let eLLMTeacherBaseline=''
   $: eLLMStrictnessMessage = strictnessGuidance(eLLMStrictness)
   let eSecondDeadline=''
   // Enhanced date/time UX state (derived from the above strings)
@@ -315,33 +316,38 @@ $: safeDesc = assignment ? DOMPurify.sanitize(marked.parse(assignment.descriptio
     }catch(e:any){ err=e.message }
   }
 
-  function startEdit(){
-    editing=true
-    eTitle=assignment.title
-    eDesc=assignment.description
-    eDeadline=assignment.deadline.slice(0,16)
-    // split deadline to date/time for nicer UI
-    eDeadlineDate = eDeadline ? eDeadline.slice(0,10) : ''
-    eDeadlineTime = eDeadline ? eDeadline.slice(11,16) : ''
-    ePoints=assignment.max_points
-    ePolicy=assignment.grading_policy
-    eShowTraceback=assignment.show_traceback
-    eShowTestDetails=!!assignment.show_test_details
-    eManualReview=assignment.manual_review
-    eLLMInteractive=!!assignment.llm_interactive
-    eLLMFeedback=!!assignment.llm_feedback
-    eLLMAutoAward=assignment.llm_auto_award ?? true
-    eLLMScenarios=assignment.llm_scenarios_json ?? ''
+  function startEdit() {
+    eTitle = assignment.title
+    eDesc = assignment.description
+    ePoints = assignment.max_points
+    ePolicy = assignment.grading_policy
+    // Fix: convert UTC deadline to local time string for input[type="datetime-local"]
+    // The input expects "YYYY-MM-DDTHH:mm", but simply slicing toISOString() gives UTC time.
+    // We need to shift the time by the timezone offset before slicing.
+    const toLocalISO = (dateStr: string) => {
+      const d = new Date(dateStr)
+      const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+      return local.toISOString().slice(0, 16)
+    }
+
+    eDeadline = toLocalISO(assignment.deadline)
+    eSecondDeadline = assignment.second_deadline ? toLocalISO(assignment.second_deadline) : ''
+    eLatePenaltyRatio = assignment.late_penalty_ratio ?? 0.5
+    eShowTraceback = assignment.show_traceback
+    eShowTestDetails = !!assignment.show_test_details
+    eManualReview = assignment.manual_review
+    eLLMInteractive = !!assignment.llm_interactive
+    eLLMFeedback = !!assignment.llm_feedback
+    eLLMAutoAward = assignment.llm_auto_award ?? true
+    eLLMScenarios = assignment.llm_scenarios_json ?? ''
     eLLMStrictness = typeof assignment.llm_strictness === 'number' ? assignment.llm_strictness : 50
     eLLMRubric = assignment.llm_rubric ?? ''
-    eSecondDeadline = assignment.second_deadline ? assignment.second_deadline.slice(0,16) : ''
-    eSecondDeadlineDate = eSecondDeadline ? eSecondDeadline.slice(0,10) : ''
-    eSecondDeadlineTime = eSecondDeadline ? eSecondDeadline.slice(11,16) : ''
-    eLatePenaltyRatio = assignment.late_penalty_ratio ?? 0.5
+    eLLMTeacherBaseline = assignment.llm_teacher_baseline_json ?? ''
     showAdvancedOptions = !!assignment.second_deadline
     if (assignment.manual_review) testMode = 'manual'
     else if (assignment.llm_interactive) testMode = 'ai'
     else testMode = 'automatic'
+    editing = true
   }
 
   // keep combined strings in sync with split date/time inputs
