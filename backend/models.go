@@ -2,8 +2,10 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -68,6 +70,15 @@ type Assignment struct {
 	// Second deadline feature
 	SecondDeadline   *time.Time `db:"second_deadline" json:"second_deadline"`
 	LatePenaltyRatio float64    `db:"late_penalty_ratio" json:"late_penalty_ratio"`
+}
+
+// AssignmentClone links a cloned assignment back to its source and target class.
+type AssignmentClone struct {
+	SourceAssignmentID uuid.UUID  `db:"source_assignment_id" json:"source_assignment_id"`
+	ClonedAssignmentID uuid.UUID  `db:"cloned_assignment_id" json:"cloned_assignment_id"`
+	TargetClassID      uuid.UUID  `db:"target_class_id" json:"target_class_id"`
+	CreatedBy          *uuid.UUID `db:"created_by" json:"created_by,omitempty"`
+	CreatedAt          time.Time  `db:"created_at" json:"created_at"`
 }
 
 func copyStringArray(arr pq.StringArray) []string {
@@ -259,6 +270,28 @@ func CreateAssignment(a *Assignment) error {
 		a.TemplatePath, a.ClassID,
 		a.SecondDeadline, a.LatePenaltyRatio,
 	).Scan(&a.ID, &a.CreatedAt, &a.UpdatedAt)
+}
+
+// SaveAssignmentClone records a link between a source assignment and its cloned copy.
+func SaveAssignmentClone(sourceID, clonedID, targetClassID, createdBy uuid.UUID) error {
+	_, err := DB.Exec(`
+        INSERT INTO assignment_clones (source_assignment_id, cloned_assignment_id, target_class_id, created_by)
+        VALUES ($1,$2,$3,$4)
+        ON CONFLICT (cloned_assignment_id) DO NOTHING`,
+		sourceID, clonedID, targetClassID, createdBy)
+	return err
+}
+
+// ListAssignmentClonesForSourceAndTarget returns all clones of a source within a given target class.
+func ListAssignmentClonesForSourceAndTarget(sourceID, targetClassID uuid.UUID) ([]AssignmentClone, error) {
+	list := []AssignmentClone{}
+	err := DB.Select(&list, `
+                SELECT source_assignment_id, cloned_assignment_id, target_class_id, created_by, created_at
+                  FROM assignment_clones
+                 WHERE source_assignment_id=$1 AND target_class_id=$2
+                 ORDER BY created_at DESC`,
+		sourceID, targetClassID)
+	return list, err
 }
 
 // ListAssignments returns all assignments.
@@ -1188,6 +1221,9 @@ func CreateTestCase(tc *TestCase) error {
 	if tc.TimeLimitSec == 0 {
 		tc.TimeLimitSec = 1
 	}
+	if tc.MemoryLimitKB == 0 {
+		tc.MemoryLimitKB = 65536
+	}
 	if strings.TrimSpace(tc.ExecutionMode) == "" {
 		if tc.UnittestName != nil {
 			tc.ExecutionMode = "unittest"
@@ -1198,12 +1234,12 @@ func CreateTestCase(tc *TestCase) error {
 		}
 	}
 	const q = `
-         INSERT INTO test_cases (assignment_id, stdin, expected_stdout, weight, time_limit_sec, unittest_code, unittest_name,
+         INSERT INTO test_cases (assignment_id, stdin, expected_stdout, weight, time_limit_sec, memory_limit_kb, unittest_code, unittest_name,
                                  execution_mode, function_name, function_args, function_kwargs, expected_return)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
          RETURNING id, weight, time_limit_sec, memory_limit_kb, unittest_code, unittest_name,
                    execution_mode, function_name, function_args, function_kwargs, expected_return, created_at, updated_at`
-	return DB.QueryRow(q, tc.AssignmentID, tc.Stdin, tc.ExpectedStdout, tc.Weight, tc.TimeLimitSec, tc.UnittestCode, tc.UnittestName,
+	return DB.QueryRow(q, tc.AssignmentID, tc.Stdin, tc.ExpectedStdout, tc.Weight, tc.TimeLimitSec, tc.MemoryLimitKB, tc.UnittestCode, tc.UnittestName,
 		tc.ExecutionMode, tc.FunctionName, tc.FunctionArgs, tc.FunctionKwargs, tc.ExpectedReturn).
 		Scan(&tc.ID, &tc.Weight, &tc.TimeLimitSec, &tc.MemoryLimitKB, &tc.UnittestCode, &tc.UnittestName,
 			&tc.ExecutionMode, &tc.FunctionName, &tc.FunctionArgs, &tc.FunctionKwargs, &tc.ExpectedReturn, &tc.CreatedAt, &tc.UpdatedAt)
@@ -1262,6 +1298,129 @@ func DeleteTestCase(id uuid.UUID) error {
 func DeleteAllTestCasesForAssignment(assignmentID uuid.UUID) error {
 	_, err := DB.Exec(`DELETE FROM test_cases WHERE assignment_id=$1`, assignmentID)
 	return err
+}
+
+type testFingerprint struct {
+	ExecutionMode string  `json:"execution_mode"`
+	Stdin         string  `json:"stdin"`
+	ExpectedOut   string  `json:"expected_stdout"`
+	Weight        float64 `json:"weight"`
+	TimeLimit     float64 `json:"time_limit_sec"`
+	MemoryKB      int     `json:"memory_limit_kb"`
+	UnittestCode  *string `json:"unittest_code,omitempty"`
+	UnittestName  *string `json:"unittest_name,omitempty"`
+	FunctionName  *string `json:"function_name,omitempty"`
+	FunctionArgs  *string `json:"function_args,omitempty"`
+	FunctionKw    *string `json:"function_kwargs,omitempty"`
+	ExpectedRet   *string `json:"expected_return,omitempty"`
+}
+
+func fingerprintTests(list []TestCase) ([]string, error) {
+	fps := make([]string, 0, len(list))
+	for _, t := range list {
+		fp := testFingerprint{
+			ExecutionMode: t.ExecutionMode,
+			Stdin:         t.Stdin,
+			ExpectedOut:   t.ExpectedStdout,
+			Weight:        t.Weight,
+			TimeLimit:     t.TimeLimitSec,
+			MemoryKB:      t.MemoryLimitKB,
+			UnittestCode:  t.UnittestCode,
+			UnittestName:  t.UnittestName,
+			FunctionName:  t.FunctionName,
+			FunctionArgs:  t.FunctionArgs,
+			FunctionKw:    t.FunctionKwargs,
+			ExpectedRet:   t.ExpectedReturn,
+		}
+		js, err := json.Marshal(fp)
+		if err != nil {
+			return nil, err
+		}
+		fps = append(fps, string(js))
+	}
+	sort.Strings(fps)
+	return fps, nil
+}
+
+// teacherGroupCloneDiffers reports whether a Teachers' group clone is out of sync
+// with the source assignment for the fields we care about (excluding deadlines).
+func teacherGroupCloneDiffers(src, clone *Assignment, srcTests, cloneTests []TestCase) bool {
+	if src.Title != clone.Title ||
+		src.Description != clone.Description ||
+		src.GradingPolicy != clone.GradingPolicy ||
+		src.MaxPoints != clone.MaxPoints ||
+		src.ShowTraceback != clone.ShowTraceback ||
+		src.ShowTestDetails != clone.ShowTestDetails ||
+		src.ManualReview != clone.ManualReview ||
+		src.LLMInteractive != clone.LLMInteractive ||
+		src.LLMFeedback != clone.LLMFeedback ||
+		src.LLMAutoAward != clone.LLMAutoAward {
+		return true
+	}
+	if (src.LLMScenariosRaw == nil) != (clone.LLMScenariosRaw == nil) {
+		return true
+	}
+	if src.LLMScenariosRaw != nil && clone.LLMScenariosRaw != nil && *src.LLMScenariosRaw != *clone.LLMScenariosRaw {
+		return true
+	}
+	if src.LLMStrictness != clone.LLMStrictness {
+		return true
+	}
+	if (src.LLMRubric == nil) != (clone.LLMRubric == nil) {
+		return true
+	}
+	if src.LLMRubric != nil && clone.LLMRubric != nil && *src.LLMRubric != *clone.LLMRubric {
+		return true
+	}
+	if (src.LLMTeacherBaseline == nil) != (clone.LLMTeacherBaseline == nil) {
+		return true
+	}
+	if src.LLMTeacherBaseline != nil && clone.LLMTeacherBaseline != nil && *src.LLMTeacherBaseline != *clone.LLMTeacherBaseline {
+		return true
+	}
+
+	if len(srcTests) != len(cloneTests) {
+		return true
+	}
+	srcFP, err := fingerprintTests(srcTests)
+	if err != nil {
+		return true
+	}
+	cloneFP, err := fingerprintTests(cloneTests)
+	if err != nil {
+		return true
+	}
+	for i := range srcFP {
+		if srcFP[i] != cloneFP[i] {
+			return true
+		}
+	}
+	return false
+}
+
+// NeedsTeacherGroupSync reports whether any Teachers' group clone of the source assignment
+// is out of sync. It returns the clones to avoid re-querying.
+func NeedsTeacherGroupSync(sourceID uuid.UUID) (bool, []AssignmentClone, error) {
+	clones, err := ListAssignmentClonesForSourceAndTarget(sourceID, TeacherGroupID)
+	if err != nil || len(clones) == 0 {
+		return false, clones, err
+	}
+	src, err := GetAssignment(sourceID)
+	if err != nil {
+		return false, clones, err
+	}
+	srcTests, _ := ListTestCases(sourceID)
+	for _, cl := range clones {
+		dst, err := GetAssignment(cl.ClonedAssignmentID)
+		if err != nil {
+			continue
+		}
+		dstTests, _ := ListTestCases(cl.ClonedAssignmentID)
+		if teacherGroupCloneDiffers(src, dst, srcTests, dstTests) {
+			return true, clones, nil
+		}
+	}
+	return false, clones, nil
 }
 
 // ──────────────────────────────────────────────────────

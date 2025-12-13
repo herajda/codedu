@@ -30,6 +30,12 @@
   let progress: any[] = []; // computed progress per student
   let overrides: any[] = []; // per-student deadline overrides (teacher view)
   let overrideMap: Record<string, any> = {};
+  let teacherGroupSync: { has_clone?: boolean; needs_update?: boolean; clone_ids?: string[] } = {
+    has_clone: false,
+    needs_update: false,
+    clone_ids: [],
+  };
+  let syncTGLoading = false;
   let expanded: number | null = null;
   let pointsEarned = 0;
   let done = false;
@@ -260,11 +266,30 @@
     }
   }
 
+  async function syncTeachersGroup() {
+    try {
+      syncTGLoading = true;
+      await apiFetch(`/api/assignments/${id}/sync-teachers-group`, {
+        method: "POST",
+      });
+      await load();
+    } catch (e: any) {
+      err = e.message;
+    } finally {
+      syncTGLoading = false;
+    }
+  }
+
   async function load() {
     err = "";
     try {
       const data = await apiJSON(`/api/assignments/${id}`);
       assignment = data.assignment;
+      teacherGroupSync = data.teacher_group_sync ?? {
+        has_clone: false,
+        needs_update: false,
+        clone_ids: [],
+      };
       // If this was newly created, switch to edit mode by default
       if (
         role !== "student" &&
@@ -1529,6 +1554,21 @@
                   "frontend/src/routes/assignments/[id]/+page.svelte::edit_button",
                 )}</button
               >
+              {#if teacherGroupSync?.needs_update}
+                <button
+                  class="btn btn-sm btn-warning"
+                  on:click={syncTeachersGroup}
+                  disabled={syncTGLoading}
+                >
+                  {syncTGLoading
+                    ? t(
+                        "frontend/src/routes/assignments/[id]/+page.svelte::syncing_teachers_group_button",
+                      )
+                    : t(
+                        "frontend/src/routes/assignments/[id]/+page.svelte::update_teachers_group_button",
+                      )}
+                </button>
+              {/if}
               <button class="btn btn-sm btn-error" on:click={delAssignment}
                 >{t(
                   "frontend/src/routes/assignments/[id]/+page.svelte::delete_button",

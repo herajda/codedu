@@ -451,6 +451,8 @@
   "frontend/src/routes/assignments/[id]/+page.svelte::delete_assignment_confirm": "Delete assignment",
   "frontend/src/routes/assignments/[id]/+page.svelte::delete_assignment_title": "Delete assignment",
   "frontend/src/routes/assignments/[id]/+page.svelte::delete_button": "Delete",
+  "frontend/src/routes/assignments/[id]/+page.svelte::update_teachers_group_button": "Update Teachers' group copy",
+  "frontend/src/routes/assignments/[id]/+page.svelte::syncing_teachers_group_button": "Updating Teachers' group…",
   "frontend/src/routes/assignments/[id]/+page.svelte::description_placeholder": "Description",
   "frontend/src/routes/assignments/[id]/+page.svelte::download_current_template_button": "Download current",
   "frontend/src/routes/assignments/[id]/+page.svelte::download_template_button": "Download template",

@@ -208,6 +208,7 @@ func main() {
 		api.PUT("/assignments/:id/testing-constraints", RoleGuard("teacher", "admin"), updateAssignmentTestingConstraints)
 		api.DELETE("/assignments/:id", RoleGuard("teacher", "admin"), deleteAssignment)
 		api.PUT("/assignments/:id/publish", RoleGuard("teacher", "admin"), publishAssignment)
+		api.POST("/assignments/:id/sync-teachers-group", RoleGuard("teacher", "admin"), syncTeachersGroupAssignment)
 		// allow optional trailing slash for template endpoints
 		api.POST("/assignments/:id/template", RoleGuard("teacher", "admin"), uploadTemplate)
 		api.POST("/assignments/:id/template/", RoleGuard("teacher", "admin"), uploadTemplate)

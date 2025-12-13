@@ -451,6 +451,8 @@
   "frontend/src/routes/assignments/[id]/+page.svelte::delete_assignment_confirm": "Smazat zadání",
   "frontend/src/routes/assignments/[id]/+page.svelte::delete_assignment_title": "Smazat zadání",
   "frontend/src/routes/assignments/[id]/+page.svelte::delete_button": "Smazat",
+  "frontend/src/routes/assignments/[id]/+page.svelte::update_teachers_group_button": "Aktualizovat kopii v Teachers' group",
+  "frontend/src/routes/assignments/[id]/+page.svelte::syncing_teachers_group_button": "Aktualizuji kopii v Teachers' group…",
   "frontend/src/routes/assignments/[id]/+page.svelte::description_placeholder": "Popis",
   "frontend/src/routes/assignments/[id]/+page.svelte::download_current_template_button": "Stáhnout aktuální",
   "frontend/src/routes/assignments/[id]/+page.svelte::download_template_button": "Stáhnout šablonu",

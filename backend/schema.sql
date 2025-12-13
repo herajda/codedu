@@ -82,6 +82,17 @@ ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_teacher_baseline_json TEXT;
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS second_deadline TIMESTAMPTZ; -- optional second deadline for late submissions
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS late_penalty_ratio NUMERIC NOT NULL DEFAULT 0.5 CHECK (late_penalty_ratio >= 0 AND late_penalty_ratio <= 1); -- points multiplier for second deadline submissions
 
+-- Track cloned assignments (e.g., Teachers' group versions)
+CREATE TABLE IF NOT EXISTS assignment_clones (
+  source_assignment_id UUID NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+  cloned_assignment_id UUID NOT NULL UNIQUE REFERENCES assignments(id) ON DELETE CASCADE,
+  target_class_id UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_assignment_clones_source ON assignment_clones(source_assignment_id);
+CREATE INDEX IF NOT EXISTS idx_assignment_clones_target_class ON assignment_clones(target_class_id);
+
 -- Per-student deadline override (extensions)
 CREATE TABLE IF NOT EXISTS assignment_deadline_overrides (
   assignment_id UUID NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,

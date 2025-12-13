@@ -137,14 +137,14 @@ func TestCreateTestCaseDefaultsFunctionMode(t *testing.T) {
 		AddRow(uuid.New().String(), 1.0, 1.0, 0, nil, nil, "function", fn, args, kwargs, expected, now, now)
 
 	insertRE := regexp.QuoteMeta(`
-         INSERT INTO test_cases (assignment_id, stdin, expected_stdout, weight, time_limit_sec, unittest_code, unittest_name,
+         INSERT INTO test_cases (assignment_id, stdin, expected_stdout, weight, time_limit_sec, memory_limit_kb, unittest_code, unittest_name,
                                  execution_mode, function_name, function_args, function_kwargs, expected_return)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
          RETURNING id, weight, time_limit_sec, memory_limit_kb, unittest_code, unittest_name,
                    execution_mode, function_name, function_args, function_kwargs, expected_return, created_at, updated_at`)
 
 	mock.ExpectQuery(insertRE).
-		WithArgs(assignmentID, "", "", 1.0, 1.0, nil, nil, "function", sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WithArgs(assignmentID, "", "", 1.0, 1.0, 65536, nil, nil, "function", sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnRows(rows)
 
 	tc := &TestCase{AssignmentID: assignmentID, Weight: 1}

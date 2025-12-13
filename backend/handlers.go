@@ -350,6 +350,19 @@ func getAssignment(c *gin.Context) {
 		resp["submissions"] = subs
 		resp["teacher_runs"] = tsubs
 	}
+	if role == "teacher" || role == "admin" {
+		if needs, clones, err := NeedsTeacherGroupSync(id); err == nil && len(clones) > 0 {
+			ids := make([]uuid.UUID, 0, len(clones))
+			for _, cl := range clones {
+				ids = append(ids, cl.ClonedAssignmentID)
+			}
+			resp["teacher_group_sync"] = gin.H{
+				"has_clone":    true,
+				"needs_update": needs,
+				"clone_ids":    ids,
+			}
+		}
+	}
 	c.JSON(http.StatusOK, resp)
 }
 
@@ -451,6 +464,83 @@ func updateAssignment(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, a)
+}
+
+// syncTeachersGroupAssignment: POST /api/assignments/:id/sync-teachers-group
+// Updates the Teachers' group clone of an assignment (if any) with selected fields and tests.
+func syncTeachersGroupAssignment(c *gin.Context) {
+	aid, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if role := c.GetString("role"); role == "teacher" {
+		if ok, err := IsTeacherOfAssignment(aid, getUserID(c)); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+
+	clones, err := ListAssignmentClonesForSourceAndTarget(aid, TeacherGroupID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	if len(clones) == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no teachers group copy"})
+		return
+	}
+
+	source, err := GetAssignment(aid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	srcTests, _ := ListTestCases(aid)
+	updated := 0
+
+	for _, cl := range clones {
+		clone, err := GetAssignment(cl.ClonedAssignmentID)
+		if err != nil {
+			continue
+		}
+		clone.Title = source.Title
+		clone.Description = source.Description
+		clone.MaxPoints = source.MaxPoints
+		clone.GradingPolicy = source.GradingPolicy
+		clone.ShowTraceback = source.ShowTraceback
+		clone.ShowTestDetails = source.ShowTestDetails
+		clone.ManualReview = source.ManualReview
+		clone.LLMInteractive = source.LLMInteractive
+		clone.LLMFeedback = source.LLMFeedback
+		clone.LLMAutoAward = source.LLMAutoAward
+		clone.LLMScenariosRaw = source.LLMScenariosRaw
+		clone.LLMStrictness = source.LLMStrictness
+		clone.LLMRubric = source.LLMRubric
+		clone.LLMTeacherBaseline = source.LLMTeacherBaseline
+
+		if err := UpdateAssignment(clone); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update clone"})
+			return
+		}
+		if err := DeleteAllTestCasesForAssignment(clone.ID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to reset tests"})
+			return
+		}
+		for _, tcase := range srcTests {
+			tc := tcase
+			tc.ID = uuid.Nil
+			tc.AssignmentID = clone.ID
+			if err := CreateTestCase(&tc); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to copy tests"})
+				return
+			}
+		}
+		updated++
+	}
+
+	needsUpdate, _, _ := NeedsTeacherGroupSync(aid)
+	c.JSON(http.StatusOK, gin.H{"updated": updated, "needs_update": needsUpdate})
 }
 
 func updateAssignmentTestingConstraints(c *gin.Context) {
@@ -3811,6 +3901,7 @@ func uploadClassFile(c *gin.Context) {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "clone failed"})
 				return
 			}
+			_ = SaveAssignmentClone(sourceID, newID, TeacherGroupID, getUserID(c))
 
 			// Post-process: reset deadlines and publish status
 			newA, err := GetAssignment(newID)
@@ -3896,6 +3987,7 @@ func importAssignmentToClass(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "clone failed"})
 		return
 	}
+	_ = SaveAssignmentClone(req.SourceAssignmentID, newID, classID, getUserID(c))
 	c.JSON(http.StatusCreated, gin.H{"assignment_id": newID})
 }
 
