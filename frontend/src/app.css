@@ -140,6 +140,14 @@ img { max-width: 100%; height: auto; }
   margin-left: 1.5rem;
   margin-bottom: 0.5rem;
 }
+
+.markdown a,
+.editor-preview a,
+.editor-preview-side a,
+.prose a,
+.assignment-description :where(a) {
+  @apply link link-primary;
+}
 .markdown pre,
 .editor-preview pre,
 .editor-preview-side pre,
