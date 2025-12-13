@@ -607,7 +607,6 @@
   "frontend/src/routes/assignments/[id]/+page.svelte::timeline_tests_label": "tests",
   "frontend/src/routes/assignments/[id]/+page.svelte::title_placeholder": "Title",
   "frontend/src/routes/assignments/[id]/+page.svelte::upload_template_button": "Upload template",
-  "frontend/src/routes/assignments/[id]/+page.svelte::uploaded_alert": "Uploaded!",
   "frontend/src/routes/assignments/[id]/+page.svelte::weighted_assignments_desc": "Weighted assignments require automatic testing to calculate points from test weights",
   "frontend/src/routes/assignments/[id]/+page.svelte::weighted_desc": "Points are calculated from individual test weights set in the Tests section",
   "frontend/src/routes/assignments/[id]/+page.svelte::weighted_grading_warning": "Switch to automatic testing to use weighted grading",

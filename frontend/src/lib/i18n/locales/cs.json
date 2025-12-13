@@ -607,7 +607,6 @@
   "frontend/src/routes/assignments/[id]/+page.svelte::timeline_tests_label": "testů",
   "frontend/src/routes/assignments/[id]/+page.svelte::title_placeholder": "Název",
   "frontend/src/routes/assignments/[id]/+page.svelte::upload_template_button": "Nahrát šablonu",
-  "frontend/src/routes/assignments/[id]/+page.svelte::uploaded_alert": "Nahráno!",
   "frontend/src/routes/assignments/[id]/+page.svelte::weighted_assignments_desc": "Vážené úlohy vyžadují automatické testování pro výpočet bodů z vah testů",
   "frontend/src/routes/assignments/[id]/+page.svelte::weighted_desc": "Body se vypočítávají z individuálních vah testů nastavených v sekci Testy",
   "frontend/src/routes/assignments/[id]/+page.svelte::weighted_grading_warning": "Přepněte na automatické testování pro použití váženého hodnocení",
