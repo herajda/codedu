@@ -761,7 +761,7 @@ Additional guidance (optional): %s
 Teacher solution (reference only):
 %s
 `
-		user = fmt.Sprintf(basePrompt, constraint, assign.Title, assign.Description, req.Instructions, teacherContext)
+		user = fmt.Sprintf(basePrompt, constraint, assign.Title, stripMarkdownImages(assign.Description), stripMarkdownImages(req.Instructions), teacherContext)
 	} else {
 		callInstruction := "- Each test must call student_code(...) to execute the student's program with stdin-style inputs and assert on stdout.\n- Pass each stdin value as a separate argument (e.g., student_code(\"1\", \"2\", \"3\")) in the order the program reads them.\n- Compare stdout against the exact expected string, using \\n for multi-line output when needed.\n- Avoid adding a trailing newline at the end of expected stdout; encode intentional blank lines explicitly within the string."
 		if callMode == "function" {
@@ -805,7 +805,7 @@ Additional guidance (optional): %s
 Teacher solution (reference only):
 %s
 `
-		user = fmt.Sprintf(basePrompt, callInstruction, refInstruction, additional, assign.Title, assign.Description, req.Instructions, teacherContext)
+		user = fmt.Sprintf(basePrompt, callInstruction, refInstruction, additional, assign.Title, stripMarkdownImages(assign.Description), stripMarkdownImages(req.Instructions), teacherContext)
 	}
 
 	// -------- JSON Schemas for Structured Outputs (Strict) --------
