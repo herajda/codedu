@@ -122,6 +122,7 @@ type Submission struct {
 	CreatedAt        time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
 	AttemptNumber    *int      `db:"attempt_number" json:"attempt_number,omitempty"`
+	StudentName      *string   `db:"student_name" json:"student_name,omitempty"`
 }
 
 type TestCase struct {
@@ -1331,12 +1332,14 @@ func GetSubmission(id uuid.UUID) (*Submission, error) {
 	var s Submission
 	err := DB.Get(&s, `
         SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at,
-               attempt_number
+               attempt_number, student_name
           FROM (
-            SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at,
-                   ROW_NUMBER() OVER (PARTITION BY assignment_id, student_id ORDER BY created_at ASC, id ASC) AS attempt_number
-              FROM submissions
-          ) s
+            SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.points, s.override_points, s.is_teacher_run, s.manually_accepted, s.late, s.created_at, s.updated_at,
+                   ROW_NUMBER() OVER (PARTITION BY s.assignment_id, s.student_id ORDER BY s.created_at ASC, s.id ASC) AS attempt_number,
+                   u.name as student_name
+              FROM submissions s
+              LEFT JOIN users u ON u.id = s.student_id
+          ) sub
          WHERE id=$1`, id)
 	if err != nil {
 		return nil, err
