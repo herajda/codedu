@@ -1447,6 +1447,8 @@
   "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::no_runs_yet": "Žádná spuštění zatím",
   "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::no_students": "Žádní studenti",
   "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::no_submissions": "Žádná odevzdání",
+  "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::student_error_output_desc": "Mohou studenti vidět chybové výstupy?",
+  "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::traceback_visible_stat_title": "Viditelný Traceback",
   "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::none_status": "Žádná",
   "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::or_connector": "nebo",
   "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::overview_tab": "Přehled",

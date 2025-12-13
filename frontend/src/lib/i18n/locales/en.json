@@ -1447,6 +1447,8 @@
   "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::no_runs_yet": "No runs yet",
   "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::no_students": "No students",
   "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::no_submissions": "No submissions",
+  "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::student_error_output_desc": "Can students see error output?",
+  "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::traceback_visible_stat_title": "Traceback Visible",
   "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::none_status": "None",
   "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::or_connector": "or",
   "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::overview_tab": "Overview",
