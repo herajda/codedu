@@ -1,317 +1,491 @@
 <script lang="ts">
-// @ts-nocheck
-import { onMount } from 'svelte';
-import { auth } from '$lib/auth';
-import { apiJSON, apiFetch } from '$lib/api';
-import { formatDateTime } from '$lib/date';
-import { TEACHER_GROUP_ID } from '$lib/teacherGroup';
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
-import { goto } from '$app/navigation';
-import ConfirmModal from '$lib/components/ConfirmModal.svelte';
-import PromptModal from '$lib/components/PromptModal.svelte';
-import { t, translator } from '$lib/i18n';
-let translate;
-$: translate = $translator;
+  // @ts-nocheck
+  import { onMount } from "svelte";
+  import { auth } from "$lib/auth";
+  import { apiJSON, apiFetch } from "$lib/api";
+  import { formatDateTime } from "$lib/date";
+  import { TEACHER_GROUP_ID } from "$lib/teacherGroup";
+  import { marked } from "marked";
+  import DOMPurify from "dompurify";
+  import { goto } from "$app/navigation";
+  import ConfirmModal from "$lib/components/ConfirmModal.svelte";
+  import PromptModal from "$lib/components/PromptModal.svelte";
+  import { t, translator } from "$lib/i18n";
+  let translate;
+  $: translate = $translator;
 
-type ClassFile = {
-  id: string;
-  class_id: string;
-  parent_id?: string | null;
-  name: string;
-  path: string;
-  is_dir: boolean;
-  assignment_id?: string | null;
-  size?: number;
-  created_at: string;
-  updated_at: string;
-};
+  type ClassFile = {
+    id: string;
+    class_id: string;
+    parent_id?: string | null;
+    name: string;
+    path: string;
+    is_dir: boolean;
+    assignment_id?: string | null;
+    size?: number;
+    created_at: string;
+    updated_at: string;
+  };
 
-// Fixed Teachers' group ID
-const groupId = TEACHER_GROUP_ID;
+  // Fixed Teachers' group ID
+  const groupId = TEACHER_GROUP_ID;
 
-let role = '';
-$: role = $auth?.role ?? '';
+  let role = "";
+  $: role = $auth?.role ?? "";
 
-let items: ClassFile[] = [];
-let displayed: ClassFile[] = [];
-let breadcrumbs: { id: string | null; name: string }[] = [{ id: null, name: t('frontend/src/routes/teachers/assignments/+page.svelte::home_icon_label') }];
-let currentParent: string | null = null;
-let loading = false;
-let err = '';
+  let items: ClassFile[] = [];
+  let displayed: ClassFile[] = [];
+  let breadcrumbs: { id: string | null; name: string }[] = [
+    {
+      id: null,
+      name: t(
+        "frontend/src/routes/teachers/assignments/+page.svelte::home_icon_label",
+      ),
+    },
+  ];
+  let currentParent: string | null = null;
+  let loading = false;
+  let err = "";
 
-let confirmModal: InstanceType<typeof ConfirmModal>;
-let promptModal: InstanceType<typeof PromptModal>;
+  let confirmModal: InstanceType<typeof ConfirmModal>;
+  let promptModal: InstanceType<typeof PromptModal>;
 
-let search = '';
-let searchOpen = false;
-$: if (searchOpen && search.trim() !== '') { fetchSearch(search.trim()); } else { displayed = filterItems(items); }
-
-function filterItems(list: ClassFile[]): ClassFile[] {
-  // Only folders and assignment references
-  return list.filter(it => it.is_dir || !!it.assignment_id);
-}
-
-async function load(parent: string | null) {
-  // Normalize root marker from sessionStorage
-  if ((parent as any) === '') parent = null;
-  loading = true; err = '';
-  try {
-    const q = parent === null ? '' : `?parent=${parent}`;
-    const list = await apiJSON(`/api/classes/${groupId}/files${q}`);
-    items = list;
-    displayed = filterItems(items);
-    currentParent = parent;
-  } catch (e: any) { err = e.message; }
-  loading = false;
-}
-
-async function fetchSearch(q: string) {
-  loading = true; err = '';
-  try {
-    const list = await apiJSON(`/api/classes/${groupId}/files?search=${encodeURIComponent(q)}`);
-    displayed = filterItems(list);
-  } catch (e: any) { err = e.message; }
-  loading = false;
-}
-
-async function openDir(item: ClassFile) {
-  breadcrumbs = [...breadcrumbs, { id: item.id, name: item.name }];
-  if (typeof sessionStorage !== 'undefined') {
-    sessionStorage.setItem(`tassign_bc`, JSON.stringify(breadcrumbs));
-    sessionStorage.setItem(`tassign_parent`, String(item.id));
-  }
-  await load(item.id);
-}
-
-function crumbTo(i: number) {
-  const b = breadcrumbs[i];
-  breadcrumbs = breadcrumbs.slice(0, i + 1);
-  if (typeof sessionStorage !== 'undefined') {
-    sessionStorage.setItem(`tassign_bc`, JSON.stringify(breadcrumbs));
-    sessionStorage.setItem(`tassign_parent`, b.id === null ? '' : String(b.id));
-  }
-  load(b.id);
-}
-
-// Create folder
-async function createDir(name: string) {
-  await apiFetch(`/api/classes/${groupId}/files`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, parent_id: currentParent, is_dir: true }) });
-  await load(currentParent);
-}
-async function promptDir() {
-  const name = await promptModal?.open({
-    title: t('frontend/src/routes/teachers/assignments/+page.svelte::new_folder_title'),
-    label: t('frontend/src/routes/teachers/assignments/+page.svelte::folder_name_label'),
-    placeholder: t('frontend/src/routes/teachers/assignments/+page.svelte::folder_name_placeholder'),
-    confirmLabel: t('frontend/src/routes/teachers/assignments/+page.svelte::create_button_label'),
-    icon: 'fa-solid fa-folder-plus text-primary',
-    validate: (value) => value.trim() ? null : t('frontend/src/routes/teachers/assignments/+page.svelte::folder_name_required'),
-    transform: (value) => value.trim()
-  });
-  if (!name) return;
-  await createDir(name);
-}
-
-// Rename
-async function rename(it: ClassFile) {
-  const name = await promptModal?.open({
-    title: t('frontend/src/routes/teachers/assignments/+page.svelte::rename_title'),
-    label: t('frontend/src/routes/teachers/assignments/+page.svelte::new_name_label'),
-    initialValue: it.name,
-    confirmLabel: t('frontend/src/routes/teachers/assignments/+page.svelte::save_button_label'),
-    icon: it.is_dir ? 'fa-solid fa-folder text-warning' : 'fa-solid fa-pen text-primary',
-    validate: (value) => value.trim() ? null : t('frontend/src/routes/teachers/assignments/+page.svelte::name_required'),
-    transform: (value) => value.trim(),
-    selectOnOpen: true
-  });
-  if (!name || name === it.name) return;
-  await apiFetch(`/api/files/${it.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
-  await load(currentParent);
-}
-
-// Delete
-async function del(it: ClassFile) {
-  const shouldDelete = await confirmModal.open({
-    title: t('frontend/src/routes/teachers/assignments/+page.svelte::delete_assignment_ref_title'),
-    body: t('frontend/src/routes/teachers/assignments/+page.svelte::delete_assignment_ref_body', { name: it.name }),
-    confirmLabel: t('frontend/src/routes/teachers/assignments/+page.svelte::delete_button_label'),
-    confirmClass: 'btn btn-error',
-    cancelClass: 'btn'
-  });
-  if (!shouldDelete) return;
-  await apiFetch(`/api/files/${it.id}`, { method: 'DELETE' });
-  await load(currentParent);
-}
-
-// Add assignment ref modal
-let addDialog: HTMLDialogElement;
-let myAssignments: any[] = [];
-let myAssignLoading = false;
-let selectedAssignmentId = '';
-let addName = '';
-let addErr = '';
-let addClasses: any[] = [];
-let selectedAddClassId = '';
-$: filteredAddAssignments = selectedAddClassId
-  ? myAssignments.filter(a => a.class_id === selectedAddClassId)
-  : [];
-$: if (!selectedAddClassId && selectedAssignmentId) {
-  selectedAssignmentId = '';
-}
-$: if (selectedAddClassId && selectedAssignmentId) {
-  const matches = myAssignments.some(a => a.id === selectedAssignmentId && a.class_id === selectedAddClassId);
-  if (!matches) selectedAssignmentId = '';
-}
-
-async function openAdd() {
-  addErr = '';
-  addName = '';
-  selectedAssignmentId = '';
-  selectedAddClassId = '';
-  addClasses = [];
-  myAssignLoading = true;
-  try {
-    // Teachers get their own assignments; admins get all
-    const [assignments, classes] = await Promise.all([
-      apiJSON('/api/assignments'),
-      apiJSON('/api/classes')
-    ]);
-    myAssignments = assignments;
-    addClasses = classes;
-  } catch (e: any) { addErr = e.message; }
-  myAssignLoading = false;
-  addDialog.showModal();
-}
-
-async function doAdd() {
-  if (!selectedAssignmentId) { addErr = t('frontend/src/routes/teachers/assignments/+page.svelte::pick_assignment_error'); return; }
-  const body: any = { parent_id: currentParent, assignment_id: selectedAssignmentId };
-  if (addName.trim() !== '') body.name = addName.trim();
-  const res = await apiFetch(`/api/classes/${groupId}/files`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  if (!res.ok) { const js = await res.json().catch(() => ({})); addErr = js.error || res.statusText; return; }
-  addDialog.close();
-  await load(currentParent);
-}
-
-// Copy to class modal
-let copyDialog: HTMLDialogElement;
-let myClasses: any[] = [];
-let copyClassId: string | null = null;
-let copyErr = '';
-let copyItem: ClassFile | null = null;
-
-async function openCopy(it: ClassFile) {
-  copyErr = '';
-  copyItem = it;
-  copyClassId = null;
-  try { myClasses = await apiJSON('/api/classes'); }
-  catch (e:any) { copyErr = e.message; }
-  copyDialog.showModal();
-}
-
-async function doCopy() {
-  if (!copyItem || !copyItem.assignment_id) { copyErr = t('frontend/src/routes/teachers/assignments/+page.svelte::invalid_item_error'); return; }
-  if (!copyClassId) { copyErr = t('frontend/src/routes/teachers/assignments/+page.svelte::choose_class_error'); return; }
-  const res = await apiFetch(`/api/classes/${copyClassId}/assignments/import`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source_assignment_id: copyItem.assignment_id }) });
-  let js: any = null;
-  try { js = await res.json(); } catch {}
-  if (!res.ok) { copyErr = js?.error || res.statusText; return; }
-  copyDialog.close();
-  if (js?.assignment_id) {
-    await goto(`/assignments/${js.assignment_id}?new=1`);
+  let search = "";
+  let searchOpen = false;
+  $: if (searchOpen && search.trim() !== "") {
+    fetchSearch(search.trim());
   } else {
-    await goto(`/classes/${copyClassId}/assignments`);
+    displayed = filterItems(items);
   }
-}
 
-// Preview logic
-let previewDialog: HTMLDialogElement;
-let preview: any = null;
-let previewLoading = false;
-let previewErr = '';
-let previewItem: ClassFile | null = null;
-let previewClass: any = null;
-let safeDesc = '';
-
-async function openPreview(it: ClassFile) {
-  if (!it.assignment_id) return;
-  previewItem = it; previewErr=''; preview=null; previewClass=null; previewLoading=true;
-  previewDialog.showModal();
-  try {
-    const data = await apiJSON(`/api/assignments/${it.assignment_id}`);
-    preview = data;
-    try { previewClass = await apiJSON(`/api/classes/${data.assignment.class_id}`); } catch {}
-    try { safeDesc = DOMPurify.sanitize((marked.parse(preview.assignment.description) as string) || ''); } catch { safeDesc=''; }
-  } catch (e:any) {
-    previewErr = e.message;
+  function filterItems(list: ClassFile[]): ClassFile[] {
+    // Only folders and assignment references
+    return list.filter((it) => it.is_dir || !!it.assignment_id);
   }
-  previewLoading=false;
-}
 
-function copyAssignmentLink() {
-  try {
-    if (!preview?.assignment?.id) return;
-    const url = `${location.origin}/teachers/assignments/preview/${preview.assignment.id}`;
-    navigator.clipboard?.writeText(url);
-    alert(t('frontend/src/routes/teachers/assignments/+page.svelte::link_copied_to_clipboard'));
-  } catch {}
-}
-
-function openFullPreview() {
-  try {
-    if (!preview?.assignment?.id) return;
-    const url = `/teachers/assignments/preview/${preview.assignment.id}`;
-    goto(url);
-  } catch {}
-}
-
-onMount(() => {
-  let storedParent: string | null = null;
-  if (typeof sessionStorage !== 'undefined') {
-    const raw = sessionStorage.getItem('tassign_parent');
-    storedParent = raw && raw.trim() !== '' ? raw : null;
-    const bc = sessionStorage.getItem('tassign_bc');
-    if (bc) { try { breadcrumbs = JSON.parse(bc); } catch {} }
+  async function load(parent: string | null) {
+    // Normalize root marker from sessionStorage
+    if ((parent as any) === "") parent = null;
+    loading = true;
+    err = "";
+    try {
+      const q = parent === null ? "" : `?parent=${parent}`;
+      const list = await apiJSON(`/api/classes/${groupId}/files${q}`);
+      items = list;
+      displayed = filterItems(items);
+      currentParent = parent;
+    } catch (e: any) {
+      err = e.message;
+    }
+    loading = false;
   }
-  load(storedParent);
-});
+
+  async function fetchSearch(q: string) {
+    loading = true;
+    err = "";
+    try {
+      const list = await apiJSON(
+        `/api/classes/${groupId}/files?search=${encodeURIComponent(q)}`,
+      );
+      displayed = filterItems(list);
+    } catch (e: any) {
+      err = e.message;
+    }
+    loading = false;
+  }
+
+  async function openDir(item: ClassFile) {
+    breadcrumbs = [...breadcrumbs, { id: item.id, name: item.name }];
+    if (typeof sessionStorage !== "undefined") {
+      sessionStorage.setItem(`tassign_bc`, JSON.stringify(breadcrumbs));
+      sessionStorage.setItem(`tassign_parent`, String(item.id));
+    }
+    await load(item.id);
+  }
+
+  function crumbTo(i: number) {
+    const b = breadcrumbs[i];
+    breadcrumbs = breadcrumbs.slice(0, i + 1);
+    if (typeof sessionStorage !== "undefined") {
+      sessionStorage.setItem(`tassign_bc`, JSON.stringify(breadcrumbs));
+      sessionStorage.setItem(
+        `tassign_parent`,
+        b.id === null ? "" : String(b.id),
+      );
+    }
+    load(b.id);
+  }
+
+  // Create folder
+  async function createDir(name: string) {
+    await apiFetch(`/api/classes/${groupId}/files`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, parent_id: currentParent, is_dir: true }),
+    });
+    await load(currentParent);
+  }
+  async function promptDir() {
+    const name = await promptModal?.open({
+      title: t(
+        "frontend/src/routes/teachers/assignments/+page.svelte::new_folder_title",
+      ),
+      label: t(
+        "frontend/src/routes/teachers/assignments/+page.svelte::folder_name_label",
+      ),
+      placeholder: t(
+        "frontend/src/routes/teachers/assignments/+page.svelte::folder_name_placeholder",
+      ),
+      confirmLabel: t(
+        "frontend/src/routes/teachers/assignments/+page.svelte::create_button_label",
+      ),
+      icon: "fa-solid fa-folder-plus text-primary",
+      validate: (value) =>
+        value.trim()
+          ? null
+          : t(
+              "frontend/src/routes/teachers/assignments/+page.svelte::folder_name_required",
+            ),
+      transform: (value) => value.trim(),
+    });
+    if (!name) return;
+    await createDir(name);
+  }
+
+  // Rename
+  async function rename(it: ClassFile) {
+    const name = await promptModal?.open({
+      title: t(
+        "frontend/src/routes/teachers/assignments/+page.svelte::rename_title",
+      ),
+      label: t(
+        "frontend/src/routes/teachers/assignments/+page.svelte::new_name_label",
+      ),
+      initialValue: it.name,
+      confirmLabel: t(
+        "frontend/src/routes/teachers/assignments/+page.svelte::save_button_label",
+      ),
+      icon: it.is_dir
+        ? "fa-solid fa-folder text-warning"
+        : "fa-solid fa-pen text-primary",
+      validate: (value) =>
+        value.trim()
+          ? null
+          : t(
+              "frontend/src/routes/teachers/assignments/+page.svelte::name_required",
+            ),
+      transform: (value) => value.trim(),
+      selectOnOpen: true,
+    });
+    if (!name || name === it.name) return;
+    await apiFetch(`/api/files/${it.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    await load(currentParent);
+  }
+
+  // Delete
+  async function del(it: ClassFile) {
+    const shouldDelete = await confirmModal.open({
+      title: t(
+        "frontend/src/routes/teachers/assignments/+page.svelte::delete_assignment_ref_title",
+      ),
+      body: t(
+        "frontend/src/routes/teachers/assignments/+page.svelte::delete_assignment_ref_body",
+        { name: it.name },
+      ),
+      confirmLabel: t(
+        "frontend/src/routes/teachers/assignments/+page.svelte::delete_button_label",
+      ),
+      confirmClass: "btn btn-error",
+      cancelClass: "btn",
+    });
+    if (!shouldDelete) return;
+    await apiFetch(`/api/files/${it.id}`, { method: "DELETE" });
+    await load(currentParent);
+  }
+
+  // Add assignment ref modal
+  let addDialog: HTMLDialogElement;
+  let myAssignments: any[] = [];
+  let myAssignLoading = false;
+  let selectedAssignmentId = "";
+  let addName = "";
+  let addErr = "";
+  let addClasses: any[] = [];
+  let selectedAddClassId = "";
+  $: filteredAddAssignments = selectedAddClassId
+    ? myAssignments.filter((a) => a.class_id === selectedAddClassId)
+    : [];
+  $: if (!selectedAddClassId && selectedAssignmentId) {
+    selectedAssignmentId = "";
+  }
+  $: if (selectedAddClassId && selectedAssignmentId) {
+    const matches = myAssignments.some(
+      (a) => a.id === selectedAssignmentId && a.class_id === selectedAddClassId,
+    );
+    if (!matches) selectedAssignmentId = "";
+  }
+
+  async function openAdd() {
+    addErr = "";
+    addName = "";
+    selectedAssignmentId = "";
+    selectedAddClassId = "";
+    addClasses = [];
+    myAssignLoading = true;
+    try {
+      // Teachers get their own assignments; admins get all
+      const [assignments, classes] = await Promise.all([
+        apiJSON("/api/assignments"),
+        apiJSON("/api/classes"),
+      ]);
+      myAssignments = assignments;
+      addClasses = classes;
+    } catch (e: any) {
+      addErr = e.message;
+    }
+    myAssignLoading = false;
+    addDialog.showModal();
+  }
+
+  async function doAdd() {
+    if (!selectedAssignmentId) {
+      addErr = t(
+        "frontend/src/routes/teachers/assignments/+page.svelte::pick_assignment_error",
+      );
+      return;
+    }
+    const body: any = {
+      parent_id: currentParent,
+      assignment_id: selectedAssignmentId,
+    };
+    if (addName.trim() !== "") body.name = addName.trim();
+    const res = await apiFetch(`/api/classes/${groupId}/files`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const js = await res.json().catch(() => ({}));
+      addErr = js.error || res.statusText;
+      return;
+    }
+    addDialog.close();
+    await load(currentParent);
+  }
+
+  // Copy to class modal
+  let copyDialog: HTMLDialogElement;
+  let myClasses: any[] = [];
+  let copyClassId: string | null = null;
+  let copyErr = "";
+  let copyItem: ClassFile | null = null;
+
+  async function openCopy(it: ClassFile) {
+    copyErr = "";
+    copyItem = it;
+    copyClassId = null;
+    try {
+      myClasses = await apiJSON("/api/classes");
+    } catch (e: any) {
+      copyErr = e.message;
+    }
+    copyDialog.showModal();
+  }
+
+  async function doCopy() {
+    if (!copyItem || !copyItem.assignment_id) {
+      copyErr = t(
+        "frontend/src/routes/teachers/assignments/+page.svelte::invalid_item_error",
+      );
+      return;
+    }
+    if (!copyClassId) {
+      copyErr = t(
+        "frontend/src/routes/teachers/assignments/+page.svelte::choose_class_error",
+      );
+      return;
+    }
+    const res = await apiFetch(
+      `/api/classes/${copyClassId}/assignments/import`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source_assignment_id: copyItem.assignment_id }),
+      },
+    );
+    let js: any = null;
+    try {
+      js = await res.json();
+    } catch {}
+    if (!res.ok) {
+      copyErr = js?.error || res.statusText;
+      return;
+    }
+    copyDialog.close();
+    if (js?.assignment_id) {
+      await goto(`/assignments/${js.assignment_id}?new=1`);
+    } else {
+      await goto(`/classes/${copyClassId}/assignments`);
+    }
+  }
+
+  // Preview logic
+  let previewDialog: HTMLDialogElement;
+  let preview: any = null;
+  let previewLoading = false;
+  let previewErr = "";
+  let previewItem: ClassFile | null = null;
+  let previewClass: any = null;
+  let safeDesc = "";
+
+  async function openPreview(it: ClassFile) {
+    if (!it.assignment_id) return;
+    previewItem = it;
+    previewErr = "";
+    preview = null;
+    previewClass = null;
+    previewLoading = true;
+    previewDialog.showModal();
+    try {
+      const data = await apiJSON(`/api/assignments/${it.assignment_id}`);
+      preview = data;
+      try {
+        previewClass = await apiJSON(
+          `/api/classes/${data.assignment.class_id}`,
+        );
+      } catch {}
+      try {
+        safeDesc = DOMPurify.sanitize(
+          (marked.parse(preview.assignment.description) as string) || "",
+        );
+      } catch {
+        safeDesc = "";
+      }
+    } catch (e: any) {
+      previewErr = e.message;
+    }
+    previewLoading = false;
+  }
+
+  function copyAssignmentLink() {
+    try {
+      if (!preview?.assignment?.id) return;
+      const url = `${location.origin}/teachers/assignments/preview/${preview.assignment.id}`;
+      navigator.clipboard?.writeText(url);
+      alert(
+        t(
+          "frontend/src/routes/teachers/assignments/+page.svelte::link_copied_to_clipboard",
+        ),
+      );
+    } catch {}
+  }
+
+  function openFullPreview() {
+    try {
+      if (!preview?.assignment?.id) return;
+      const url = `/teachers/assignments/preview/${preview.assignment.id}`;
+      goto(url);
+    } catch {}
+  }
+
+  onMount(() => {
+    let storedParent: string | null = null;
+    if (typeof sessionStorage !== "undefined") {
+      const raw = sessionStorage.getItem("tassign_parent");
+      storedParent = raw && raw.trim() !== "" ? raw : null;
+      const bc = sessionStorage.getItem("tassign_bc");
+      if (bc) {
+        try {
+          breadcrumbs = JSON.parse(bc);
+        } catch {}
+      }
+    }
+    load(storedParent);
+  });
 </script>
 
 <div>
-  <nav class="mb-4 sticky top-16 z-30 bg-base-200 rounded-box shadow px-4 py-2 flex items-center flex-wrap gap-2">
+  <nav
+    class="mb-4 sticky top-16 z-30 bg-base-200 rounded-box shadow px-4 py-2 flex items-center flex-wrap gap-2"
+  >
     <ul class="flex flex-wrap gap-1 text-sm items-center flex-grow">
-      {#each breadcrumbs as b,i}
+      {#each breadcrumbs as b, i}
         <li class="after:mx-1 after:content-['/'] last:after:hidden">
-          <button type="button" class="link px-2 py-1 rounded hover:bg-base-300" on:click={() => crumbTo(i)} aria-label={translate('frontend/src/routes/teachers/assignments/+page.svelte::open_breadcrumb_aria_label', {name: b.name})}>{b.name}</button>
+          <button
+            type="button"
+            class="link px-2 py-1 rounded hover:bg-base-300"
+            on:click={() => crumbTo(i)}
+            aria-label={translate(
+              "frontend/src/routes/teachers/assignments/+page.svelte::open_breadcrumb_aria_label",
+              { name: b.name },
+            )}>{b.name}</button
+          >
         </li>
       {/each}
     </ul>
     <div class="flex items-center gap-2 ml-auto">
       <div class="relative">
         {#if searchOpen}
-          <input class="input input-bordered input-sm w-48 sm:w-72" placeholder={translate('frontend/src/routes/teachers/assignments/+page.svelte::search_placeholder')} bind:value={search} />
+          <input
+            class="input input-bordered input-sm w-48 sm:w-72"
+            placeholder={translate(
+              "frontend/src/routes/teachers/assignments/+page.svelte::search_placeholder",
+            )}
+            bind:value={search}
+          />
         {:else}
-          <button class="btn btn-sm" on:click={() => searchOpen = !searchOpen}><i class="fa-solid fa-magnifying-glass mr-2"></i>{translate('frontend/src/routes/teachers/assignments/+page.svelte::search_button')}</button>
+          <button class="btn btn-sm" on:click={() => (searchOpen = !searchOpen)}
+            ><i class="fa-solid fa-magnifying-glass mr-2"></i>{translate(
+              "frontend/src/routes/teachers/assignments/+page.svelte::search_button",
+            )}</button
+          >
         {/if}
       </div>
-      {#if role === 'teacher' || role === 'admin'}
-        <button class="btn btn-sm" on:click={openAdd}><i class="fa-solid fa-plus mr-2"></i>{translate('frontend/src/routes/teachers/assignments/+page.svelte::add_assignment_button')}</button>
-        <button class="btn btn-sm" on:click={promptDir}><i class="fa-solid fa-folder-plus mr-2"></i>{translate('frontend/src/routes/teachers/assignments/+page.svelte::folder_button')}</button>
+      {#if role === "teacher" || role === "admin"}
+        <button class="btn btn-sm" on:click={openAdd}
+          ><i class="fa-solid fa-plus mr-2"></i>{translate(
+            "frontend/src/routes/teachers/assignments/+page.svelte::add_assignment_button",
+          )}</button
+        >
+        <button class="btn btn-sm" on:click={promptDir}
+          ><i class="fa-solid fa-folder-plus mr-2"></i>{translate(
+            "frontend/src/routes/teachers/assignments/+page.svelte::folder_button",
+          )}</button
+        >
       {/if}
     </div>
   </nav>
 
   {#if err}<p class="text-error">{err}</p>{/if}
-  {#if loading}<p>{translate('frontend/src/routes/teachers/assignments/+page.svelte::loading')}</p>{/if}
+  {#if loading}<p>
+      {translate(
+        "frontend/src/routes/teachers/assignments/+page.svelte::loading",
+      )}
+    </p>{/if}
 
   <div class="overflow-x-auto mb-4">
     <table class="table table-zebra w-full">
       <thead>
         <tr>
-          <th class="text-left">{translate('frontend/src/routes/teachers/assignments/+page.svelte::table_header_name')}</th>
-          <th class="text-left">{translate('frontend/src/routes/teachers/assignments/+page.svelte::table_header_type')}</th>
-          <th class="text-right">{translate('frontend/src/routes/teachers/assignments/+page.svelte::table_header_modified')}</th>
+          <th class="text-left"
+            >{translate(
+              "frontend/src/routes/teachers/assignments/+page.svelte::table_header_name",
+            )}</th
+          >
+          <th class="text-left"
+            >{translate(
+              "frontend/src/routes/teachers/assignments/+page.svelte::table_header_type",
+            )}</th
+          >
+          <th class="text-right"
+            >{translate(
+              "frontend/src/routes/teachers/assignments/+page.svelte::table_header_modified",
+            )}</th
+          >
           <th class="w-64 text-right"></th>
         </tr>
       </thead>
@@ -320,30 +494,74 @@ onMount(() => {
           <tr class="hover:bg-base-200">
             <td>
               {#if it.is_dir}
-                <button class="link" on:click={() => openDir(it)}><i class="fa-solid fa-folder text-warning mr-2"></i>{it.name}</button>
+                <button class="link" on:click={() => openDir(it)}
+                  ><i class="fa-solid fa-folder text-warning mr-2"
+                  ></i>{it.name}</button
+                >
               {:else}
-                <button class="link" on:click={() => openPreview(it)} title={translate('frontend/src/routes/teachers/assignments/+page.svelte::preview_assignment_title')}>
-                  <i class="fa-solid fa-file-circle-check text-primary mr-2"></i>{it.name}
+                <button
+                  class="link"
+                  on:click={() => openPreview(it)}
+                  title={translate(
+                    "frontend/src/routes/teachers/assignments/+page.svelte::preview_assignment_title",
+                  )}
+                >
+                  <i class="fa-solid fa-file-circle-check text-primary mr-2"
+                  ></i>{it.name}
                 </button>
               {/if}
               <div class="text-xs text-gray-500">{it.path}</div>
             </td>
-            <td>{it.is_dir ? translate('frontend/src/routes/teachers/assignments/+page.svelte::type_folder') : translate('frontend/src/routes/teachers/assignments/+page.svelte::type_assignment')}</td>
+            <td
+              >{it.is_dir
+                ? translate(
+                    "frontend/src/routes/teachers/assignments/+page.svelte::type_folder",
+                  )
+                : translate(
+                    "frontend/src/routes/teachers/assignments/+page.svelte::type_assignment",
+                  )}</td
+            >
             <td class="text-right">{formatDateTime(it.updated_at)}</td>
             <td class="text-right">
-              {#if role === 'teacher' || role === 'admin'}
+              {#if role === "teacher" || role === "admin"}
                 {#if it.assignment_id}
-                  <button class="btn btn-xs" on:click={() => openPreview(it)}><i class="fa-solid fa-eye mr-2"></i>{translate('frontend/src/routes/teachers/assignments/+page.svelte::preview_button')}</button>
-                  <button class="btn btn-xs ml-2" on:click={() => openCopy(it)}><i class="fa-solid fa-copy mr-2"></i>{translate('frontend/src/routes/teachers/assignments/+page.svelte::copy_to_class_button')}</button>
+                  <button class="btn btn-xs" on:click={() => openPreview(it)}
+                    ><i class="fa-solid fa-eye mr-2"></i>{translate(
+                      "frontend/src/routes/teachers/assignments/+page.svelte::preview_button",
+                    )}</button
+                  >
+                  <button class="btn btn-xs ml-2" on:click={() => openCopy(it)}
+                    ><i class="fa-solid fa-copy mr-2"></i>{translate(
+                      "frontend/src/routes/teachers/assignments/+page.svelte::copy_to_class_button",
+                    )}</button
+                  >
                 {/if}
-                <button class="btn btn-xs ml-2" on:click={() => rename(it)}><i class="fa-solid fa-pen mr-2"></i>{translate('frontend/src/routes/teachers/assignments/+page.svelte::rename_button')}</button>
-                <button class="btn btn-xs btn-error ml-2" on:click={() => del(it)}><i class="fa-solid fa-trash mr-2"></i>{translate('frontend/src/routes/teachers/assignments/+page.svelte::delete_button')}</button>
+                <button class="btn btn-xs ml-2" on:click={() => rename(it)}
+                  ><i class="fa-solid fa-pen mr-2"></i>{translate(
+                    "frontend/src/routes/teachers/assignments/+page.svelte::rename_button",
+                  )}</button
+                >
+                <button
+                  class="btn btn-xs btn-error ml-2"
+                  on:click={() => del(it)}
+                  ><i class="fa-solid fa-trash mr-2"></i>{translate(
+                    "frontend/src/routes/teachers/assignments/+page.svelte::delete_button",
+                  )}</button
+                >
               {/if}
             </td>
           </tr>
         {/each}
         {#if !displayed.length}
-          <tr><td colspan="4"><i>{translate('frontend/src/routes/teachers/assignments/+page.svelte::nothing_here_yet')}</i></td></tr>
+          <tr
+            ><td colspan="4"
+              ><i
+                >{translate(
+                  "frontend/src/routes/teachers/assignments/+page.svelte::nothing_here_yet",
+                )}</i
+              ></td
+            ></tr
+          >
         {/if}
       </tbody>
     </table>
@@ -352,30 +570,74 @@ onMount(() => {
   <!-- Add assignment modal -->
   <dialog bind:this={addDialog} class="modal">
     <div class="modal-box">
-      <h3 class="font-bold mb-3">{translate('frontend/src/routes/teachers/assignments/+page.svelte::add_assignment_modal_title')}</h3>
+      <h3 class="font-bold mb-3">
+        {translate(
+          "frontend/src/routes/teachers/assignments/+page.svelte::add_assignment_modal_title",
+        )}
+      </h3>
       {#if myAssignLoading}
-        <p>{translate('frontend/src/routes/teachers/assignments/+page.svelte::loading')}</p>
+        <p>
+          {translate(
+            "frontend/src/routes/teachers/assignments/+page.svelte::loading",
+          )}
+        </p>
       {:else}
         <div class="rounded-box bg-base-200 p-4 space-y-4">
           <div class="form-control">
-            <label class="label"><span class="label-text font-semibold">{translate('frontend/src/routes/teachers/assignments/+page.svelte::choose_class_label')}</span></label>
-            <select class="select select-bordered select-primary w-full"
-              bind:value={selectedAddClassId}>
-              <option value="" disabled>{translate('frontend/src/routes/teachers/assignments/+page.svelte::select_a_class_placeholder')}</option>
+            <label class="label"
+              ><span class="label-text font-semibold"
+                >{translate(
+                  "frontend/src/routes/teachers/assignments/+page.svelte::choose_class_label",
+                )}</span
+              ></label
+            >
+            <select
+              class="select select-bordered select-primary w-full"
+              bind:value={selectedAddClassId}
+            >
+              <option value="" disabled
+                >{translate(
+                  "frontend/src/routes/teachers/assignments/+page.svelte::select_a_class_placeholder",
+                )}</option
+              >
               {#each addClasses as c}
                 <option value={c.id}>{c.name}</option>
               {/each}
             </select>
             {#if !addClasses.length && !addErr}
-              <p class="mt-2 text-sm text-gray-500">{translate('frontend/src/routes/teachers/assignments/+page.svelte::no_classes_yet')}</p>
+              <p class="mt-2 text-sm text-gray-500">
+                {translate(
+                  "frontend/src/routes/teachers/assignments/+page.svelte::no_classes_yet",
+                )}
+              </p>
             {/if}
           </div>
           <div class="form-control">
-            <label class="label"><span class="label-text font-semibold">{translate('frontend/src/routes/teachers/assignments/+page.svelte::choose_assignment_label')}</span></label>
-            <select class="select select-bordered w-full"
+            <label class="label"
+              ><span class="label-text font-semibold"
+                >{translate(
+                  "frontend/src/routes/teachers/assignments/+page.svelte::choose_assignment_label",
+                )}</span
+              ></label
+            >
+            <select
+              class="select select-bordered w-full"
               bind:value={selectedAssignmentId}
-              disabled={!selectedAddClassId || !filteredAddAssignments.length}>
-              <option value="" disabled>{!selectedAddClassId ? translate('frontend/src/routes/teachers/assignments/+page.svelte::select_class_first_placeholder') : (!filteredAddAssignments.length ? translate('frontend/src/routes/teachers/assignments/+page.svelte::no_assignments_in_class_placeholder') : translate('frontend/src/routes/teachers/assignments/+page.svelte::select_assignment_placeholder'))}</option>
+              disabled={!selectedAddClassId || !filteredAddAssignments.length}
+            >
+              <option value="" disabled
+                >{!selectedAddClassId
+                  ? translate(
+                      "frontend/src/routes/teachers/assignments/+page.svelte::select_class_first_placeholder",
+                    )
+                  : !filteredAddAssignments.length
+                    ? translate(
+                        "frontend/src/routes/teachers/assignments/+page.svelte::no_assignments_in_class_placeholder",
+                      )
+                    : translate(
+                        "frontend/src/routes/teachers/assignments/+page.svelte::select_assignment_placeholder",
+                      )}</option
+              >
               {#if selectedAddClassId}
                 {#each filteredAddAssignments as a (a.id)}
                   <option value={a.id}>{a.title}</option>
@@ -383,49 +645,114 @@ onMount(() => {
               {/if}
             </select>
             {#if selectedAddClassId && filteredAddAssignments.length}
-              <p class="mt-2 text-xs text-gray-500">{translate('frontend/src/routes/teachers/assignments/+page.svelte::assignments_found_in_class', {count: filteredAddAssignments.length})}</p>
+              <p class="mt-2 text-xs text-gray-500">
+                {translate(
+                  "frontend/src/routes/teachers/assignments/+page.svelte::assignments_found_in_class",
+                  { count: filteredAddAssignments.length },
+                )}
+              </p>
             {/if}
           </div>
           <div class="form-control">
-            <label class="label"><span class="label-text">{translate('frontend/src/routes/teachers/assignments/+page.svelte::display_name_optional_label')}</span></label>
-            <input class="input input-bordered w-full" bind:value={addName} placeholder={translate('frontend/src/routes/teachers/assignments/+page.svelte::defaults_to_assignment_title_placeholder')} />
+            <label class="label"
+              ><span class="label-text"
+                >{translate(
+                  "frontend/src/routes/teachers/assignments/+page.svelte::display_name_optional_label",
+                )}</span
+              ></label
+            >
+            <input
+              class="input input-bordered w-full"
+              bind:value={addName}
+              placeholder={translate(
+                "frontend/src/routes/teachers/assignments/+page.svelte::defaults_to_assignment_title_placeholder",
+              )}
+            />
           </div>
         </div>
         {#if addErr}<p class="text-error mt-2">{addErr}</p>{/if}
         <div class="modal-action">
-          <form method="dialog"><button class="btn">{translate('frontend/src/routes/teachers/assignments/+page.svelte::cancel_button')}</button></form>
-          <button class="btn btn-primary" on:click|preventDefault={doAdd}>{translate('frontend/src/routes/teachers/assignments/+page.svelte::add_button')}</button>
+          <form method="dialog">
+            <button class="btn"
+              >{translate(
+                "frontend/src/routes/teachers/assignments/+page.svelte::cancel_button",
+              )}</button
+            >
+          </form>
+          <button class="btn btn-primary" on:click|preventDefault={doAdd}
+            >{translate(
+              "frontend/src/routes/teachers/assignments/+page.svelte::add_button",
+            )}</button
+          >
         </div>
       {/if}
     </div>
-    <form method="dialog" class="modal-backdrop"><button>{translate('frontend/src/routes/teachers/assignments/+page.svelte::close_button')}</button></form>
+    <form method="dialog" class="modal-backdrop">
+      <button
+        >{translate(
+          "frontend/src/routes/teachers/assignments/+page.svelte::close_button",
+        )}</button
+      >
+    </form>
   </dialog>
 
   <!-- Copy to class modal -->
   <dialog bind:this={copyDialog} class="modal">
     <div class="modal-box">
-      <h3 class="font-bold mb-3">{translate('frontend/src/routes/teachers/assignments/+page.svelte::copy_to_my_class_modal_title')}</h3>
-      <label class="label"><span class="label-text">{translate('frontend/src/routes/teachers/assignments/+page.svelte::choose_class_label_short')}</span></label>
+      <h3 class="font-bold mb-3">
+        {translate(
+          "frontend/src/routes/teachers/assignments/+page.svelte::copy_to_my_class_modal_title",
+        )}
+      </h3>
+      <label class="label"
+        ><span class="label-text"
+          >{translate(
+            "frontend/src/routes/teachers/assignments/+page.svelte::choose_class_label_short",
+          )}</span
+        ></label
+      >
       <select class="select select-bordered w-full" bind:value={copyClassId}>
-        <option value="" disabled selected>{translate('frontend/src/routes/teachers/assignments/+page.svelte::select_ellipsis_placeholder')}</option>
+        <option value="" disabled selected
+          >{translate(
+            "frontend/src/routes/teachers/assignments/+page.svelte::select_ellipsis_placeholder",
+          )}</option
+        >
         {#each myClasses as c}
           <option value={c.id}>{c.name}</option>
         {/each}
       </select>
       {#if copyErr}<p class="text-error mt-2">{copyErr}</p>{/if}
       <div class="modal-action">
-        <form method="dialog"><button class="btn">{translate('frontend/src/routes/teachers/assignments/+page.svelte::cancel_button')}</button></form>
-        <button class="btn btn-primary" on:click|preventDefault={doCopy}>{translate('frontend/src/routes/teachers/assignments/+page.svelte::copy_button')}</button>
+        <form method="dialog">
+          <button class="btn"
+            >{translate(
+              "frontend/src/routes/teachers/assignments/+page.svelte::cancel_button",
+            )}</button
+          >
+        </form>
+        <button class="btn btn-primary" on:click|preventDefault={doCopy}
+          >{translate(
+            "frontend/src/routes/teachers/assignments/+page.svelte::copy_button",
+          )}</button
+        >
       </div>
     </div>
-    <form method="dialog" class="modal-backdrop"><button>{translate('frontend/src/routes/teachers/assignments/+page.svelte::close_button')}</button></form>
+    <form method="dialog" class="modal-backdrop">
+      <button
+        >{translate(
+          "frontend/src/routes/teachers/assignments/+page.svelte::close_button",
+        )}</button
+      >
+    </form>
   </dialog>
 
   <!-- Preview modal -->
   <dialog bind:this={previewDialog} class="modal">
     <div class="modal-box max-w-4xl">
       {#if previewLoading}
-        <div class="py-6 text-center"><span class="loading loading-dots"></span></div>
+        <div class="py-6 text-center">
+          <span class="loading loading-dots"></span>
+        </div>
       {:else if previewErr}
         <p class="text-error">{previewErr}</p>
       {:else if preview?.assignment}
@@ -433,107 +760,217 @@ onMount(() => {
           <div>
             <h3 class="font-bold text-lg">{preview.assignment.title}</h3>
             <div class="flex flex-wrap items-center gap-2 mt-1 text-xs">
-              <span class="badge badge-ghost" title={translate('frontend/src/routes/teachers/assignments/+page.svelte::class_badge_title')}>
+              <span
+                class="badge badge-ghost"
+                title={translate(
+                  "frontend/src/routes/teachers/assignments/+page.svelte::class_badge_title",
+                )}
+              >
                 <i class="fa-solid fa-users mr-1"></i>
-                {previewClass?.name ?? translate('frontend/src/routes/teachers/assignments/+page.svelte::class_text')}
+                {previewClass?.name ??
+                  translate(
+                    "frontend/src/routes/teachers/assignments/+page.svelte::class_text",
+                  )}
               </span>
-              <a class="badge badge-outline" href={`/classes/${preview.assignment.class_id}`} title={translate('frontend/src/routes/teachers/assignments/+page.svelte::open_class_link_title')}>
-                <i class="fa-solid fa-arrow-up-right-from-square mr-1"></i>{translate('frontend/src/routes/teachers/assignments/+page.svelte::open_class_link')}
+              <a
+                class="badge badge-outline"
+                href={`/classes/${preview.assignment.class_id}`}
+                title={translate(
+                  "frontend/src/routes/teachers/assignments/+page.svelte::open_class_link_title",
+                )}
+              >
+                <i class="fa-solid fa-arrow-up-right-from-square mr-1"
+                ></i>{translate(
+                  "frontend/src/routes/teachers/assignments/+page.svelte::open_class_link",
+                )}
               </a>
-              <span class={`badge ${preview.assignment.published ? 'badge-success' : 'badge-ghost'}`} title={translate('frontend/src/routes/teachers/assignments/+page.svelte::published_badge_title')}>
-                {preview.assignment.published ? translate('frontend/src/routes/teachers/assignments/+page.svelte::published_text') : translate('frontend/src/routes/teachers/assignments/+page.svelte::unpublished_text')}
+              <span
+                class={`badge ${preview.assignment.published ? "badge-success" : "badge-ghost"}`}
+                title={translate(
+                  "frontend/src/routes/teachers/assignments/+page.svelte::published_badge_title",
+                )}
+              >
+                {preview.assignment.published
+                  ? translate(
+                      "frontend/src/routes/teachers/assignments/+page.svelte::published_text",
+                    )
+                  : translate(
+                      "frontend/src/routes/teachers/assignments/+page.svelte::unpublished_text",
+                    )}
               </span>
               <!-- No deadlines in preview for teachers -->
             </div>
           </div>
           <div class="shrink-0 flex items-center gap-2">
             <button class="btn btn-outline btn-sm" on:click={openFullPreview}>
-              <i class="fa-solid fa-up-right-from-square mr-2"></i>{translate('frontend/src/routes/teachers/assignments/+page.svelte::open_full_view_button')}
+              <i class="fa-solid fa-up-right-from-square mr-2"></i>{translate(
+                "frontend/src/routes/teachers/assignments/+page.svelte::open_full_view_button",
+              )}
             </button>
-            <button class="btn btn-primary btn-sm" on:click={() => { if (previewItem) openCopy(previewItem); }}>
-              <i class="fa-solid fa-copy mr-2"></i>{translate('frontend/src/routes/teachers/assignments/+page.svelte::copy_to_class_button')}
+            <button
+              class="btn btn-primary btn-sm"
+              on:click={() => {
+                if (previewItem) openCopy(previewItem);
+              }}
+            >
+              <i class="fa-solid fa-copy mr-2"></i>{translate(
+                "frontend/src/routes/teachers/assignments/+page.svelte::copy_to_class_button",
+              )}
             </button>
-            <button class="btn btn-sm" on:click={copyAssignmentLink} title={translate('frontend/src/routes/teachers/assignments/+page.svelte::copy_link_button_title')}>
-              <i class="fa-solid fa-link mr-2"></i>{translate('frontend/src/routes/teachers/assignments/+page.svelte::copy_link_button')}
+            <button
+              class="btn btn-sm"
+              on:click={copyAssignmentLink}
+              title={translate(
+                "frontend/src/routes/teachers/assignments/+page.svelte::copy_link_button_title",
+              )}
+            >
+              <i class="fa-solid fa-link mr-2"></i>{translate(
+                "frontend/src/routes/teachers/assignments/+page.svelte::copy_link_button",
+              )}
             </button>
           </div>
         </div>
 
         {#if safeDesc}
-          <div class="mt-3 text-sm prose max-w-none assignment-description">{@html safeDesc}</div>
+          <div class="mt-3 text-sm prose max-w-none assignment-description">
+            {@html safeDesc}
+          </div>
         {/if}
 
         <div class="grid md:grid-cols-2 gap-4 mt-4">
           <div class="card bg-base-200 p-3">
-            <div class="font-semibold mb-2">{translate('frontend/src/routes/teachers/assignments/+page.svelte::settings_card_title')}</div>
+            <div class="font-semibold mb-2">
+              {translate(
+                "frontend/src/routes/teachers/assignments/+page.svelte::settings_card_title",
+              )}
+            </div>
             <ul class="text-sm space-y-1">
-              <li><b>{translate('frontend/src/routes/teachers/assignments/+page.svelte::max_points_label')}</b> {preview.assignment.max_points}</li>
-              <li><b>{translate('frontend/src/routes/teachers/assignments/+page.svelte::grading_label')}</b> {preview.assignment.grading_policy}</li>
-              <li><b>{translate('frontend/src/routes/teachers/assignments/+page.svelte::manual_review_label')}</b> {preview.assignment.manual_review ? translate('frontend/src/routes/teachers/assignments/+page.svelte::yes_label') : translate('frontend/src/routes/teachers/assignments/+page.svelte::no_label')}</li>
-              <li><b>{translate('frontend/src/routes/teachers/assignments/+page.svelte::show_traceback_label')}</b> {preview.assignment.show_traceback ? translate('frontend/src/routes/teachers/assignments/+page.svelte::yes_label') : translate('frontend/src/routes/teachers/assignments/+page.svelte::no_label')}</li>
-              <li><b>{translate('frontend/src/routes/teachers/assignments/+page.svelte::reveal_test_defs_label')}</b> {preview.assignment.show_test_details ? translate('frontend/src/routes/teachers/assignments/+page.svelte::yes_label') : translate('frontend/src/routes/teachers/assignments/+page.svelte::no_label')}</li>
-              <li><b>{translate('frontend/src/routes/teachers/assignments/+page.svelte::llm_interactive_label')}</b> {preview.assignment.llm_interactive ? translate('frontend/src/routes/teachers/assignments/+page.svelte::yes_label') : translate('frontend/src/routes/teachers/assignments/+page.svelte::no_label')}</li>
-              <li><b>{translate('frontend/src/routes/teachers/assignments/+page.svelte::llm_feedback_label')}</b> {preview.assignment.llm_feedback ? translate('frontend/src/routes/teachers/assignments/+page.svelte::yes_label') : translate('frontend/src/routes/teachers/assignments/+page.svelte::no_label')}</li>
-              <li><b>{translate('frontend/src/routes/teachers/assignments/+page.svelte::llm_auto_award_label')}</b> {preview.assignment.llm_auto_award ? translate('frontend/src/routes/teachers/assignments/+page.svelte::yes_label') : translate('frontend/src/routes/teachers/assignments/+page.svelte::no_label')}</li>
-              <li><b>{translate('frontend/src/routes/teachers/assignments/+page.svelte::llm_strictness_label')}</b> {typeof preview.assignment.llm_strictness === 'number' ? preview.assignment.llm_strictness : 50}</li>
-              <li><b>{translate('frontend/src/routes/teachers/assignments/+page.svelte::template_label')}</b> {preview.assignment.template_path ? translate('frontend/src/routes/teachers/assignments/+page.svelte::present_label') : translate('frontend/src/routes/teachers/assignments/+page.svelte::none_label')}</li>
-              <li><b>{translate('frontend/src/routes/teachers/assignments/+page.svelte::created_label')}</b> {formatDateTime(preview.assignment.created_at)}</li>
-              <li><b>{translate('frontend/src/routes/teachers/assignments/+page.svelte::updated_label')}</b> {formatDateTime(preview.assignment.updated_at)}</li>
+              <li>
+                <b
+                  >{translate(
+                    "frontend/src/routes/teachers/assignments/+page.svelte::max_points_label",
+                  )}</b
+                >
+                {preview.assignment.max_points}
+              </li>
+              <li>
+                <b
+                  >{translate(
+                    "frontend/src/routes/teachers/assignments/+page.svelte::grading_label",
+                  )}</b
+                >
+                {preview.assignment.grading_policy}
+              </li>
+              <li class="opacity-70 text-xs mt-2">
+                {[
+                  preview.assignment.manual_review
+                    ? translate(
+                        "frontend/src/routes/teachers/assignments/+page.svelte::manual_review_label",
+                      )
+                    : "",
+                  preview.assignment.show_traceback
+                    ? translate(
+                        "frontend/src/routes/teachers/assignments/+page.svelte::show_traceback_label",
+                      )
+                    : "",
+                  preview.assignment.llm_interactive
+                    ? translate(
+                        "frontend/src/routes/teachers/assignments/+page.svelte::llm_interactive_label",
+                      )
+                    : "",
+                ]
+                  .filter(Boolean)
+                  .join(" • ") || "Standard settings"}
+              </li>
+              <li class="border-t border-base-300 mt-2 pt-1 text-xs opacity-60">
+                {translate(
+                  "frontend/src/routes/teachers/assignments/+page.svelte::created_label",
+                )}
+                {formatDateTime(preview.assignment.created_at)}
+              </li>
             </ul>
           </div>
-          <div class="card bg-base-200 p-3">
-            <div class="flex items-center justify-between mb-2">
-              <div class="font-semibold">{translate('frontend/src/routes/teachers/assignments/+page.svelte::tests_card_title')}</div>
-              <a class="btn btn-xs" href={`/assignments/${preview.assignment.id}/tests`} target="_blank" rel="noopener">
-                <i class="fa-solid fa-list-check mr-2"></i>{translate('frontend/src/routes/teachers/assignments/+page.svelte::open_tests_button')}
-              </a>
+          <div
+            class="card bg-base-200 p-3 flex flex-col justify-center items-center text-center"
+          >
+            <div class="text-2xl font-bold mb-1">
+              {(preview.tests ?? []).length}
             </div>
-            <ul class="text-sm space-y-2 max-h-64 overflow-auto pr-1">
-              {#each (preview.tests ?? []) as t}
-                <li class="border-b border-base-300/50 pb-2">
-                  {#if t.unittest_name}
-                    <div><b>{translate('frontend/src/routes/teachers/assignments/+page.svelte::unit_label')}</b> {t.unittest_name}</div>
-                  {:else}
-                    <div><b>{translate('frontend/src/routes/teachers/assignments/+page.svelte::stdin_label')}</b> <code class="text-xs whitespace-pre-wrap">{t.stdin}</code></div>
-                    <div><b>{translate('frontend/src/routes/teachers/assignments/+page.svelte::expected_label')}</b> <code class="text-xs whitespace-pre-wrap">{t.expected_stdout}</code></div>
-                  {/if}
-                  <div class="opacity-70 text-xs">{translate('frontend/src/routes/teachers/assignments/+page.svelte::weight_time_limit_label', {weight: t.weight, time_limit_sec: t.time_limit_sec})}</div>
-                </li>
-              {/each}
-              {#if !(preview.tests ?? []).length}
-                <li class="opacity-70">{translate('frontend/src/routes/teachers/assignments/+page.svelte::no_tests_label')}</li>
-              {/if}
-            </ul>
-            <div class="mt-2 text-xs opacity-70">
-              {translate('frontend/src/routes/teachers/assignments/+page.svelte::total_tests_label', {count: (preview.tests ?? []).length})}
+            <div class="text-sm opacity-70 mb-3">
+              {translate(
+                "frontend/src/routes/teachers/assignments/+page.svelte::tests_button_label",
+              )}
             </div>
+            <a
+              class="btn btn-sm btn-outline w-full"
+              href={`/teachers/assignments/preview/${preview.assignment.id}?tab=tests`}
+            >
+              <i class="fa-solid fa-list-check mr-2"></i>{translate(
+                "frontend/src/routes/teachers/assignments/+page.svelte::open_tests_button",
+              )}
+            </a>
           </div>
         </div>
         {#if (preview.submissions ?? []).length || (preview.teacher_runs ?? []).length}
           <div class="grid md:grid-cols-2 gap-4 mt-4">
             <div class="card bg-base-200 p-3">
-              <div class="font-semibold mb-2">{translate('frontend/src/routes/teachers/assignments/+page.svelte::activity_card_title')}</div>
+              <div class="font-semibold mb-2">
+                {translate(
+                  "frontend/src/routes/teachers/assignments/+page.svelte::activity_card_title",
+                )}
+              </div>
               <ul class="text-sm space-y-1">
-                <li><b>{translate('frontend/src/routes/teachers/assignments/+page.svelte::student_submissions_label')}</b> {(preview.submissions ?? []).length}</li>
-                <li><b>{translate('frontend/src/routes/teachers/assignments/+page.svelte::teacher_runs_label')}</b> {(preview.teacher_runs ?? []).length}</li>
+                <li>
+                  <b
+                    >{translate(
+                      "frontend/src/routes/teachers/assignments/+page.svelte::student_submissions_label",
+                    )}</b
+                  >
+                  {(preview.submissions ?? []).length}
+                </li>
+                <li>
+                  <b
+                    >{translate(
+                      "frontend/src/routes/teachers/assignments/+page.svelte::teacher_runs_label",
+                    )}</b
+                  >
+                  {(preview.teacher_runs ?? []).length}
+                </li>
               </ul>
             </div>
           </div>
         {/if}
       {/if}
       <div class="modal-action">
-        <button class="btn btn-outline" on:click|preventDefault={openFullPreview}>
-          <i class="fa-solid fa-up-right-from-square mr-2"></i>{translate('frontend/src/routes/teachers/assignments/+page.svelte::open_full_view_button')}
+        <button
+          class="btn btn-outline"
+          on:click|preventDefault={openFullPreview}
+        >
+          <i class="fa-solid fa-up-right-from-square mr-2"></i>{translate(
+            "frontend/src/routes/teachers/assignments/+page.svelte::open_full_view_button",
+          )}
         </button>
-        <form method="dialog"><button class="btn">{translate('frontend/src/routes/teachers/assignments/+page.svelte::close_button')}</button></form>
+        <form method="dialog">
+          <button class="btn"
+            >{translate(
+              "frontend/src/routes/teachers/assignments/+page.svelte::close_button",
+            )}</button
+          >
+        </form>
       </div>
     </div>
-    <form method="dialog" class="modal-backdrop"><button>{translate('frontend/src/routes/teachers/assignments/+page.svelte::close_button')}</button></form>
+    <form method="dialog" class="modal-backdrop">
+      <button
+        >{translate(
+          "frontend/src/routes/teachers/assignments/+page.svelte::close_button",
+        )}</button
+      >
+    </form>
   </dialog>
   <ConfirmModal bind:this={confirmModal} />
   <PromptModal bind:this={promptModal} />
 </div>
 
 <style>
-  @import '@fortawesome/fontawesome-free/css/all.min.css';
+  @import "@fortawesome/fontawesome-free/css/all.min.css";
 </style>

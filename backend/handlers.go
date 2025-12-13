@@ -466,6 +466,18 @@ func updateAssignmentTestingConstraints(c *gin.Context) {
 		}
 	}
 
+	// Validation: Do not allow modifying assignments in the Teacher Group unless admin
+	// Retrieve assignment first to check class_id
+	existing, err := GetAssignment(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if existing.ClassID == TeacherGroupID && c.GetString("role") != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "cannot edit teacher group assignments directly"})
+		return
+	}
+
 	var payload BannedToolsConfig
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -3787,27 +3799,53 @@ func uploadClassFile(c *gin.Context) {
 		return
 	}
 	// Special support: create an assignment reference entry in Teachers' group
+	// If adding an assignment to the Teacher Group, CLONE it instead of referencing it.
+	// This ensures independence (changes to the original assignment won't affect the group version).
+	// Handle adding an existing assignment (via ID)
 	if req.AssignmentID != nil {
-		if cid != TeacherGroupID {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "assignment refs allowed only in teachers group"})
+		// 1. If adding to the Teacher Group, CLONE the assignment to ensure independence.
+		if cid == TeacherGroupID {
+			sourceID := *req.AssignmentID
+			newID, err := CloneAssignmentWithTests(sourceID, TeacherGroupID, getUserID(c))
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "clone failed"})
+				return
+			}
+
+			// Post-process: reset deadlines and publish status
+			newA, err := GetAssignment(newID)
+			if err == nil {
+				newA.Deadline = time.Now().Add(24 * time.Hour)
+				newA.SecondDeadline = nil
+				newA.Published = false
+				_ = UpdateAssignment(newA)
+			}
+
+			var name string
+			if strings.TrimSpace(req.Name) != "" {
+				name = req.Name
+			} else {
+				if newA != nil {
+					name = newA.Title
+				} else {
+					a, _ := GetAssignment(sourceID)
+					name = a.Title
+				}
+			}
+
+			// Save as a reference to the NEW, INDEPENDENT assignment
+			cf, err := SaveAssignmentRef(cid, req.ParentID, name, newID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+				return
+			}
+			c.JSON(http.StatusCreated, cf)
 			return
 		}
-		// Load source assignment (no ownership requirement; visibility is governed by presence in Teachers group tree)
-		a, err := GetAssignment(*req.AssignmentID)
-		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "source assignment not found"})
-			return
-		}
-		name := strings.TrimSpace(req.Name)
-		if name == "" {
-			name = a.Title
-		}
-		cf, err := SaveAssignmentRef(cid, req.ParentID, name, *req.AssignmentID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-			return
-		}
-		c.JSON(http.StatusCreated, cf)
+
+		// 2. If adding to any other class, this operation is NOT allowed (refs are only for Teacher Group)
+		// Regular classes should use the import/copy endpoint instead.
+		c.JSON(http.StatusBadRequest, gin.H{"error": "assignment refs allowed only in teachers group"})
 		return
 	}
 
