@@ -16,7 +16,7 @@
   $: translate = $translator;
 
   // Tabs
-  type Tab = 'overview' | 'teachers' | 'users' | 'classes' | 'assignments'
+  type Tab = 'overview' | 'teachers' | 'users' | 'classes' | 'assignments' | 'settings'
   let tab: Tab = 'overview';
 
   // Data models
@@ -144,6 +144,31 @@
     loadingAssignments = false;
   }
 
+  // System Settings
+  let forceBakalariEmail = true;
+  async function loadSystemSettings() {
+    try {
+      const s = await apiJSON<{force_bakalari_email: boolean}>('/api/admin/system-settings');
+      forceBakalariEmail = s.force_bakalari_email;
+    } catch {}
+  }
+  async function toggleSystemSetting(e: Event) {
+    const checked = (e.target as HTMLInputElement).checked;
+    try {
+      await apiFetch('/api/admin/system-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force_bakalari_email: checked })
+      });
+      forceBakalariEmail = checked;
+      ok = t('frontend/src/lib/AdminPanel.svelte::settings_updated_success');
+    } catch (e: any) { 
+      err = e.message; 
+      // revert on error
+      forceBakalariEmail = !checked; 
+    }
+  }
+
   async function loadOnlineUsers() {
     try {
       const response = await apiJSON<RawOnlineUser[]>('/api/online-users');
@@ -169,6 +194,7 @@
     loadClasses();
     loadAssignments();
     loadOnlineUsers();
+    loadSystemSettings();
     const presenceTimer = setInterval(loadOnlineUsers, 30000);
     return () => clearInterval(presenceTimer);
   });
@@ -408,6 +434,7 @@
   <a role="tab" class="tab {tab==='users' ? 'tab-active' : ''}" on:click={() => tab='users'}>{t('frontend/src/lib/AdminPanel.svelte::users_tab')}</a>
   <a role="tab" class="tab {tab==='classes' ? 'tab-active' : ''}" on:click={() => tab='classes'}>{t('frontend/src/lib/AdminPanel.svelte::classes_tab')}</a>
   <a role="tab" class="tab {tab==='assignments' ? 'tab-active' : ''}" on:click={() => tab='assignments'}>{t('frontend/src/lib/AdminPanel.svelte::assignments_tab')}</a>
+  <a role="tab" class="tab {tab==='settings' ? 'tab-active' : ''}" on:click={() => tab='settings'}>{t('frontend/src/lib/AdminPanel.svelte::settings_tab')}</a>
 </div>
 
 {#if ok}
@@ -747,6 +774,25 @@
           </tbody>
         </table>
       </div>
+    </div>
+  </div>
+{/if}
+
+{#if tab === 'settings'}
+  <div class="card bg-base-100 shadow">
+    <div class="card-body">
+      <h2 class="card-title mb-4">{t('frontend/src/lib/AdminPanel.svelte::system_settings_title')}</h2>
+      
+      <div class="form-control">
+        <label class="label cursor-pointer justify-start gap-4">
+          <input type="checkbox" class="toggle toggle-primary" checked={forceBakalariEmail} on:change={toggleSystemSetting} />
+          <div class="flex flex-col">
+            <span class="label-text font-medium text-base">{t('frontend/src/lib/AdminPanel.svelte::force_bakalari_email_label')}</span>
+            <span class="label-text text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::force_bakalari_email_description')}</span>
+          </div>
+        </label>
+      </div>
+
     </div>
   </div>
 {/if}

@@ -377,6 +377,7 @@
           me.email_notifications ?? true,
           me.email_message_digest ?? true,
           me.preferred_locale ?? null,
+          me.force_bakalari_email ?? true,
         );
         preferredLocaleSelection = me.preferred_locale ?? "";
         await applyLocalePreference(me.preferred_locale ?? null);
@@ -430,6 +431,7 @@
           me.email_notifications ?? true,
           me.email_message_digest ?? true,
           me.preferred_locale ?? null,
+          me.force_bakalari_email ?? true,
         );
         preferredLocaleSelection = me.preferred_locale ?? "";
         await applyLocalePreference(me.preferred_locale ?? null);
@@ -507,6 +509,7 @@
           me.email_notifications ?? true,
           me.email_message_digest ?? true,
           me.preferred_locale ?? null,
+          me.force_bakalari_email ?? true,
         );
         preferredLocaleSelection = me.preferred_locale ?? "";
         await applyLocalePreference(me.preferred_locale ?? null);
@@ -538,7 +541,8 @@
     // Show only for Bakalari users with no valid (or verified) local email
     const needsLink =
       user.bk_uid != null &&
-      (!isValidEmail(user.email) || user.email_verified === false);
+      (!isValidEmail(user.email) || user.email_verified === false) &&
+      user.force_bakalari_email !== false; // Default to true if undefined
 
     if (!needsLink) {
       if (forcedLinkMode) {

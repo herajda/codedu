@@ -16,6 +16,7 @@ export type User = {
   preferred_locale?: string | null;
   email_notifications?: boolean | null;
   email_message_digest?: boolean | null;
+  force_bakalari_email?: boolean;
 } | null;
 
 function createAuth() {
@@ -35,6 +36,7 @@ function createAuth() {
     emailNotifications?: boolean | null,
     emailMessageDigest?: boolean | null,
     preferredLocale?: string | null,
+    forceBakalariEmail?: boolean,
   ) {
     set({
       id,
@@ -48,6 +50,7 @@ function createAuth() {
       preferred_locale: preferredLocale ?? null,
       email_notifications: emailNotifications ?? true,
       email_message_digest: emailMessageDigest ?? true,
+      force_bakalari_email: forceBakalariEmail ?? true,
     });
     // Mark user as online
     onlineUsers.markOnline();
@@ -65,7 +68,7 @@ function createAuth() {
       }
       try {
         localStorage.removeItem("cg-msg-key");
-      } catch {}
+      } catch { }
     }
     set(null);
   }
@@ -90,6 +93,7 @@ function createAuth() {
           me.email_notifications ?? true,
           me.email_message_digest ?? true,
           me.preferred_locale ?? null,
+          me.force_bakalari_email ?? true,
         );
       } else if (r.status === 401) {
         set(null);
