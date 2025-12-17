@@ -246,7 +246,6 @@ func main() {
 		api.GET("/users", RoleGuard("admin"), listUsers)
 		api.PUT("/users/:id/role", RoleGuard("admin"), updateUserRole)
 		api.PUT("/users/:id/password", RoleGuard("admin"), adminSetUserPassword)
-		api.PUT("/users/:id/password", RoleGuard("admin"), adminSetUserPassword)
 		api.POST("/admin/email-ping", RoleGuard("admin"), adminEmailPing)
 
 		// System settings
