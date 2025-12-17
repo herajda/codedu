@@ -72,6 +72,7 @@
   let editingNotifications = false;
   let showBakalariForm = false;
   let showLocalAccountForm = false;
+  let forcedLinkMode = false;
   let preferredLocaleSelection: "" | Locale = "";
 
   $: trimmedLinkEmail = linkEmail.trim();
@@ -376,6 +377,7 @@
           me.email_notifications ?? true,
           me.email_message_digest ?? true,
           me.preferred_locale ?? null,
+          me.force_bakalari_email ?? true,
         );
         preferredLocaleSelection = me.preferred_locale ?? "";
         await applyLocalePreference(me.preferred_locale ?? null);
@@ -429,9 +431,14 @@
           me.email_notifications ?? true,
           me.email_message_digest ?? true,
           me.preferred_locale ?? null,
+          me.force_bakalari_email ?? true,
         );
         preferredLocaleSelection = me.preferred_locale ?? "";
         await applyLocalePreference(me.preferred_locale ?? null);
+      }
+      if (forcedLinkMode) {
+        forcedLinkMode = false;
+        bkLinkDialog.close();
       }
       settingsDialog.close();
       const email =
@@ -502,6 +509,7 @@
           me.email_notifications ?? true,
           me.email_message_digest ?? true,
           me.preferred_locale ?? null,
+          me.force_bakalari_email ?? true,
         );
         preferredLocaleSelection = me.preferred_locale ?? "";
         await applyLocalePreference(me.preferred_locale ?? null);
@@ -526,20 +534,37 @@
     }
   });
 
-  async function maybeShowBakalariLinkPrompt() {
+  async function enforceBakalariEmailSetup() {
     if (!browser || !user) return;
-    // Show only for Bakalari users with no valid local email
-    const needsLink = user.bk_uid != null && !isValidEmail(user.email);
-    if (!needsLink) return;
-    const key = `bk-link-shown:${user.id}`;
-    if (localStorage.getItem(key) === "yes") return;
-    // Ensure the dialog element is mounted before opening
+    if (isAuthPage) return; // Don't block on verify pages etc.
+
+    // Show only for Bakalari users with no valid (or verified) local email
+    const needsLink =
+      user.bk_uid != null &&
+      (!isValidEmail(user.email) || user.email_verified === false) &&
+      user.force_bakalari_email !== false; // Default to true if undefined
+
+    if (!needsLink) {
+      if (forcedLinkMode) {
+        forcedLinkMode = false;
+        if (bkLinkDialog && bkLinkDialog.open) bkLinkDialog.close();
+      }
+      return;
+    }
+
+    forcedLinkMode = true;
+    // Don't pre-fill email (might be Bakalari ID). Force fresh entry.
+    linkEmail = "";
+    linkPassword = "";
+    linkPassword2 = "";
+    linkError = "";
+
     await tick();
     if (!bkLinkDialog) return;
     try {
-      bkLinkDialog.showModal();
-      // Mark as shown only after successfully opening the dialog
-      localStorage.setItem(key, "yes");
+      if (!bkLinkDialog.open) {
+        bkLinkDialog.showModal();
+      }
     } catch {}
   }
 
@@ -557,14 +582,18 @@
       onlineUsers.updateLastSeen();
       onlineUsers.loadOnlineUsers();
     }, 10000); // Update every 10 seconds
-    // Check if we should prompt Bakalari users to link a local account
-    maybeShowBakalariLinkPrompt();
   } else {
     // Clear interval when user logs out
     if (presenceInterval) {
       clearInterval(presenceInterval);
       presenceInterval = null;
     }
+  }
+
+  // Check if we should force Bakalari users to link a local account
+  // React to both user and page changes (e.g. after redirect from /login)
+  $: if (user && !isAuthPage) {
+    enforceBakalariEmailSetup();
   }
 
   onDestroy(() => {
@@ -1875,54 +1904,141 @@
               >
             </form>
           </dialog>
-          <!-- First-time Bakaláři link prompt -->
-          <dialog bind:this={bkLinkDialog} class="modal">
-            <div class="modal-box space-y-4">
+          <!-- Mandatory Bakaláři link prompt -->
+          <dialog
+            bind:this={bkLinkDialog}
+            class="modal"
+            on:cancel|preventDefault
+          >
+            <div class="modal-box space-y-4 max-w-md">
               <div class="flex items-center gap-3">
                 <img src="/bakalari-logo.svg" alt="Bakaláři" class="w-8 h-8" />
                 <h3 class="font-bold text-lg">
                   {translate(
-                    "frontend/src/routes/+layout.svelte::create_local_account_prompt_title",
+                    "frontend/src/routes/+layout.svelte::mandatory_email_link_title",
                   )}
                 </h3>
               </div>
               <p class="text-base-content/80">
                 {translate(
-                  "frontend/src/routes/+layout.svelte::bakalari_link_prompt_description",
+                  "frontend/src/routes/+layout.svelte::mandatory_email_link_description",
                 )}
               </p>
-              <div class="modal-action">
-                <form method="dialog">
-                  <button
-                    class="btn btn-ghost"
-                    aria-label={translate(
-                      "frontend/src/routes/+layout.svelte::dismiss_prompt_aria",
-                    )}
-                    >{translate(
-                      "frontend/src/routes/+layout.svelte::later_button",
-                    )}</button
-                  >
-                </form>
-                <button
-                  class="btn btn-primary"
-                  on:click={() => {
-                    bkLinkDialog.close();
-                    openSettings();
-                  }}
-                >
-                  {translate(
-                    "frontend/src/routes/+layout.svelte::link_account_now_button",
+
+              <div class="space-y-3 pt-2">
+                <input
+                  type="email"
+                  class="input input-bordered w-full"
+                  bind:value={linkEmail}
+                  placeholder={translate(
+                    "frontend/src/routes/+layout.svelte::email_placeholder",
                   )}
-                </button>
+                  autocomplete="email"
+                />
+                <div class="space-y-2">
+                  <input
+                    type="password"
+                    class="input input-bordered w-full"
+                    bind:value={linkPassword}
+                    placeholder={translate(
+                      "frontend/src/routes/+layout.svelte::password_placeholder",
+                    )}
+                    autocomplete="new-password"
+                  />
+                  <!-- Password requirements -->
+                  <div class="bg-base-200 rounded-lg p-3 text-sm space-y-2">
+                    <p class="font-semibold text-base-content">
+                      {translate(
+                        "frontend/src/routes/+layout.svelte::password_requirements_title",
+                      )}
+                    </p>
+                    <ul class="space-y-1">
+                      <li
+                        class={`flex items-center gap-2 ${linkHasMinLength ? "text-success" : "text-base-content/70"}`}
+                      >
+                        <span
+                          class={`inline-flex w-2 h-2 rounded-full ${linkHasMinLength ? "bg-success" : "bg-base-300"}`}
+                        ></span>
+                        <span
+                          >{translate(
+                            "frontend/src/routes/+layout.svelte::password_min_length_requirement",
+                          )}</span
+                        >
+                      </li>
+                      <li
+                        class={`flex items-center gap-2 ${linkHasLetter ? "text-success" : "text-base-content/70"}`}
+                      >
+                        <span
+                          class={`inline-flex w-2 h-2 rounded-full ${linkHasLetter ? "bg-success" : "bg-base-300"}`}
+                        ></span>
+                        <span
+                          >{translate(
+                            "frontend/src/routes/+layout.svelte::password_includes_letter_requirement",
+                          )}</span
+                        >
+                      </li>
+                      <li
+                        class={`flex items-center gap-2 ${linkHasNumber ? "text-success" : "text-base-content/70"}`}
+                      >
+                        <span
+                          class={`inline-flex w-2 h-2 rounded-full ${linkHasNumber ? "bg-success" : "bg-base-300"}`}
+                        ></span>
+                        <span
+                          >{translate(
+                            "frontend/src/routes/+layout.svelte::password_includes_number_requirement",
+                          )}</span
+                        >
+                      </li>
+                      <li
+                        class={`flex items-center gap-2 ${linkPassword2.length === 0 ? "text-base-content/70" : linkPasswordsMatch ? "text-success" : "text-error"}`}
+                      >
+                        <span
+                          class={`inline-flex w-2 h-2 rounded-full ${linkPassword2.length === 0 ? "bg-base-300" : linkPasswordsMatch ? "bg-success" : "bg-error"}`}
+                        ></span>
+                        <span
+                          >{translate(
+                            "frontend/src/routes/+layout.svelte::passwords_match_requirement",
+                          )}</span
+                        >
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+                <input
+                  type="password"
+                  class="input input-bordered w-full"
+                  bind:value={linkPassword2}
+                  placeholder={translate(
+                    "frontend/src/routes/+layout.svelte::repeat_password_placeholder",
+                  )}
+                  autocomplete="new-password"
+                />
+
+                {#if linkError}
+                  <p class="text-error text-sm">{linkError}</p>
+                {/if}
+
+                <div class="modal-action">
+                  <button
+                    type="button"
+                    class="btn btn-primary w-full"
+                    on:click={linkLocal}
+                    disabled={!canLinkLocal}
+                  >
+                    {user &&
+                    user.email_verified === false &&
+                    isValidEmail(user.email)
+                      ? translate(
+                          "frontend/src/routes/+layout.svelte::update_email_resend_button",
+                        )
+                      : translate(
+                          "frontend/src/routes/+layout.svelte::link_account_button",
+                        )}
+                  </button>
+                </div>
               </div>
             </div>
-            <form method="dialog" class="modal-backdrop">
-              <button
-                >{translate(
-                  "frontend/src/routes/+layout.svelte::close_dialog_button",
-                )}</button
-              >
-            </form>
+            <!-- No modal-backdrop to prevent closing -->
           </dialog>
           <dialog bind:this={passwordDialog} class="modal">
             <div class="modal-box space-y-4">

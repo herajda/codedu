@@ -1,9 +1,4 @@
 {
-  "frontend/src/lib/AdminPanel.svelte::settings_tab": "Settings",
-  "frontend/src/lib/AdminPanel.svelte::system_settings_title": "System Configuration",
-  "frontend/src/lib/AdminPanel.svelte::force_bakalari_email_label": "Force Bakalari Email Linking",
-  "frontend/src/lib/AdminPanel.svelte::force_bakalari_email_description": "If enabled, Bakalari users without a linked email address will be forced to link one upon login.",
-  "frontend/src/lib/AdminPanel.svelte::settings_updated_success": "Settings updated successfully",
   "frontend/src/lib/AdminPanel.svelte::add_button": "Add",
   "frontend/src/lib/AdminPanel.svelte::add_teacher_button": "Add teacher",
   "frontend/src/lib/AdminPanel.svelte::add_teacher_card_title": "Add teacher",
@@ -324,8 +319,6 @@
   "frontend/src/routes/+layout.svelte::bakalari_link_prompt_description": "You are signed in via Bakaláři. To keep access if Bakaláři is unavailable and to enable password login, link your account to an email and password",
   "frontend/src/routes/+layout.svelte::bakalari_managed_name_tip": "Your name is managed by Bakaláři",
   "frontend/src/routes/+layout.svelte::bakalari_not_configured": "Bakaláři integration is not configured",
-  "frontend/src/routes/+layout.svelte::mandatory_email_link_title": "Complete your account setup",
-  "frontend/src/routes/+layout.svelte::mandatory_email_link_description": "To continue using CodEdu, you must link a valid email address and password to your Bakalari account. This ensures you can always recover your access.",
   "frontend/src/routes/+layout.svelte::bakalari_password_placeholder": "Bakaláři password",
   "frontend/src/routes/+layout.svelte::bakalari_username_placeholder": "Bakaláři username",
   "frontend/src/routes/+layout.svelte::cancel_button": "Cancel",

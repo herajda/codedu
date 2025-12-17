@@ -189,6 +189,7 @@ func main() {
 				"preferred_locale":     u.PreferredLocale,
 				"email_notifications":  u.EmailNotifications,
 				"email_message_digest": u.EmailMessageDigest,
+				"force_bakalari_email": GetSystemSetting("force_bakalari_email", "true") == "true",
 			})
 		})
 		// expose default avatars catalog to the frontend
@@ -246,6 +247,10 @@ func main() {
 		api.PUT("/users/:id/role", RoleGuard("admin"), updateUserRole)
 		api.PUT("/users/:id/password", RoleGuard("admin"), adminSetUserPassword)
 		api.POST("/admin/email-ping", RoleGuard("admin"), adminEmailPing)
+
+		// System settings
+		api.GET("/admin/system-settings", RoleGuard("admin"), getSystemSettings)
+		api.PUT("/admin/system-settings", RoleGuard("admin"), updateSystemSettings)
 
 		// TEACHER only
 		api.POST("/classes", RoleGuard("teacher"), createClass)

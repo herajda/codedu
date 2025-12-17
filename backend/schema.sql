@@ -322,3 +322,12 @@ CREATE TABLE IF NOT EXISTS email_verification_tokens (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_user ON email_verification_tokens(user_id);
+
+-- System-wide configuration settings
+CREATE TABLE IF NOT EXISTS system_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+-- Default settings
+INSERT INTO system_settings (key, value) VALUES ('force_bakalari_email', 'true') ON CONFLICT DO NOTHING;
