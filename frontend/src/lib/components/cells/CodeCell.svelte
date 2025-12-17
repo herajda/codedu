@@ -4,30 +4,30 @@
     moveCellUp,
     moveCellDown,
     insertCell,
-    deleteCell
+    deleteCell,
   } from "$lib/stores/notebookStore";
   import { initPyodide, terminatePyodide } from "$lib/pyodide";
-  import { onMount, tick } from 'svelte';
+  import { onMount, tick } from "svelte";
   import { writable } from "svelte/store";
   import { cellSourceToString } from "$lib/notebook";
   import { python } from "@codemirror/lang-python";
   import CodeMirror from "../ui/CodeMirror.svelte";
   import OutputBlock from "./OutputBlock.svelte";
   import ImageOutput from "./ImageOutput.svelte";
-  import { t } from '$lib/i18n';
+  import { t } from "$lib/i18n";
 
   export let cell: import("$lib/notebook").NotebookCell;
   export let index: number;
   let showInsert = false;
-  let insertPos: 'above' | 'below' | null = null;
+  let insertPos: "above" | "below" | null = null;
 
   // always keep a local string copy
   let sourceStr = cellSourceToString(cell.source);
 
   let awaitingInput = false;
-  let inputValue = '';
+  let inputValue = "";
   let inputTextarea: HTMLTextAreaElement | null = null;
-  let inputPrompt: string = '';
+  let inputPrompt: string = "";
   // Accumulate provided input lines across multiple submissions so that
   // re-executions (which start from the top) get all prior inputs.
   let accumulatedInputs: string[] = [];
@@ -47,22 +47,25 @@
     let resultText: string | null = null;
     const imgs: string[] = [];
     for (const o of cell.outputs) {
-      if (o.output_type === 'stream') {
-        if (o.name === 'stdout') stdout += o.text ?? '';
-        if (o.name === 'stderr') stderr += o.text ?? '';
-      } else if (o.output_type === 'execute_result') {
-        resultText = o.data?.['text/plain'] ?? resultText;
+      if (o.output_type === "stream") {
+        if (o.name === "stdout") stdout += o.text ?? "";
+        if (o.name === "stderr") stderr += o.text ?? "";
+      } else if (o.output_type === "execute_result") {
+        resultText = o.data?.["text/plain"] ?? resultText;
         if (result === null) {
           result = resultText;
         }
-      } else if (o.output_type === 'display_data') {
-        if (o.data?.['image/png']) imgs.push(o.data['image/png']);
+      } else if (o.output_type === "display_data") {
+        if (o.data?.["image/png"]) imgs.push(o.data["image/png"]);
       }
     }
     stdoutStore.set(stdout);
     stderrStore.set(stderr);
     resultStore.set(result);
-    resultTextStore.set(resultText ?? (result !== null && result !== undefined ? String(result) : null));
+    resultTextStore.set(
+      resultText ??
+        (result !== null && result !== undefined ? String(result) : null),
+    );
     imagesStore.set(imgs);
   });
 
@@ -80,18 +83,28 @@
     running.set(true);
     const py = await initPyodide();
     try {
-      const { result, resultText, stdout, stderr, images, inputRequired, prompt } = await py.runCell(sourceStr, stdin);
+      const {
+        result,
+        resultText,
+        stdout,
+        stderr,
+        images,
+        inputRequired,
+        prompt,
+      } = await py.runCell(sourceStr, stdin);
       if (inputRequired) {
         // Runtime requested input. Open the UI and return without mutating outputs.
         awaitingInput = true;
-        inputPrompt = prompt ?? '';
+        inputPrompt = prompt ?? "";
         running.set(false);
         return;
       }
       stdoutStore.set(stdout);
       stderrStore.set(stderr);
       resultStore.set(result);
-      const displayResult = resultText ?? (result !== null && result !== undefined ? String(result) : null);
+      const displayResult =
+        resultText ??
+        (result !== null && result !== undefined ? String(result) : null);
       resultTextStore.set(displayResult);
       imagesStore.set(images ?? []);
 
@@ -101,14 +114,14 @@
         outputs.push({
           output_type: "stream",
           name: "stdout",
-          text: stdout
+          text: stdout,
         });
       }
       if (stderr) {
         outputs.push({
           output_type: "stream",
           name: "stderr",
-          text: stderr
+          text: stderr,
         });
       }
       // Represent result (if any) as a display_data-ish object
@@ -117,7 +130,7 @@
           output_type: "execute_result",
           data: { "text/plain": displayResult },
           metadata: {},
-          execution_count: null
+          execution_count: null,
         });
       }
       if (images && images.length) {
@@ -125,7 +138,7 @@
           outputs.push({
             output_type: "display_data",
             data: { "image/png": img },
-            metadata: {}
+            metadata: {},
           });
         }
       }
@@ -138,8 +151,8 @@
         {
           output_type: "stream",
           name: "stderr",
-          text: String(err)
-        }
+          text: String(err),
+        },
       ];
     } finally {
       running.set(false);
@@ -176,19 +189,19 @@
 
   async function submitInput() {
     // Normalize new lines (CRLF -> LF), split, drop trailing empty line
-    const normalized = (inputValue ?? '').replace(/\r\n/g, '\n');
-    const pieces = normalized.split('\n');
-    if (pieces.length && pieces[pieces.length - 1] === '') pieces.pop();
+    const normalized = (inputValue ?? "").replace(/\r\n/g, "\n");
+    const pieces = normalized.split("\n");
+    if (pieces.length && pieces[pieces.length - 1] === "") pieces.pop();
     accumulatedInputs.push(...pieces);
 
-    const toSend = accumulatedInputs.join('\n');
+    const toSend = accumulatedInputs.join("\n");
     await executeCell(toSend);
-    inputValue = '';
+    inputValue = "";
     // If more input is still required, stay in awaiting state and keep accumulating.
     if (!awaitingInput) {
       // Completed successfully; clear accumulation and resolve Run All if waiting.
       accumulatedInputs = [];
-      inputPrompt = '';
+      inputPrompt = "";
       if (parentAwaitResolve) {
         const resolve = parentAwaitResolve;
         parentAwaitResolve = null;
@@ -199,8 +212,8 @@
 
   function cancelInput() {
     awaitingInput = false;
-    inputValue = '';
-    inputPrompt = '';
+    inputValue = "";
+    inputPrompt = "";
     accumulatedInputs = [];
     if (waitingForParent && parentAwaitResolve) {
       const resolve = parentAwaitResolve;
@@ -214,11 +227,13 @@
     terminatePyodide();
     running.set(false);
     accumulatedInputs = [];
-    inputPrompt = '';
+    inputPrompt = "";
   }
 </script>
 
-<div class="border rounded-lg p-3 space-y-2 bg-white shadow-inner group relative">
+<div
+  class="border rounded-lg p-3 space-y-2 bg-white shadow-inner group relative hover:z-20"
+>
   <CodeMirror
     class="w-full text-sm"
     bind:value={sourceStr}
@@ -228,8 +243,10 @@
   <div class="flex gap-2 items-center">
     <button
       size="sm"
-      aria-label={t('frontend/src/lib/components/cells/CodeCell.svelte::run_cell')}
-      title={t('frontend/src/lib/components/cells/CodeCell.svelte::run_cell')}
+      aria-label={t(
+        "frontend/src/lib/components/cells/CodeCell.svelte::run_cell",
+      )}
+      title={t("frontend/src/lib/components/cells/CodeCell.svelte::run_cell")}
       on:click={handleRunClick}
       disabled={$running}
       class="p-1 rounded text-green-600 hover:text-white hover:bg-green-600 hover:scale-110 transition-transform disabled:opacity-50"
@@ -246,8 +263,10 @@
     <button
       size="sm"
       variant="destructive"
-      aria-label={t('frontend/src/lib/components/cells/CodeCell.svelte::stop_cell')}
-      title={t('frontend/src/lib/components/cells/CodeCell.svelte::stop_cell')}
+      aria-label={t(
+        "frontend/src/lib/components/cells/CodeCell.svelte::stop_cell",
+      )}
+      title={t("frontend/src/lib/components/cells/CodeCell.svelte::stop_cell")}
       on:click={stop}
       class="p-1 rounded text-red-600 hover:text-white hover:bg-red-600 hover:scale-110 transition-transform"
     >
@@ -261,72 +280,202 @@
       </svg>
     </button>
     {#if $running}
-      <span class="animate-pulse text-xs ml-2">{t('frontend/src/lib/components/cells/CodeCell.svelte::running')}</span>
+      <span class="animate-pulse text-xs ml-2"
+        >{t("frontend/src/lib/components/cells/CodeCell.svelte::running")}</span
+      >
     {/if}
-    <div class="flex gap-2 ml-auto opacity-0 group-hover:opacity-100 items-center">
+    <div
+      class="flex gap-2 ml-auto opacity-0 group-hover:opacity-100 items-center"
+    >
       <button
-        aria-label={t('frontend/src/lib/components/cells/CodeCell.svelte::move_cell_up')}
-        title={t('frontend/src/lib/components/cells/CodeCell.svelte::move_cell_up')}
+        aria-label={t(
+          "frontend/src/lib/components/cells/CodeCell.svelte::move_cell_up",
+        )}
+        title={t(
+          "frontend/src/lib/components/cells/CodeCell.svelte::move_cell_up",
+        )}
         on:click={() => moveCellUp(index)}
         class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
       >
-        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <svg
+          class="w-4 h-4"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          aria-hidden="true"
+        >
           <path d="M12 4l-6 6h4v6h4v-6h4l-6-6z" />
         </svg>
       </button>
       <button
-        aria-label={t('frontend/src/lib/components/cells/CodeCell.svelte::move_cell_down')}
-        title={t('frontend/src/lib/components/cells/CodeCell.svelte::move_cell_down')}
+        aria-label={t(
+          "frontend/src/lib/components/cells/CodeCell.svelte::move_cell_down",
+        )}
+        title={t(
+          "frontend/src/lib/components/cells/CodeCell.svelte::move_cell_down",
+        )}
         on:click={() => moveCellDown(index)}
         class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
       >
-        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <svg
+          class="w-4 h-4"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          aria-hidden="true"
+        >
           <path d="M12 20l6-6h-4v-6h-4v6H6l6 6z" />
         </svg>
       </button>
       <button
-        aria-label={t('frontend/src/lib/components/cells/CodeCell.svelte::delete_cell')}
-        title={t('frontend/src/lib/components/cells/CodeCell.svelte::delete_cell')}
+        aria-label={t(
+          "frontend/src/lib/components/cells/CodeCell.svelte::delete_cell",
+        )}
+        title={t(
+          "frontend/src/lib/components/cells/CodeCell.svelte::delete_cell",
+        )}
         on:click={() => deleteCell(index)}
         class="p-1 rounded text-gray-600 hover:text-white hover:bg-red-600 hover:scale-110 transition-transform"
       >
-        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path d="M6 7h12M9 7v10m6-10v10M4 7h16l-1 12a2 2 0 01-2 2H7a2 2 0 01-2-2L4 7zM10 4h4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <svg
+          class="w-4 h-4"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          aria-hidden="true"
+        >
+          <path
+            d="M6 7h12M9 7v10m6-10v10M4 7h16l-1 12a2 2 0 01-2 2H7a2 2 0 01-2-2L4 7zM10 4h4"
+            stroke="currentColor"
+            stroke-width="2"
+            fill="none"
+            stroke-linecap="round"
+          />
         </svg>
       </button>
       <div class="relative">
         <button
-          aria-label={t('frontend/src/lib/components/cells/CodeCell.svelte::insert_cell')}
-          title={t('frontend/src/lib/components/cells/CodeCell.svelte::insert_cell')}
-          on:click={() => { showInsert = !showInsert; if (!showInsert) insertPos = null; }}
+          aria-label={t(
+            "frontend/src/lib/components/cells/CodeCell.svelte::insert_cell",
+          )}
+          title={t(
+            "frontend/src/lib/components/cells/CodeCell.svelte::insert_cell",
+          )}
+          on:click={() => {
+            showInsert = !showInsert;
+            if (!showInsert) insertPos = null;
+          }}
           class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
         >
-          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" />
+          <svg
+            class="w-4 h-4"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              d="M12 5v14M5 12h14"
+              stroke="currentColor"
+              stroke-width="2"
+              fill="none"
+              stroke-linecap="round"
+            />
           </svg>
         </button>
         {#if showInsert}
-          <div class="absolute right-0 mt-1 z-10 bg-white border rounded shadow flex flex-col text-sm">
+          <div
+            class="absolute right-0 mt-1 z-10 bg-white border rounded shadow flex flex-col text-sm"
+          >
             {#if !insertPos}
-              <button class="p-1 hover:bg-gray-100" aria-label={t('frontend/src/lib/components/cells/CodeCell.svelte::insert_above')} title={t('frontend/src/lib/components/cells/CodeCell.svelte::insert_above')} on:click={() => (insertPos = 'above')}>
-                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <button
+                class="p-1 hover:bg-gray-100"
+                aria-label={t(
+                  "frontend/src/lib/components/cells/CodeCell.svelte::insert_above",
+                )}
+                title={t(
+                  "frontend/src/lib/components/cells/CodeCell.svelte::insert_above",
+                )}
+                on:click={() => (insertPos = "above")}
+              >
+                <svg
+                  class="w-4 h-4"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
                   <path d="M12 4l-6 6h4v6h4v-6h4l-6-6z" />
                 </svg>
               </button>
-              <button class="p-1 hover:bg-gray-100" aria-label={t('frontend/src/lib/components/cells/CodeCell.svelte::insert_below')} title={t('frontend/src/lib/components/cells/CodeCell.svelte::insert_below')} on:click={() => (insertPos = 'below')}>
-                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <button
+                class="p-1 hover:bg-gray-100"
+                aria-label={t(
+                  "frontend/src/lib/components/cells/CodeCell.svelte::insert_below",
+                )}
+                title={t(
+                  "frontend/src/lib/components/cells/CodeCell.svelte::insert_below",
+                )}
+                on:click={() => (insertPos = "below")}
+              >
+                <svg
+                  class="w-4 h-4"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
                   <path d="M12 20l6-6h-4v-6h-4v6H6l6 6z" />
                 </svg>
               </button>
             {:else}
-              <button class="p-1 hover:bg-gray-100" aria-label={t('frontend/src/lib/components/cells/CodeCell.svelte::insert_code')} title={t('frontend/src/lib/components/cells/CodeCell.svelte::insert_code')} on:click={() => {insertCell(index, 'code', insertPos); showInsert = false; insertPos = null;}}>
-                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <path d="M16 18l6-6-6-6M8 6L2 12l6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+              <button
+                class="p-1 hover:bg-gray-100"
+                aria-label={t(
+                  "frontend/src/lib/components/cells/CodeCell.svelte::insert_code",
+                )}
+                title={t(
+                  "frontend/src/lib/components/cells/CodeCell.svelte::insert_code",
+                )}
+                on:click={() => {
+                  insertCell(index, "code", insertPos);
+                  showInsert = false;
+                  insertPos = null;
+                }}
+              >
+                <svg
+                  class="w-4 h-4"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M16 18l6-6-6-6M8 6L2 12l6 6"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    fill="none"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
                 </svg>
               </button>
-              <button class="p-1 hover:bg-gray-100" aria-label={t('frontend/src/lib/components/cells/CodeCell.svelte::insert_markdown')} title={t('frontend/src/lib/components/cells/CodeCell.svelte::insert_markdown')} on:click={() => {insertCell(index, 'markdown', insertPos); showInsert = false; insertPos = null;}}>
-                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <path d="M6 2a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6H6z" />
+              <button
+                class="p-1 hover:bg-gray-100"
+                aria-label={t(
+                  "frontend/src/lib/components/cells/CodeCell.svelte::insert_markdown",
+                )}
+                title={t(
+                  "frontend/src/lib/components/cells/CodeCell.svelte::insert_markdown",
+                )}
+                on:click={() => {
+                  insertCell(index, "markdown", insertPos);
+                  showInsert = false;
+                  insertPos = null;
+                }}
+              >
+                <svg
+                  class="w-4 h-4"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M6 2a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6H6z"
+                  />
                 </svg>
               </button>
             {/if}
@@ -338,7 +487,11 @@
 
   {#if awaitingInput}
     <div class="border border-dashed rounded-lg p-3 bg-gray-50 space-y-2">
-      <div class="text-sm font-medium text-gray-700">{t('frontend/src/lib/components/cells/CodeCell.svelte::input_for_this_run')}</div>
+      <div class="text-sm font-medium text-gray-700">
+        {t(
+          "frontend/src/lib/components/cells/CodeCell.svelte::input_for_this_run",
+        )}
+      </div>
       {#if inputPrompt}
         <div class="text-xs text-gray-600">{inputPrompt}</div>
       {/if}
@@ -348,7 +501,9 @@
         bind:this={inputTextarea}
         bind:value={inputValue}
         tabindex={waitingForParent ? -1 : 0}
-        placeholder={t('frontend/src/lib/components/cells/CodeCell.svelte::input_placeholder')}
+        placeholder={t(
+          "frontend/src/lib/components/cells/CodeCell.svelte::input_placeholder",
+        )}
       ></textarea>
       <div class="flex items-center gap-2">
         <button
@@ -356,31 +511,50 @@
           class="btn btn-sm btn-primary"
           on:click={submitInput}
         >
-          {t('frontend/src/lib/components/cells/CodeCell.svelte::send')}
+          {t("frontend/src/lib/components/cells/CodeCell.svelte::send")}
         </button>
         <button
           type="button"
           class="btn btn-sm btn-secondary"
           on:click={cancelInput}
         >
-          {t('frontend/src/lib/components/cells/CodeCell.svelte::cancel')}
+          {t("frontend/src/lib/components/cells/CodeCell.svelte::cancel")}
         </button>
-        <span class="text-xs text-gray-500 ml-auto">{t('frontend/src/lib/components/cells/CodeCell.svelte::leave_blank_for_empty_line')}</span>
+        <span class="text-xs text-gray-500 ml-auto"
+          >{t(
+            "frontend/src/lib/components/cells/CodeCell.svelte::leave_blank_for_empty_line",
+          )}</span
+        >
       </div>
     </div>
   {/if}
 
   <!-- Outputs -->
   {#if $stdoutStore}
-  <OutputBlock label={t('frontend/src/lib/components/cells/CodeCell.svelte::stdout_label')} text={$stdoutStore} />
+    <OutputBlock
+      label={t(
+        "frontend/src/lib/components/cells/CodeCell.svelte::stdout_label",
+      )}
+      text={$stdoutStore}
+    />
   {/if}
   {#if $stderrStore}
-  <OutputBlock label={t('frontend/src/lib/components/cells/CodeCell.svelte::stderr_label')} text={$stderrStore} />
+    <OutputBlock
+      label={t(
+        "frontend/src/lib/components/cells/CodeCell.svelte::stderr_label",
+      )}
+      text={$stderrStore}
+    />
   {/if}
   {#if $resultTextStore !== null && $resultTextStore !== undefined}
-  <OutputBlock label={t('frontend/src/lib/components/cells/CodeCell.svelte::result_label')} text={$resultTextStore} />
+    <OutputBlock
+      label={t(
+        "frontend/src/lib/components/cells/CodeCell.svelte::result_label",
+      )}
+      text={$resultTextStore}
+    />
   {/if}
   {#each $imagesStore as img}
-  <ImageOutput src={img} />
+    <ImageOutput src={img} />
   {/each}
 </div>

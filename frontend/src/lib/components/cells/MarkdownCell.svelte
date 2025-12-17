@@ -52,7 +52,7 @@
 </script>
 
 <div
-  class="border rounded-lg p-2 bg-white shadow-inner group relative"
+  class="border rounded-lg p-2 bg-white shadow-inner group relative hover:z-20"
   on:dblclick={() => { if (!editing) toggle(); }}
 >
   {#if !editing}
