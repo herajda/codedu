@@ -319,6 +319,8 @@
   "frontend/src/routes/+layout.svelte::bakalari_link_prompt_description": "Jste přihlášeni přes Bakaláře. Pro zachování přístupu, pokud Bakaláři nebudou k dispozici, a pro povolení přihlášení heslem propojte svůj účet s e-mailem a heslem",
   "frontend/src/routes/+layout.svelte::bakalari_managed_name_tip": "Vaše jméno je spravováno Bakaláři",
   "frontend/src/routes/+layout.svelte::bakalari_not_configured": "Integrace Bakalářů není nakonfigurována",
+  "frontend/src/routes/+layout.svelte::mandatory_email_link_title": "Dokončete nastavení svého účtu",
+  "frontend/src/routes/+layout.svelte::mandatory_email_link_description": "Chcete-li pokračovat v používání CodEdu, musíte propojit platnou e-mailovou adresu a heslo se svým účtem Bakaláři. Tím zajistíte, že budete mít vždy přístup ke svému účtu.",
   "frontend/src/routes/+layout.svelte::bakalari_password_placeholder": "Heslo Bakaláři",
   "frontend/src/routes/+layout.svelte::bakalari_username_placeholder": "Uživatelské jméno Bakaláři",
   "frontend/src/routes/+layout.svelte::cancel_button": "Zrušit",
