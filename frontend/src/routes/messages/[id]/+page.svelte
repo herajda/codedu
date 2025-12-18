@@ -572,7 +572,7 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
                   {/if}
                 {:else}
                   <div 
-                    class="{`message-bubble relative rounded-2xl px-4 py-3 whitespace-pre-wrap break-words shadow-sm transition-all duration-200 ${m.sender_id === $auth?.id ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-content rounded-br-md' : 'bg-base-200/80 backdrop-blur-sm border border-base-300/30 rounded-bl-md'} ${m.recipient_id === $auth?.id && !m.is_read ? 'ring-2 ring-primary/50 shadow-lg' : ''}`}"
+                    class="{`message-bubble relative rounded-2xl px-4 py-3 whitespace-pre-wrap break-words shadow-sm transition-all duration-200 ${m.sender_id === $auth?.id ? 'sent-message bg-gradient-to-br from-primary to-primary/80 text-primary-content rounded-br-md' : 'received-message bg-base-200/80 backdrop-blur-sm border border-base-300/30 rounded-bl-md'} ${m.recipient_id === $auth?.id && !m.is_read ? 'ring-2 ring-primary/50 shadow-lg' : ''}`}"
                     on:click={() => { m.showTime = !m.showTime; convo = [...convo]; }}
                     role="button"
                     tabindex="0"
@@ -842,5 +842,15 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
   }
 
   /* Chat Markdown Editor Styles */
-
+  
+  :global(.sent-message a),
+  :global(.received-message a) {
+    color: inherit !important;
+    text-decoration: underline;
+  }
+  
+  :global(.sent-message .markdown a),
+  :global(.received-message .markdown a) {
+    color: inherit !important;
+  }
 </style>

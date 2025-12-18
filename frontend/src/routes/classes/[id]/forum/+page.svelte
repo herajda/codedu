@@ -453,8 +453,8 @@
                   <div
                     class={`message-bubble relative rounded-2xl px-4 py-3 whitespace-pre-wrap break-words shadow-sm transition-all duration-200 ${
                       m.user_id === $auth?.id
-                        ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-content rounded-br-md'
-                        : 'bg-base-200/80 backdrop-blur-sm border border-base-300/30 rounded-bl-md'
+                        ? 'sent-message bg-gradient-to-br from-primary to-primary/80 text-primary-content rounded-br-md'
+                        : 'received-message bg-base-200/80 backdrop-blur-sm border border-base-300/30 rounded-bl-md'
                     }`}
                     on:click={() => { m.showTime = !m.showTime; msgs = [...msgs]; }}
                     role="button"
@@ -678,5 +678,15 @@
   }
 
   /* Chat Markdown Editor Styles */
-
+  
+  :global(.sent-message a),
+  :global(.received-message a) {
+    color: inherit !important;
+    text-decoration: underline;
+  }
+  
+  :global(.sent-message .markdown a),
+  :global(.received-message .markdown a) {
+    color: inherit !important;
+  }
 </style>
