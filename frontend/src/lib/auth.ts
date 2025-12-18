@@ -25,7 +25,7 @@ function createAuth() {
 
   /** Called from Login.svelte after successful auth */
   function login(
-    id: number,
+    id: string,
     role: string,
     name?: string | null,
     avatar?: string | null,

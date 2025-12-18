@@ -725,7 +725,7 @@
     applyThemeFromPreference();
     if (user) {
       auth.login(
-        Number(user.id),
+        user.id,
         user.role,
         user.name ?? null,
         user.avatar ?? null,
@@ -736,6 +736,7 @@
         user.email_notifications ?? true,
         user.email_message_digest ?? true,
         user.preferred_locale ?? null,
+        user.force_bakalari_email ?? true,
       );
       try {
         await apiFetch("/api/me", {
