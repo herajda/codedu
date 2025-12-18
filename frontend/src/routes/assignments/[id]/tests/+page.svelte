@@ -90,6 +90,13 @@
   let teacherSolutionFile: File | null = null;
   let teacherRun: any = null;
   let teacherRunLoading = false;
+  type OutputMode = "manual" | "teacher";
+  let ioOutputMode: OutputMode = "manual";
+  let utOutputMode: OutputMode = "manual";
+  let fnOutputMode: OutputMode = "manual";
+  let ioOutputLoading = false;
+  let utOutputLoading = false;
+  let fnOutputLoading = false;
 
   // ──────────────────────────────────────────────────────
   // Unittest Builder state
@@ -566,10 +573,33 @@
 
   async function addTest() {
     try {
+      let expectedStdout = tStdout;
+      if (ioOutputMode === "teacher") {
+        ioOutputLoading = true;
+        const timeLimit = parseFloat(tLimit);
+        const { previews } = await runTeacherPreview([
+          {
+            execution_mode: "stdin_stdout",
+            stdin: tStdin,
+            expected_stdout: "",
+            time_limit_sec: Number.isFinite(timeLimit) ? timeLimit : undefined,
+          },
+        ]);
+        const previewResult = previews[0];
+        if (!previewResult) {
+          throw new Error(
+            translate(
+              "frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_solution_no_preview",
+            ),
+          );
+        }
+        expectedStdout = String(previewResult.actual_stdout ?? "");
+        tStdout = expectedStdout;
+      }
       const testData: any = {
         execution_mode: "stdin_stdout",
         stdin: tStdin,
-        expected_stdout: tStdout,
+        expected_stdout: expectedStdout,
         time_limit_sec: parseFloat(tLimit) || undefined,
       };
 
@@ -588,6 +618,8 @@
       await load();
     } catch (e: any) {
       err = e.message;
+    } finally {
+      ioOutputLoading = false;
     }
   }
 
@@ -1125,7 +1157,39 @@
       return;
     }
     try {
-      for (const c of fnCases) {
+      let teacherExpected: string[] | null = null;
+      if (fnOutputMode === "teacher") {
+        fnOutputLoading = true;
+        const previewPayloads = fnCases.map((c) => {
+          const argsValues = fnMeta.params.map((p, idx) =>
+            coerceValueForType(c.args[idx] ?? "", p.type),
+          );
+          const timeLimit = parseFloat(c.timeLimit);
+          return {
+            execution_mode: "function",
+            function_name: fnMeta.name,
+            function_args: JSON.stringify(argsValues),
+            function_kwargs: "{}",
+            expected_return: "",
+            time_limit_sec: Number.isFinite(timeLimit) ? timeLimit : undefined,
+          };
+        });
+        const { previews } = await runTeacherPreview(previewPayloads);
+        teacherExpected = [];
+        fnCases = fnCases.map((c, idx) => {
+          const preview = previews[idx];
+          const normalizedReturn = normalizeTeacherReturn(
+            preview?.actual_return ?? "",
+          );
+          teacherExpected?.push(normalizedReturn);
+          const updatedReturns = convertReturnJSONToInputs(
+            fnMeta,
+            normalizedReturn,
+          );
+          return { ...c, returns: updatedReturns };
+        });
+      }
+      for (const [idx, c] of fnCases.entries()) {
         const argsValues = fnMeta.params.map((p, idx) =>
           coerceValueForType(c.args[idx] ?? "", p.type),
         );
@@ -1135,22 +1199,28 @@
             )
           : [];
         let expectedPayload: any = null;
-        if (fnMeta.returns.length === 0) {
-          expectedPayload = null;
-        } else if (fnMeta.returns.length === 1) {
-          expectedPayload = returnValues[0];
+        let expectedJSON = "";
+        if (teacherExpected) {
+          expectedJSON = teacherExpected[idx] ?? "null";
         } else {
-          expectedPayload = returnValues;
+          if (fnMeta.returns.length === 0) {
+            expectedPayload = null;
+          } else if (fnMeta.returns.length === 1) {
+            expectedPayload = returnValues[0];
+          } else {
+            expectedPayload = returnValues;
+          }
+          expectedJSON =
+            expectedPayload === undefined
+              ? ""
+              : JSON.stringify(expectedPayload);
         }
         const payload: any = {
           execution_mode: "function",
           function_name: fnMeta.name,
           function_args: JSON.stringify(argsValues),
           function_kwargs: "{}",
-          expected_return:
-            expectedPayload === undefined
-              ? ""
-              : JSON.stringify(expectedPayload),
+          expected_return: expectedJSON,
           stdin: "",
           expected_stdout: "",
           time_limit_sec: parseFloat(c.timeLimit) || undefined,
@@ -1171,6 +1241,8 @@
       await load();
     } catch (e: any) {
       err = e.message;
+    } finally {
+      fnOutputLoading = false;
     }
   }
 
@@ -1671,6 +1743,32 @@
     return meta ? ensureCaseShape(base, meta) : base;
   }
 
+  function convertReturnJSONToInputs(
+    meta: FnMeta | null,
+    raw: string,
+  ): string[] {
+    if (!meta) return raw ? [raw] : [];
+    const count = meta.returns.length;
+    if (count === 0) return [];
+    if (!raw) return Array.from({ length: count }, () => "");
+    try {
+      const parsed = JSON.parse(raw);
+      if (count > 1) {
+        const arr = Array.isArray(parsed) ? parsed : [parsed];
+        return meta.returns.map((_, idx) =>
+          formatValueForInput(arr[idx] ?? null),
+        );
+      }
+      return [formatValueForInput(parsed)];
+    } catch (err) {
+      if (count === 1) return [raw];
+      return [
+        raw,
+        ...Array.from({ length: Math.max(count - 1, 0) }, () => ""),
+      ];
+    }
+  }
+
   function updateFnArg(caseIndex: number, argIndex: number, value: string) {
     fnCases = fnCases.map((c, idx) => {
       if (idx !== caseIndex) return c;
@@ -1876,6 +1974,74 @@
       err = e.message;
     }
   }
+
+  function normalizeTeacherReturn(raw: any): string {
+    if (raw === null || raw === undefined) return "null";
+    const text = typeof raw === "string" ? raw : JSON.stringify(raw);
+    if (!text.trim()) return "null";
+    try {
+      JSON.parse(text);
+      return text;
+    } catch (err) {
+      return JSON.stringify(text);
+    }
+  }
+
+  function pythonLiteralFromValue(value: any): string {
+    if (value === null || value === undefined) return "None";
+    if (typeof value === "string") return JSON.stringify(value);
+    if (typeof value === "number" || typeof value === "boolean")
+      return String(value);
+    if (Array.isArray(value))
+      return `[${value.map((v) => pythonLiteralFromValue(v)).join(", ")}]`;
+    if (typeof value === "object") {
+      const entries = Object.entries(value).map(
+        ([k, v]) => `${JSON.stringify(k)}: ${pythonLiteralFromValue(v)}`,
+      );
+      return `{${entries.join(", ")}}`;
+    }
+    return String(value);
+  }
+
+  function pythonLiteralFromJSON(raw: string): string {
+    const txt = String(raw ?? "").trim();
+    if (!txt) return "None";
+    try {
+      const parsed = JSON.parse(txt);
+      return pythonLiteralFromValue(parsed);
+    } catch (err) {
+      return txt;
+    }
+  }
+
+  async function runTeacherPreview(previewTests: any[]) {
+    if (!teacherSolutionFile) {
+      throw new Error(
+        translate(
+          "frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_teacher_solution_first",
+        ),
+      );
+    }
+    const fd = new FormData();
+    fd.append("file", teacherSolutionFile);
+    if (previewTests.length) {
+      fd.append("preview_tests", JSON.stringify(previewTests));
+    }
+    const res = await apiJSON(`/api/assignments/${id}/solution-run`, {
+      method: "POST",
+      body: fd,
+    });
+    const previews = Array.isArray(res?.results)
+      ? res.results
+          .filter((r: any) => r?.preview)
+          .sort((a: any, b: any) =>
+            String(a?.test_case_id || "").localeCompare(
+              String(b?.test_case_id || ""),
+            ),
+          )
+      : [];
+    return { res, previews };
+  }
   async function runTeacherSolution() {
     if (!teacherSolutionFile) return;
     teacherRun = null;
@@ -1902,6 +2068,67 @@
 
   async function uploadGeneratedUnitTests() {
     try {
+      if (utOutputMode === "teacher") {
+        const previewPayloads: any[] = [];
+        const indexMap: { ti: number; ai: number; mode: "stdin" | "function" }[] =
+          [];
+        utTests.forEach((t, ti) => {
+          t.assertions.forEach((a, ai) => {
+            if (a.kind !== "equals") return;
+            const timeLimit = parseFloat(t.timeLimit);
+            if (t.callMode === "function") {
+              const fn = t.functionName?.trim() || "function_name";
+              const argsJSON = JSON.stringify(
+                (a as any).args?.map((arg: string) =>
+                  coerceValueForType(arg ?? "", undefined),
+                ) ?? [],
+              );
+              previewPayloads.push({
+                execution_mode: "function",
+                function_name: fn,
+                function_args: argsJSON,
+                function_kwargs: "{}",
+                expected_return: "",
+                time_limit_sec: Number.isFinite(timeLimit)
+                  ? timeLimit
+                  : undefined,
+              });
+              indexMap.push({ ti, ai, mode: "function" });
+            } else {
+              const stdinVal = ((a as any).args ?? []).join("\n");
+              previewPayloads.push({
+                execution_mode: "stdin_stdout",
+                stdin: stdinVal,
+                expected_stdout: "",
+                time_limit_sec: Number.isFinite(timeLimit)
+                  ? timeLimit
+                  : undefined,
+              });
+              indexMap.push({ ti, ai, mode: "stdin" });
+            }
+          });
+        });
+        if (previewPayloads.length) {
+          utOutputLoading = true;
+          const { previews } = await runTeacherPreview(previewPayloads);
+          previews.forEach((p, idx) => {
+            const mapping = indexMap[idx];
+            if (!mapping) return;
+            const target = utTests[mapping.ti]?.assertions?.[mapping.ai];
+            if (!target) return;
+            if (mapping.mode === "function") {
+              const lit = pythonLiteralFromJSON(
+                normalizeTeacherReturn(
+                  p?.actual_return ?? p?.expected_return ?? "",
+                ),
+              );
+              setExpected(target, lit);
+            } else {
+              setExpected(target, String(p?.actual_stdout ?? ""));
+            }
+          });
+        }
+      }
       const snapshot = captureGeneratedState();
       const beforeIds = new Set((tests ?? []).map((t: any) => String(t.id)));
       const code = generateUnittestCode();
@@ -1997,6 +2224,8 @@
       err = "";
     } catch (e: any) {
       err = e.message;
+    } finally {
+      utOutputLoading = false;
     }
   }
 
@@ -2876,13 +3105,88 @@
           role="tabpanel"
           class="tab-content bg-base-100 border-base-300 rounded-box p-4"
         >
-          <div class="border-base-300/60 space-y-2">
-            <h4 class="font-semibold flex items-center gap-2">
-              <Code size={18} />
-              {translate(
-                "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_io_test",
-              )}
-            </h4>
+          <div class="border-base-300/60 space-y-4">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h4 class="font-semibold flex items-center gap-2">
+                  <Code size={18} />
+                  {translate(
+                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_io_test",
+                  )}
+                </h4>
+                <p class="hint">
+                  {translate(
+                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::io_expected_source_hint",
+                  )}
+                </p>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  class={`option-pill ${ioOutputMode === "manual" ? "selected" : ""}`}
+                  aria-pressed={ioOutputMode === "manual"}
+                  on:click={() => (ioOutputMode = "manual")}
+                >
+                  <span class="option-pill__indicator" aria-hidden="true" />
+                  <span
+                    >{translate(
+                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::output_source_manual",
+                    )}</span
+                  >
+                </button>
+                <button
+                  type="button"
+                  class={`option-pill ${ioOutputMode === "teacher" ? "selected" : ""}`}
+                  aria-pressed={ioOutputMode === "teacher"}
+                  on:click={() => (ioOutputMode = "teacher")}
+                >
+                  <span class="option-pill__indicator" aria-hidden="true" />
+                  <span
+                    >{translate(
+                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::output_source_teacher",
+                    )}</span
+                  >
+                </button>
+              </div>
+            </div>
+            {#if ioOutputMode === "teacher"}
+              <div
+                class="rounded-xl border border-dashed border-primary/40 bg-primary/5 p-3 space-y-2"
+              >
+                <label class="form-control w-full">
+                  <span class="label-text"
+                    >{translate(
+                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_solution_file",
+                    )}</span
+                  >
+                  <input
+                    type="file"
+                    accept=".py,.zip,.txt"
+                    class="file-input file-input-bordered w-full"
+                    on:change={(e) =>
+                      (teacherSolutionFile =
+                        (e.target as HTMLInputElement).files?.[0] || null)}
+                  />
+                </label>
+                <div class="flex flex-wrap items-center gap-2 text-xs">
+                  <span class="badge badge-outline badge-primary badge-sm"
+                    >{teacherSolutionFile
+                      ? translate(
+                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::using_teacher_solution",
+                          { name: teacherSolutionFile.name },
+                        )
+                      : translate(
+                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_teacher_solution_prompt",
+                        )}</span
+                  >
+                  <span class="label-text-alt"
+                    >{translate(
+                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_solution_vm_hint",
+                    )}</span
+                  >
+                </div>
+              </div>
+            {/if}
             <div
               class="grid gap-2"
               class:sm:grid-cols-2={assignment?.grading_policy === "weighted"}
@@ -2903,19 +3207,41 @@
                 ></textarea>
               </label>
               <label class="form-control w-full space-y-1">
-                <span class="label-text"
-                  >{translate(
+                <span class="label-text flex items-center gap-2">
+                  {translate(
                     "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_output",
-                  )}</span
-                >
+                  )}
+                  {#if ioOutputMode === "teacher"}
+                    <span class="badge badge-ghost badge-sm"
+                      >{translate(
+                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::auto_from_teacher",
+                      )}</span
+                    >
+                  {/if}
+                </span>
                 <textarea
                   class="textarea textarea-bordered w-full"
+                  class:textarea-disabled={ioOutputMode === "teacher"}
                   rows="3"
                   placeholder={translate(
-                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_stdout",
+                    ioOutputMode === "teacher"
+                      ? "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_stdout_from_teacher"
+                      : "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_stdout",
                   )}
+                  readonly={ioOutputMode === "teacher"}
                   bind:value={tStdout}
                 ></textarea>
+                {#if ioOutputMode === "teacher"}
+                  <span class="label-text-alt text-xs flex items-center gap-2">
+                    {ioOutputLoading
+                      ? translate(
+                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_solution_running",
+                        )
+                      : translate(
+                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_solution_expected_locked",
+                        )}
+                  </span>
+                {/if}
               </label>
               <label class="form-control w-full space-y-1">
                 <span class="label-text flex items-center gap-1"
@@ -2963,10 +3289,21 @@
               <button
                 class="btn btn-primary"
                 on:click={addTest}
-                disabled={!tStdin || !tStdout}
-                ><Plus size={16} />
+                disabled={!tStdin ||
+                  ioOutputLoading ||
+                  (ioOutputMode === "manual"
+                    ? !tStdout
+                    : !teacherSolutionFile)}
+                >
+                {#if ioOutputLoading}
+                  <span class="loading loading-spinner loading-sm"></span>
+                {:else}
+                  <Plus size={16} />
+                {/if}
                 {translate(
-                  "frontend/src/routes/assignments/[id]/tests/+page.svelte::add",
+                  ioOutputMode === "teacher"
+                    ? "frontend/src/routes/assignments/[id]/tests/+page.svelte::generate_and_add"
+                    : "frontend/src/routes/assignments/[id]/tests/+page.svelte::add",
                 )}</button
               >
             </div>
@@ -2986,6 +3323,91 @@
           role="tabpanel"
           class="tab-content bg-base-100 border-base-300 rounded-box p-4 space-y-4"
         >
+          <div
+            class="rounded-xl border border-base-300/70 bg-base-200/60 p-3 flex flex-wrap items-start justify-between gap-3"
+          >
+            <div class="space-y-1">
+              <span class="section-label"
+                >{translate(
+                  "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_output_source",
+                )}</span
+              >
+              <p class="hint">
+                {translate(
+                  "frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_expected_hint",
+                )}
+              </p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button
+                type="button"
+                class={`option-pill ${utOutputMode === "manual" ? "selected" : ""}`}
+                aria-pressed={utOutputMode === "manual"}
+                on:click={() => (utOutputMode = "manual")}
+              >
+                <span class="option-pill__indicator" aria-hidden="true" />
+                <span
+                  >{translate(
+                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::output_source_manual",
+                  )}</span
+                >
+              </button>
+              <button
+                type="button"
+                class={`option-pill ${utOutputMode === "teacher" ? "selected" : ""}`}
+                aria-pressed={utOutputMode === "teacher"}
+                on:click={() => (utOutputMode = "teacher")}
+              >
+                <span class="option-pill__indicator" aria-hidden="true" />
+                <span
+                  >{translate(
+                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::output_source_teacher",
+                  )}</span
+                >
+              </button>
+            </div>
+          </div>
+          {#if utOutputMode === "teacher"}
+            <div class="panel-soft space-y-2">
+              <div class="flex items-center justify-between gap-2 flex-wrap">
+                <h5 class="font-semibold">
+                  {translate(
+                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_solution_file",
+                  )}
+                </h5>
+                <span class="badge badge-outline badge-primary badge-sm"
+                  >{teacherSolutionFile
+                    ? translate(
+                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::using_teacher_solution",
+                        { name: teacherSolutionFile.name },
+                      )
+                    : translate(
+                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_teacher_solution_prompt",
+                      )}</span
+                >
+              </div>
+              <div class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                <input
+                  type="file"
+                  accept=".py,.zip,.txt"
+                  class="file-input file-input-bordered w-full"
+                  on:change={(e) =>
+                    (teacherSolutionFile =
+                      (e.target as HTMLInputElement).files?.[0] || null)}
+                />
+                <span class="text-xs opacity-70">
+                  {translate(
+                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_solution_vm_hint",
+                  )}
+                </span>
+              </div>
+              <p class="hint">
+                {translate(
+                  "frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_teacher_autofill_hint",
+                )}
+              </p>
+            </div>
+          {/if}
           <div class="grid sm:grid-cols-2 gap-3">
             <label class="form-control w-full space-y-1">
               <span class="label-text"
@@ -3025,9 +3447,15 @@
               >
               <button
                 class="btn btn-primary"
-                disabled={utTests.length === 0}
+                disabled={utTests.length === 0 || utOutputLoading ||
+                  (utOutputMode === "teacher" && !teacherSolutionFile)}
                 on:click={uploadGeneratedUnitTests}
-                ><FlaskConical size={16} />
+                >
+                {#if utOutputLoading}
+                  <span class="loading loading-spinner loading-sm"></span>
+                {:else}
+                  <FlaskConical size={16} />
+                {/if}
                 {translate(
                   "frontend/src/routes/assignments/[id]/tests/+page.svelte::create_tests",
                 )}</button
@@ -3212,10 +3640,17 @@
                 </div>
                 <div class="space-y-2 ut-assertions">
                   <div class="flex items-center justify-between">
-                    <div class="font-medium text-primary">
+                    <div class="font-medium text-primary flex items-center gap-2">
                       {translate(
                         "frontend/src/routes/assignments/[id]/tests/+page.svelte::assertions",
                       )}
+                      {#if utOutputMode === "teacher"}
+                        <span class="badge badge-outline badge-sm"
+                          >{translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_equals_only_badge",
+                          )}</span
+                        >
+                      {/if}
                     </div>
                     <div class="join">
                       <button
@@ -3228,6 +3663,12 @@
                       >
                       <button
                         class="btn btn-xs join-item"
+                        disabled={utOutputMode === "teacher"}
+                        title={utOutputMode === "teacher"
+                          ? translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_equals_only",
+                            )
+                          : ""}
                         on:click={() => addUTAssertion(ti, "notEquals")}
                         ><Plus size={12} />
                         {translate(
@@ -3236,6 +3677,12 @@
                       >
                       <button
                         class="btn btn-xs join-item"
+                        disabled={utOutputMode === "teacher"}
+                        title={utOutputMode === "teacher"
+                          ? translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_equals_only",
+                            )
+                          : ""}
                         on:click={() => addUTAssertion(ti, "contains")}
                         ><Plus size={12} />
                         {translate(
@@ -3244,6 +3691,12 @@
                       >
                       <button
                         class="btn btn-xs join-item"
+                        disabled={utOutputMode === "teacher"}
+                        title={utOutputMode === "teacher"
+                          ? translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_equals_only",
+                            )
+                          : ""}
                         on:click={() => addUTAssertion(ti, "notContains")}
                         ><Plus size={12} />
                         {translate(
@@ -3252,6 +3705,12 @@
                       >
                       <button
                         class="btn btn-xs join-item"
+                        disabled={utOutputMode === "teacher"}
+                        title={utOutputMode === "teacher"
+                          ? translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_equals_only",
+                            )
+                          : ""}
                         on:click={() => addUTAssertion(ti, "regex")}
                         ><Plus size={12} />
                         {translate(
@@ -3260,6 +3719,12 @@
                       >
                       <button
                         class="btn btn-xs join-item"
+                        disabled={utOutputMode === "teacher"}
+                        title={utOutputMode === "teacher"
+                          ? translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_equals_only",
+                            )
+                          : ""}
                         on:click={() => addUTAssertion(ti, "raises")}
                         ><Plus size={12} />
                         {translate(
@@ -3268,6 +3733,12 @@
                       >
                       <button
                         class="btn btn-xs join-item"
+                        disabled={utOutputMode === "teacher"}
+                        title={utOutputMode === "teacher"
+                          ? translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_equals_only",
+                            )
+                          : ""}
                         on:click={() => addUTAssertion(ti, "custom")}
                         ><Plus size={12} />
                         {translate(
@@ -3451,6 +3922,8 @@
                               >
                               <textarea
                                 class="textarea textarea-bordered h-24"
+                                class:textarea-disabled={utOutputMode === "teacher"}
+                                readonly={utOutputMode === "teacher"}
                                 value={getExpected(a)}
                                 on:input={(e) =>
                                   setExpected(
@@ -3458,9 +3931,18 @@
                                     (e.target as HTMLTextAreaElement).value,
                                   )}
                                 placeholder={translate(
-                                  "frontend/src/routes/assignments/[id]/tests/+page.svelte::example_expected_5",
+                                  utOutputMode === "teacher"
+                                    ? "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_stdout_from_teacher"
+                                    : "frontend/src/routes/assignments/[id]/tests/+page.svelte::example_expected_5",
                                 )}
                               ></textarea>
+                              {#if utOutputMode === "teacher"}
+                                <span class="label-text-alt text-xs"
+                                  >{translate(
+                                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_solution_expected_locked",
+                                  )}</span
+                                >
+                              {/if}
                             </label>
                           </div>
                         {/if}
@@ -3529,6 +4011,91 @@
           class="tab-content bg-base-100 border-base-300 rounded-box p-4 space-y-4"
         >
           <div class="space-y-4">
+            <div
+              class="rounded-xl border border-base-300/70 bg-base-200/60 p-3 flex flex-wrap items-start justify-between gap-3"
+            >
+              <div class="space-y-1">
+                <span class="section-label"
+                  >{translate(
+                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_output_source",
+                  )}</span
+                >
+                <p class="hint">
+                  {translate(
+                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_expected_hint",
+                  )}
+                </p>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  class={`option-pill ${fnOutputMode === "manual" ? "selected" : ""}`}
+                  aria-pressed={fnOutputMode === "manual"}
+                  on:click={() => (fnOutputMode = "manual")}
+                >
+                  <span class="option-pill__indicator" aria-hidden="true" />
+                  <span
+                    >{translate(
+                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::output_source_manual",
+                    )}</span
+                  >
+                </button>
+                <button
+                  type="button"
+                  class={`option-pill ${fnOutputMode === "teacher" ? "selected" : ""}`}
+                  aria-pressed={fnOutputMode === "teacher"}
+                  on:click={() => (fnOutputMode = "teacher")}
+                >
+                  <span class="option-pill__indicator" aria-hidden="true" />
+                  <span
+                    >{translate(
+                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::output_source_teacher",
+                    )}</span
+                  >
+                </button>
+              </div>
+            </div>
+            {#if fnOutputMode === "teacher"}
+              <div class="panel-soft space-y-2">
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                  <h5 class="font-semibold">
+                    {translate(
+                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_solution_file",
+                    )}
+                  </h5>
+                  <span class="badge badge-outline badge-primary badge-sm"
+                    >{teacherSolutionFile
+                      ? translate(
+                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::using_teacher_solution",
+                          { name: teacherSolutionFile.name },
+                        )
+                      : translate(
+                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_teacher_solution_prompt",
+                        )}</span
+                  >
+                </div>
+                <div class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                  <input
+                    type="file"
+                    accept=".py,.zip,.txt"
+                    class="file-input file-input-bordered w-full"
+                    on:change={(e) =>
+                      (teacherSolutionFile =
+                        (e.target as HTMLInputElement).files?.[0] || null)}
+                  />
+                  <span class="text-xs opacity-70">
+                    {translate(
+                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_solution_vm_hint",
+                    )}
+                  </span>
+                </div>
+                <p class="hint">
+                  {translate(
+                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_teacher_autofill_hint",
+                  )}
+                </p>
+              </div>
+            {/if}
             <div
               class="rounded-2xl border border-base-300/70 bg-base-200/40 p-4 space-y-3"
             >
@@ -3622,9 +4189,15 @@
                 >
                 <button
                   class="btn btn-primary"
-                  disabled={!fnMeta || fnCases.length === 0}
+                  disabled={!fnMeta || fnCases.length === 0 || fnOutputLoading ||
+                    (fnOutputMode === "teacher" && !teacherSolutionFile)}
                   on:click={createFunctionTestsFromBuilder}
-                  ><FlaskConical size={16} />
+                  >
+                  {#if fnOutputLoading}
+                    <span class="loading loading-spinner loading-sm"></span>
+                  {:else}
+                    <FlaskConical size={16} />
+                  {/if}
                   {translate(
                     "frontend/src/routes/assignments/[id]/tests/+page.svelte::create_function_tests",
                   )}</button
@@ -3786,7 +4359,7 @@
                     {/if}
                     {#if fnMeta.returns.length > 0}
                       <div class="space-y-2">
-                        <h5 class="text-sm font-semibold">
+                        <h5 class="text-sm font-semibold flex items-center gap-2">
                           {fnMeta.returns.length > 1
                             ? translate(
                                 "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_values",
@@ -3794,6 +4367,13 @@
                             : translate(
                                 "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_value",
                               )}
+                          {#if fnOutputMode === "teacher"}
+                            <span class="badge badge-ghost badge-sm"
+                              >{translate(
+                                "frontend/src/routes/assignments/[id]/tests/+page.svelte::auto_from_teacher",
+                              )}</span
+                            >
+                          {/if}
                         </h5>
                         <div class="grid gap-3 md:grid-cols-2">
                           {#each fnMeta.returns as ret, ri}
@@ -3823,6 +4403,7 @@
                                   <input
                                     type="checkbox"
                                     class="toggle toggle-sm"
+                                    disabled={fnOutputMode === "teacher"}
                                     checked={stringToBool(fc.returns[ri])}
                                     on:change={(e) =>
                                       updateFnReturn(
@@ -3846,6 +4427,8 @@
                               {:else if control.control === "textarea"}
                                 <textarea
                                   class="textarea textarea-bordered h-24"
+                                  class:textarea-disabled={fnOutputMode === "teacher"}
+                                  readonly={fnOutputMode === "teacher"}
                                   value={fc.returns[ri]}
                                   on:input={(e) =>
                                     updateFnReturn(
@@ -3853,14 +4436,19 @@
                                       ri,
                                       (e.target as HTMLTextAreaElement).value,
                                     )}
-                                  placeholder={ret.type ??
-                                    translate(
-                                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder",
-                                    )}
+                                  placeholder={translate(
+                                    fnOutputMode === "teacher"
+                                      ? "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_from_teacher"
+                                      : ret.type ??
+                                        translate(
+                                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder",
+                                        ),
+                                  )}
                                 ></textarea>
                               {:else}
                                 <input
                                   class="input input-bordered w-full"
+                                  class:input-disabled={fnOutputMode === "teacher"}
                                   type={control.control === "integer" ||
                                   control.control === "number"
                                     ? "number"
@@ -3870,6 +4458,7 @@
                                     : control.control === "number"
                                       ? "any"
                                       : undefined}
+                                  readonly={fnOutputMode === "teacher"}
                                   value={fc.returns[ri]}
                                   on:input={(e) =>
                                     updateFnReturn(
@@ -3877,10 +4466,14 @@
                                       ri,
                                       (e.target as HTMLInputElement).value,
                                     )}
-                                  placeholder={ret.type ??
-                                    translate(
-                                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder",
-                                    )}
+                                  placeholder={translate(
+                                    fnOutputMode === "teacher"
+                                      ? "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_from_teacher"
+                                      : ret.type ??
+                                        translate(
+                                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder",
+                                        ),
+                                  )}
                                 />
                               {/if}
                             </div>
