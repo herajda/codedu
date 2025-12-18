@@ -6,15 +6,16 @@
 @font-face {
   font-family: "CodEdu";
   src: url("/fonts/CodEdu/codedu-font.woff2") format("woff2"),
-       url("/fonts/CodEdu/codedu-font.woff") format("woff");
+    url("/fonts/CodEdu/codedu-font.woff") format("woff");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
+
 @font-face {
   font-family: "CodEdu";
   src: url("/fonts/CodEdu/codedu-font.woff2") format("woff2"),
-       url("/fonts/CodEdu/codedu-font.woff") format("woff");
+    url("/fonts/CodEdu/codedu-font.woff") format("woff");
   font-weight: 600;
   font-style: normal;
   font-display: swap;
@@ -58,12 +59,14 @@
   --assignment-code-border: rgba(148, 163, 184, 0.35);
 }
 
-html, body {
+html,
+body {
   font-family: "Inter", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
 }
 
 /* Futuristic, inspiring base – blend with dynamic background */
-html, body {
+html,
+body {
   background-color: transparent;
 }
 
@@ -89,53 +92,83 @@ body::before {
 .card-elevated {
   @apply rounded-xl border border-base-300/60 bg-base-100/80 backdrop-blur supports-[backdrop-filter]:bg-base-100/85 shadow-md shadow-base-300/30;
 }
+
 /* Mobile helpers to prevent horizontal overflow */
-.container { max-width: 100%; }
-img { max-width: 100%; height: auto; }
-.break-anywhere { overflow-wrap: anywhere; word-break: break-word; }
+.container {
+  max-width: 100%;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+.break-anywhere {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
 
 
 .navbar-glass {
   @apply bg-base-100/70 backdrop-blur border-b border-base-300/60;
 }
-.markdown, .editor-preview, .editor-preview-side {
+
+.markdown,
+.editor-preview,
+.editor-preview-side {
   line-height: 1.5;
-  color: hsl(var(--bc)); /* Use theme-aware base content color */
+  color: hsl(var(--bc));
+  /* Use theme-aware base content color */
 }
+
 .markdown p,
 .editor-preview p,
 .editor-preview-side p {
   /* Normalize paragraph spacing inside markdown blocks */
   margin: 0.25rem 0;
 }
-.markdown > :first-child,
-.editor-preview > :first-child,
-.editor-preview-side > :first-child {
+
+.markdown> :first-child,
+.editor-preview> :first-child,
+.editor-preview-side> :first-child {
   /* Remove extra space at the top of the cell */
   margin-top: 0;
 }
-.markdown > :last-child,
-.editor-preview > :last-child,
-.editor-preview-side > :last-child {
+
+.markdown> :last-child,
+.editor-preview> :last-child,
+.editor-preview-side> :last-child {
   /* Remove extra space at the bottom of the cell */
   margin-bottom: 0;
 }
-.markdown h1, .editor-preview h1, .editor-preview-side h1 {
+
+.markdown h1,
+.editor-preview h1,
+.editor-preview-side h1 {
   font-size: 1.5rem;
   font-weight: 700;
   margin: 0.5rem 0;
 }
-.markdown h2, .editor-preview h2, .editor-preview-side h2 {
+
+.markdown h2,
+.editor-preview h2,
+.editor-preview-side h2 {
   font-size: 1.25rem;
   font-weight: 600;
   margin: 0.5rem 0;
 }
-.markdown ul, .editor-preview ul, .editor-preview-side ul {
+
+.markdown ul,
+.editor-preview ul,
+.editor-preview-side ul {
   list-style: disc;
   margin-left: 1.5rem;
   margin-bottom: 0.5rem;
 }
-.markdown ol, .editor-preview ol, .editor-preview-side ol {
+
+.markdown ol,
+.editor-preview ol,
+.editor-preview-side ol {
   list-style: decimal;
   margin-left: 1.5rem;
   margin-bottom: 0.5rem;
@@ -148,6 +181,7 @@ img { max-width: 100%; height: auto; }
 .assignment-description :where(a) {
   @apply link link-primary;
 }
+
 .markdown pre,
 .editor-preview pre,
 .editor-preview-side pre,
@@ -163,6 +197,7 @@ img { max-width: 100%; height: auto; }
   line-height: 1.6;
   box-shadow: none;
 }
+
 .markdown pre code,
 .editor-preview pre code,
 .editor-preview-side pre code,
@@ -172,10 +207,11 @@ img { max-width: 100%; height: auto; }
   border-radius: 0;
   display: block;
 }
-.markdown :not(pre) > code,
-.editor-preview :not(pre) > code,
-.editor-preview-side :not(pre) > code,
-.prose :not(pre) > code,
+
+.markdown :not(pre)>code,
+.editor-preview :not(pre)>code,
+.editor-preview-side :not(pre)>code,
+.prose :not(pre)>code,
 .assignment-description :where(:not(pre) > code) {
   background-color: var(--assignment-inline-code-bg, #f0f0f0);
   border: 1px solid var(--assignment-code-border, hsl(var(--bc) / 0.12));
@@ -210,22 +246,35 @@ body.hide-navbar .navbar {
 .editor-toolbar .fab {
   color: hsl(var(--bc)) !important;
 }
+
 .editor-toolbar a:hover,
 .editor-toolbar button:hover {
   color: hsl(var(--bc)) !important;
 }
 
 /* Keep EasyMDE fullscreen below the sticky top appbar */
-:root { --appbar-offset: 4rem; }
-.EasyMDEContainer .editor-toolbar.fullscreen { top: var(--appbar-offset) !important; }
-.EasyMDEContainer .CodeMirror-fullscreen { top: calc(var(--appbar-offset) + 50px) !important; }
-.EasyMDEContainer .editor-preview-side { top: calc(var(--appbar-offset) + 50px) !important; }
+:root {
+  --appbar-offset: 4rem;
+}
+
+.EasyMDEContainer .editor-toolbar.fullscreen {
+  top: var(--appbar-offset) !important;
+}
+
+.EasyMDEContainer .CodeMirror-fullscreen {
+  top: calc(var(--appbar-offset) + 50px) !important;
+}
+
+.EasyMDEContainer .editor-preview-side {
+  top: calc(var(--appbar-offset) + 50px) !important;
+}
 
 /* Hide textual separator character, keep graphical separator styling */
 .editor-toolbar a.separator,
 .editor-toolbar .separator {
   color: transparent !important;
-  font-size: 0; /* suppress any '|' text node */
+  font-size: 0;
+  /* suppress any '|' text node */
 }
 
 /* In side-by-side or preview-only, use theme-aware text color */
@@ -246,15 +295,19 @@ body.hide-navbar .navbar {
   height: 1px;
   background: color-mix(in oklab, hsl(var(--b3)) 40%, transparent);
 }
+
 .divider-glow::after {
   content: "";
-  position: absolute; inset: 0;
-  background: radial-gradient(60% 200% at 50% 50%, rgba(var(--glow),0.14), transparent 60%);
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(60% 200% at 50% 50%, rgba(var(--glow), 0.14), transparent 60%);
   pointer-events: none;
 }
 
 /* Navbar slight blur applied already by class; ensure layering */
-.navbar-glass { backdrop-filter: saturate(120%) blur(8px); }
+.navbar-glass {
+  backdrop-filter: saturate(120%) blur(8px);
+}
 
 /* Make default cards slightly translucent for depth */
 .card {
@@ -296,6 +349,7 @@ body.hide-navbar .navbar {
     0 34px 70px rgba(0, 0, 0, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
+
 [data-theme='dark'] .appbar::before {
   background: rgba(16, 22, 28, 0.62);
   border-color: rgba(255, 255, 255, 0.08);
@@ -309,6 +363,7 @@ body.hide-navbar .navbar {
     inset 0 1px 0 rgba(255, 255, 255, 0.02),
     inset 0 18px 40px rgba(255, 255, 255, 0.01);
 }
+
 [data-theme='light'] .appbar::before {
   background: rgba(255, 255, 255, 0.32);
   border-color: rgba(255, 255, 255, 0.34);
@@ -322,8 +377,8 @@ body.hide-navbar .navbar {
   border-radius: inherit;
   pointer-events: none;
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.06) 24%, rgba(255,255,255,0.02) 52%, transparent 72%),
-    radial-gradient(120% 60% at 50% -10%, rgba(255,255,255,0.16), transparent 60%);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06) 24%, rgba(255, 255, 255, 0.02) 52%, transparent 72%),
+    radial-gradient(120% 60% at 50% -10%, rgba(255, 255, 255, 0.16), transparent 60%);
   /* Avoid blend mode to prevent ghosting/phantom artifacts on hover */
   mix-blend-mode: normal;
   z-index: 0;
@@ -334,10 +389,12 @@ body.hide-navbar .navbar {
   background: rgba(255, 255, 255, 0.94);
   border-color: rgba(255, 255, 255, 0.50);
 }
+
 [data-theme='dark'] .appbar--scrolled::before {
   background: rgba(16, 22, 28, 0.96);
   border-color: rgba(255, 255, 255, 0.12);
 }
+
 [data-theme='light'] .appbar--scrolled::before {
   background: rgba(255, 255, 255, 0.96);
   border-color: rgba(255, 255, 255, 0.52);
@@ -355,17 +412,17 @@ body.hide-navbar .navbar {
 [data-theme='light'] .appbar::after {
   background:
     /* top-to-bottom glossy curve */
-    linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0.10) 26%, rgba(255,255,255,0.04) 54%, transparent 76%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.10) 26%, rgba(255, 255, 255, 0.04) 54%, transparent 76%),
     /* diagonal sheen */
-    linear-gradient(115deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.10) 22%, rgba(255,255,255,0.04) 38%, transparent 50%),
+    linear-gradient(115deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.10) 22%, rgba(255, 255, 255, 0.04) 38%, transparent 50%),
     /* soft crown highlight */
-    radial-gradient(120% 60% at 50% -10%, rgba(255,255,255,0.20), transparent 60%),
+    radial-gradient(120% 60% at 50% -10%, rgba(255, 255, 255, 0.20), transparent 60%),
     /* small sparkle near top-left */
-    radial-gradient(40% 24% at 16% 2%, rgba(255,255,255,0.24), transparent 70%);
+    radial-gradient(40% 24% at 16% 2%, rgba(255, 255, 255, 0.24), transparent 70%);
 }
 
 /* Normalize blend mode for all children to prevent text deformation through compositing */
-.appbar > * {
+.appbar>* {
   mix-blend-mode: normal;
   position: relative;
   z-index: 1;
@@ -413,9 +470,15 @@ body.hide-navbar .navbar {
   align-items: baseline;
   gap: 0.125rem;
 }
+
 .logo-bracket {
   font-family: "CodEdu", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-weight: 400; /* lighter than the main logo text */
-  color: hsl(var(--bc) / 0.6); /* lighter, semi-transparent content color */
+  font-weight: 400;
+  /* lighter than the main logo text */
+  color: hsl(var(--bc) / 0.6);
+  /* lighter, semi-transparent content color */
 }
-.logo-text { color: hsl(var(--bc)); }
+
+.logo-text {
+  color: hsl(var(--bc));
+}

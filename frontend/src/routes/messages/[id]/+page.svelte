@@ -20,16 +20,19 @@
     Search,
     Paperclip,
     X,
-    Smile
+    Smile,
+    Table
   } from 'lucide-svelte';
+import { renderMarkdown } from '$lib/markdown';
+import MarkdownEditor from '$lib/MarkdownEditor.svelte';
   import { fade, scale } from 'svelte/transition';
   import { sidebarCollapsed } from '$lib/sidebar';
   import UserProfileModal from '$lib/components/UserProfileModal.svelte';
   import { onlineUsers } from '$lib/stores/onlineUsers';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
-  import { t, translator } from '$lib/i18n';
+  import { t, translator, type Translator } from '$lib/i18n';
 
-  let translate;
+  let translate: Translator;
   $: translate = $translator;
 
   let id = $page.params.id;
@@ -62,6 +65,7 @@
   let showEmojiPicker = false;
   let showProfile = false;
   let showSearch = false;
+  let structured = false;
   let searchQuery = '';
   let searchResults: number[] = [];
   let searchPos = 0;
@@ -239,9 +243,9 @@
     if (!msg.trim() && !imageData && !fileData) return;
     const res = await apiFetch('/api/messages', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ to: id, text: msg, image: imageData, file_name: fileName, file: fileData })
+      body: JSON.stringify({ to: id, text: msg, image: imageData, file_name: fileName, file: fileData, structured })
     });
-    if (res.ok) { msg=''; imageData=null; fileData=null; fileName=null; offset=0; await load(); }
+    if (res.ok) { msg=''; imageData=null; fileData=null; fileName=null; structured=false; offset=0; await load(); }
     else { err = (await res.json()).error; }
   }
 
@@ -574,7 +578,13 @@
                     tabindex="0"
                     on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.showTime = !m.showTime; convo = [...convo]; } }}
                   >
-                    {hyphenateLongWords(m.text)}
+                    {#if m.structured}
+                      <div class="markdown prose prose-sm max-w-none prose-headings:text-inherit prose-p:text-inherit prose-strong:text-inherit prose-code:text-inherit prose-pre:bg-base-300/50">
+                        {@html renderMarkdown(m.text)}
+                      </div>
+                    {:else}
+                      {hyphenateLongWords(m.text)}
+                    {/if}
                   </div>
 
                   <!-- Message Status below the bubble -->
@@ -689,19 +699,43 @@
       </div>
       
       <!-- Message Input -->
-      <div class="flex-1 relative">
-        <textarea
-          class="textarea textarea-bordered w-full resize-none overflow-hidden bg-base-200/50 backdrop-blur-sm border-base-300/50 focus:border-primary/50 focus:bg-base-100/80 transition-all duration-200 rounded-2xl"
-          rows="1"
-          style="min-height:0;height:auto"
-          placeholder={t('frontend/src/routes/messages/[id]/+page.svelte::type_a_message_placeholder')}
-          bind:value={msg}
-          bind:this={msgInput}
-          on:input={adjustHeight}
-          on:keydown={handleKeydown}
-        ></textarea>
+      <div class="flex-1 relative min-h-[42px] flex items-end">
+        {#if structured}
+          <div class="w-full bg-base-100 rounded-2xl border border-base-300 shadow-sm overflow-hidden" transition:fade={{ duration: 200 }}>
+            <MarkdownEditor 
+              bind:value={msg} 
+              placeholder={t('frontend/src/routes/messages/[id]/+page.svelte::type_a_message_placeholder')}
+              className="chat-md-editor"
+              showExtraButtons={false}
+            />
+          </div>
+        {:else}
+          <div class="w-full" transition:fade={{ duration: 200 }}>
+            <textarea
+              class="textarea textarea-bordered w-full resize-none overflow-hidden bg-base-200/50 backdrop-blur-sm border-base-300/50 focus:border-primary/50 focus:bg-base-100/80 transition-all duration-200 rounded-2xl"
+              rows="1"
+              style="min-height:0;height:auto"
+              placeholder={t('frontend/src/routes/messages/[id]/+page.svelte::type_a_message_placeholder')}
+              bind:value={msg}
+              bind:this={msgInput}
+              on:input={adjustHeight}
+              on:keydown={handleKeydown}
+            ></textarea>
+          </div>
+        {/if}
       </div>
       
+      <!-- Structured Toggle -->
+      <div class="relative">
+        <button 
+          class="btn btn-circle btn-ghost {structured ? 'text-primary' : 'text-base-content/40'} hover:bg-base-200/80 transition-all duration-200" 
+          on:click={() => structured = !structured}
+          title={t('frontend/src/routes/messages/[id]/+page.svelte::structured_messaging')}
+        >
+          <Table class="w-4 h-4" />
+        </button>
+      </div>
+
       <!-- Send Button -->
       <button
         class="btn btn-circle btn-primary shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -805,5 +839,34 @@
   
   .overflow-y-auto::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--bc) / 0.3);
+  }
+
+  /* Chat Markdown Editor Styles */
+  :global(.chat-md-editor + .EasyMDEContainer) {
+    border: none !important;
+    width: 100% !important;
+  }
+  :global(.chat-md-editor + .EasyMDEContainer .CodeMirror) {
+    border: none !important;
+    min-height: 80px !important;
+    max-height: 300px !important;
+    background: transparent !important;
+    font-size: 0.95rem !important;
+    padding: 8px !important;
+  }
+  :global(.chat-md-editor + .EasyMDEContainer .editor-toolbar) {
+    border: none !important;
+    border-bottom: 1px solid hsl(var(--bc) / 0.1) !important;
+    background: hsl(var(--b1) / 0.5) !important;
+    padding: 4px !important;
+    opacity: 0.8;
+  }
+  :global(.chat-md-editor + .EasyMDEContainer .editor-toolbar button) {
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 6px !important;
+  }
+  :global(.chat-md-editor + .EasyMDEContainer .editor-statusbar) {
+    display: none !important;
   }
 </style>

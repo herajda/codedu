@@ -231,6 +231,7 @@ CREATE TABLE IF NOT EXISTS messages (
   content TEXT NOT NULL,
   image TEXT,
   is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  structured BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_messages_sender_recipient_created
@@ -239,6 +240,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_sender_recipient_created
 -- add image column if upgrading from an older schema
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS image TEXT;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS structured BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_name TEXT;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS file TEXT;
 
@@ -280,6 +282,7 @@ CREATE TABLE IF NOT EXISTS forum_messages (
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   content TEXT NOT NULL,
   image TEXT,
+  structured BOOLEAN NOT NULL DEFAULT FALSE,
   file_name TEXT,
   file TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -287,6 +290,7 @@ CREATE TABLE IF NOT EXISTS forum_messages (
 CREATE INDEX IF NOT EXISTS idx_forum_messages_class_created
   ON forum_messages(class_id, created_at);
 ALTER TABLE forum_messages ADD COLUMN IF NOT EXISTS image TEXT;
+ALTER TABLE forum_messages ADD COLUMN IF NOT EXISTS structured BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE forum_messages ADD COLUMN IF NOT EXISTS file_name TEXT;
 ALTER TABLE forum_messages ADD COLUMN IF NOT EXISTS file TEXT;
 

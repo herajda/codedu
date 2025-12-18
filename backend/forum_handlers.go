@@ -49,10 +49,11 @@ func createForumMessageHandler(c *gin.Context) {
 		return
 	}
 	var req struct {
-		Text     string  `json:"text"`
-		Image    *string `json:"image"`
-		FileName *string `json:"file_name"`
-		File     *string `json:"file"`
+		Text       string  `json:"text"`
+		Image      *string `json:"image"`
+		FileName   *string `json:"file_name"`
+		File       *string `json:"file"`
+		Structured bool    `json:"structured"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -70,7 +71,7 @@ func createForumMessageHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "file too large"})
 		return
 	}
-	m := &ForumMessage{ClassID: cid, UserID: getUserID(c), Text: req.Text, Image: req.Image, FileName: req.FileName, File: req.File}
+	m := &ForumMessage{ClassID: cid, UserID: getUserID(c), Text: req.Text, Image: req.Image, FileName: req.FileName, File: req.File, Structured: req.Structured}
 	if err := CreateForumMessage(m); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return

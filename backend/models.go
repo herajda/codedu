@@ -1864,6 +1864,7 @@ type Message struct {
 	FileName    *string   `db:"file_name" json:"file_name,omitempty"`
 	File        *string   `db:"file" json:"file,omitempty"`
 	IsRead      bool      `db:"is_read" json:"is_read"`
+	Structured  bool      `db:"structured" json:"structured"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 }
 
@@ -1875,10 +1876,10 @@ func CreateMessage(m *Message) error {
 	if blocked {
 		return ErrBlocked
 	}
-	const q = `INSERT INTO messages (sender_id, recipient_id, content, image, file_name, file)
-                    VALUES ($1,$2,$3,$4,$5,$6)
+	const q = `INSERT INTO messages (sender_id, recipient_id, content, image, file_name, file, structured)
+                    VALUES ($1,$2,$3,$4,$5,$6,$7)
                     RETURNING id, created_at, is_read`
-	err = DB.QueryRow(q, m.SenderID, m.RecipientID, m.Text, m.Image, m.FileName, m.File).
+	err = DB.QueryRow(q, m.SenderID, m.RecipientID, m.Text, m.Image, m.FileName, m.File, m.Structured).
 		Scan(&m.ID, &m.CreatedAt, &m.IsRead)
 	if err == nil {
 		broadcastMsg(sse.Event{Event: "message", Data: m})
@@ -1888,7 +1889,7 @@ func CreateMessage(m *Message) error {
 
 func ListMessages(userID, otherID uuid.UUID, limit, offset int) ([]Message, error) {
 	msgs := []Message{}
-	err := DB.Select(&msgs, `SELECT id,sender_id,recipient_id,content,image,file_name,file,created_at,is_read
+	err := DB.Select(&msgs, `SELECT id,sender_id,recipient_id,content,image,file_name,file,created_at,is_read,structured
                                  FROM messages
                                 WHERE (sender_id=$1 AND recipient_id=$2)
                                    OR (sender_id=$2 AND recipient_id=$1)
@@ -1993,7 +1994,7 @@ func ListRecentConversations(userID uuid.UUID, limit int) ([]Conversation, error
                 GROUP BY sender_id
        )
        SELECT l.other_id, u.name, u.avatar, u.email,
-              l.id, l.sender_id, l.recipient_id, l.content, l.image, l.file_name, l.file, l.created_at,
+              l.id, l.sender_id, l.recipient_id, l.content, l.image, l.file_name, l.file, l.created_at, l.structured,
               COALESCE(un.unread_count,0) AS unread_count,
               (sc.other_id IS NOT NULL) AS starred,
               (ac.other_id IS NOT NULL) AS archived
@@ -2035,24 +2036,25 @@ func UnarchiveConversation(userID, otherID uuid.UUID) error {
 // ──────────────────────────────────────────────────────
 
 type ForumMessage struct {
-	ID        uuid.UUID `db:"id" json:"id"`
-	ClassID   uuid.UUID `db:"class_id" json:"class_id"`
-	UserID    uuid.UUID `db:"user_id" json:"user_id"`
-	Text      string    `db:"content" json:"text"`
-	Image     *string   `db:"image" json:"image,omitempty"`
-	FileName  *string   `db:"file_name" json:"file_name,omitempty"`
-	File      *string   `db:"file" json:"file,omitempty"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	Name      *string   `db:"name" json:"name"`
-	Email     string    `db:"email" json:"email"`
-	Avatar    *string   `db:"avatar" json:"avatar"`
+	ID         uuid.UUID `db:"id" json:"id"`
+	ClassID    uuid.UUID `db:"class_id" json:"class_id"`
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	Text       string    `db:"content" json:"text"`
+	Image      *string   `db:"image" json:"image,omitempty"`
+	FileName   *string   `db:"file_name" json:"file_name,omitempty"`
+	File       *string   `db:"file" json:"file,omitempty"`
+	Structured bool      `db:"structured" json:"structured"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+	Name       *string   `db:"name" json:"name"`
+	Email      string    `db:"email" json:"email"`
+	Avatar     *string   `db:"avatar" json:"avatar"`
 }
 
 func CreateForumMessage(m *ForumMessage) error {
-	const q = `INSERT INTO forum_messages (class_id, user_id, content, image, file_name, file)
-                   VALUES ($1,$2,$3,$4,$5,$6)
+	const q = `INSERT INTO forum_messages (class_id, user_id, content, image, file_name, file, structured)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7)
                    RETURNING id, created_at`
-	if err := DB.QueryRow(q, m.ClassID, m.UserID, m.Text, m.Image, m.FileName, m.File).Scan(&m.ID, &m.CreatedAt); err != nil {
+	if err := DB.QueryRow(q, m.ClassID, m.UserID, m.Text, m.Image, m.FileName, m.File, m.Structured).Scan(&m.ID, &m.CreatedAt); err != nil {
 		return err
 	}
 	_ = DB.QueryRow(`SELECT name, email, avatar FROM users WHERE id=$1`, m.UserID).Scan(&m.Name, &m.Email, &m.Avatar)
@@ -2062,7 +2064,7 @@ func CreateForumMessage(m *ForumMessage) error {
 
 func ListForumMessages(classID uuid.UUID, limit, offset int) ([]ForumMessage, error) {
 	msgs := []ForumMessage{}
-	err := DB.Select(&msgs, `SELECT fm.id, fm.class_id, fm.user_id, fm.content, fm.image, fm.file_name, fm.file, fm.created_at,
+	err := DB.Select(&msgs, `SELECT fm.id, fm.class_id, fm.user_id, fm.content, fm.image, fm.file_name, fm.file, fm.created_at, fm.structured,
                                        u.name, u.email, u.avatar
                                   FROM forum_messages fm
                                   JOIN users u ON u.id=fm.user_id

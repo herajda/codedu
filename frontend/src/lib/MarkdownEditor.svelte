@@ -14,6 +14,7 @@
   export let value = '';
   export let placeholder = '';
   export let className: string = '';
+  export let showExtraButtons: boolean = true;
 
   let textarea: HTMLTextAreaElement;
   let editor: any = null;
@@ -224,8 +225,7 @@
         },
         '|',
         'preview',
-        'side-by-side',
-        'fullscreen',
+        ...(showExtraButtons ? ['side-by-side', 'fullscreen'] : []),
         '|',
         'guide'
       ]

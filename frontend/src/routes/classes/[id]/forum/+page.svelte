@@ -4,14 +4,16 @@
   import { apiJSON, apiFetch } from '$lib/api';
   import { createEventSource } from '$lib/sse';
   import { auth } from '$lib/auth';
-  import { Paperclip, ImagePlus, Smile, Send, X, ChevronLeft, ChevronRight, MessageSquare, Trash2 } from 'lucide-svelte';
+  import { Paperclip, ImagePlus, Smile, Send, X, ChevronLeft, ChevronRight, MessageSquare, Trash2, Table } from 'lucide-svelte';
+  import { renderMarkdown } from '$lib/markdown';
   import { compressImage } from '$lib/utils/compressImage';
   import { fade, scale } from 'svelte/transition';
   import { sidebarCollapsed } from '$lib/sidebar';
-  import { t, translator } from '$lib/i18n';
+  import { t, translator, type Translator } from '$lib/i18n';
+  import MarkdownEditor from '$lib/MarkdownEditor.svelte';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
 
-  let translate;
+  let translate: Translator;
   $: translate = $translator;
 
   let id = $page.params.id;
@@ -41,6 +43,7 @@
   let esCtrl: { close: () => void } | null = null;
   let deleting: Record<string, boolean> = {};
   let confirmModal: InstanceType<typeof ConfirmModal>;
+  let structured = false;
 
   // Pagination & scroll preservation (mirrors chat behavior)
   const pageSize = 20;
@@ -323,13 +326,14 @@
       const res = await apiFetch(`/api/classes/${id}/forum`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: t, image: imageData, file: fileData, file_name: fileName })
+        body: JSON.stringify({ text: t, image: imageData, file: fileData, file_name: fileName, structured })
       });
       if (res.ok) {
         text = '';
         imageData = null;
         fileData = null;
         fileName = null;
+        structured = false;
         adjustHeight();
         // Ensure the just-sent message appears immediately like chat
         offset = 0; hasMore = true; await load();
@@ -457,7 +461,13 @@
                     tabindex="0"
                     on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.showTime = !m.showTime; msgs = [...msgs]; } }}
                   >
-                    {hyphenateLongWords(m.text)}
+                    {#if m.structured}
+                      <div class="markdown prose prose-sm max-w-none prose-headings:text-inherit prose-p:text-inherit prose-strong:text-inherit prose-code:text-inherit prose-pre:bg-base-300/50">
+                        {@html renderMarkdown(m.text)}
+                      </div>
+                    {:else}
+                      {hyphenateLongWords(m.text)}
+                    {/if}
                   </div>
                   
                   <!-- Time display below message -->
@@ -555,17 +565,40 @@
         {/if}
       </div>
 
-      <div class="flex-1 relative">
-        <textarea
-          class="textarea textarea-bordered w-full resize-none overflow-hidden bg-base-200/50 backdrop-blur-sm border-base-300/50 focus:border-primary/50 focus:bg-base-100/80 transition-all duration-200 rounded-2xl"
-          rows="1"
-          style="min-height:0;height:auto"
-          placeholder={t('frontend/src/routes/classes/[id]/forum/+page.svelte::type_a_message_placeholder')}
-          bind:value={text}
-          bind:this={msgInput}
-          on:input={adjustHeight}
-          on:keydown={handleKeydown}
-        ></textarea>
+      <div class="flex-1 relative min-h-[42px] flex items-end">
+        {#if structured}
+          <div class="w-full bg-base-100 rounded-2xl border border-base-300 shadow-sm overflow-hidden" transition:fade={{ duration: 200 }}>
+            <MarkdownEditor 
+              bind:value={text} 
+              placeholder={translate('frontend/src/routes/classes/[id]/forum/+page.svelte::message_placeholder')}
+              className="chat-md-editor"
+              showExtraButtons={false}
+            />
+          </div>
+        {:else}
+          <div class="w-full" transition:fade={{ duration: 200 }}>
+            <textarea
+              class="textarea textarea-bordered w-full resize-none overflow-hidden bg-base-200/50 backdrop-blur-sm border-base-300/50 focus:border-primary/50 focus:bg-base-100/80 transition-all duration-200 rounded-2xl"
+              rows="1"
+              style="min-height:0;height:auto"
+              placeholder={translate('frontend/src/routes/classes/[id]/forum/+page.svelte::message_placeholder')}
+              bind:value={text}
+              bind:this={msgInput}
+              on:input={adjustHeight}
+              on:keydown={handleKeydown}
+            ></textarea>
+          </div>
+        {/if}
+      </div>
+
+      <div class="relative">
+        <button 
+          class="btn btn-circle btn-ghost {structured ? 'text-primary' : 'text-base-content/40'} hover:bg-base-200/80 transition-all duration-200" 
+          on:click={() => structured = !structured}
+          title={t('frontend/src/routes/classes/[id]/forum/+page.svelte::structured_messaging')}
+        >
+          <Table class="w-4 h-4" />
+        </button>
       </div>
 
       <button
@@ -582,7 +615,7 @@
 
 <!-- Image Lightbox Overlay -->
 {#if lightboxOpen && modalImage}
-  <div class={`fixed top-0 bottom-0 right-0 left-0 ${$sidebarCollapsed ? 'sm:left-0' : 'sm:left-60'} z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center`} on:click|self={closeLightbox} in:fade={{ duration: 150 }} out:fade={{ duration: 150 }} role="dialog" aria-modal="true" aria-label={t('frontend/src/routes/classes/[id]/forum/+page.svelte::image_viewer_aria')}>
+  <div class={`fixed top-0 bottom-0 right-0 left-0 ${$sidebarCollapsed ? 'sm:left-0' : 'sm:left-60'} z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center`} on:click|self={closeLightbox} on:keydown|self={(e) => e.key === 'Escape' && closeLightbox()} in:fade={{ duration: 150 }} out:fade={{ duration: 150 }} role="dialog" aria-modal="true" tabindex="-1" aria-label={t('frontend/src/routes/classes/[id]/forum/+page.svelte::image_viewer_aria')}>
     <!-- Controls -->
     <div class="absolute top-0 left-0 right-0 p-4 flex items-center justify-end gap-2">
       <a class="btn btn-sm md:btn-md no-animation bg-white/20 hover:bg-white/30 text-white border-0" href={modalImage} download on:click|stopPropagation aria-label={t('frontend/src/routes/classes/[id]/forum/+page.page.svelte::download_image_aria')}>{translate('frontend/src/routes/classes/[id]/forum/+page.svelte::lightbox_download')}</a>
@@ -642,5 +675,34 @@
   }
   .overflow-y-auto::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--bc) / 0.3);
+  }
+
+  /* Chat Markdown Editor Styles */
+  :global(.chat-md-editor + .EasyMDEContainer) {
+    border: none !important;
+    width: 100% !important;
+  }
+  :global(.chat-md-editor + .EasyMDEContainer .CodeMirror) {
+    border: none !important;
+    min-height: 80px !important;
+    max-height: 300px !important;
+    background: transparent !important;
+    font-size: 0.95rem !important;
+    padding: 8px !important;
+  }
+  :global(.chat-md-editor + .EasyMDEContainer .editor-toolbar) {
+    border: none !important;
+    border-bottom: 1px solid hsl(var(--bc) / 0.1) !important;
+    background: hsl(var(--b1) / 0.5) !important;
+    padding: 4px !important;
+    opacity: 0.8;
+  }
+  :global(.chat-md-editor + .EasyMDEContainer .editor-toolbar button) {
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 6px !important;
+  }
+  :global(.chat-md-editor + .EasyMDEContainer .editor-statusbar) {
+    display: none !important;
   }
 </style>
