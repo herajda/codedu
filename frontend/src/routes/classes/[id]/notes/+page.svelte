@@ -422,8 +422,8 @@
       {/if}
     </button>
     {#if role==='teacher' || role==='admin'}
-      <button class="btn btn-sm btn-outline" on:click={openImportFromTeachers} title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::upload_notebook_tooltip')}><i class="fa-solid fa-copy mr-2"></i>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::upload_notebook_tooltip')}</button>
-      <button class="btn btn-sm" on:click={promptUpload} title="Upload notebook"><i class="fa-solid fa-file-arrow-up mr-2"></i>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::upload_notebook_tooltip')}</button>
+      <button class="btn btn-sm btn-outline" on:click={openImportFromTeachers} title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::copy_from_teachers_group')}><i class="fa-solid fa-cloud-arrow-down mr-2"></i>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::copy_from_teachers_group')}</button>
+      <button class="btn btn-sm" on:click={promptUpload} title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::upload_from_computer')}><i class="fa-solid fa-file-arrow-up mr-2"></i>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::upload_from_computer')}</button>
       <button class="btn btn-sm btn-primary" on:click={promptNotebook}><i class="fa-solid fa-book-medical mr-2"></i>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::new_notebook_button')}</button>
       <input bind:this={uploadInput} type="file" accept=".ipynb,application/x-ipynb+json,application/json" class="hidden" on:change={handleUploadChange} />
     {/if}
@@ -510,7 +510,7 @@
 
 <dialog bind:this={copyDialog} class="modal" on:close={resetCopyState}>
   <div class="modal-box max-w-2xl space-y-4">
-    <h3 class="font-bold text-lg">Copy notebook to Teachers' group</h3>
+    <h3 class="font-bold text-lg">{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::copy_to_teachers_group')}</h3>
     {#if copyItem}
       <p class="text-sm text-base-content/70 break-all">Source notebook: {copyItem.name}</p>
     {/if}
@@ -576,7 +576,7 @@
 
 <dialog bind:this={importDialog} class="modal" on:close={resetImportState}>
   <div class="modal-box max-w-3xl space-y-4">
-    <h3 class="font-bold text-lg">Copy notebook from Teachers' group</h3>
+    <h3 class="font-bold text-lg">{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::copy_from_teachers_group')}</h3>
     <div>
       <div class="flex items-center justify-between">
         <span class="text-sm font-medium">Browse Teachers' notebooks</span>
