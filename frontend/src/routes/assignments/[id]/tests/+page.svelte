@@ -3219,28 +3219,25 @@
                     >
                   {/if}
                 </span>
-                <textarea
-                  class="textarea textarea-bordered w-full"
-                  class:textarea-disabled={ioOutputMode === "teacher"}
-                  rows="3"
-                  placeholder={translate(
-                    ioOutputMode === "teacher"
-                      ? "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_stdout_from_teacher"
-                      : "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_stdout",
-                  )}
-                  readonly={ioOutputMode === "teacher"}
-                  bind:value={tStdout}
-                ></textarea>
-                {#if ioOutputMode === "teacher"}
-                  <span class="label-text-alt text-xs flex items-center gap-2">
+                {#if ioOutputMode === "manual"}
+                  <textarea
+                    class="textarea textarea-bordered w-full"
+                    rows="3"
+                    placeholder={translate(
+                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_stdout",
+                    )}
+                    bind:value={tStdout}
+                  ></textarea>
+                {:else}
+                  <div class="rounded-lg border border-dashed border-base-300/70 bg-base-200/40 px-3 py-2 text-xs">
                     {ioOutputLoading
                       ? translate(
                           "frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_solution_running",
                         )
                       : translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_solution_expected_locked",
+                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_output_from_teacher",
                         )}
-                  </span>
+                  </div>
                 {/if}
               </label>
               <label class="form-control w-full space-y-1">
@@ -3910,40 +3907,50 @@
                                     )}
                               ></textarea>
                             </label>
-                            <label class="form-control w-full space-y-1">
-                              <span class="label-text"
-                                >{ut.callMode === "function"
-                                  ? translate(
-                                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_python_expression",
-                                    )
-                                  : translate(
-                                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_output",
-                                    )}</span
-                              >
-                              <textarea
-                                class="textarea textarea-bordered h-24"
-                                class:textarea-disabled={utOutputMode === "teacher"}
-                                readonly={utOutputMode === "teacher"}
-                                value={getExpected(a)}
-                                on:input={(e) =>
-                                  setExpected(
-                                    a,
-                                    (e.target as HTMLTextAreaElement).value,
-                                  )}
-                                placeholder={translate(
-                                  utOutputMode === "teacher"
-                                    ? "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_stdout_from_teacher"
-                                    : "frontend/src/routes/assignments/[id]/tests/+page.svelte::example_expected_5",
-                                )}
-                              ></textarea>
-                              {#if utOutputMode === "teacher"}
-                                <span class="label-text-alt text-xs"
-                                  >{translate(
-                                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_solution_expected_locked",
-                                  )}</span
+                            {#if utOutputMode === "manual"}
+                              <label class="form-control w-full space-y-1">
+                                <span class="label-text"
+                                  >{ut.callMode === "function"
+                                    ? translate(
+                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_python_expression",
+                                      )
+                                    : translate(
+                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_output",
+                                      )}</span
                                 >
-                              {/if}
-                            </label>
+                                <textarea
+                                  class="textarea textarea-bordered h-24"
+                                  value={getExpected(a)}
+                                  on:input={(e) =>
+                                    setExpected(
+                                      a,
+                                      (e.target as HTMLTextAreaElement).value,
+                                    )}
+                                  placeholder={translate(
+                                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::example_expected_5",
+                                  )}
+                                ></textarea>
+                              </label>
+                            {:else}
+                              <div class="form-control w-full">
+                                <span class="label-text">
+                                  {ut.callMode === "function"
+                                    ? translate(
+                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_python_expression",
+                                      )
+                                    : translate(
+                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_output",
+                                      )}
+                                </span>
+                                <div
+                                  class="rounded-lg border border-dashed border-base-300/70 bg-base-200/40 px-3 py-2 text-xs"
+                                >
+                                  {translate(
+                                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_output_from_teacher",
+                                  )}
+                                </div>
+                              </div>
+                            {/if}
                           </div>
                         {/if}
                       </div>
@@ -4375,110 +4382,107 @@
                             >
                           {/if}
                         </h5>
-                        <div class="grid gap-3 md:grid-cols-2">
-                          {#each fnMeta.returns as ret, ri}
-                            {@const control = describeTypeControl(ret.type)}
-                            <div class="form-control space-y-1">
-                              <span
-                                class="label-text text-xs font-semibold uppercase tracking-wide flex items-center gap-2"
-                              >
-                                {fnMeta.returns.length > 1
-                                  ? translate(
-                                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::return_n_capitalized",
-                                      { ri: ri + 1 },
-                                    )
-                                  : translate(
-                                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::return_single_capitalized",
-                                    )}
-                                {#if ret.type}
-                                  <span class="badge badge-outline badge-sm"
-                                    >{ret.type}</span
-                                  >
-                                {/if}
-                              </span>
-                              {#if control.control === "boolean"}
-                                <label
-                                  class="label cursor-pointer justify-start gap-2 rounded-lg border border-base-300/60 px-3 py-2 bg-base-200/60"
+                        {#if fnOutputMode === "teacher"}
+                          <div
+                            class="rounded-lg border border-dashed border-base-300/70 bg-base-200/50 px-4 py-3 text-xs opacity-80"
+                          >
+                            {translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_from_teacher",
+                            )}
+                          </div>
+                        {:else}
+                          <div class="grid gap-3 md:grid-cols-2">
+                            {#each fnMeta.returns as ret, ri}
+                              {@const control = describeTypeControl(ret.type)}
+                              <div class="form-control space-y-1">
+                                <span
+                                  class="label-text text-xs font-semibold uppercase tracking-wide flex items-center gap-2"
                                 >
-                                  <input
-                                    type="checkbox"
-                                    class="toggle toggle-sm"
-                                    disabled={fnOutputMode === "teacher"}
-                                    checked={stringToBool(fc.returns[ri])}
-                                    on:change={(e) =>
+                                  {fnMeta.returns.length > 1
+                                    ? translate(
+                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::return_n_capitalized",
+                                        { ri: ri + 1 },
+                                      )
+                                    : translate(
+                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::return_single_capitalized",
+                                      )}
+                                  {#if ret.type}
+                                    <span class="badge badge-outline badge-sm"
+                                      >{ret.type}</span
+                                    >
+                                  {/if}
+                                </span>
+                                {#if control.control === "boolean"}
+                                  <label
+                                    class="label cursor-pointer justify-start gap-2 rounded-lg border border-base-300/60 px-3 py-2 bg-base-200/60"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      class="toggle toggle-sm"
+                                      checked={stringToBool(fc.returns[ri])}
+                                      on:change={(e) =>
+                                        updateFnReturn(
+                                          fi,
+                                          ri,
+                                          (e.target as HTMLInputElement).checked
+                                            ? "true"
+                                            : "false",
+                                        )}
+                                    />
+                                    <span class="label-text text-sm"
+                                      >{stringToBool(fc.returns[ri])
+                                        ? translate(
+                                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::true",
+                                          )
+                                        : translate(
+                                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::false",
+                                          )}</span
+                                    >
+                                  </label>
+                                {:else if control.control === "textarea"}
+                                  <textarea
+                                    class="textarea textarea-bordered h-24"
+                                    value={fc.returns[ri]}
+                                    on:input={(e) =>
                                       updateFnReturn(
                                         fi,
                                         ri,
-                                        (e.target as HTMLInputElement).checked
-                                          ? "true"
-                                          : "false",
+                                        (e.target as HTMLTextAreaElement).value,
+                                      )}
+                                    placeholder={ret.type ??
+                                      translate(
+                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder",
+                                      )}
+                                  ></textarea>
+                                {:else}
+                                  <input
+                                    class="input input-bordered w-full"
+                                    type={control.control === "integer" ||
+                                    control.control === "number"
+                                      ? "number"
+                                      : "text"}
+                                    step={control.control === "integer"
+                                      ? "1"
+                                      : control.control === "number"
+                                        ? "any"
+                                        : undefined}
+                                    value={fc.returns[ri]}
+                                    on:input={(e) =>
+                                      updateFnReturn(
+                                        fi,
+                                        ri,
+                                        (e.target as HTMLInputElement).value,
+                                      )}
+                                    placeholder={ret.type ??
+                                      translate(
+                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder",
                                       )}
                                   />
-                                  <span class="label-text text-sm"
-                                    >{stringToBool(fc.returns[ri])
-                                      ? translate(
-                                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::true",
-                                        )
-                                      : translate(
-                                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::false",
-                                        )}</span
-                                  >
-                                </label>
-                              {:else if control.control === "textarea"}
-                                <textarea
-                                  class="textarea textarea-bordered h-24"
-                                  class:textarea-disabled={fnOutputMode === "teacher"}
-                                  readonly={fnOutputMode === "teacher"}
-                                  value={fc.returns[ri]}
-                                  on:input={(e) =>
-                                    updateFnReturn(
-                                      fi,
-                                      ri,
-                                      (e.target as HTMLTextAreaElement).value,
-                                    )}
-                                  placeholder={translate(
-                                    fnOutputMode === "teacher"
-                                      ? "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_from_teacher"
-                                      : ret.type ??
-                                        translate(
-                                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder",
-                                        ),
-                                  )}
-                                ></textarea>
-                              {:else}
-                                <input
-                                  class="input input-bordered w-full"
-                                  class:input-disabled={fnOutputMode === "teacher"}
-                                  type={control.control === "integer" ||
-                                  control.control === "number"
-                                    ? "number"
-                                    : "text"}
-                                  step={control.control === "integer"
-                                    ? "1"
-                                    : control.control === "number"
-                                      ? "any"
-                                      : undefined}
-                                  readonly={fnOutputMode === "teacher"}
-                                  value={fc.returns[ri]}
-                                  on:input={(e) =>
-                                    updateFnReturn(
-                                      fi,
-                                      ri,
-                                      (e.target as HTMLInputElement).value,
-                                    )}
-                                  placeholder={translate(
-                                    fnOutputMode === "teacher"
-                                      ? "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_from_teacher"
-                                      : ret.type ??
-                                        translate(
-                                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder",
-                                        ),
-                                  )}
-                                />
-                              {/if}
-                            </div>
-                          {/each}
-                        </div>
+                                {/if}
+                              </div>
+                            {/each}
+                          </div>
+                        {/if}
                       </div>
                     {:else}
                       <div

@@ -759,6 +759,7 @@
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_values": "Expected return values",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_from_teacher": "Captured from teacher solution",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_stdout": "expected stdout (multi-line supported)",
+  "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_output_from_teacher": "Expected output will be captured from the teacher solution.",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::failed": "failed",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::false": "False",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::function": "Function",
