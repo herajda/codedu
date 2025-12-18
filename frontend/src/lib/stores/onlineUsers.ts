@@ -16,7 +16,7 @@ function createOnlineUsersStore() {
 			const response = await apiFetch('/api/online-users');
 			if (response.ok) {
 				const users = await response.json();
-				set(users);
+				set(Array.isArray(users) ? users : []);
 			}
 		} catch (error) {
 			console.error('Failed to load online users:', error);
@@ -47,7 +47,7 @@ function createOnlineUsersStore() {
 		}
 	}
 
-	function isUserOnline(userId: number): boolean {
+	function isUserOnline(userId: string): boolean {
 		let online = false;
 		update(users => {
 			online = users.some(user => user.id === userId);

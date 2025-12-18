@@ -579,7 +579,7 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
                     on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.showTime = !m.showTime; convo = [...convo]; } }}
                   >
                     {#if m.structured}
-                      <div class="markdown prose prose-sm max-w-none prose-headings:text-inherit prose-p:text-inherit prose-strong:text-inherit prose-code:text-inherit prose-pre:bg-base-300/50">
+                      <div class="markdown prose prose-sm max-w-none prose-headings:text-inherit prose-p:text-inherit prose-strong:text-inherit prose-code:text-inherit prose-pre:bg-base-300/50 prose-a:text-inherit prose-a:underline">
                         {@html renderMarkdown(m.text)}
                       </div>
                     {:else}
@@ -842,31 +842,5 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
   }
 
   /* Chat Markdown Editor Styles */
-  :global(.chat-md-editor + .EasyMDEContainer) {
-    border: none !important;
-    width: 100% !important;
-  }
-  :global(.chat-md-editor + .EasyMDEContainer .CodeMirror) {
-    border: none !important;
-    min-height: 80px !important;
-    max-height: 300px !important;
-    background: transparent !important;
-    font-size: 0.95rem !important;
-    padding: 8px !important;
-  }
-  :global(.chat-md-editor + .EasyMDEContainer .editor-toolbar) {
-    border: none !important;
-    border-bottom: 1px solid hsl(var(--bc) / 0.1) !important;
-    background: hsl(var(--b1) / 0.5) !important;
-    padding: 4px !important;
-    opacity: 0.8;
-  }
-  :global(.chat-md-editor + .EasyMDEContainer .editor-toolbar button) {
-    width: 28px !important;
-    height: 28px !important;
-    border-radius: 6px !important;
-  }
-  :global(.chat-md-editor + .EasyMDEContainer .editor-statusbar) {
-    display: none !important;
-  }
+
 </style>
