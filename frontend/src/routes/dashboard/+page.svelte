@@ -38,16 +38,16 @@
       // Actually dashboard returns role.
       
       const data = await apiJSON('/api/dashboard');
-      role = data.role;
+      const newRole = data.role;
+      let newClasses = data.classes || [];
       
-      if (role === 'admin') {
+      if (newRole === 'admin') {
+        role = newRole;
         loading = false;
         return;
       }
 
-      classes = data.classes || [];
-      
-      if (role === 'student') {
+      if (newRole === 'student') {
         studentStats = {
           totalClasses: data.student_stats.total_classes,
           totalAssignments: data.student_stats.total_assignments,
@@ -59,29 +59,27 @@
           ...u,
           class: u.class_name
         }));
-        // Map backend fields to frontend expectations if needed
-        classes = classes.map(c => ({
+        newClasses = newClasses.map(c => ({
           ...c,
           completed: c.completed_count,
-          assignments: new Array(c.assignments_count).fill(0), // Dummy for length checks if needed, or update UI to use counts
+          assignments: c.assignment_progress || [],
           assignmentProgress: c.assignment_progress || []
         }));
-      } else if (role === 'teacher') {
+      } else if (newRole === 'teacher') {
         teacherStats = {
           studentsTotal: data.teacher_stats.students_total,
           activeAssignments: data.teacher_stats.active_assignments
         };
-        classes = classes.map(c => ({
+        newClasses = newClasses.map(c => ({
           ...c,
-          students: new Array(c.students_count).fill(0), // Dummy
-          assignments: c.assignment_progress || [], // Use the progress list which has titles
-          progress: c.assignment_progress.map((p:any) => ({...p, done: p.done_count})), // Map done_count to done for UI compatibility
+          assignments: c.assignment_progress || [],
+          progress: (c.assignment_progress || []).map((p:any) => ({...p, done: p.done_count})),
           notFinished: c.not_finished_count
         }));
       }
       
-      // Force Svelte reactivity
-      classes = [...classes];
+      role = newRole;
+      classes = newClasses;
     } catch(e:any){
       err = e.message;
     }
@@ -178,14 +176,14 @@
             <div class="flex items-center justify-between mb-3">
               <h2 class="font-semibold text-lg truncate">{c.name}</h2>
               <span class="badge badge-outline">
-                {(c.assignments ?? []).length} {translate('frontend/src/routes/dashboard/+page.svelte::dashboard_assignments_label', {count: (c.assignments ?? []).length})}
+                {c.assignments_count} {translate('frontend/src/routes/dashboard/+page.svelte::dashboard_assignments_label', {count: c.assignments_count})}
               </span>
             </div>
             <div class="flex items-center gap-3 mb-3">
               <div class="flex-1 h-2 rounded-full bg-base-300/60 overflow-hidden">
-                <div class="h-full bg-gradient-to-r from-cyan-400 via-sky-400 to-teal-400" style={`width: ${percent(c.completed, (c.assignments ?? []).length)}%`}></div>
+                <div class="h-full bg-gradient-to-r from-cyan-400 via-sky-400 to-teal-400" style={`width: ${percent(c.completed, c.assignments_count)}%`}></div>
               </div>
-              <span class="text-sm whitespace-nowrap">{c.completed}/{(c.assignments ?? []).length}</span>
+              <span class="text-sm whitespace-nowrap">{c.completed}/{c.assignments_count}</span>
             </div>
             <ul class="space-y-2">
               {#each (c.assignmentProgress ?? []).slice(0, 3) as a}
@@ -194,7 +192,7 @@
                   <span class="truncate">{a.title}</span>
                 </li>
               {/each}
-              {#if (c.assignmentProgress ?? []).length === 0}
+              {#if c.assignments_count === 0}
                 <li class="text-sm opacity-70">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_no_assignments')}</li>
               {/if}
             </ul>
@@ -276,20 +274,20 @@
           <div class="card-elevated p-5 h-full">
             <div class="flex items-center justify-between mb-2">
               <h2 class="font-semibold text-lg truncate">{c.name}</h2>
-              <span class="badge badge-ghost">{c.students.length} {translate('frontend/src/routes/dashboard/+page.svelte::dashboard_students_label', {count: c.students.length})}</span>
+              <span class="badge badge-ghost">{c.students_count} {translate('frontend/src/routes/dashboard/+page.svelte::dashboard_students_label', {count: c.students_count})}</span>
             </div>
             <ul class="space-y-2">
               {#each (c.assignments ?? []).slice(0,5) as a}
                 <li class="flex items-center gap-3">
                   <span class="truncate flex-1">{a.title}</span>
-                  <progress class="progress progress-primary flex-1" value={c.progress.find((x:any)=>x.id===a.id)?.done || 0} max={c.students.length}></progress>
-                  <span class="text-sm whitespace-nowrap">{c.progress.find((x:any)=>x.id===a.id)?.done || 0}/{c.students.length}</span>
+                  <progress class="progress progress-primary flex-1" value={c.progress.find((x:any)=>x.id===a.id)?.done || 0} max={c.students_count}></progress>
+                  <span class="text-sm whitespace-nowrap">{c.progress.find((x:any)=>x.id===a.id)?.done || 0}/{c.students_count}</span>
                 </li>
               {/each}
-              {#if !(c.assignments ?? []).length}
+              {#if c.assignments_count === 0}
                 <li class="text-sm opacity-70">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_no_assignments')}</li>
               {/if}
-              {#if (c.assignments ?? []).length > 5}
+              {#if c.assignments_count > 5}
                 <li class="text-xs opacity-70">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_assignments_not_finished_by_all_students', {n: c.notFinished})}</li>
               {/if}
             </ul>

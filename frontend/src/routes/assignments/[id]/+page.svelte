@@ -1542,13 +1542,9 @@
                   )}</button
                 >
               {/if}
-              {#if !assignment.manual_review}
-                <button class="btn btn-sm" on:click={openTestsModal}
-                  >{t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::manage_tests_button",
-                  )}</button
-                >
-              {/if}
+              <button class="btn btn-sm" on:click={openTestsModal}>
+                {t("frontend/src/routes/assignments/[id]/+page.svelte::manage_tests_button")}
+              </button>
               <button class="btn btn-sm" on:click={startEdit}
                 >{t(
                   "frontend/src/routes/assignments/[id]/+page.svelte::edit_button",
@@ -2097,13 +2093,9 @@
                     "frontend/src/routes/assignments/[id]/+page.svelte::student_progress_heading",
                   )}
                 </h3>
-                {#if !assignment.manual_review}
-                  <button class="btn btn-sm" on:click={openTestsModal}
-                    >{t(
-                      "frontend/src/routes/assignments/[id]/+page.svelte::manage_tests_button",
-                    )}</button
-                  >
-                {/if}
+                <button class="btn btn-sm" on:click={openTestsModal}>
+                  {t("frontend/src/routes/assignments/[id]/+page.svelte::manage_tests_button")}
+                </button>
               </div>
               <div class="overflow-x-auto mt-3">
                 <table class="table table-zebra">
