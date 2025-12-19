@@ -69,6 +69,11 @@ func InitOIDC() {
 }
 
 func LoginMicrosoft(c *gin.Context) {
+	if GetSystemSetting("allow_microsoft_login", "true") != "true" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Microsoft login is disabled"})
+		return
+	}
+
 	if oauth2Config.ClientID == "" {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Microsoft login not configured"})
 		return
@@ -93,6 +98,11 @@ func LoginMicrosoft(c *gin.Context) {
 }
 
 func CallbackMicrosoft(c *gin.Context) {
+	if GetSystemSetting("allow_microsoft_login", "true") != "true" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Microsoft login is disabled"})
+		return
+	}
+
 	if oauth2Config.ClientID == "" {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Microsoft login not configured"})
 		return

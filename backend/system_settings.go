@@ -28,17 +28,19 @@ func SetSystemSetting(key, value string) error {
 
 // Handler: GET /api/admin/system-settings
 func getSystemSettings(c *gin.Context) {
-	// For now we only have one setting, but we can return a map
 	forceBakalariEmail := GetSystemSetting("force_bakalari_email", "true")
+	allowMicrosoftLogin := GetSystemSetting("allow_microsoft_login", "true")
 	c.JSON(http.StatusOK, gin.H{
-		"force_bakalari_email": forceBakalariEmail == "true",
+		"force_bakalari_email":  forceBakalariEmail == "true",
+		"allow_microsoft_login": allowMicrosoftLogin == "true",
 	})
 }
 
 // Handler: PUT /api/admin/system-settings
 func updateSystemSettings(c *gin.Context) {
 	var req struct {
-		ForceBakalariEmail *bool `json:"force_bakalari_email"`
+		ForceBakalariEmail  *bool `json:"force_bakalari_email"`
+		AllowMicrosoftLogin *bool `json:"allow_microsoft_login"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -51,6 +53,17 @@ func updateSystemSettings(c *gin.Context) {
 			val = "true"
 		}
 		if err := SetSystemSetting("force_bakalari_email", val); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+			return
+		}
+	}
+
+	if req.AllowMicrosoftLogin != nil {
+		val := "false"
+		if *req.AllowMicrosoftLogin {
+			val = "true"
+		}
+		if err := SetSystemSetting("allow_microsoft_login", val); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 			return
 		}

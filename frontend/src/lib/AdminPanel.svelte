@@ -186,26 +186,26 @@
 
   // System Settings
   let forceBakalariEmail = true;
+  let allowMicrosoftLogin = true;
   async function loadSystemSettings() {
     try {
-      const s = await apiJSON<{force_bakalari_email: boolean}>('/api/admin/system-settings');
+      const s = await apiJSON<{force_bakalari_email: boolean, allow_microsoft_login: boolean}>('/api/admin/system-settings');
       forceBakalariEmail = s.force_bakalari_email;
+      allowMicrosoftLogin = s.allow_microsoft_login;
     } catch {}
   }
-  async function toggleSystemSetting(e: Event) {
-    const checked = (e.target as HTMLInputElement).checked;
+  async function updateSetting(key: 'force_bakalari_email' | 'allow_microsoft_login', val: boolean) {
     try {
       await apiFetch('/api/admin/system-settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ force_bakalari_email: checked })
+        body: JSON.stringify({ [key]: val })
       });
-      forceBakalariEmail = checked;
+      if (key === 'force_bakalari_email') forceBakalariEmail = val;
+      if (key === 'allow_microsoft_login') allowMicrosoftLogin = val;
       ok = t('frontend/src/lib/AdminPanel.svelte::settings_updated_success');
     } catch (e: any) { 
       err = e.message; 
-      // revert on error
-      forceBakalariEmail = !checked; 
     }
   }
 
@@ -854,10 +854,22 @@
       
       <div class="form-control">
         <label class="label cursor-pointer justify-start gap-4">
-          <input type="checkbox" class="toggle toggle-primary" checked={forceBakalariEmail} on:change={toggleSystemSetting} />
+          <input type="checkbox" class="toggle toggle-primary" checked={forceBakalariEmail} on:change={(e) => updateSetting('force_bakalari_email', (e.target as HTMLInputElement).checked)} />
           <div class="flex flex-col">
             <span class="label-text font-medium text-base">{t('frontend/src/lib/AdminPanel.svelte::force_bakalari_email_label')}</span>
             <span class="label-text text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::force_bakalari_email_description')}</span>
+          </div>
+        </label>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="form-control">
+        <label class="label cursor-pointer justify-start gap-4">
+          <input type="checkbox" class="toggle toggle-primary" checked={allowMicrosoftLogin} on:change={(e) => updateSetting('allow_microsoft_login', (e.target as HTMLInputElement).checked)} />
+          <div class="flex flex-col">
+            <span class="label-text font-medium text-base">{t('frontend/src/lib/AdminPanel.svelte::allow_microsoft_login_label')}</span>
+            <span class="label-text text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::allow_microsoft_login_description')}</span>
           </div>
         </label>
       </div>
