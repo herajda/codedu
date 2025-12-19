@@ -2032,7 +2032,7 @@
                   <p class="text-error text-sm">{linkError}</p>
                 {/if}
 
-                <div class="modal-action">
+                <div class="modal-action flex-col gap-2">
                   <button
                     type="button"
                     class="btn btn-primary w-full"
@@ -2048,6 +2048,15 @@
                       : translate(
                           "frontend/src/routes/+layout.svelte::link_account_button",
                         )}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-ghost w-full"
+                    on:click={logout}
+                  >
+                    {translate(
+                      "frontend/src/routes/+layout.svelte::logout_button",
+                    )}
                   </button>
                 </div>
               </div>
