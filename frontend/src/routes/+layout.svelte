@@ -379,6 +379,7 @@
           me.email_message_digest ?? true,
           me.preferred_locale ?? null,
           me.force_bakalari_email ?? true,
+          me.allow_microsoft_login ?? true,
         );
         preferredLocaleSelection = me.preferred_locale ?? "";
         await applyLocalePreference(me.preferred_locale ?? null);
@@ -433,6 +434,7 @@
           me.email_message_digest ?? true,
           me.preferred_locale ?? null,
           me.force_bakalari_email ?? true,
+          me.allow_microsoft_login ?? true,
         );
         preferredLocaleSelection = me.preferred_locale ?? "";
         await applyLocalePreference(me.preferred_locale ?? null);
@@ -511,6 +513,7 @@
           me.email_message_digest ?? true,
           me.preferred_locale ?? null,
           me.force_bakalari_email ?? true,
+          me.allow_microsoft_login ?? true,
         );
         preferredLocaleSelection = me.preferred_locale ?? "";
         await applyLocalePreference(me.preferred_locale ?? null);
@@ -750,6 +753,7 @@
         user.email_message_digest ?? true,
         user.preferred_locale ?? null,
         user.force_bakalari_email ?? true,
+        user.allow_microsoft_login ?? true,
       );
       try {
         await apiFetch("/api/me", {
@@ -2058,6 +2062,13 @@
                       "frontend/src/routes/+layout.svelte::logout_button",
                     )}
                   </button>
+                  {#if user.allow_microsoft_login}
+                    <div class="divider text-xs opacity-50 my-1">OR</div>
+                    <a href="/api/auth/microsoft/login" class="btn btn-outline gap-2 w-full">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path fill="#f25022" d="M1 1h10v10H1z"/><path fill="#7fba00" d="M13 1h10v10H13z"/><path fill="#00a4ef" d="M1 13h10v10H1z"/><path fill="#ffb900" d="M13 13h10v10H13z"/></svg>
+                      Link Microsoft Account
+                    </a>
+                  {/if}
                 </div>
               </div>
             </div>

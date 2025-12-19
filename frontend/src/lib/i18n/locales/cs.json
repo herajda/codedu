@@ -4,6 +4,8 @@
   "frontend/src/lib/AdminPanel.svelte::force_bakalari_email_label": "Vynutit propojení e-mailu pro Bakaláře",
   "frontend/src/lib/AdminPanel.svelte::force_bakalari_email_description": "Pokud je povoleno, uživatelé Bakalářů bez propojeného e-mailu budou při přihlášení nuceni jej propojit.",
   "frontend/src/lib/AdminPanel.svelte::settings_updated_success": "Nastavení úspěšně aktualizováno",
+  "frontend/src/lib/AdminPanel.svelte::allow_microsoft_login_label": "Povolit přihlášení přes Microsoft",
+  "frontend/src/lib/AdminPanel.svelte::allow_microsoft_login_description": "Pokud je povoleno, uživatelé se mohou přihlašovat pomocí svých Microsoft účtů.",
   "frontend/src/lib/AdminPanel.svelte::add_button": "Přidat",
   "frontend/src/lib/AdminPanel.svelte::add_teacher_button": "Přidat učitele",
   "frontend/src/lib/AdminPanel.svelte::add_teacher_card_title": "Přidat učitele",

@@ -35,6 +35,7 @@ type User struct {
 	EmailVerifiedAt    *time.Time `db:"email_verified_at"`
 	BkClass            *string    `db:"bk_class"`
 	BkUID              *string    `db:"bk_uid"`
+	MsOID              *string    `db:"ms_oid"`
 	CreatedAt          time.Time  `db:"created_at"`
 }
 
@@ -2166,4 +2167,56 @@ func CleanupInactiveUsers() error {
 		WHERE last_seen < now() - INTERVAL '5 minutes' AND is_online = TRUE
 	`)
 	return err
+}
+func FindUserByMsOID(oid string) (*User, error) {
+	var u User
+	err := DB.Get(&u, `SELECT id, email, password_hash, name, role, email_verified, email_verified_at, bk_class, bk_uid, ms_oid, avatar, theme, preferred_locale, email_notifications, email_message_digest, created_at
+                            FROM users WHERE ms_oid=$1`, oid)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+func LinkMsOID(userID uuid.UUID, oid string) error {
+	_, err := DB.Exec(`UPDATE users SET ms_oid=$1 WHERE id=$2`, oid, userID)
+	return err
+}
+
+func CreateUserFromOIDC(u *User) error {
+	_, err := DB.Exec(`INSERT INTO users (email, password_hash, name, role, email_verified, ms_oid) VALUES ($1, $2, $3, $4, $5, $6)`, u.Email, u.PasswordHash, u.Name, u.Role, u.EmailVerified, u.MsOID)
+	return err
+}
+
+type TeacherWhitelist struct {
+	Email     string    `db:"email" json:"email"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+}
+
+func IsEmailWhitelisted(email string) (bool, error) {
+	var count int
+	// specific casing in DB shouldn't matter if we lowercase both sides or if we enforce lowercase on insert
+	// For robustness: compare LOWER(db) with lower(input)
+	err := DB.Get(&count, "SELECT count(*) FROM teacher_whitelist WHERE LOWER(email)=$1", strings.ToLower(email))
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func AddTeacherWhitelist(email string) error {
+	// Always store as lowercase to keep it clean
+	_, err := DB.Exec("INSERT INTO teacher_whitelist (email) VALUES ($1) ON CONFLICT (email) DO NOTHING", strings.ToLower(email))
+	return err
+}
+
+func RemoveTeacherWhitelist(email string) error {
+	_, err := DB.Exec("DELETE FROM teacher_whitelist WHERE LOWER(email)=$1", strings.ToLower(email))
+	return err
+}
+
+func ListTeacherWhitelist() ([]TeacherWhitelist, error) {
+	var list []TeacherWhitelist
+	err := DB.Select(&list, "SELECT * FROM teacher_whitelist ORDER BY created_at DESC")
+	return list, err
 }

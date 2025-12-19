@@ -50,6 +50,7 @@
   let classes: Class[] = [];
   let assignments: Assignment[] = [];
   let onlineUsers: OnlineUser[] = [];
+  let whitelist: { email: string; created_at: string }[] = [];
 
   // Filters/search
   let userQuery = '';
@@ -144,28 +145,67 @@
     loadingAssignments = false;
   }
 
+  // Whitelist management
+  async function loadWhitelist() {
+    try {
+      const res = await apiJSON<{email: string, created_at: string}[]>('/api/admin/whitelist');
+      whitelist = Array.isArray(res) ? res : [];
+    } catch { whitelist = []; }
+  }
+
+  let whitelistEmail = '';
+  async function addToWhitelist() {
+    if (!whitelistEmail) return;
+    err = ok = '';
+    try {
+      await apiFetch('/api/admin/whitelist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: whitelistEmail })
+      });
+      ok = 'Email added to whitelist';
+      whitelistEmail = '';
+      await loadWhitelist();
+    } catch (e: any) {
+      const j = await e.response?.json().catch(() => ({}));
+      err = j.error || e.message || 'Failed to add to whitelist';
+    }
+  }
+
+  async function removeFromWhitelist(email: string) {
+    if (!confirm('Are you sure?')) return;
+    err = ok = '';
+    try {
+      await apiFetch(`/api/admin/whitelist/${encodeURIComponent(email)}`, { method: 'DELETE' });
+      ok = 'Email removed from whitelist';
+      await loadWhitelist();
+    } catch (e: any) {
+      err = e.message || 'Failed to remove from whitelist';
+    }
+  }
+
   // System Settings
   let forceBakalariEmail = true;
+  let allowMicrosoftLogin = true;
   async function loadSystemSettings() {
     try {
-      const s = await apiJSON<{force_bakalari_email: boolean}>('/api/admin/system-settings');
+      const s = await apiJSON<{force_bakalari_email: boolean, allow_microsoft_login: boolean}>('/api/admin/system-settings');
       forceBakalariEmail = s.force_bakalari_email;
+      allowMicrosoftLogin = s.allow_microsoft_login;
     } catch {}
   }
-  async function toggleSystemSetting(e: Event) {
-    const checked = (e.target as HTMLInputElement).checked;
+  async function updateSetting(key: 'force_bakalari_email' | 'allow_microsoft_login', val: boolean) {
     try {
       await apiFetch('/api/admin/system-settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ force_bakalari_email: checked })
+        body: JSON.stringify({ [key]: val })
       });
-      forceBakalariEmail = checked;
+      if (key === 'force_bakalari_email') forceBakalariEmail = val;
+      if (key === 'allow_microsoft_login') allowMicrosoftLogin = val;
       ok = t('frontend/src/lib/AdminPanel.svelte::settings_updated_success');
     } catch (e: any) { 
       err = e.message; 
-      // revert on error
-      forceBakalariEmail = !checked; 
     }
   }
 
@@ -195,6 +235,7 @@
     loadAssignments();
     loadOnlineUsers();
     loadSystemSettings();
+    loadWhitelist();
     const presenceTimer = setInterval(loadOnlineUsers, 30000);
     return () => clearInterval(presenceTimer);
   });
@@ -593,6 +634,34 @@
         </div>
       </div>
     </div>
+    <div class="card bg-base-100 shadow xl:col-span-3">
+      <div class="card-body space-y-4">
+        <h2 class="card-title">Microsoft Login Whitelist</h2>
+        <p class="text-sm text-base-content/70">Users with these emails get 'teacher' role automatically when logging in via Microsoft.</p>
+        <form on:submit|preventDefault={addToWhitelist} class="flex gap-2 max-w-md">
+           <input type="email" bind:value={whitelistEmail} placeholder="teacher@school.edu" required class="input input-bordered w-full" />
+           <button class="btn btn-primary">Add</button>
+        </form>
+        <div class="overflow-x-auto max-h-60 border rounded-box">
+          <table class="table table-compact w-full">
+            <thead><tr><th>Email</th><th></th></tr></thead>
+            <tbody>
+              {#each whitelist as w}
+                <tr>
+                  <td>{w.email}</td>
+                  <td class="text-right">
+                    <button class="btn btn-ghost btn-xs text-error" on:click={() => removeFromWhitelist(w.email)}><Trash2 class="w-4 h-4" /></button>
+                  </td>
+                </tr>
+              {/each}
+              {#if !whitelist.length}
+                 <tr><td colspan="2" class="text-center italic opacity-70">No emails in whitelist</td></tr>
+              {/if}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   </div>
 {/if}
 
@@ -785,10 +854,22 @@
       
       <div class="form-control">
         <label class="label cursor-pointer justify-start gap-4">
-          <input type="checkbox" class="toggle toggle-primary" checked={forceBakalariEmail} on:change={toggleSystemSetting} />
+          <input type="checkbox" class="toggle toggle-primary" checked={forceBakalariEmail} on:change={(e) => updateSetting('force_bakalari_email', (e.target as HTMLInputElement).checked)} />
           <div class="flex flex-col">
             <span class="label-text font-medium text-base">{t('frontend/src/lib/AdminPanel.svelte::force_bakalari_email_label')}</span>
             <span class="label-text text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::force_bakalari_email_description')}</span>
+          </div>
+        </label>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="form-control">
+        <label class="label cursor-pointer justify-start gap-4">
+          <input type="checkbox" class="toggle toggle-primary" checked={allowMicrosoftLogin} on:change={(e) => updateSetting('allow_microsoft_login', (e.target as HTMLInputElement).checked)} />
+          <div class="flex flex-col">
+            <span class="label-text font-medium text-base">{t('frontend/src/lib/AdminPanel.svelte::allow_microsoft_login_label')}</span>
+            <span class="label-text text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::allow_microsoft_login_description')}</span>
           </div>
         </label>
       </div>

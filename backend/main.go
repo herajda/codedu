@@ -118,6 +118,7 @@ func main() {
 	// 1) Init DB and auth
 	InitDB()
 	InitAuth()
+	InitOIDC()
 	ensureAdmin()
 	InitMailer()
 	// Ensure Teachers' group exists as a special class
@@ -143,6 +144,8 @@ func main() {
 	r.POST("/api/register", Register)
 	r.POST("/api/login", Login)
 	r.POST("/api/login-bakalari", LoginBakalari)
+	r.GET("/api/auth/microsoft/login", LoginMicrosoft)
+	r.GET("/api/auth/microsoft/callback", CallbackMicrosoft)
 	r.POST("/api/refresh", Refresh)
 	r.POST("/api/logout", Logout)
 
@@ -150,14 +153,24 @@ func main() {
 	publicAPI.POST("/password-reset/request", requestPasswordReset)
 	publicAPI.POST("/password-reset/complete", completePasswordReset)
 	publicAPI.POST("/verify-email", verifyEmail)
+	publicAPI.GET("/public-settings", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"allow_microsoft_login": GetSystemSetting("allow_microsoft_login", "true") == "true",
+		})
+	})
 
 	r.GET("/email/unsubscribe", handleEmailUnsubscribe)
 	r.POST("/email/unsubscribe", handleEmailUnsubscribe)
 
 	// 4) Protected
+	// 4) Protected
 	api := r.Group("/api")
 	api.Use(JWTAuth())
 	{
+		api.GET("/admin/whitelist", AdminMiddleware(), handleListWhitelist)
+		api.POST("/admin/whitelist", AdminMiddleware(), handleAddWhitelist)
+		api.DELETE("/admin/whitelist/:email", AdminMiddleware(), handleRemoveWhitelist)
+
 		// LLM interactive session API
 		registerSessionRoutes(api)
 		// health-check
@@ -178,18 +191,19 @@ func main() {
 				u.Avatar = &pick
 			}
 			c.JSON(http.StatusOK, gin.H{
-				"id":                   u.ID,
-				"role":                 u.Role,
-				"name":                 u.Name,
-				"avatar":               u.Avatar,
-				"bk_uid":               u.BkUID,
-				"email":                u.Email,
-				"email_verified":       u.EmailVerified,
-				"theme":                u.Theme,
-				"preferred_locale":     u.PreferredLocale,
-				"email_notifications":  u.EmailNotifications,
-				"email_message_digest": u.EmailMessageDigest,
-				"force_bakalari_email": GetSystemSetting("force_bakalari_email", "true") == "true",
+				"id":                    u.ID,
+				"role":                  u.Role,
+				"name":                  u.Name,
+				"avatar":                u.Avatar,
+				"bk_uid":                u.BkUID,
+				"email":                 u.Email,
+				"email_verified":        u.EmailVerified,
+				"theme":                 u.Theme,
+				"preferred_locale":      u.PreferredLocale,
+				"email_notifications":   u.EmailNotifications,
+				"email_message_digest":  u.EmailMessageDigest,
+				"force_bakalari_email":  GetSystemSetting("force_bakalari_email", "true") == "true",
+				"allow_microsoft_login": GetSystemSetting("allow_microsoft_login", "true") == "true",
 			})
 		})
 		// expose default avatars catalog to the frontend

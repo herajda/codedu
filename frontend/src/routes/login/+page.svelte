@@ -19,6 +19,20 @@
     let lastSubmittedEmail = ''
     let verificationHelpLink = '/verify-email'
     let mode: 'local' | 'bakalari' = 'local'
+    let allowMicrosoftLogin = true
+    
+    import { onMount } from 'svelte'
+    onMount(async () => {
+      try {
+        const res = await apiFetch('/api/public-settings')
+        if (res.ok) {
+          const config = await res.json()
+          allowMicrosoftLogin = config.allow_microsoft_login
+        }
+      } catch (e) {
+        console.error('Failed to fetch public settings', e)
+      }
+    })
     
     // Get school name from environment
     const schoolName = import.meta.env.BAKALARI_SCHOOL_NAME || 'School'
@@ -79,6 +93,8 @@
       me.email_notifications ?? true,
       me.email_message_digest ?? true,
       me.preferred_locale ?? null,
+      me.force_bakalari_email ?? true,
+      me.allow_microsoft_login ?? true,
       )
       goto('/dashboard')
     }
@@ -115,6 +131,8 @@
       me.email_notifications ?? true,
       me.email_message_digest ?? true,
       me.preferred_locale ?? null,
+      me.force_bakalari_email ?? true,
+      me.allow_microsoft_login ?? true,
         )
         goto('/dashboard')
       } catch (e: any) {
@@ -155,6 +173,15 @@
           <input type="email" bind:value={email} placeholder={t('frontend/src/routes/login/+page.svelte::email_placeholder')} required class="input input-bordered w-full" />
           <input type="password" bind:value={password} placeholder={t('frontend/src/routes/login/+page.svelte::password_placeholder')} required class="input input-bordered w-full" />
           <button type="submit" class="btn btn-primary w-full">{t('frontend/src/routes/login/+page.svelte::log_in_button')}</button>
+          
+          {#if allowMicrosoftLogin}
+            <div class="divider">OR</div>
+            
+            <a href="/api/auth/microsoft/login" class="btn btn-outline w-full gap-2 normal-case">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 23 23"><path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/><path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/></svg>
+              Sign in with Microsoft
+            </a>
+          {/if}
         </form>
       </div>
     {:else}

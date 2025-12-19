@@ -5068,3 +5068,50 @@ func onlineUsersHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, onlineUsers)
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Teacher Whitelist (Admin)
+// ──────────────────────────────────────────────────────────────────────────────
+
+func handleListWhitelist(c *gin.Context) {
+	list, err := ListTeacherWhitelist()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list whitelist"})
+		return
+	}
+	c.JSON(http.StatusOK, list)
+}
+
+func handleAddWhitelist(c *gin.Context) {
+	var req struct {
+		Email string `json:"email"`
+	}
+	if err := c.BindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		return
+	}
+	if req.Email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Email is required"})
+		return
+	}
+
+	if err := AddTeacherWhitelist(req.Email); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add to whitelist"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "added"})
+}
+
+func handleRemoveWhitelist(c *gin.Context) {
+	email := c.Param("email")
+	if email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Email is required"})
+		return
+	}
+
+	if err := RemoveTeacherWhitelist(email); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove from whitelist"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "removed"})
+}

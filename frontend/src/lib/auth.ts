@@ -17,6 +17,7 @@ export type User = {
   email_notifications?: boolean | null;
   email_message_digest?: boolean | null;
   force_bakalari_email?: boolean;
+  allow_microsoft_login?: boolean;
 } | null;
 
 function createAuth() {
@@ -37,6 +38,7 @@ function createAuth() {
     emailMessageDigest?: boolean | null,
     preferredLocale?: string | null,
     forceBakalariEmail?: boolean,
+    allowMicrosoftLogin?: boolean,
   ) {
     set({
       id,
@@ -51,6 +53,7 @@ function createAuth() {
       email_notifications: emailNotifications ?? true,
       email_message_digest: emailMessageDigest ?? true,
       force_bakalari_email: forceBakalariEmail ?? true,
+      allow_microsoft_login: allowMicrosoftLogin ?? true,
     });
     // Mark user as online
     onlineUsers.markOnline();
@@ -94,6 +97,7 @@ function createAuth() {
           me.email_message_digest ?? true,
           me.preferred_locale ?? null,
           me.force_bakalari_email ?? true,
+          me.allow_microsoft_login ?? true,
         );
       } else if (r.status === 401) {
         set(null);
