@@ -11,6 +11,8 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/microsoft"
@@ -169,6 +171,66 @@ func CallbackMicrosoft(c *gin.Context) {
 	if claims.Email == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "email not provided by IDP"})
 		return
+	}
+
+	// Check for existing session manually (since this route is public)
+	var loggedInUserID *uuid.UUID
+	if cookie, err := c.Cookie("access_token"); err == nil && cookie != "" {
+		token, err := jwt.Parse(cookie, func(t *jwt.Token) (interface{}, error) {
+			return jwtSecret, nil
+		})
+		if err == nil && token.Valid {
+			if claims, ok := token.Claims.(jwt.MapClaims); ok {
+				if sub, ok := claims["sub"].(string); ok {
+					if uid, err := uuid.Parse(sub); err == nil {
+						loggedInUserID = &uid
+					}
+				}
+			}
+		}
+	}
+
+	// Case 1: User is already logged in (e.g. Bakalari user linking MS)
+	if loggedInUserID != nil {
+		var currentUser *User
+		// FindUser in models.go usually takes an ID string or UUID directly?
+		// Let's use direct DB call if helper doesn't exist or check `FindUser` signature.
+		// From previous context, `FindUser` took UUID.
+		// Wait, looking at models.go might be faster.
+		// Assuming `FindUser` exists or we used `FindUserByEmail`.
+		// Let's implement inline lookup to be safe or use `FindUser` if I confirmed it.
+		// I will use direct DB Get to avoid guessing.
+		currentUser = &User{}
+		if err := DB.Get(currentUser, "SELECT * FROM users WHERE id=$1", *loggedInUserID); err == nil {
+			// Link the MS OID
+			if err := LinkMsOID(currentUser.ID, claims.Oid); err != nil {
+				log.Printf("Failed to link MS OID to existing user: %v", err)
+			}
+
+			// Update email if missing or force update?
+			// User likely clicked "Link Microsoft" to provide an email.
+			// So we should set the email from MS.
+			// trusted email from MS
+			_, err = DB.Exec("UPDATE users SET email=$1, email_verified=true WHERE id=$2", claims.Email, currentUser.ID)
+			if err != nil {
+				log.Printf("Failed to update email for linked user: %v", err)
+			}
+
+			// Check Whitelist promotion
+			// Determine if user should be teacher
+			shouldBeTeacher := false
+			if whitelisted, err := IsEmailWhitelisted(claims.Email); err == nil && whitelisted {
+				shouldBeTeacher = true
+			}
+			if shouldBeTeacher && currentUser.Role != "teacher" && currentUser.Role != "admin" {
+				DB.Exec("UPDATE users SET role='teacher' WHERE id=$1", currentUser.ID)
+				currentUser.Role = "teacher"
+			}
+
+			// Refresh session
+			loginUser(c, currentUser)
+			return
+		}
 	}
 
 	// Check DB
