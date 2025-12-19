@@ -265,6 +265,9 @@ func main() {
 		// System settings
 		api.GET("/admin/system-settings", RoleGuard("admin"), getSystemSettings)
 		api.PUT("/admin/system-settings", RoleGuard("admin"), updateSystemSettings)
+		api.GET("/admin/system-variables", RoleGuard("admin"), listSystemVariables)
+		api.POST("/admin/system-variables", RoleGuard("admin"), upsertSystemVariable)
+		api.DELETE("/admin/system-variables/:key", RoleGuard("admin"), deleteSystemVariable)
 
 		// TEACHER only
 		api.POST("/classes", RoleGuard("teacher"), createClass)

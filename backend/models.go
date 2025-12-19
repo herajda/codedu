@@ -166,13 +166,14 @@ type UserSummary struct {
 	Name      *string   `db:"name"       json:"name"`
 	Role      string    `db:"role"       json:"role"`
 	BkUID     *string   `db:"bk_uid"     json:"bk_uid"`
+	MsOID     *string   `db:"ms_oid"     json:"ms_oid"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 }
 
 func ListUsers() ([]UserSummary, error) {
 	list := []UserSummary{}
 	err := DB.Select(&list,
-		`SELECT id,email,name,role,bk_uid,created_at
+		`SELECT id,email,name,role,bk_uid,ms_oid,created_at
                   FROM users
              ORDER BY created_at`)
 	return list, err

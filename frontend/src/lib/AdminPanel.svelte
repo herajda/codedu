@@ -2,10 +2,10 @@
   import { onMount } from 'svelte';
   import { apiFetch, apiJSON } from '$lib/api';
   import { sha256 } from '$lib/hash';
-  import { formatDate, formatDateTime } from "$lib/date";
+  import { formatDate } from "$lib/date";
   import { classesStore } from '$lib/stores/classes';
   import {
-    Users2, GraduationCap, School, BookOpen, Plus, Trash2, RefreshCw,
+    Users2, GraduationCap, School, Plus, Trash2, RefreshCw,
     Shield, Search, Edit, ArrowRightLeft, Check, KeyRound, MailCheck
   } from 'lucide-svelte';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
@@ -16,66 +16,72 @@
   $: translate = $translator;
 
   // Tabs
-  type Tab = 'overview' | 'teachers' | 'users' | 'classes' | 'assignments' | 'settings'
+  type Tab = 'overview' | 'people' | 'classes' | 'settings';
   let tab: Tab = 'overview';
 
   // Data models
-  type RawUser = { id?: string; email?: string | null; name?: string | null; role?: string | null; created_at?: string | null; bk_uid?: string | null };
-  type User = { id: string; email: string; name?: string | null; role: string; created_at: string; bk_uid?: string | null };
+  type RawUser = { id?: string; email?: string | null; name?: string | null; role?: string | null; created_at?: string | null; bk_uid?: string | null; ms_oid?: string | null };
+  type User = { id: string; email: string; name?: string | null; role: string; created_at: string; bk_uid?: string | null; ms_oid?: string | null };
   type RawClass = { id?: string; name?: string | null; teacher_id?: string | null; created_at?: string | null };
   type Class = { id: string; name: string; teacher_id: string; created_at: string };
-  type RawAssignment = {
-    id?: string;
-    title?: string | null;
-    description?: string | null;
-    class_id?: string | null;
-    deadline?: string | null;
-    max_points?: number | null;
-    grading_policy?: string | null;
-    published?: boolean | null;
-    show_traceback?: boolean | null;
-    manual_review?: boolean | null;
-    created_at?: string | null;
-  };
-  type Assignment = {
-    id: string; title: string; description: string; class_id: string;
-    deadline: string; max_points: number; grading_policy: string; published: boolean;
-    show_traceback: boolean; manual_review: boolean; created_at: string
-  };
   type RawOnlineUser = { id?: string | null; name?: string | null; avatar?: string | null; email?: string | null };
   type OnlineUser = { id: string; name: string; avatar: string; email: string };
+  type SystemVariable = { key: string; value: string };
 
   // Collections
   let users: User[] = [];
   let classes: Class[] = [];
-  let assignments: Assignment[] = [];
   let onlineUsers: OnlineUser[] = [];
   let whitelist: { email: string; created_at: string }[] = [];
+  let systemVariables: SystemVariable[] = [];
 
   // Filters/search
   let userQuery = '';
   let classQuery = '';
-  let assignmentQuery = '';
-  let assignmentFilter: 'all' | 'published' | 'unpublished' = 'all';
+  let userRoleFilter: 'all' | 'student' | 'teacher' | 'admin' = 'all';
 
   // Derived
   $: teachers = users.filter(u => u.role === 'teacher');
   $: admins = users.filter(u => u.role === 'admin');
   $: students = users.filter(u => u.role === 'student');
   $: teacherIdToClassCount = classes.reduce<Record<string, number>>((m, c) => { m[c.teacher_id] = (m[c.teacher_id] || 0) + 1; return m; }, {});
-  $: filteredUsers = users.filter(u => (u.email + ' ' + (u.name ?? '')).toLowerCase().includes(userQuery.toLowerCase()));
-  $: filteredClasses = classes.filter(c => (c.name + ' ' + c.id).toLowerCase().includes(classQuery.toLowerCase()))
-  $: filteredAssignments = assignments
-    .filter(a => (a.title + ' ' + a.description).toLowerCase().includes(assignmentQuery.toLowerCase()))
-    .filter(a => assignmentFilter === 'all' ? true : assignmentFilter === 'published' ? a.published : !a.published);
+  $: teacherLookup = teachers.reduce<Record<string, User>>((m, t_user) => { m[t_user.id] = t_user; return m; }, {});
+  $: filteredUsers = users
+    .filter(u => (u.email + ' ' + (u.name ?? '')).toLowerCase().includes(userQuery.toLowerCase()))
+    .filter(u => userRoleFilter === 'all' ? true : u.role === userRoleFilter);
+  $: filteredClasses = classes.filter(c => {
+    const teacher = teacherLookup[c.teacher_id];
+    const teacherText = teacher ? `${teacher.name ?? ''} ${teacher.email ?? ''}` : '';
+    return (c.name + ' ' + teacherText).toLowerCase().includes(classQuery.toLowerCase());
+  });
+  $: onlineIds = new Set(onlineUsers.map(u => u.id));
 
   // Loading states
-  let loadingUsers = false, loadingClasses = false, loadingAssignments = false;
+  let loadingUsers = false, loadingClasses = false, loadingVariables = false;
   let ok = '', err = '';
   let confirmModal: InstanceType<typeof ConfirmModal>;
   let promptModal: InstanceType<typeof PromptModal>;
   let emailPingTarget = '';
   let sendingEmailPing = false;
+  let showEmailTools = false;
+  let showCreateUsers = false;
+
+  // System variable form state
+  let variableKey = '';
+  let variableValue = '';
+  let editingVariableKey: string | null = null;
+
+  function userPrimary(user?: User | null) {
+    return (user?.name ?? '').trim() || user?.email || t('frontend/src/lib/AdminPanel.svelte::unknown_user_label');
+  }
+
+  function userSecondary(user?: User | null) {
+    return user?.name ? user?.email : '';
+  }
+
+  function hasEmailLogin(user: User) {
+    return !user.ms_oid && user.email.includes('@');
+  }
 
   function sanitizeUsers(payload: unknown): User[] {
     if (!Array.isArray(payload)) return [];
@@ -88,7 +94,8 @@
         role: entry.role!,
         created_at: typeof entry.created_at === 'string' ? entry.created_at : entry.created_at ?? '',
         name: typeof entry.name === 'string' ? entry.name : entry.name ?? null,
-        bk_uid: typeof entry.bk_uid === 'string' ? entry.bk_uid : entry.bk_uid ?? null
+        bk_uid: typeof entry.bk_uid === 'string' ? entry.bk_uid : entry.bk_uid ?? null,
+        ms_oid: typeof entry.ms_oid === 'string' ? entry.ms_oid : entry.ms_oid ?? null
       }));
   }
 
@@ -102,26 +109,6 @@
         name: typeof entry.name === 'string' ? entry.name : entry.name ?? '',
         teacher_id: typeof entry.teacher_id === 'string' ? entry.teacher_id : entry.teacher_id ?? '',
         created_at: typeof entry.created_at === 'string' ? entry.created_at : entry.created_at ?? ''
-      }));
-  }
-
-  function sanitizeAssignments(payload: unknown): Assignment[] {
-    if (!Array.isArray(payload)) return [];
-    return payload
-      .filter((entry): entry is RawAssignment => !!entry && typeof entry === 'object')
-      .filter((entry) => typeof entry.id === 'string')
-      .map((entry) => ({
-        id: entry.id!,
-        title: entry.title ?? '',
-        description: entry.description ?? '',
-        class_id: entry.class_id ?? '',
-        deadline: entry.deadline ?? '',
-        max_points: entry.max_points ?? 0,
-        grading_policy: entry.grading_policy ?? '',
-        published: Boolean(entry.published),
-        show_traceback: Boolean(entry.show_traceback),
-        manual_review: Boolean(entry.manual_review),
-        created_at: entry.created_at ?? ''
       }));
   }
 
@@ -139,10 +126,69 @@
     } catch (e: any) { err = e.message; classes = []; classesStore.setClasses([]); }
     loadingClasses = false;
   }
-  async function loadAssignments() {
-    loadingAssignments = true; err = '';
-    try { assignments = sanitizeAssignments(await apiJSON('/api/assignments')); } catch (e: any) { err = e.message; assignments = []; }
-    loadingAssignments = false;
+
+  async function loadSystemVariables() {
+    loadingVariables = true; err = '';
+    try { systemVariables = await apiJSON<SystemVariable[]>('/api/admin/system-variables'); } catch (e: any) { err = e.message; systemVariables = []; }
+    loadingVariables = false;
+  }
+
+  function resetVariableForm() {
+    variableKey = '';
+    variableValue = '';
+    editingVariableKey = null;
+  }
+
+  function startEditVariable(variable: SystemVariable) {
+    editingVariableKey = variable.key;
+    variableKey = variable.key;
+    variableValue = variable.value;
+  }
+
+  async function saveSystemVariable() {
+    const key = variableKey.trim();
+    err = ok = '';
+    if (!key) return;
+    try {
+      const res = await apiFetch('/api/admin/system-variables', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, value: variableValue })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || t('frontend/src/lib/AdminPanel.svelte::system_variable_save_failed'));
+      }
+      ok = t('frontend/src/lib/AdminPanel.svelte::system_variable_saved_success', { key });
+      resetVariableForm();
+      await loadSystemVariables();
+    } catch (e: any) {
+      err = e.message;
+    }
+  }
+
+  async function deleteSystemVariable(key: string) {
+    const confirmed = await confirmModal.open({
+      title: t('frontend/src/lib/AdminPanel.svelte::system_variable_delete_title', { key }),
+      body: t('frontend/src/lib/AdminPanel.svelte::system_variable_delete_body', { key }),
+      confirmLabel: t('frontend/src/lib/AdminPanel.svelte::delete_button'),
+      confirmClass: 'btn btn-error',
+      cancelClass: 'btn'
+    });
+    if (!confirmed) return;
+    err = ok = '';
+    try {
+      const res = await apiFetch(`/api/admin/system-variables/${encodeURIComponent(key)}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || t('frontend/src/lib/AdminPanel.svelte::system_variable_save_failed'));
+      }
+      ok = t('frontend/src/lib/AdminPanel.svelte::system_variable_deleted_success', { key });
+      if (editingVariableKey === key) resetVariableForm();
+      await loadSystemVariables();
+    } catch (e: any) {
+      err = e.message;
+    }
   }
 
   // Whitelist management
@@ -158,29 +204,46 @@
     if (!whitelistEmail) return;
     err = ok = '';
     try {
-      await apiFetch('/api/admin/whitelist', {
+      const res = await apiFetch('/api/admin/whitelist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: whitelistEmail })
       });
-      ok = 'Email added to whitelist';
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        err = data.error || t('frontend/src/lib/AdminPanel.svelte::whitelist_add_failed');
+        return;
+      }
+      ok = t('frontend/src/lib/AdminPanel.svelte::whitelist_added_success');
       whitelistEmail = '';
       await loadWhitelist();
     } catch (e: any) {
       const j = await e.response?.json().catch(() => ({}));
-      err = j.error || e.message || 'Failed to add to whitelist';
+      err = j.error || e.message || t('frontend/src/lib/AdminPanel.svelte::whitelist_add_failed');
     }
   }
 
   async function removeFromWhitelist(email: string) {
-    if (!confirm('Are you sure?')) return;
+    const confirmed = await confirmModal.open({
+      title: t('frontend/src/lib/AdminPanel.svelte::whitelist_remove_title', { email }),
+      body: t('frontend/src/lib/AdminPanel.svelte::whitelist_remove_body', { email }),
+      confirmLabel: t('frontend/src/lib/AdminPanel.svelte::remove_button'),
+      confirmClass: 'btn btn-error',
+      cancelClass: 'btn'
+    });
+    if (!confirmed) return;
     err = ok = '';
     try {
-      await apiFetch(`/api/admin/whitelist/${encodeURIComponent(email)}`, { method: 'DELETE' });
-      ok = 'Email removed from whitelist';
+      const res = await apiFetch(`/api/admin/whitelist/${encodeURIComponent(email)}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        err = data.error || t('frontend/src/lib/AdminPanel.svelte::whitelist_remove_failed');
+        return;
+      }
+      ok = t('frontend/src/lib/AdminPanel.svelte::whitelist_removed_success');
       await loadWhitelist();
     } catch (e: any) {
-      err = e.message || 'Failed to remove from whitelist';
+      err = e.message || t('frontend/src/lib/AdminPanel.svelte::whitelist_remove_failed');
     }
   }
 
@@ -204,8 +267,8 @@
       if (key === 'force_bakalari_email') forceBakalariEmail = val;
       if (key === 'allow_microsoft_login') allowMicrosoftLogin = val;
       ok = t('frontend/src/lib/AdminPanel.svelte::settings_updated_success');
-    } catch (e: any) { 
-      err = e.message; 
+    } catch (e: any) {
+      err = e.message;
     }
   }
 
@@ -232,10 +295,10 @@
   onMount(() => {
     loadUsers();
     loadClasses();
-    loadAssignments();
     loadOnlineUsers();
     loadSystemSettings();
     loadWhitelist();
+    loadSystemVariables();
     const presenceTimer = setInterval(loadOnlineUsers, 30000);
     return () => clearInterval(presenceTimer);
   });
@@ -316,7 +379,8 @@
     try { await apiFetch(`/api/users/${id}`, { method: 'DELETE' }); ok = t('frontend/src/lib/AdminPanel.svelte::user_deleted_success'); await loadUsers(); } catch (e: any) { err = e.message; }
   }
   function exportUsersCSV() {
-    const rows = [[t('frontend/src/lib/AdminPanel.svelte::user_csv_header_id'), t('frontend/src/lib/AdminPanel.svelte::user_csv_header_email'), t('frontend/src/lib/AdminPanel.svelte::user_csv_header_name'), t('frontend/src/lib/AdminPanel.svelte::user_csv_header_role'), t('frontend/src/lib/AdminPanel.svelte::user_csv_header_created')]].concat(users.map(u => [String(u.id), u.email, u.name ?? '', u.role, formatDate(u.created_at)]));
+    const rows = [[t('frontend/src/lib/AdminPanel.svelte::user_csv_header_email'), t('frontend/src/lib/AdminPanel.svelte::user_csv_header_name'), t('frontend/src/lib/AdminPanel.svelte::user_csv_header_role'), t('frontend/src/lib/AdminPanel.svelte::user_csv_header_created')]]
+      .concat(users.map(u => [u.email, u.name ?? '', u.role, formatDate(u.created_at)]));
     const csv = rows.map(r => r.map(v => '"' + v.replaceAll('"','""') + '"').join(',')).join('\n');
     const a = document.createElement('a');
     a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
@@ -387,7 +451,7 @@
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newClassName.trim(), teacher_id: newClassTeacherId })
       });
-      ok = t('frontend/src/lib/AdminPanel.svelte::class_created_success', { id: created.id });
+      ok = t('frontend/src/lib/AdminPanel.svelte::class_created_success', { name: newClassName.trim() });
       showCreateClass = false; newClassName = ''; newClassTeacherId = null;
       // Update both local state and the store
       await loadClasses();
@@ -431,7 +495,7 @@
       classesStore.removeClass(id);
     } catch (e: any) { err = e.message; }
   }
-  let transferTarget: { id: string, to: string | null } | null = null;
+  let transferTarget: { id: string, name: string, to: string | null } | null = null;
   async function transferClass() {
     if (!transferTarget || !transferTarget.to) return;
     try {
@@ -447,35 +511,57 @@
       classesStore.updateClass(classId, { teacher_id: teacherId });
     } catch (e: any) { err = e.message; }
   }
-
-  // ───────────────────────────
-  // Assignment management
-  // ───────────────────────────
-  async function publishAssignment(aid: string) {
-    try { await apiFetch(`/api/assignments/${aid}/publish`, { method: 'PUT' }); ok = t('frontend/src/lib/AdminPanel.svelte::assignment_published_success'); await loadAssignments(); } catch (e: any) { err = e.message; }
-  }
-  async function deleteAssignment(aid: string) {
-    const confirmed = await confirmModal.open({
-      title: t('frontend/src/lib/AdminPanel.svelte::delete_assignment_modal_title'),
-      body: t('frontend/src/lib/AdminPanel.svelte::delete_assignment_modal_body'),
-      confirmLabel: t('frontend/src/lib/AdminPanel.svelte::delete_assignment_confirm_label'),
-      confirmClass: 'btn btn-error',
-      cancelClass: 'btn'
-    });
-    if (!confirmed) return;
-    try { await apiFetch(`/api/assignments/${aid}`, { method: 'DELETE' }); ok = t('frontend/src/lib/AdminPanel.svelte::assignment_deleted_success'); await loadAssignments(); } catch (e: any) { err = e.message; }
-  }
 </script>
 
-<h1 class="text-2xl font-bold mb-6 flex items-center gap-2"><Shield class="w-6 h-6" aria-hidden="true" /> {t('frontend/src/lib/AdminPanel.svelte::admin')}</h1>
+<h1 class="text-2xl font-bold mb-4 flex items-center gap-2"><Shield class="w-6 h-6" aria-hidden="true" /> {t('frontend/src/lib/AdminPanel.svelte::admin')}</h1>
 
-<div class="tabs tabs-boxed mb-6">
-  <a role="tab" class="tab {tab==='overview' ? 'tab-active' : ''}" on:click={() => tab='overview'}>{t('frontend/src/lib/AdminPanel.svelte::overview_tab')}</a>
-  <a role="tab" class="tab {tab==='teachers' ? 'tab-active' : ''}" on:click={() => tab='teachers'}>{t('frontend/src/lib/AdminPanel.svelte::teachers_tab')}</a>
-  <a role="tab" class="tab {tab==='users' ? 'tab-active' : ''}" on:click={() => tab='users'}>{t('frontend/src/lib/AdminPanel.svelte::users_tab')}</a>
-  <a role="tab" class="tab {tab==='classes' ? 'tab-active' : ''}" on:click={() => tab='classes'}>{t('frontend/src/lib/AdminPanel.svelte::classes_tab')}</a>
-  <a role="tab" class="tab {tab==='assignments' ? 'tab-active' : ''}" on:click={() => tab='assignments'}>{t('frontend/src/lib/AdminPanel.svelte::assignments_tab')}</a>
-  <a role="tab" class="tab {tab==='settings' ? 'tab-active' : ''}" on:click={() => tab='settings'}>{t('frontend/src/lib/AdminPanel.svelte::settings_tab')}</a>
+<div class="mb-6 flex flex-wrap items-center gap-2 rounded-full bg-base-200/70 p-2" role="tablist">
+  <button
+    type="button"
+    role="tab"
+    class="btn btn-sm rounded-full"
+    class:btn-primary={tab === 'overview'}
+    class:btn-ghost={tab !== 'overview'}
+    aria-selected={tab === 'overview'}
+    on:click={() => tab='overview'}
+  >
+    {t('frontend/src/lib/AdminPanel.svelte::overview_tab')}
+  </button>
+  <button
+    type="button"
+    role="tab"
+    class="btn btn-sm rounded-full"
+    class:btn-primary={tab === 'people'}
+    class:btn-ghost={tab !== 'people'}
+    aria-selected={tab === 'people'}
+    on:click={() => tab='people'}
+  >
+    {t('frontend/src/lib/AdminPanel.svelte::people_tab')}
+    <span class="badge badge-sm ml-2">{users.length}</span>
+  </button>
+  <button
+    type="button"
+    role="tab"
+    class="btn btn-sm rounded-full"
+    class:btn-primary={tab === 'classes'}
+    class:btn-ghost={tab !== 'classes'}
+    aria-selected={tab === 'classes'}
+    on:click={() => tab='classes'}
+  >
+    {t('frontend/src/lib/AdminPanel.svelte::classes_tab')}
+    <span class="badge badge-sm ml-2">{classes.length}</span>
+  </button>
+  <button
+    type="button"
+    role="tab"
+    class="btn btn-sm rounded-full"
+    class:btn-primary={tab === 'settings'}
+    class:btn-ghost={tab !== 'settings'}
+    aria-selected={tab === 'settings'}
+    on:click={() => tab='settings'}
+  >
+    {t('frontend/src/lib/AdminPanel.svelte::settings_tab')}
+  </button>
 </div>
 
 {#if ok}
@@ -486,94 +572,128 @@
 {/if}
 
 {#if tab === 'overview'}
-  <div class="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-    <div class="card bg-base-100 shadow">
-      <div class="card-body">
-        <h2 class="card-title mb-2">{t('frontend/src/lib/AdminPanel.svelte::platform_stats_title')}</h2>
-        <div class="stats stats-vertical sm:stats-horizontal shadow">
-          <div class="stat"><div class="stat-figure"><Users2 class="w-5 h-5" /></div><div class="stat-title">{t('frontend/src/lib/AdminPanel.svelte::users_stat_title')}</div><div class="stat-value">{users.length}</div></div>
-          <div class="stat"><div class="stat-figure"><GraduationCap class="w-5 h-5" /></div><div class="stat-title">{t('frontend/src/lib/AdminPanel.svelte::teachers_stat_title')}</div><div class="stat-value">{teachers.length}</div></div>
-          <div class="stat"><div class="stat-figure"><Users2 class="w-5 h-5" /></div><div class="stat-title">{t('frontend/src/lib/AdminPanel.svelte::online_stat_title')}</div><div class="stat-value">{onlineUsers.length}</div></div>
-          <div class="stat"><div class="stat-figure"><School class="w-5 h-5" /></div><div class="stat-title">{t('frontend/src/lib/AdminPanel.svelte::classes_stat_title')}</div><div class="stat-value">{classes.length}</div></div>
-          <div class="stat"><div class="stat-figure"><BookOpen class="w-5 h-5" /></div><div class="stat-title">{t('frontend/src/lib/AdminPanel.svelte::assignments_stat_title')}</div><div class="stat-value">{assignments.length}</div></div>
-        </div>
-      </div>
-    </div>
-    <div class="card bg-base-100 shadow">
-      <div class="card-body space-y-3">
-        <div class="flex items-center justify-between">
-          <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::online_users_card_title')}</h2>
-          <button class="btn btn-ghost btn-xs" on:click={loadOnlineUsers} aria-label={t('frontend/src/lib/AdminPanel.svelte::refresh_online_users_button')}>
-            <RefreshCw class="w-4 h-4" />
-          </button>
-        </div>
-        <ul class="space-y-3 max-h-60 overflow-auto">
-          {#if onlineUsers.length}
-            {#each onlineUsers as online}
-              <li class="flex items-center gap-3">
-                <div class="avatar">
-                  {#if online.avatar}
-                    <div class="w-10 rounded-full">
-                      <img src={online.avatar} alt={t('frontend/src/lib/AdminPanel.svelte::online_user_avatar_alt', { name: online.name || online.email })} loading="lazy" />
-                    </div>
-                  {:else}
-                    <div class="placeholder w-10 rounded-full bg-primary/10 text-primary font-semibold flex items-center justify-center">
-                      {(online.name || online.email || '?').charAt(0).toUpperCase()}
-                    </div>
-                  {/if}
+  <div class="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+    <div class="space-y-6">
+      <div class="card bg-base-100 shadow">
+        <div class="card-body space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::platform_stats_title')}</h2>
+            <button class="btn btn-ghost btn-sm" on:click={refreshUsers} aria-label={t('frontend/src/lib/AdminPanel.svelte::refresh_online_users_button')}>
+              <RefreshCw class="w-4 h-4" />
+            </button>
+          </div>
+          <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div class="rounded-box border border-base-200/60 bg-base-100 p-4">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <div class="text-sm text-base-content/60">{t('frontend/src/lib/AdminPanel.svelte::users_stat_title')}</div>
+                  <div class="text-2xl font-semibold">{users.length}</div>
                 </div>
-                <div class="flex flex-col leading-tight">
-                  <span class="font-medium">{online.name || online.email || '?'}</span>
-                  {#if online.name}
-                    <span class="text-xs text-base-content/60">{online.email}</span>
-                  {/if}
+                <Users2 class="w-5 h-5 text-primary" aria-hidden="true" />
+              </div>
+            </div>
+            <div class="rounded-box border border-base-200/60 bg-base-100 p-4">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <div class="text-sm text-base-content/60">{t('frontend/src/lib/AdminPanel.svelte::teachers_stat_title')}</div>
+                  <div class="text-2xl font-semibold">{teachers.length}</div>
                 </div>
-              </li>
-            {/each}
-          {:else}
-            <li class="text-sm text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::no_online_users_message')}</li>
-          {/if}
-        </ul>
+                <GraduationCap class="w-5 h-5 text-primary" aria-hidden="true" />
+              </div>
+            </div>
+            <div class="rounded-box border border-base-200/60 bg-base-100 p-4">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <div class="text-sm text-base-content/60">{t('frontend/src/lib/AdminPanel.svelte::students_stat_title')}</div>
+                  <div class="text-2xl font-semibold">{students.length}</div>
+                </div>
+                <Users2 class="w-5 h-5 text-primary" aria-hidden="true" />
+              </div>
+            </div>
+            <div class="rounded-box border border-base-200/60 bg-base-100 p-4">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <div class="text-sm text-base-content/60">{t('frontend/src/lib/AdminPanel.svelte::classes_stat_title')}</div>
+                  <div class="text-2xl font-semibold">{classes.length}</div>
+                </div>
+                <School class="w-5 h-5 text-primary" aria-hidden="true" />
+              </div>
+            </div>
+            <div class="rounded-box border border-base-200/60 bg-base-100 p-4">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <div class="text-sm text-base-content/60">{t('frontend/src/lib/AdminPanel.svelte::online_stat_title')}</div>
+                  <div class="text-2xl font-semibold">{onlineUsers.length}</div>
+                </div>
+                <Users2 class="w-5 h-5 text-primary" aria-hidden="true" />
+              </div>
+            </div>
+            <div class="rounded-box border border-base-200/60 bg-base-100 p-4">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <div class="text-sm text-base-content/60">{t('frontend/src/lib/AdminPanel.svelte::role_filter_admins')}</div>
+                  <div class="text-2xl font-semibold">{admins.length}</div>
+                </div>
+                <Shield class="w-5 h-5 text-primary" aria-hidden="true" />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
-    <div class="card bg-base-100 shadow">
-      <div class="card-body gap-3">
-        <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::quick_actions_title')}</h2>
-        <div class="flex flex-wrap gap-2">
-          <button class="btn btn-sm" on:click={() => { tab='teachers'; }}>{t('frontend/src/lib/AdminPanel.svelte::add_teacher_button')}</button>
-          <button class="btn btn-sm" on:click={() => { tab='classes'; showCreateClass = true; }}>{t('frontend/src/lib/AdminPanel.svelte::create_class_button')}</button>
-          <a class="btn btn-sm" href="/dashboard">{t('frontend/src/lib/AdminPanel.svelte::go_to_dashboard_button')}</a>
+      <div class="card bg-base-100 shadow">
+        <div class="card-body gap-3">
+          <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::quick_actions_title')}</h2>
+          <div class="flex flex-wrap gap-2">
+            <button class="btn btn-primary btn-sm" on:click={() => { tab='people'; showCreateUsers = true; }}>{t('frontend/src/lib/AdminPanel.svelte::add_teacher_button')}</button>
+            <button class="btn btn-sm" on:click={() => { tab='people'; showCreateUsers = true; }}>{t('frontend/src/lib/AdminPanel.svelte::add_student_card_title')}</button>
+            <button class="btn btn-sm" on:click={() => { tab='classes'; showCreateClass = true; }}>{t('frontend/src/lib/AdminPanel.svelte::create_class_button')}</button>
+            <button class="btn btn-sm" on:click={() => { tab='settings'; }}>{t('frontend/src/lib/AdminPanel.svelte::settings_tab')}</button>
+            <button class="btn btn-sm" on:click={() => { showEmailTools = true; }}>
+              <MailCheck class="w-4 h-4" aria-hidden="true" />
+              {t('frontend/src/lib/AdminPanel.svelte::email_ping_card_title')}
+            </button>
+            <a class="btn btn-ghost btn-sm" href="/dashboard">{t('frontend/src/lib/AdminPanel.svelte::go_to_dashboard_button')}</a>
+          </div>
         </div>
       </div>
     </div>
-    <div class="card bg-base-100 shadow">
-      <div class="card-body space-y-3">
-        <div class="flex items-center justify-between">
-          <h2 class="card-title flex items-center gap-2"><MailCheck class="w-5 h-5" /> {t('frontend/src/lib/AdminPanel.svelte::email_ping_card_title')}</h2>
+    <div class="space-y-6">
+      <div class="card bg-base-100 shadow">
+        <div class="card-body space-y-3">
+          <div class="flex items-center justify-between">
+            <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::online_users_card_title')}</h2>
+            <button class="btn btn-ghost btn-xs" on:click={loadOnlineUsers} aria-label={t('frontend/src/lib/AdminPanel.svelte::refresh_online_users_button')}>
+              <RefreshCw class="w-4 h-4" />
+            </button>
+          </div>
+          <ul class="space-y-3 max-h-72 overflow-auto">
+            {#if onlineUsers.length}
+              {#each onlineUsers as online}
+                <li class="flex items-center gap-3">
+                  <div class="avatar">
+                    {#if online.avatar}
+                      <div class="w-10 rounded-full">
+                        <img src={online.avatar} alt={t('frontend/src/lib/AdminPanel.svelte::online_user_avatar_alt', { name: online.name || online.email })} loading="lazy" />
+                      </div>
+                    {:else}
+                      <div class="placeholder w-10 rounded-full bg-primary/10 text-primary font-semibold flex items-center justify-center">
+                        {(online.name || online.email || '?').charAt(0).toUpperCase()}
+                      </div>
+                    {/if}
+                  </div>
+                  <div class="flex flex-col leading-tight">
+                    <span class="font-medium">{online.name || online.email || '?'}</span>
+                    {#if online.name}
+                      <span class="text-xs text-base-content/60">{online.email}</span>
+                    {/if}
+                  </div>
+                </li>
+              {/each}
+            {:else}
+              <li class="text-sm text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::no_online_users_message')}</li>
+            {/if}
+          </ul>
         </div>
-        <p class="text-sm text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::email_ping_description')}</p>
-        <form class="space-y-2" on:submit|preventDefault={sendEmailPing}>
-          <input type="email" class="input input-bordered w-full" placeholder={t('frontend/src/lib/AdminPanel.svelte::email_ping_placeholder')} bind:value={emailPingTarget} required />
-          <button class="btn btn-primary btn-sm" disabled={sendingEmailPing}>
-            {sendingEmailPing ? t('frontend/src/lib/AdminPanel.svelte::sending_button') : t('frontend/src/lib/AdminPanel.svelte::email_ping_button')}
-          </button>
-        </form>
-      </div>
-    </div>
-    <div class="card bg-base-100 shadow">
-      <div class="card-body">
-        <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::unpublished_assignments_title')}</h2>
-        <ul class="space-y-2 max-h-60 overflow-auto">
-          {#each assignments.filter(a => !a.published).slice(0, 8) as a}
-            <li class="flex items-center justify-between gap-3">
-              <a class="link" href={`/assignments/${a.id}`}>{a.title}</a>
-              <button class="btn btn-ghost btn-xs" on:click={() => publishAssignment(a.id)}>{t('frontend/src/lib/AdminPanel.svelte::publish_button')}</button>
-            </li>
-          {/each}
-          {#if !assignments.filter(a => !a.published).length}
-            <li class="opacity-70 text-sm">{t('frontend/src/lib/AdminPanel.svelte::all_assignments_published')}</li>
-          {/if}
-        </ul>
       </div>
     </div>
   </div>
@@ -582,138 +702,202 @@
 <ConfirmModal bind:this={confirmModal} />
 <PromptModal bind:this={promptModal} />
 
-{#if tab === 'teachers'}
-  <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+{#if tab === 'people'}
+  <div class="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
     <div class="space-y-6">
       <div class="card bg-base-100 shadow">
         <div class="card-body space-y-4">
-          <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::add_teacher_card_title')}</h2>
-          <form on:submit|preventDefault={addTeacher} class="space-y-3">
-            <input type="email" bind:value={teacherEmail} placeholder={t('frontend/src/lib/AdminPanel.svelte::email_label')} required class="input input-bordered w-full" />
-            <input type="password" bind:value={teacherPassword} placeholder={t('frontend/src/lib/AdminPanel.svelte::password_label')} required class="input input-bordered w-full" />
-            <button class="btn btn-primary">{t('frontend/src/lib/AdminPanel.svelte::add_button')}</button>
-          </form>
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::account_creation_title')}</h2>
+            <button class="btn btn-ghost btn-sm" on:click={() => { showCreateUsers = !showCreateUsers; }}>
+              {showCreateUsers ? t('frontend/src/lib/AdminPanel.svelte::hide_account_tools_button') : t('frontend/src/lib/AdminPanel.svelte::show_account_tools_button')}
+            </button>
+          </div>
+          {#if showCreateUsers}
+            <div class="grid gap-4 md:grid-cols-2">
+              <div class="rounded-box border border-base-200/60 bg-base-100 p-4 space-y-3">
+                <h3 class="font-semibold">{t('frontend/src/lib/AdminPanel.svelte::add_teacher_card_title')}</h3>
+                <form on:submit|preventDefault={addTeacher} class="space-y-3">
+                  <input type="email" bind:value={teacherEmail} placeholder={t('frontend/src/lib/AdminPanel.svelte::email_label')} required class="input input-bordered w-full" />
+                  <input type="password" bind:value={teacherPassword} placeholder={t('frontend/src/lib/AdminPanel.svelte::password_label')} required class="input input-bordered w-full" />
+                  <button class="btn btn-primary btn-sm">{t('frontend/src/lib/AdminPanel.svelte::add_button')}</button>
+                </form>
+              </div>
+              <div class="rounded-box border border-base-200/60 bg-base-100 p-4 space-y-3">
+                <h3 class="font-semibold">{t('frontend/src/lib/AdminPanel.svelte::add_student_card_title')}</h3>
+                <form on:submit|preventDefault={addStudent} class="space-y-3">
+                  <input type="text" bind:value={studentName} placeholder={t('frontend/src/lib/AdminPanel.svelte::student_name_placeholder')} class="input input-bordered w-full" />
+                  <input type="email" bind:value={studentEmail} placeholder={t('frontend/src/lib/AdminPanel.svelte::email_label')} required class="input input-bordered w-full" />
+                  <input type="password" bind:value={studentPassword} placeholder={t('frontend/src/lib/AdminPanel.svelte::password_label')} required class="input input-bordered w-full" />
+                  <button class="btn btn-primary btn-sm">{t('frontend/src/lib/AdminPanel.svelte::add_button')}</button>
+                </form>
+              </div>
+            </div>
+          {/if}
         </div>
       </div>
       <div class="card bg-base-100 shadow">
         <div class="card-body space-y-4">
-          <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::add_student_card_title')}</h2>
-          <form on:submit|preventDefault={addStudent} class="space-y-3">
-            <input type="text" bind:value={studentName} placeholder={t('frontend/src/lib/AdminPanel.svelte::student_name_placeholder')} class="input input-bordered w-full" />
-            <input type="email" bind:value={studentEmail} placeholder={t('frontend/src/lib/AdminPanel.svelte::email_label')} required class="input input-bordered w-full" />
-            <input type="password" bind:value={studentPassword} placeholder={t('frontend/src/lib/AdminPanel.svelte::password_label')} required class="input input-bordered w-full" />
-            <button class="btn btn-primary">{t('frontend/src/lib/AdminPanel.svelte::add_button')}</button>
+          <div class="flex items-center justify-between">
+            <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::teachers_card_title')}</h2>
+            <button class="btn btn-ghost btn-sm" on:click={loadUsers}><RefreshCw class="w-4 h-4" /></button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="table table-zebra table-sm">
+              <thead>
+                <tr>
+                  <th>{t('frontend/src/lib/AdminPanel.svelte::name_table_header')}</th>
+                  <th>{t('frontend/src/lib/AdminPanel.svelte::classes_table_header')}</th>
+                  <th>{t('frontend/src/lib/AdminPanel.svelte::created_table_header')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each teachers as t_user}
+                  <tr>
+                    <td>
+                      <div class="flex flex-col">
+                        <span class="font-medium">{userPrimary(t_user)}</span>
+                        {#if userSecondary(t_user)}
+                          <span class="text-xs text-base-content/60">{userSecondary(t_user)}</span>
+                        {/if}
+                      </div>
+                    </td>
+                    <td>{teacherIdToClassCount[t_user.id] ?? 0}</td>
+                    <td>{formatDate(t_user.created_at)}</td>
+                  </tr>
+                {/each}
+                {#if !teachers.length}
+                  <tr><td colspan="3"><i>{t('frontend/src/lib/AdminPanel.svelte::no_teachers_message')}</i></td></tr>
+                {/if}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="card bg-base-100 shadow">
+        <div class="card-body space-y-4">
+          <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::whitelist_title')}</h2>
+          <p class="text-sm text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::whitelist_description')}</p>
+          <form on:submit|preventDefault={addToWhitelist} class="flex flex-col sm:flex-row gap-2 max-w-lg">
+            <input type="email" bind:value={whitelistEmail} placeholder={t('frontend/src/lib/AdminPanel.svelte::whitelist_placeholder')} required class="input input-bordered w-full" />
+            <button class="btn btn-primary btn-sm">{t('frontend/src/lib/AdminPanel.svelte::add_button')}</button>
           </form>
+          <div class="overflow-x-auto max-h-60 border rounded-box">
+            <table class="table table-compact w-full">
+              <thead><tr><th>{t('frontend/src/lib/AdminPanel.svelte::email_table_header')}</th><th></th></tr></thead>
+              <tbody>
+                {#each whitelist as w}
+                  <tr>
+                    <td>{w.email}</td>
+                    <td class="text-right">
+                      <button class="btn btn-ghost btn-xs text-error" on:click={() => removeFromWhitelist(w.email)}><Trash2 class="w-4 h-4" /></button>
+                    </td>
+                  </tr>
+                {/each}
+                {#if !whitelist.length}
+                  <tr><td colspan="2" class="text-center italic opacity-70">{t('frontend/src/lib/AdminPanel.svelte::whitelist_empty')}</td></tr>
+                {/if}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
-    <div class="card bg-base-100 shadow xl:col-span-2">
-      <div class="card-body">
-        <div class="flex items-center justify-between mb-3">
-          <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::teachers_card_title')}</h2>
-          <button class="btn btn-ghost btn-sm" on:click={loadUsers}><RefreshCw class="w-4 h-4" /></button>
+    <div class="card bg-base-100 shadow">
+      <div class="card-body space-y-4">
+        <div class="flex items-start justify-between flex-wrap gap-3">
+          <div>
+            <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::users_card_title')}</h2>
+            <p class="text-sm text-base-content/60">{onlineUsers.length} {t('frontend/src/lib/AdminPanel.svelte::online_stat_title')}</p>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <label class="input input-bordered input-sm flex items-center gap-2">
+              <Search class="w-4 h-4" aria-hidden="true" />
+              <input class="grow" placeholder={t('frontend/src/lib/AdminPanel.svelte::search_users_placeholder')} bind:value={userQuery} />
+            </label>
+            <button class="btn btn-sm" on:click={exportUsersCSV}>{t('frontend/src/lib/AdminPanel.svelte::export_csv_button')}</button>
+            <button class="btn btn-ghost btn-sm" on:click={refreshUsers}><RefreshCw class="w-4 h-4" /></button>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button class="btn btn-xs" class:btn-primary={userRoleFilter === 'all'} class:btn-ghost={userRoleFilter !== 'all'} on:click={() => userRoleFilter = 'all'}>
+            {t('frontend/src/lib/AdminPanel.svelte::all_filter_option')}
+          </button>
+          <button class="btn btn-xs" class:btn-primary={userRoleFilter === 'student'} class:btn-ghost={userRoleFilter !== 'student'} on:click={() => userRoleFilter = 'student'}>
+            {t('frontend/src/lib/AdminPanel.svelte::role_filter_students')}
+          </button>
+          <button class="btn btn-xs" class:btn-primary={userRoleFilter === 'teacher'} class:btn-ghost={userRoleFilter !== 'teacher'} on:click={() => userRoleFilter = 'teacher'}>
+            {t('frontend/src/lib/AdminPanel.svelte::role_filter_teachers')}
+          </button>
+          <button class="btn btn-xs" class:btn-primary={userRoleFilter === 'admin'} class:btn-ghost={userRoleFilter !== 'admin'} on:click={() => userRoleFilter = 'admin'}>
+            {t('frontend/src/lib/AdminPanel.svelte::role_filter_admins')}
+          </button>
         </div>
         <div class="overflow-x-auto">
           <table class="table table-zebra">
-            <thead><tr><th>{t('frontend/src/lib/AdminPanel.svelte::id_table_header')}</th><th>{t('frontend/src/lib/AdminPanel.svelte::email_table_header')}</th><th>{t('frontend/src/lib/AdminPanel.svelte::name_table_header')}</th><th>{t('frontend/src/lib/AdminPanel.svelte::classes_table_header')}</th><th>{t('frontend/src/lib/AdminPanel.svelte::created_table_header')}</th></tr></thead>
+            <thead>
+              <tr>
+                <th>{t('frontend/src/lib/AdminPanel.svelte::name_table_header')}</th>
+                <th>{t('frontend/src/lib/AdminPanel.svelte::role_table_header')}</th>
+                <th>{t('frontend/src/lib/AdminPanel.svelte::auth_table_header')}</th>
+                <th>{t('frontend/src/lib/AdminPanel.svelte::created_table_header')}</th>
+                <th></th>
+              </tr>
+            </thead>
             <tbody>
-              {#each teachers as t_user}
+              {#each filteredUsers as u}
                 <tr>
-                  <td>{t_user.id}</td>
-                  <td>{t_user.email}</td>
-                  <td>{t_user.name ?? ''}</td>
-                  <td>{teacherIdToClassCount[t_user.id] ?? 0}</td>
-                  <td>{formatDate(t_user.created_at)}</td>
-                </tr>
-              {/each}
-              {#if !teachers.length}
-                <tr><td colspan="5"><i>{t('frontend/src/lib/AdminPanel.svelte::no_teachers_message')}</i></td></tr>
-              {/if}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-    <div class="card bg-base-100 shadow xl:col-span-3">
-      <div class="card-body space-y-4">
-        <h2 class="card-title">Microsoft Login Whitelist</h2>
-        <p class="text-sm text-base-content/70">Users with these emails get 'teacher' role automatically when logging in via Microsoft.</p>
-        <form on:submit|preventDefault={addToWhitelist} class="flex gap-2 max-w-md">
-           <input type="email" bind:value={whitelistEmail} placeholder="teacher@school.edu" required class="input input-bordered w-full" />
-           <button class="btn btn-primary">Add</button>
-        </form>
-        <div class="overflow-x-auto max-h-60 border rounded-box">
-          <table class="table table-compact w-full">
-            <thead><tr><th>Email</th><th></th></tr></thead>
-            <tbody>
-              {#each whitelist as w}
-                <tr>
-                  <td>{w.email}</td>
+                  <td>
+                    <div class="flex items-center gap-3">
+                      <span class={`h-2.5 w-2.5 rounded-full ${onlineIds.has(u.id) ? 'bg-success' : 'bg-base-300'}`} />
+                      <div class="flex flex-col">
+                        <span class="font-medium">{userPrimary(u)}</span>
+                        {#if userSecondary(u)}
+                          <span class="text-xs text-base-content/60">{userSecondary(u)}</span>
+                        {/if}
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <select bind:value={u.role} on:change={(e)=>changeRole(u.id, (e.target as HTMLSelectElement).value)} class="select select-bordered select-sm">
+                      {#each roles as r}<option>{r}</option>{/each}
+                    </select>
+                  </td>
+                  <td>
+                    <div class="flex flex-wrap gap-1">
+                      {#if hasEmailLogin(u)}
+                        <span class="badge badge-outline">{t('frontend/src/lib/AdminPanel.svelte::auth_email_label')}</span>
+                      {/if}
+                      {#if u.ms_oid}
+                        <span class="badge badge-outline">{t('frontend/src/lib/AdminPanel.svelte::auth_microsoft_label')}</span>
+                      {/if}
+                      {#if u.bk_uid}
+                        <span class="badge badge-outline">{t('frontend/src/lib/AdminPanel.svelte::auth_bakalari_label')}</span>
+                      {/if}
+                    </div>
+                  </td>
+                  <td>{formatDate(u.created_at)}</td>
                   <td class="text-right">
-                    <button class="btn btn-ghost btn-xs text-error" on:click={() => removeFromWhitelist(w.email)}><Trash2 class="w-4 h-4" /></button>
+                    <div class="flex justify-end gap-1">
+                      <button
+                        class="btn btn-ghost btn-xs"
+                        title={u.bk_uid ? t('frontend/src/lib/AdminPanel.svelte::set_password_disabled_tooltip') : t('frontend/src/lib/AdminPanel.svelte::set_password_button_label')}
+                        disabled={Boolean(u.bk_uid)}
+                        on:click={() => { if (!u.bk_uid) promptSetPassword(u); }}
+                      >
+                        <KeyRound class="w-4 h-4" />
+                      </button>
+                      <button class="btn btn-ghost btn-xs text-error" on:click={()=>deleteUser(u.id)}><Trash2 class="w-4 h-4" /></button>
+                    </div>
                   </td>
                 </tr>
               {/each}
-              {#if !whitelist.length}
-                 <tr><td colspan="2" class="text-center italic opacity-70">No emails in whitelist</td></tr>
+              {#if !filteredUsers.length}
+                <tr><td colspan="5"><i>{t('frontend/src/lib/AdminPanel.svelte::no_users_message')}</i></td></tr>
               {/if}
             </tbody>
           </table>
         </div>
-      </div>
-    </div>
-  </div>
-{/if}
-
-{#if tab === 'users'}
-  <div class="card bg-base-100 shadow">
-    <div class="card-body">
-      <div class="flex items-center gap-2 justify-between flex-wrap mb-3">
-        <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::users_card_title')}<span class="text-sm font-normal text-base-content/60">({onlineUsers.length} online)</span></h2>
-        <div class="flex items-center gap-2">
-          <label class="input input-bordered input-sm flex items-center gap-2">
-            <Search class="w-4 h-4" aria-hidden="true" />
-            <input class="grow" placeholder={t('frontend/src/lib/AdminPanel.svelte::search_users_placeholder')} bind:value={userQuery} />
-          </label>
-          <button class="btn btn-sm" on:click={exportUsersCSV}>{t('frontend/src/lib/AdminPanel.svelte::export_csv_button')}</button>
-          <button class="btn btn-ghost btn-sm" on:click={refreshUsers}><RefreshCw class="w-4 h-4" /></button>
-        </div>
-      </div>
-      <div class="overflow-x-auto">
-        <table class="table table-zebra">
-          <thead><tr><th>{t('frontend/src/lib/AdminPanel.svelte::id_table_header')}</th><th>{t('frontend/src/lib/AdminPanel.svelte::email_table_header')}</th><th>{t('frontend/src/lib/AdminPanel.svelte::name_table_header')}</th><th>{t('frontend/src/lib/AdminPanel.svelte::role_table_header')}</th><th>{t('frontend/src/lib/AdminPanel.svelte::created_table_header')}</th><th></th></tr></thead>
-          <tbody>
-            {#each filteredUsers as u}
-              <tr>
-                <td>{u.id}</td>
-                <td>{u.email}</td>
-                <td class="max-w-[18rem] truncate">{u.name ?? ''}</td>
-                <td>
-                  <select bind:value={u.role} on:change={(e)=>changeRole(u.id, (e.target as HTMLSelectElement).value)} class="select select-bordered select-sm">
-                    {#each roles as r}<option>{r}</option>{/each}
-                  </select>
-                </td>
-                <td>{formatDate(u.created_at)}</td>
-                <td class="text-right">
-                  <div class="flex justify-end gap-1">
-                    <button
-                      class="btn btn-ghost btn-xs"
-                      title={u.bk_uid ? t('frontend/src/lib/AdminPanel.svelte::set_password_disabled_tooltip') : t('frontend/src/lib/AdminPanel.svelte::set_password_button_label')}
-                      disabled={Boolean(u.bk_uid)}
-                      on:click={() => { if (!u.bk_uid) promptSetPassword(u); }}
-                    >
-                      <KeyRound class="w-4 h-4" />
-                    </button>
-                    <button class="btn btn-ghost btn-xs text-error" on:click={()=>deleteUser(u.id)}><Trash2 class="w-4 h-4" /></button>
-                  </div>
-                </td>
-              </tr>
-            {/each}
-            {#if !filteredUsers.length}
-              <tr><td colspan="6"><i>{t('frontend/src/lib/AdminPanel.svelte::no_users_message')}</i></td></tr>
-            {/if}
-          </tbody>
-        </table>
       </div>
     </div>
   </div>
@@ -735,23 +919,40 @@
       </div>
       <div class="overflow-x-auto">
         <table class="table table-zebra">
-          <thead><tr><th>{t('frontend/src/lib/AdminPanel.svelte::id_table_header')}</th><th>{t('frontend/src/lib/AdminPanel.svelte::name_table_header')}</th><th>{t('frontend/src/lib/AdminPanel.svelte::teacher_table_header')}</th><th>{t('frontend/src/lib/AdminPanel.svelte::created_table_header')}</th><th></th></tr></thead>
+          <thead>
+            <tr>
+              <th>{t('frontend/src/lib/AdminPanel.svelte::class_table_header')}</th>
+              <th>{t('frontend/src/lib/AdminPanel.svelte::teacher_table_header')}</th>
+              <th>{t('frontend/src/lib/AdminPanel.svelte::created_table_header')}</th>
+              <th></th>
+            </tr>
+          </thead>
           <tbody>
             {#each filteredClasses as c}
               <tr>
-                <td>{c.id}</td>
                 <td><a href={`/classes/${c.id}`} class="link link-primary">{c.name}</a></td>
-                <td>{c.teacher_id}</td>
+                <td>
+                  {#if teacherLookup[c.teacher_id]}
+                    <div class="flex flex-col">
+                      <span class="font-medium">{userPrimary(teacherLookup[c.teacher_id])}</span>
+                      {#if userSecondary(teacherLookup[c.teacher_id])}
+                        <span class="text-xs text-base-content/60">{userSecondary(teacherLookup[c.teacher_id])}</span>
+                      {/if}
+                    </div>
+                  {:else}
+                    <span class="text-sm text-base-content/60">{t('frontend/src/lib/AdminPanel.svelte::unassigned_teacher_label')}</span>
+                  {/if}
+                </td>
                 <td>{formatDate(c.created_at)}</td>
                 <td class="text-right whitespace-nowrap">
                   <button class="btn btn-ghost btn-xs" on:click={()=>renameClass(c.id)}><Edit class="w-4 h-4" /></button>
-                  <button class="btn btn-ghost btn-xs" on:click={()=>transferTarget={ id: c.id, to: null }}><ArrowRightLeft class="w-4 h-4" /></button>
+                  <button class="btn btn-ghost btn-xs" on:click={()=>transferTarget={ id: c.id, name: c.name, to: null }}><ArrowRightLeft class="w-4 h-4" /></button>
                   <button class="btn btn-ghost btn-xs text-error" on:click={()=>deleteClassAction(c.id)}><Trash2 class="w-4 h-4" /></button>
                 </td>
               </tr>
             {/each}
             {#if !filteredClasses.length}
-              <tr><td colspan="5"><i>{t('frontend/src/lib/AdminPanel.svelte::no_classes_message')}</i></td></tr>
+              <tr><td colspan="4"><i>{t('frontend/src/lib/AdminPanel.svelte::no_classes_message')}</i></td></tr>
             {/if}
           </tbody>
         </table>
@@ -767,7 +968,7 @@
         <select class="select select-bordered w-full" bind:value={newClassTeacherId}>
           <option value={null} disabled selected>{t('frontend/src/lib/AdminPanel.svelte::select_teacher_option')}</option>
           {#each teachers as t_teacher}
-            <option value={t_teacher.id}>{t_teacher.name ?? t_teacher.email} (#{t_teacher.id})</option>
+            <option value={t_teacher.id}>{userPrimary(t_teacher)}{t_teacher.name ? ` - ${t_teacher.email}` : ''}</option>
           {/each}
         </select>
         <div class="modal-action">
@@ -783,11 +984,11 @@
     <dialog open class="modal">
       <div class="modal-box space-y-4">
         <h3 class="font-semibold">{t('frontend/src/lib/AdminPanel.svelte::transfer_ownership_modal_title')}</h3>
-        <p>{t('frontend/src/lib/AdminPanel.svelte::transfer_ownership_modal_body', { classId: transferTarget.id })}</p>
+        <p>{t('frontend/src/lib/AdminPanel.svelte::transfer_ownership_modal_body', { className: transferTarget.name || t('frontend/src/lib/AdminPanel.svelte::class_table_header') })}</p>
         <select class="select select-bordered w-full" bind:value={transferTarget.to}>
           <option value={null} disabled selected>{t('frontend/src/lib/AdminPanel.svelte::select_teacher_option')}</option>
           {#each teachers as t_teacher}
-            <option value={t_teacher.id}>{t_teacher.name ?? t_teacher.email} (#{t_teacher.id})</option>
+            <option value={t_teacher.id}>{userPrimary(t_teacher)}{t_teacher.name ? ` - ${t_teacher.email}` : ''}</option>
           {/each}
         </select>
         <div class="modal-action">
@@ -800,80 +1001,138 @@
   {/if}
 {/if}
 
-{#if tab === 'assignments'}
-  <div class="card bg-base-100 shadow">
-    <div class="card-body">
-      <div class="flex items-center gap-2 justify-between flex-wrap mb-3">
-        <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::assignments_card_title')}</h2>
-        <div class="flex items-center gap-2">
-          <label class="input input-bordered input-sm flex items-center gap-2">
-            <Search class="w-4 h-4" aria-hidden="true" />
-            <input class="grow" placeholder={t('frontend/src/lib/AdminPanel.svelte::search_assignments_placeholder')} bind:value={assignmentQuery} />
+{#if tab === 'settings'}
+  <div class="space-y-6">
+    <div class="card bg-base-100 shadow">
+      <div class="card-body space-y-4">
+        <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::system_settings_title')}</h2>
+        <div class="grid gap-4 md:grid-cols-2">
+          <label class="rounded-box border border-base-200/60 bg-base-100 p-4 flex items-start justify-between gap-4">
+            <div class="flex flex-col">
+              <span class="font-medium">{t('frontend/src/lib/AdminPanel.svelte::force_bakalari_email_label')}</span>
+              <span class="text-sm text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::force_bakalari_email_description')}</span>
+            </div>
+            <input type="checkbox" class="toggle toggle-primary mt-1" checked={forceBakalariEmail} on:change={(e) => updateSetting('force_bakalari_email', (e.target as HTMLInputElement).checked)} />
           </label>
-          <select class="select select-sm select-bordered" bind:value={assignmentFilter}>
-            <option value="all">{t('frontend/src/lib/AdminPanel.svelte::all_filter_option')}</option>
-            <option value="published">{t('frontend/src/lib/AdminPanel.svelte::published_filter_option')}</option>
-            <option value="unpublished">{t('frontend/src/lib/AdminPanel.svelte::unpublished_filter_option')}</option>
-          </select>
-          <button class="btn btn-ghost btn-sm" on:click={loadAssignments}><RefreshCw class="w-4 h-4" /></button>
+          <label class="rounded-box border border-base-200/60 bg-base-100 p-4 flex items-start justify-between gap-4">
+            <div class="flex flex-col">
+              <span class="font-medium">{t('frontend/src/lib/AdminPanel.svelte::allow_microsoft_login_label')}</span>
+              <span class="text-sm text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::allow_microsoft_login_description')}</span>
+            </div>
+            <input type="checkbox" class="toggle toggle-primary mt-1" checked={allowMicrosoftLogin} on:change={(e) => updateSetting('allow_microsoft_login', (e.target as HTMLInputElement).checked)} />
+          </label>
         </div>
       </div>
-      <div class="overflow-x-auto">
-        <table class="table table-zebra">
-          <thead><tr><th>{t('frontend/src/lib/AdminPanel.svelte::id_table_header')}</th><th>{t('frontend/src/lib/AdminPanel.svelte::title_table_header')}</th><th>{t('frontend/src/lib/AdminPanel.svelte::class_table_header')}</th><th>{t('frontend/src/lib/AdminPanel.svelte::deadline_table_header')}</th><th>{t('frontend/src/lib/AdminPanel.svelte::status_table_header')}</th><th></th></tr></thead>
-          <tbody>
-            {#each filteredAssignments as a}
-              <tr>
-                <td>{a.id}</td>
-                <td><a href={`/assignments/${a.id}`} class="link link-primary">{a.title}</a></td>
-                <td>{a.class_id}</td>
-                <td>{formatDateTime(a.deadline)}</td>
-                <td>{a.published ? t('frontend/src/lib/AdminPanel.svelte::published_filter_option') : t('frontend/src/lib/AdminPanel.svelte::unpublished_filter_option')}</td>
-                <td class="text-right whitespace-nowrap">
-                  {#if !a.published}
-                    <button class="btn btn-xs" on:click={()=>publishAssignment(a.id)}>{t('frontend/src/lib/AdminPanel.svelte::publish_button')}</button>
-                  {/if}
-                  <button class="btn btn-ghost btn-xs text-error" on:click={()=>deleteAssignment(a.id)}><Trash2 class="w-4 h-4" /></button>
-                </td>
-              </tr>
-            {/each}
-            {#if !filteredAssignments.length}
-              <tr><td colspan="6"><i>{t('frontend/src/lib/AdminPanel.svelte::no_assignments_message')}</i></td></tr>
+    </div>
+
+    <div class="card bg-base-100 shadow">
+      <div class="card-body space-y-4">
+        <div>
+          <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::system_variables_title')}</h2>
+          <p class="text-sm text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::system_variables_description')}</p>
+        </div>
+        <form on:submit|preventDefault={saveSystemVariable} class="grid gap-3 md:grid-cols-[1fr_2fr_auto] items-end">
+          <label class="form-control">
+            <span class="label-text">{t('frontend/src/lib/AdminPanel.svelte::system_variable_key_label')}</span>
+            <input
+              class="input input-bordered"
+              placeholder={t('frontend/src/lib/AdminPanel.svelte::system_variable_key_placeholder')}
+              bind:value={variableKey}
+              disabled={Boolean(editingVariableKey)}
+              required
+            />
+          </label>
+          <label class="form-control">
+            <span class="label-text">{t('frontend/src/lib/AdminPanel.svelte::system_variable_value_label')}</span>
+            <input
+              class="input input-bordered"
+              placeholder={t('frontend/src/lib/AdminPanel.svelte::system_variable_value_placeholder')}
+              bind:value={variableValue}
+            />
+          </label>
+          <div class="flex gap-2">
+            <button class="btn btn-primary btn-sm" type="submit">
+              {editingVariableKey ? t('frontend/src/lib/AdminPanel.svelte::save_button') : t('frontend/src/lib/AdminPanel.svelte::add_button')}
+            </button>
+            {#if editingVariableKey}
+              <button class="btn btn-ghost btn-sm" type="button" on:click={resetVariableForm}>
+                {t('frontend/src/lib/AdminPanel.svelte::cancel_button')}
+              </button>
             {/if}
-          </tbody>
-        </table>
+          </div>
+        </form>
+        <div class="overflow-x-auto">
+          <table class="table table-zebra">
+            <thead>
+              <tr>
+                <th>{t('frontend/src/lib/AdminPanel.svelte::system_variable_key_label')}</th>
+                <th>{t('frontend/src/lib/AdminPanel.svelte::system_variable_value_label')}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {#if loadingVariables}
+                <tr><td colspan="3"><i>{t('frontend/src/lib/AdminPanel.svelte::system_variables_loading')}</i></td></tr>
+              {:else}
+                {#each systemVariables as variable}
+                  <tr>
+                    <td class="font-mono text-sm">{variable.key}</td>
+                    <td class="font-mono text-sm max-w-[22rem] truncate" title={variable.value}>{variable.value}</td>
+                    <td class="text-right">
+                      <div class="flex justify-end gap-1">
+                        <button class="btn btn-ghost btn-xs" on:click={() => startEditVariable(variable)}><Edit class="w-4 h-4" /></button>
+                        <button class="btn btn-ghost btn-xs text-error" on:click={() => deleteSystemVariable(variable.key)}><Trash2 class="w-4 h-4" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                {/each}
+                {#if !systemVariables.length}
+                  <tr><td colspan="3"><i>{t('frontend/src/lib/AdminPanel.svelte::system_variables_empty')}</i></td></tr>
+                {/if}
+              {/if}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card bg-base-100 shadow">
+      <div class="card-body space-y-3">
+        <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::email_ping_card_title')}</h2>
+        <p class="text-sm text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::email_ping_description')}</p>
+        <button class="btn btn-primary btn-sm" on:click={() => { showEmailTools = true; }}>
+          <MailCheck class="w-4 h-4" aria-hidden="true" />
+          {t('frontend/src/lib/AdminPanel.svelte::email_ping_card_title')}
+        </button>
       </div>
     </div>
   </div>
 {/if}
 
-{#if tab === 'settings'}
-  <div class="card bg-base-100 shadow">
-    <div class="card-body">
-      <h2 class="card-title mb-4">{t('frontend/src/lib/AdminPanel.svelte::system_settings_title')}</h2>
-      
-      <div class="form-control">
-        <label class="label cursor-pointer justify-start gap-4">
-          <input type="checkbox" class="toggle toggle-primary" checked={forceBakalariEmail} on:change={(e) => updateSetting('force_bakalari_email', (e.target as HTMLInputElement).checked)} />
-          <div class="flex flex-col">
-            <span class="label-text font-medium text-base">{t('frontend/src/lib/AdminPanel.svelte::force_bakalari_email_label')}</span>
-            <span class="label-text text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::force_bakalari_email_description')}</span>
-          </div>
-        </label>
+{#if showEmailTools}
+  <dialog open class="modal">
+    <div class="modal-box space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="font-semibold flex items-center gap-2">
+          <MailCheck class="w-5 h-5" aria-hidden="true" />
+          {t('frontend/src/lib/AdminPanel.svelte::email_ping_card_title')}
+        </h3>
+        <button class="btn btn-ghost btn-xs" on:click={() => { showEmailTools = false; }}>
+          <span class="sr-only">{t('frontend/src/lib/AdminPanel.svelte::cancel_button')}</span>
+          x
+        </button>
       </div>
-
-      <div class="divider"></div>
-
-      <div class="form-control">
-        <label class="label cursor-pointer justify-start gap-4">
-          <input type="checkbox" class="toggle toggle-primary" checked={allowMicrosoftLogin} on:change={(e) => updateSetting('allow_microsoft_login', (e.target as HTMLInputElement).checked)} />
-          <div class="flex flex-col">
-            <span class="label-text font-medium text-base">{t('frontend/src/lib/AdminPanel.svelte::allow_microsoft_login_label')}</span>
-            <span class="label-text text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::allow_microsoft_login_description')}</span>
-          </div>
-        </label>
+      <p class="text-sm text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::email_ping_description')}</p>
+      <form class="space-y-2" on:submit|preventDefault={sendEmailPing}>
+        <input type="email" class="input input-bordered w-full" placeholder={t('frontend/src/lib/AdminPanel.svelte::email_ping_placeholder')} bind:value={emailPingTarget} required />
+        <button class="btn btn-primary btn-sm" disabled={sendingEmailPing}>
+          {sendingEmailPing ? t('frontend/src/lib/AdminPanel.svelte::sending_button') : t('frontend/src/lib/AdminPanel.svelte::email_ping_button')}
+        </button>
+      </form>
+      <div class="modal-action">
+        <button class="btn btn-ghost" on:click={() => { showEmailTools = false; }}>{t('frontend/src/lib/AdminPanel.svelte::cancel_button')}</button>
       </div>
-
     </div>
-  </div>
+    <form method="dialog" class="modal-backdrop" on:click={() => { showEmailTools = false; }}><button>close</button></form>
+  </dialog>
 {/if}
