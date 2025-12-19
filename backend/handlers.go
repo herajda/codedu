@@ -4582,22 +4582,11 @@ func linkLocalAccount(c *gin.Context) {
 	}
 	email := strings.TrimSpace(req.Email)
 	existing, err := FindUserByEmail(email)
-	var mergeExisting bool
-	var existingDetail *User
 	switch {
 	case err == nil:
 		if existing.ID != uid {
-			if err := bcrypt.CompareHashAndPassword([]byte(existing.PasswordHash), []byte(req.Password)); err != nil {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
-				return
-			}
-			existingDetail, err = GetUser(existing.ID)
-			if err != nil {
-				log.Printf("[linkLocalAccount] GetUser existing error: %v", err)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-				return
-			}
-			mergeExisting = true
+			c.JSON(http.StatusConflict, gin.H{"error": "email already in use"})
+			return
 		}
 	case errors.Is(err, sql.ErrNoRows):
 		// no existing local account, proceed to create new credentials
@@ -4608,68 +4597,30 @@ func linkLocalAccount(c *gin.Context) {
 	hash, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	emailVerified := false
 	var emailVerifiedAt *time.Time
-	if mergeExisting {
-		emailVerified = existingDetail.EmailVerified
-		emailVerifiedAt = existingDetail.EmailVerifiedAt
-	}
 	needsVerification := !emailVerified
 	if needsVerification && mailer == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Email verification is temporarily unavailable"})
 		return
 	}
 	finalName := user.Name
-	if mergeExisting && (finalName == nil || strings.TrimSpace(*finalName) == "") {
-		if existingDetail.Name != nil && strings.TrimSpace(*existingDetail.Name) != "" {
-			finalName = existingDetail.Name
-		}
-	}
 	finalAvatar := user.Avatar
-	if mergeExisting && finalAvatar == nil && existingDetail.Avatar != nil {
-		finalAvatar = existingDetail.Avatar
-	}
 	finalRole := user.Role
 	switch finalRole {
 	case "admin":
 	case "teacher":
 	default:
-		if mergeExisting && existingDetail.Role == "teacher" {
-			finalRole = "teacher"
-		} else {
-			finalRole = "student"
-		}
+		finalRole = "student"
 	}
 	finalPreferredLocale := user.PreferredLocale
-	if mergeExisting && existingDetail.PreferredLocale != nil {
-		finalPreferredLocale = existingDetail.PreferredLocale
-	}
 	finalTheme := user.Theme
-	if mergeExisting && existingDetail.Theme == "dark" && finalTheme != "dark" {
-		finalTheme = "dark"
-	}
 	finalEmailNotifications := user.EmailNotifications
 	finalEmailMessageDigest := user.EmailMessageDigest
-	if mergeExisting {
-		finalEmailNotifications = existingDetail.EmailNotifications
-		finalEmailMessageDigest = existingDetail.EmailMessageDigest
-	}
 	tx, err := DB.Beginx()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
 	defer func() { _ = tx.Rollback() }()
-	if mergeExisting {
-		if err := mergeUsersTx(tx, uid, existingDetail.ID); err != nil {
-			log.Printf("[linkLocalAccount] mergeUsersTx error: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-			return
-		}
-		if _, err := tx.Exec(`DELETE FROM users WHERE id=$1`, existingDetail.ID); err != nil {
-			log.Printf("[linkLocalAccount] delete existing user error: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-			return
-		}
-	}
 	if _, err := tx.Exec(`UPDATE users
 	                         SET email=$1,
 	                             password_hash=$2,

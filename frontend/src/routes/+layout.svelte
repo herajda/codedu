@@ -74,6 +74,7 @@
   let showLocalAccountForm = false;
   let forcedLinkMode = false;
   let preferredLocaleSelection: "" | Locale = "";
+  let authInitReady = false;
 
   $: trimmedLinkEmail = linkEmail.trim();
   $: linkHasMinLength = linkPassword.length > 8;
@@ -528,11 +529,14 @@
 
   $: user = $auth;
 
-  onMount(() => {
-    if (!isAuthPage) {
-      auth.init();
-    }
-  });
+  $: if (!isAuthPage && !authInitReady) {
+    authInitReady = true;
+    auth.init();
+  }
+
+  $: if (isAuthPage && authInitReady) {
+    authInitReady = false;
+  }
 
   async function enforceBakalariEmailSetup() {
     if (!browser || !user) return;
@@ -587,6 +591,15 @@
     if (presenceInterval) {
       clearInterval(presenceInterval);
       presenceInterval = null;
+    }
+  }
+
+  $: if (isAuthPage) {
+    if (forcedLinkMode) {
+      forcedLinkMode = false;
+    }
+    if (bkLinkDialog && bkLinkDialog.open) {
+      bkLinkDialog.close();
     }
   }
 
