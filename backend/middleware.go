@@ -68,3 +68,7 @@ func RoleGuard(allowed ...string) gin.HandlerFunc {
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 	}
 }
+
+func AdminMiddleware() gin.HandlerFunc {
+	return RoleGuard("admin")
+}

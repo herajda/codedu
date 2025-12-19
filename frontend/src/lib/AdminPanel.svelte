@@ -50,6 +50,7 @@
   let classes: Class[] = [];
   let assignments: Assignment[] = [];
   let onlineUsers: OnlineUser[] = [];
+  let whitelist: { email: string; created_at: string }[] = [];
 
   // Filters/search
   let userQuery = '';
@@ -144,6 +145,45 @@
     loadingAssignments = false;
   }
 
+  // Whitelist management
+  async function loadWhitelist() {
+    try {
+      const res = await apiJSON<{email: string, created_at: string}[]>('/api/admin/whitelist');
+      whitelist = Array.isArray(res) ? res : [];
+    } catch { whitelist = []; }
+  }
+
+  let whitelistEmail = '';
+  async function addToWhitelist() {
+    if (!whitelistEmail) return;
+    err = ok = '';
+    try {
+      await apiFetch('/api/admin/whitelist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: whitelistEmail })
+      });
+      ok = 'Email added to whitelist';
+      whitelistEmail = '';
+      await loadWhitelist();
+    } catch (e: any) {
+      const j = await e.response?.json().catch(() => ({}));
+      err = j.error || e.message || 'Failed to add to whitelist';
+    }
+  }
+
+  async function removeFromWhitelist(email: string) {
+    if (!confirm('Are you sure?')) return;
+    err = ok = '';
+    try {
+      await apiFetch(`/api/admin/whitelist/${encodeURIComponent(email)}`, { method: 'DELETE' });
+      ok = 'Email removed from whitelist';
+      await loadWhitelist();
+    } catch (e: any) {
+      err = e.message || 'Failed to remove from whitelist';
+    }
+  }
+
   // System Settings
   let forceBakalariEmail = true;
   async function loadSystemSettings() {
@@ -195,6 +235,7 @@
     loadAssignments();
     loadOnlineUsers();
     loadSystemSettings();
+    loadWhitelist();
     const presenceTimer = setInterval(loadOnlineUsers, 30000);
     return () => clearInterval(presenceTimer);
   });
@@ -587,6 +628,34 @@
               {/each}
               {#if !teachers.length}
                 <tr><td colspan="5"><i>{t('frontend/src/lib/AdminPanel.svelte::no_teachers_message')}</i></td></tr>
+              {/if}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="card bg-base-100 shadow xl:col-span-3">
+      <div class="card-body space-y-4">
+        <h2 class="card-title">Microsoft Login Whitelist</h2>
+        <p class="text-sm text-base-content/70">Users with these emails get 'teacher' role automatically when logging in via Microsoft.</p>
+        <form on:submit|preventDefault={addToWhitelist} class="flex gap-2 max-w-md">
+           <input type="email" bind:value={whitelistEmail} placeholder="teacher@school.edu" required class="input input-bordered w-full" />
+           <button class="btn btn-primary">Add</button>
+        </form>
+        <div class="overflow-x-auto max-h-60 border rounded-box">
+          <table class="table table-compact w-full">
+            <thead><tr><th>Email</th><th></th></tr></thead>
+            <tbody>
+              {#each whitelist as w}
+                <tr>
+                  <td>{w.email}</td>
+                  <td class="text-right">
+                    <button class="btn btn-ghost btn-xs text-error" on:click={() => removeFromWhitelist(w.email)}><Trash2 class="w-4 h-4" /></button>
+                  </td>
+                </tr>
+              {/each}
+              {#if !whitelist.length}
+                 <tr><td colspan="2" class="text-center italic opacity-70">No emails in whitelist</td></tr>
               {/if}
             </tbody>
           </table>

@@ -118,6 +118,7 @@ func main() {
 	// 1) Init DB and auth
 	InitDB()
 	InitAuth()
+	InitOIDC()
 	ensureAdmin()
 	InitMailer()
 	// Ensure Teachers' group exists as a special class
@@ -143,6 +144,8 @@ func main() {
 	r.POST("/api/register", Register)
 	r.POST("/api/login", Login)
 	r.POST("/api/login-bakalari", LoginBakalari)
+	r.GET("/api/auth/microsoft/login", LoginMicrosoft)
+	r.GET("/api/auth/microsoft/callback", CallbackMicrosoft)
 	r.POST("/api/refresh", Refresh)
 	r.POST("/api/logout", Logout)
 
@@ -155,9 +158,14 @@ func main() {
 	r.POST("/email/unsubscribe", handleEmailUnsubscribe)
 
 	// 4) Protected
+	// 4) Protected
 	api := r.Group("/api")
 	api.Use(JWTAuth())
 	{
+		api.GET("/admin/whitelist", AdminMiddleware(), handleListWhitelist)
+		api.POST("/admin/whitelist", AdminMiddleware(), handleAddWhitelist)
+		api.DELETE("/admin/whitelist/:email", AdminMiddleware(), handleRemoveWhitelist)
+
 		// LLM interactive session API
 		registerSessionRoutes(api)
 		// health-check
