@@ -56,6 +56,10 @@
   let tLimit = "";
   let tWeight = "1";
   let unittestFile: File | null = null;
+  let ioFileName = "";
+  let ioFileText = "";
+  let ioFileBase64 = "";
+  let ioFileUpload: File | null = null;
 
   type ToolMode = "structured" | "advanced";
   type StructuredToolRule = { library: string; function: string; note: string };
@@ -146,6 +150,9 @@
     returns: string[];
     weight: string;
     timeLimit: string;
+    fileName: string;
+    fileText: string;
+    fileBase64: string;
   };
   type FnMeta = { name: string; params: FnParameter[]; returns: FnReturn[] };
 
@@ -193,6 +200,84 @@
     if (!isFinite(base)) base = 0;
     const out = lines.map((l) => (l.length >= base ? l.slice(base) : l));
     return { lines: out, base };
+  }
+
+  function textToBase64(text: string): string {
+    const enc = new TextEncoder();
+    const bytes = enc.encode(text ?? "");
+    let binary = "";
+    bytes.forEach((b) => {
+      binary += String.fromCharCode(b);
+    });
+    return btoa(binary);
+  }
+
+  function readFileBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const res = String(reader.result || "");
+        const parts = res.split(",");
+        resolve(parts.length > 1 ? parts[1] : res);
+      };
+      reader.onerror = () => reject(reader.error ?? new Error("read failed"));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function buildFilePayload(
+    fileName: string,
+    fileText: string,
+    fileBase64: string,
+  ): { file_name: string; file_base64: string } | null {
+    const name = String(fileName ?? "").trim();
+    const hasBase64 = typeof fileBase64 === "string" && fileBase64.trim() !== "";
+    if (hasBase64) {
+      if (!name) {
+        throw new Error(
+          translate(
+            "frontend/src/routes/assignments/[id]/tests/+page.svelte::file_name_required",
+          ),
+        );
+      }
+      return { file_name: name, file_base64: fileBase64 };
+    }
+    const text = String(fileText ?? "");
+    if (!name && !text) return null;
+    if (!name) {
+      throw new Error(
+        translate(
+          "frontend/src/routes/assignments/[id]/tests/+page.svelte::file_name_required",
+        ),
+      );
+    }
+    return { file_name: name, file_base64: textToBase64(text) };
+  }
+
+  function buildExistingTestFilePayload(
+    t: any,
+  ): { file_name: string; file_base64: string } | null {
+    if (t?.file_create_dirty) {
+      return buildFilePayload(
+        String(t?.file_create_name ?? ""),
+        String(t?.file_create_text ?? ""),
+        "",
+      );
+    }
+    return buildFilePayload(
+      String(t?.file_name ?? ""),
+      "",
+      typeof t?.file_base64 === "string" ? t.file_base64 : "",
+    );
+  }
+
+  function clearTestFile(t: any) {
+    t.file_name = "";
+    t.file_base64 = "";
+    t.file_create_name = "";
+    t.file_create_text = "";
+    t.file_create_dirty = false;
+    tests = [...tests];
   }
 
   function replaceMethodInUnittest(
@@ -516,7 +601,12 @@
       assignment = data.assignment;
       applyBannedConfig(assignment);
       bannedSaved = false;
-      tests = data.tests ?? [];
+      tests = (data.tests ?? []).map((t: any) => ({
+        ...t,
+        file_create_name: "",
+        file_create_text: "",
+        file_create_dirty: false,
+      }));
       // init llm state
       llmFeedback = !!assignment.llm_feedback;
       llmAutoAward = assignment.llm_auto_award ?? true;
@@ -573,6 +663,11 @@
 
   async function addTest() {
     try {
+      const filePayload = buildFilePayload(
+        ioFileName,
+        ioFileText,
+        ioFileBase64,
+      );
       let expectedStdout = tStdout;
       if (ioOutputMode === "teacher") {
         ioOutputLoading = true;
@@ -583,6 +678,7 @@
             stdin: tStdin,
             expected_stdout: "",
             time_limit_sec: Number.isFinite(timeLimit) ? timeLimit : undefined,
+            ...(filePayload ?? {}),
           },
         ]);
         const previewResult = previews[0];
@@ -602,6 +698,10 @@
         expected_stdout: expectedStdout,
         time_limit_sec: parseFloat(tLimit) || undefined,
       };
+      if (filePayload) {
+        testData.file_name = filePayload.file_name;
+        testData.file_base64 = filePayload.file_base64;
+      }
 
       // Only include weight for weighted assignments
       if (assignment?.grading_policy === "weighted") {
@@ -615,6 +715,10 @@
       });
       tStdin = tStdout = tLimit = "";
       tWeight = "1";
+      ioFileName = "";
+      ioFileText = "";
+      ioFileBase64 = "";
+      ioFileUpload = null;
       await load();
     } catch (e: any) {
       err = e.message;
@@ -993,6 +1097,9 @@
       returns: adjustedReturns,
       weight: c.weight,
       timeLimit: c.timeLimit,
+      fileName: c.fileName ?? "",
+      fileText: c.fileText ?? "",
+      fileBase64: c.fileBase64 ?? "",
     };
   }
 
@@ -1010,7 +1117,10 @@
       arraysEqual(a.args, b.args) &&
       arraysEqual(a.returns, b.returns) &&
       a.weight === b.weight &&
-      a.timeLimit === b.timeLimit
+      a.timeLimit === b.timeLimit &&
+      a.fileName === b.fileName &&
+      a.fileText === b.fileText &&
+      a.fileBase64 === b.fileBase64
     );
   }
 
@@ -1035,6 +1145,9 @@
       returns,
       weight: defaultWeight,
       timeLimit: "1",
+      fileName: "",
+      fileText: "",
+      fileBase64: "",
     };
   }
 
@@ -1157,10 +1270,13 @@
       return;
     }
     try {
+      const filePayloads = fnCases.map((c) =>
+        buildFilePayload(c.fileName, c.fileText, c.fileBase64),
+      );
       let teacherExpected: string[] | null = null;
       if (fnOutputMode === "teacher") {
         fnOutputLoading = true;
-        const previewPayloads = fnCases.map((c) => {
+        const previewPayloads = fnCases.map((c, idx) => {
           const argsValues = fnMeta.params.map((p, idx) =>
             coerceValueForType(c.args[idx] ?? "", p.type),
           );
@@ -1172,6 +1288,7 @@
             function_kwargs: "{}",
             expected_return: "",
             time_limit_sec: Number.isFinite(timeLimit) ? timeLimit : undefined,
+            ...(filePayloads[idx] ?? {}),
           };
         });
         const { previews } = await runTeacherPreview(previewPayloads);
@@ -1225,6 +1342,10 @@
           expected_stdout: "",
           time_limit_sec: parseFloat(c.timeLimit) || undefined,
         };
+        if (filePayloads[idx]) {
+          payload.file_name = filePayloads[idx]?.file_name;
+          payload.file_base64 = filePayloads[idx]?.file_base64;
+        }
         if (assignment?.grading_policy === "weighted") {
           payload.weight = parseFloat(c.weight) || 1;
         }
@@ -2315,6 +2436,15 @@
         time_limit_sec: parseFloat(t.time_limit_sec) || undefined,
       };
 
+      const filePayload = buildExistingTestFilePayload(t);
+      if (filePayload) {
+        testData.file_name = filePayload.file_name;
+        testData.file_base64 = filePayload.file_base64;
+      } else {
+        testData.file_name = "";
+        testData.file_base64 = "";
+      }
+
       if (assignment?.grading_policy === "weighted") {
         testData.weight = parseFloat(t.weight) || 1;
       }
@@ -2772,6 +2902,111 @@
                         bind:value={t.expected_stdout}
                       ></textarea>
                     </label>
+                  </div>
+                {/if}
+                {#if mode === "function" || mode === "stdin_stdout"}
+                  <div
+                    class="rounded-xl border border-dashed border-base-300/70 bg-base-200/40 p-3 space-y-2"
+                  >
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-sm font-semibold"
+                        >{translate(
+                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_optional",
+                        )}</span
+                      >
+                      {#if t.file_name}
+                        <span class="badge badge-outline badge-sm"
+                          >{t.file_name}</span
+                        >
+                      {/if}
+                    </div>
+                    <div class="grid gap-2 sm:grid-cols-2">
+                      <label class="form-control w-full space-y-1">
+                        <span class="label-text"
+                          >{translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_upload",
+                          )}</span
+                        >
+                        <input
+                          type="file"
+                          class="file-input file-input-bordered w-full"
+                          on:change={async (e) => {
+                            const file =
+                              (e.target as HTMLInputElement).files?.[0] || null;
+                            if (!file) return;
+                            try {
+                              t.file_base64 = await readFileBase64(file);
+                              t.file_name = file.name;
+                              t.file_create_name = "";
+                              t.file_create_text = "";
+                              t.file_create_dirty = false;
+                              tests = [...tests];
+                            } catch (e: any) {
+                              err =
+                                e?.message ||
+                                translate(
+                                  "frontend/src/routes/assignments/[id]/tests/+page.svelte::file_read_error",
+                                );
+                            }
+                          }}
+                        />
+                      </label>
+                      <label class="form-control w-full space-y-1">
+                        <span class="label-text"
+                          >{translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_name",
+                          )}</span
+                        >
+                        <input
+                          class="input input-bordered w-full"
+                          placeholder="data.txt"
+                          value={t.file_create_name ?? ""}
+                          on:input={(e) => {
+                            t.file_create_name = (
+                              e.target as HTMLInputElement
+                            ).value;
+                            t.file_create_dirty = true;
+                          }}
+                        />
+                      </label>
+                    </div>
+                    <label class="form-control w-full space-y-1">
+                      <span class="label-text"
+                        >{translate(
+                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_contents",
+                        )}</span
+                      >
+                      <textarea
+                        class="textarea textarea-bordered w-full"
+                        rows="3"
+                        placeholder={translate(
+                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_contents_hint",
+                        )}
+                        value={t.file_create_text ?? ""}
+                        on:input={(e) => {
+                          t.file_create_text = (
+                            e.target as HTMLTextAreaElement
+                          ).value;
+                          t.file_create_dirty = true;
+                        }}
+                      ></textarea>
+                    </label>
+                    <div class="flex items-center justify-between text-xs">
+                      <span class="opacity-70"
+                        >{translate(
+                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_hint",
+                        )}</span
+                      >
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-xs"
+                        on:click={() => clearTestFile(t)}
+                      >
+                        {translate(
+                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_clear",
+                        )}
+                      </button>
+                    </div>
                   </div>
                 {/if}
                 <div
@@ -3276,6 +3511,102 @@
                   />
                 </label>
               {/if}
+              <div
+                class="rounded-xl border border-dashed border-base-300/70 bg-base-200/40 p-3 space-y-2 sm:col-span-2"
+              >
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-sm font-semibold"
+                    >{translate(
+                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_optional",
+                    )}</span
+                  >
+                  {#if ioFileName}
+                    <span class="badge badge-outline badge-sm">{ioFileName}</span>
+                  {/if}
+                </div>
+                <div class="grid gap-2 sm:grid-cols-2">
+                  <label class="form-control w-full space-y-1">
+                    <span class="label-text"
+                      >{translate(
+                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_upload",
+                      )}</span
+                    >
+                    <input
+                      type="file"
+                      class="file-input file-input-bordered w-full"
+                      on:change={async (e) => {
+                        const file =
+                          (e.target as HTMLInputElement).files?.[0] || null;
+                        ioFileUpload = file;
+                        if (!file) {
+                          ioFileBase64 = "";
+                          ioFileName = "";
+                          return;
+                        }
+                        try {
+                          ioFileBase64 = await readFileBase64(file);
+                          ioFileName = file.name;
+                          ioFileText = "";
+                        } catch (e: any) {
+                          err =
+                            e?.message ||
+                            translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::file_read_error",
+                            );
+                        }
+                      }}
+                    />
+                  </label>
+                  <label class="form-control w-full space-y-1">
+                    <span class="label-text"
+                      >{translate(
+                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_name",
+                      )}</span
+                    >
+                    <input
+                      class="input input-bordered w-full"
+                      placeholder="data.txt"
+                      bind:value={ioFileName}
+                    />
+                  </label>
+                </div>
+                <label class="form-control w-full space-y-1">
+                  <span class="label-text"
+                    >{translate(
+                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_contents",
+                    )}</span
+                  >
+                  <textarea
+                    class="textarea textarea-bordered w-full"
+                    rows="3"
+                    placeholder={translate(
+                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_contents_hint",
+                    )}
+                    bind:value={ioFileText}
+                  ></textarea>
+                </label>
+                <div class="flex items-center justify-between text-xs">
+                  <span class="opacity-70"
+                    >{translate(
+                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_hint",
+                    )}</span
+                  >
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-xs"
+                    on:click={() => {
+                      ioFileName = "";
+                      ioFileText = "";
+                      ioFileBase64 = "";
+                      ioFileUpload = null;
+                    }}
+                  >
+                    {translate(
+                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_clear",
+                    )}
+                  </button>
+                </div>
+              </div>
               <p class="hint sm:col-span-2">
                 {translate(
                   "frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin_stdout_multiline_hint",
@@ -4493,6 +4824,129 @@
                         )}
                       </div>
                     {/if}
+                    <div
+                      class="rounded-lg border border-dashed border-base-300/70 bg-base-200/40 p-3 space-y-2"
+                    >
+                      <div class="flex items-center justify-between gap-2">
+                        <span class="text-sm font-semibold"
+                          >{translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_optional",
+                          )}</span
+                        >
+                        {#if fc.fileName}
+                          <span class="badge badge-outline badge-sm"
+                            >{fc.fileName}</span
+                          >
+                        {/if}
+                      </div>
+                      <div class="grid gap-2 sm:grid-cols-2">
+                        <label class="form-control w-full space-y-1">
+                          <span class="label-text"
+                            >{translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_upload",
+                            )}</span
+                          >
+                          <input
+                            type="file"
+                            class="file-input file-input-bordered w-full"
+                            on:change={async (e) => {
+                              const file =
+                                (e.target as HTMLInputElement).files?.[0] ||
+                                null;
+                              if (!file) return;
+                              try {
+                                const base64 = await readFileBase64(file);
+                                fnCases = fnCases.map((c, idx) =>
+                                  idx === fi
+                                    ? {
+                                        ...c,
+                                        fileBase64: base64,
+                                        fileName: file.name,
+                                        fileText: "",
+                                      }
+                                    : c,
+                                );
+                              } catch (e: any) {
+                                err =
+                                  e?.message ||
+                                  translate(
+                                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::file_read_error",
+                                  );
+                              }
+                            }}
+                          />
+                        </label>
+                        <label class="form-control w-full space-y-1">
+                          <span class="label-text"
+                            >{translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_name",
+                            )}</span
+                          >
+                          <input
+                            class="input input-bordered w-full"
+                            placeholder="data.txt"
+                            value={fc.fileName}
+                            on:input={(e) =>
+                              (fnCases = fnCases.map((c, idx) =>
+                                idx === fi
+                                  ? {
+                                      ...c,
+                                      fileName: (e.target as HTMLInputElement)
+                                        .value,
+                                    }
+                                  : c,
+                              ))}
+                          />
+                        </label>
+                      </div>
+                      <label class="form-control w-full space-y-1">
+                        <span class="label-text"
+                          >{translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_contents",
+                          )}</span
+                        >
+                        <textarea
+                          class="textarea textarea-bordered w-full"
+                          rows="3"
+                          placeholder={translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_contents_hint",
+                          )}
+                          value={fc.fileText}
+                          on:input={(e) =>
+                            (fnCases = fnCases.map((c, idx) =>
+                              idx === fi
+                                ? {
+                                    ...c,
+                                    fileText: (e.target as HTMLTextAreaElement)
+                                      .value,
+                                    fileBase64: "",
+                                  }
+                                : c,
+                            ))}
+                        ></textarea>
+                      </label>
+                      <div class="flex items-center justify-between text-xs">
+                        <span class="opacity-70"
+                          >{translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_hint",
+                          )}</span
+                        >
+                        <button
+                          type="button"
+                          class="btn btn-ghost btn-xs"
+                          on:click={() =>
+                            (fnCases = fnCases.map((c, idx) =>
+                              idx === fi
+                                ? { ...c, fileName: "", fileText: "", fileBase64: "" }
+                                : c,
+                            ))}
+                        >
+                          {translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_clear",
+                          )}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 {/each}
                 {#if fnCases.length === 0}

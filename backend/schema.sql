@@ -128,6 +128,8 @@ CREATE TABLE IF NOT EXISTS test_cases (
   function_args TEXT,
   function_kwargs TEXT,
   expected_return TEXT,
+  file_name TEXT,
+  file_base64 TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -139,6 +141,8 @@ ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS function_name TEXT;
 ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS function_args TEXT;
 ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS function_kwargs TEXT;
 ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS expected_return TEXT;
+ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS file_name TEXT;
+ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS file_base64 TEXT;
 
 DO $$ BEGIN
     CREATE TYPE submission_status AS ENUM ('pending','running','completed','failed');

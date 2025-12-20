@@ -1311,6 +1311,8 @@ func createTestCase(c *gin.Context) {
 		FunctionArgs   *string  `json:"function_args"`
 		FunctionKwargs *string  `json:"function_kwargs"`
 		ExpectedReturn *string  `json:"expected_return"`
+		FileName       *string  `json:"file_name"`
+		FileBase64     *string  `json:"file_base64"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -1386,6 +1388,13 @@ func createTestCase(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid execution_mode"})
 		return
 	}
+	if name, payload, normErr := normalizeTestFilePayload(req.FileName, req.FileBase64); normErr != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": normErr.Error()})
+		return
+	} else {
+		tc.FileName = name
+		tc.FileBase64 = payload
+	}
 	tc.ExecutionMode = mode
 	if err := CreateTestCase(tc); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
@@ -1413,6 +1422,8 @@ func updateTestCase(c *gin.Context) {
 		FunctionArgs   *string `json:"function_args"`
 		FunctionKwargs *string `json:"function_kwargs"`
 		ExpectedReturn *string `json:"expected_return"`
+		FileName       *string `json:"file_name"`
+		FileBase64     *string `json:"file_base64"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -1496,6 +1507,13 @@ func updateTestCase(c *gin.Context) {
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid execution_mode"})
 		return
+	}
+	if name, payload, normErr := normalizeTestFilePayload(req.FileName, req.FileBase64); normErr != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": normErr.Error()})
+		return
+	} else {
+		tc.FileName = name
+		tc.FileBase64 = payload
 	}
 	if err := UpdateTestCase(tc); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
@@ -1684,6 +1702,8 @@ type previewTestPayload struct {
 	FunctionArgs   *string  `json:"function_args"`
 	FunctionKwargs *string  `json:"function_kwargs"`
 	ExpectedReturn *string  `json:"expected_return"`
+	FileName       *string  `json:"file_name"`
+	FileBase64     *string  `json:"file_base64"`
 }
 
 func (p previewTestPayload) toTestCase(aid uuid.UUID) (TestCase, error) {
@@ -1740,6 +1760,12 @@ func (p previewTestPayload) toTestCase(aid uuid.UUID) (TestCase, error) {
 		// nothing extra required
 	default:
 		return TestCase{}, fmt.Errorf("invalid preview execution mode")
+	}
+	if name, payload, normErr := normalizeTestFilePayload(p.FileName, p.FileBase64); normErr != nil {
+		return TestCase{}, normErr
+	} else {
+		tc.FileName = name
+		tc.FileBase64 = payload
 	}
 	return tc, nil
 }
@@ -1998,6 +2024,14 @@ func runTeacherSolution(c *gin.Context) {
 				} else {
 					workDir = cloneDir
 					defer cleanup()
+				}
+
+				if cloneErr == nil {
+					if err := stageTestFile(workDir, mainFile, tc); err != nil {
+						stderr = err.Error()
+						exitCode = -1
+						cloneErr = err
+					}
 				}
 
 				if cloneErr == nil {

@@ -706,6 +706,19 @@ func runTestCase(subID uuid.UUID, tc TestCase, baseDir, mainFile string) testOut
 		}
 	}
 	defer cleanup()
+	if err := stageTestFile(workDir, mainFile, tc); err != nil {
+		return testOutcome{
+			result: &Result{
+				SubmissionID: subID,
+				TestCaseID:   tc.ID,
+				Status:       "runtime_error",
+				Stderr:       err.Error(),
+				ExitCode:     -1,
+			},
+			weight: tc.Weight,
+			passed: false,
+		}
+	}
 
 	var funcMeta *functionCallResult
 	var funcErr error
@@ -736,6 +749,10 @@ func runTestCase(subID uuid.UUID, tc TestCase, baseDir, mainFile string) testOut
 			}
 			if funcMeta.Status == "exception" && stderr == "" {
 				stderr = funcMeta.Exception
+			}
+			if funcMeta.ComparisonDebug != nil {
+				debugBytes, _ := json.MarshalIndent(funcMeta.ComparisonDebug, "", "  ")
+				stderr += "\n[Comparison Debug]\n" + string(debugBytes)
 			}
 		}
 	default:
