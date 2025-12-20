@@ -36,6 +36,7 @@ func stageTestFile(dir, mainFile string, tc TestCase) error {
 	name := strings.TrimSpace(stringOrEmpty(tc.FileName))
 	raw := strings.TrimSpace(stringOrEmpty(tc.FileBase64))
 	if name == "" && raw == "" {
+		fmt.Println("[worker] stageTestFile: skipping (empty name/raw)")
 		return nil
 	}
 	if name == "" {
@@ -56,6 +57,8 @@ func stageTestFile(dir, mainFile string, tc TestCase) error {
 	if err := os.WriteFile(target, data, 0644); err != nil {
 		return fmt.Errorf("write test file: %w", err)
 	}
+	fmt.Printf("[worker] stageTestFile: wrote %s (%d bytes) to %s\n", clean, len(data), target)
+	
 	mainDir := strings.TrimSpace(filepath.Dir(mainFile))
 	if mainDir != "" && mainDir != "." {
 		altTarget := filepath.Join(dir, mainDir, clean)
@@ -65,6 +68,7 @@ func stageTestFile(dir, mainFile string, tc TestCase) error {
 		if err := os.WriteFile(altTarget, data, 0644); err != nil {
 			return fmt.Errorf("write test file in module dir: %w", err)
 		}
+		fmt.Printf("[worker] stageTestFile: wrote copy to %s\n", altTarget)
 	}
 	return nil
 }

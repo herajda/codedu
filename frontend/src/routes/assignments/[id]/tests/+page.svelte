@@ -135,6 +135,10 @@
     callMode: "stdin" | "function";
     functionName: string;
     assertions: UTAssertion[];
+    fileName: string;
+    fileText: string;
+    fileBase64: string;
+    showFile?: boolean;
   };
 
   let utClassName = "TestAssignment";
@@ -773,6 +777,10 @@
         callMode: "stdin",
         functionName: "",
         assertions: [],
+        fileName: "",
+        fileText: "",
+        fileBase64: "",
+        showFile: false,
       },
     ];
   }
@@ -1520,7 +1528,12 @@
   function cloneUTTests(list: UTTest[]): UTTest[] {
     return list.map((t) => ({
       ...t,
+      ...t,
       assertions: t.assertions.map((a) => cloneUTAssertion(a)),
+      fileName: t.fileName,
+      fileText: t.fileText,
+      fileBase64: t.fileBase64,
+      showFile: t.showFile,
     }));
   }
 
@@ -1762,6 +1775,10 @@
       assertions: Array.isArray(t?.assertions)
         ? t.assertions.map(coerceUTAssertion)
         : [],
+      fileName: String(t?.fileName ?? t?.file_name ?? ""),
+      fileText: String(t?.fileText ?? t?.file_text ?? ""),
+      fileBase64: String(t?.fileBase64 ?? t?.file_base64 ?? ""),
+      showFile: !!t?.showFile,
     };
   }
 
@@ -2293,6 +2310,9 @@
           qualified,
           weight: Number.isNaN(w) ? 1 : w,
           time: Number.isNaN(s) ? 1 : s,
+          fileName: t.fileName,
+          fileText: t.fileText,
+          fileBase64: t.fileBase64,
         };
       });
       const configsByName = new Map(
@@ -2338,6 +2358,19 @@
           expected_stdout: "",
           time_limit_sec: cfg.time,
         };
+
+        const filePayload = buildFilePayload(
+          cfg.fileName,
+          cfg.fileText,
+          cfg.fileBase64,
+        );
+        if (filePayload) {
+          testData.file_name = filePayload.file_name;
+          testData.file_base64 = filePayload.file_base64;
+        } else {
+          testData.file_name = "";
+          testData.file_base64 = "";
+        }
 
         // Only include weight for weighted assignments
         if (assignment?.grading_policy === "weighted") {
@@ -4026,6 +4059,160 @@
                         bind:value={ut.weight}
                       />
                     </label>
+                  {/if}
+                </div>
+
+                <!-- File Upload for Unittest -->
+                <div class="sm:col-span-2 space-y-2">
+                  <div class="flex items-center gap-3">
+                    <button
+                      class="btn btn-sm btn-outline gap-2"
+                      on:click={() => (ut.showFile = !ut.showFile)}
+                    >
+                      <FileUp size={16} />
+                      {ut.fileName
+                        ? translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::edit_file",
+                          )
+                        : translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_file",
+                          )}
+                    </button>
+                    {#if ut.fileName}
+                      <span class="badge badge-neutral gap-2 p-3">
+                        {ut.fileName}
+                        <button
+                          class="btn btn-ghost btn-xs btn-circle text-error min-h-0 h-6 w-6"
+                          on:click={() => {
+                            ut.fileName = "";
+                            ut.fileText = "";
+                            ut.fileBase64 = "";
+                          }}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </span>
+                    {/if}
+                  </div>
+
+                  {#if ut.showFile}
+                    <div
+                      transition:slide
+                      class="rounded-xl border border-dashed border-base-300/70 bg-base-200/40 p-4 space-y-4 shadow-inner"
+                    >
+                      <div class="grid gap-4 sm:grid-cols-2">
+                        <div class="form-control w-full">
+                          <div class="label">
+                            <span class="label-text"
+                              >{translate(
+                                "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_upload",
+                              )}</span
+                            >
+                          </div>
+                          <div
+                            class="relative flex min-h-[120px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-base-300 bg-base-100 hover:bg-base-200 hover:border-primary/50 transition-all cursor-pointer group"
+                          >
+                            <input
+                              type="file"
+                              class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                              on:change={async (e) => {
+                                const file =
+                                  (e.target as HTMLInputElement).files?.[0] ||
+                                  null;
+                                if (!file) {
+                                  ut.fileBase64 = "";
+                                  ut.fileName = "";
+                                  return;
+                                }
+                                try {
+                                  ut.fileBase64 = await readFileBase64(file);
+                                  ut.fileName = file.name;
+                                  try {
+                                    ut.fileText = await readFileText(file);
+                                  } catch {
+                                    ut.fileText = "";
+                                  }
+                                } catch (e: any) {
+                                  err =
+                                    e?.message ||
+                                    translate(
+                                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::file_read_error",
+                                    );
+                                }
+                              }}
+                            />
+                            <div
+                              class="flex flex-col items-center gap-2 text-xs opacity-60 group-hover:opacity-100 transition-opacity pointer-events-none"
+                            >
+                              <UploadIcon size={24} class="text-primary" />
+                              <span class="font-medium">{translate(
+                                "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_drag_drop_hint",
+                              )}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="flex flex-col gap-2">
+                          <label class="form-control w-full">
+                            <div class="label">
+                              <span class="label-text"
+                                >{translate(
+                                  "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_name",
+                                )}</span
+                              >
+                            </div>
+                            <input
+                              class="input input-bordered w-full"
+                              placeholder="data.txt"
+                              bind:value={ut.fileName}
+                            />
+                          </label>
+                          <p class="text-xs opacity-60 mt-auto">
+                            {translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_hint",
+                            )}
+                          </p>
+                        </div>
+                      </div>
+
+                      <label class="form-control w-full space-y-1">
+                        <span class="label-text"
+                          >{translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_contents",
+                          )}</span
+                        >
+                        <textarea
+                          class="textarea textarea-bordered w-full font-mono text-xs leading-relaxed"
+                          rows="5"
+                          placeholder={translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_contents_hint",
+                          )}
+                          bind:value={ut.fileText}
+                        ></textarea>
+                      </label>
+
+                      <div class="flex items-center justify-end gap-2">
+                        <button
+                          class="btn btn-sm btn-ghost"
+                          on:click={() => {
+                            ut.fileName = "";
+                            ut.fileText = "";
+                            ut.fileBase64 = "";
+                          }}
+                          >{translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::remove_file",
+                          )}</button
+                        >
+                        <button
+                          class="btn btn-sm btn-primary"
+                          on:click={() => (ut.showFile = false)}
+                        >
+                          {translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::done",
+                          )}
+                        </button>
+                      </div>
+                    </div>
                   {/if}
                 </div>
                 <div class="space-y-2 ut-assertions">

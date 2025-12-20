@@ -2101,7 +2101,12 @@ if target:
 
 func executePythonUnit(dir, mainFile, testCode, testName string, timeout time.Duration) (string, string, int, bool, time.Duration) {
 	testPath := filepath.Join(dir, "run_test.py")
-	content := fmt.Sprintf(`import sys, unittest, builtins, io, types, pathlib
+	content := fmt.Sprintf(`import sys, unittest, builtins, io, types, pathlib, os
+
+# Ensure we are in the script directory (robustness)
+script_dir = os.path.dirname(os.path.abspath(__file__))
+os.chdir(script_dir)
+
 
 # prevent provided test modules from auto-running all tests (e.g., unittest.main())
 # so that we can selectively run a single test method by name below
