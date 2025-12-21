@@ -33,6 +33,7 @@
       fileText = "";
       return;
     }
+    open = true;
     const target = files[index];
     if (!target) return;
     selectedIndex = index;
@@ -135,6 +136,7 @@
           class:badge-active={selectedIndex === -1}
           on:click={() => {
             selectedIndex = -1;
+            open = true;
             fileName = "";
             fileText = "";
           }}

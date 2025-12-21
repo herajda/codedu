@@ -2513,6 +2513,7 @@
         stdin: t.stdin ?? "",
         expected_stdout: t.expected_stdout ?? "",
         time_limit_sec: parseFloat(t.time_limit_sec) || undefined,
+        files: t.files || [],
       };
 
       const filePayload = buildExistingTestFilePayload(t);
@@ -2983,7 +2984,7 @@
                     </label>
                   </div>
                 {/if}
-                {#if mode === "function" || mode === "stdin_stdout"}
+                {#if mode === "function" || mode === "stdin_stdout" || mode === "unittest"}
                   {@const hasFiles = t.files && t.files.length > 0}
                   {#if hasFiles || t.showFileEditor}
                     <div
@@ -2999,6 +3000,9 @@
                           class="btn btn-xs btn-ghost"
                           on:click={() => {
                             t.showFileEditor = !t.showFileEditor;
+                            if (!t.showFileEditor) {
+                              t.selectedFileIndex = undefined;
+                            }
                             tests = tests;
                           }}
                         >
@@ -3021,6 +3025,7 @@
                               class:badge-neutral={t.selectedFileIndex !== fi}
                               on:click={async () => {
                                 t.selectedFileIndex = fi;
+                                t.showFileEditor = true;
                                 t.file_create_name = f.name;
                                 // Try to decode base64 to text for preview
                                 try {
@@ -3059,6 +3064,7 @@
                             class:badge-active={t.selectedFileIndex === -1}
                             on:click={() => {
                               t.selectedFileIndex = -1;
+                              t.showFileEditor = true;
                               t.file_create_name = "";
                               t.file_create_text = "";
                               tests = tests;
@@ -3069,7 +3075,7 @@
                         </div>
                       {/if}
 
-                      {#if t.showFileEditor || t.selectedFileIndex !== undefined}
+                      {#if t.showFileEditor}
                         <div class="grid gap-2 sm:grid-cols-2">
                           <label class="form-control w-full space-y-1">
                             <span class="label-text"
