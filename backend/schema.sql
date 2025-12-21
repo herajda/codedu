@@ -83,6 +83,8 @@ ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_scenarios_json TEXT; -- JSO
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_strictness INTEGER NOT NULL DEFAULT 50; -- 0=Beginner (lenient), 100=Pro (strict)
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_rubric TEXT; -- freeform teacher guidance on what is OK vs WRONG
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_teacher_baseline_json TEXT; -- plan+results JSON from teacher standard solution (defines accepted behavior)
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_help_why_failed BOOLEAN NOT NULL DEFAULT FALSE;
+
 
 -- Second deadline feature
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS second_deadline TIMESTAMPTZ; -- optional second deadline for late submissions
@@ -348,3 +350,10 @@ CREATE TABLE IF NOT EXISTS system_settings (
 
 -- Default settings
 INSERT INTO system_settings (key, value) VALUES ('force_bakalari_email', 'true') ON CONFLICT DO NOTHING;
+CREATE TABLE IF NOT EXISTS submission_test_explanations (
+  submission_id UUID NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+  test_case_id TEXT NOT NULL,
+  explanation TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (submission_id, test_case_id)
+);

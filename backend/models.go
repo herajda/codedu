@@ -67,6 +67,7 @@ type Assignment struct {
 	LLMStrictness      int     `db:"llm_strictness" json:"llm_strictness"`
 	LLMRubric          *string `db:"llm_rubric" json:"llm_rubric"`
 	LLMTeacherBaseline *string `db:"llm_teacher_baseline_json" json:"llm_teacher_baseline_json"`
+	LLMHelpWhyFailed   bool    `db:"llm_help_why_failed" json:"llm_help_why_failed"`
 
 	// Second deadline feature
 	SecondDeadline   *time.Time `db:"second_deadline" json:"second_deadline"`
@@ -265,8 +266,8 @@ func ListAllClasses() ([]Class, error) {
 // ──────────────────────────────────────────────────────────────────────────────
 func CreateAssignment(a *Assignment) error {
 	const q = `
-          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, show_test_details, manual_review, banned_functions, banned_modules, banned_tool_rules, template_path, class_id, second_deadline, late_penalty_ratio)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, show_test_details, manual_review, banned_functions, banned_modules, banned_tool_rules, template_path, class_id, second_deadline, late_penalty_ratio, llm_help_why_failed)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
           RETURNING id, created_at, updated_at`
 	return DB.QueryRow(q,
 		a.Title, a.Description, a.CreatedBy, a.Deadline,
@@ -274,7 +275,7 @@ func CreateAssignment(a *Assignment) error {
 		pq.Array(copyStringArray(a.BannedFunctions)), pq.Array(copyStringArray(a.BannedModules)),
 		a.BannedToolRules,
 		a.TemplatePath, a.ClassID,
-		a.SecondDeadline, a.LatePenaltyRatio,
+		a.SecondDeadline, a.LatePenaltyRatio, a.LLMHelpWhyFailed,
 	).Scan(&a.ID, &a.CreatedAt, &a.UpdatedAt)
 }
 
@@ -322,6 +323,7 @@ func ListAssignments(role string, userID uuid.UUID) ([]Assignment, error) {
            COALESCE(a.llm_strictness,50) AS llm_strictness,
            a.llm_rubric,
            a.llm_teacher_baseline_json,
+           COALESCE(a.llm_help_why_failed,false) AS llm_help_why_failed,
            a.second_deadline,
            COALESCE(a.late_penalty_ratio,0.5) AS late_penalty_ratio
       FROM assignments a`
@@ -439,6 +441,7 @@ func GetAssignment(id uuid.UUID) (*Assignment, error) {
            COALESCE(llm_strictness,50) AS llm_strictness,
            llm_rubric,
            llm_teacher_baseline_json,
+           COALESCE(llm_help_why_failed,false) AS llm_help_why_failed,
            second_deadline,
            COALESCE(late_penalty_ratio,0.5) AS late_penalty_ratio
       FROM assignments
@@ -466,7 +469,9 @@ func GetAssignmentForSubmission(subID uuid.UUID) (*Assignment, error) {
                a.llm_scenarios_json,
                COALESCE(a.llm_strictness,50) AS llm_strictness,
                a.llm_rubric,
+               a.llm_rubric,
                a.llm_teacher_baseline_json,
+               COALESCE(a.llm_help_why_failed,false) AS llm_help_why_failed,
                a.second_deadline,
                COALESCE(a.late_penalty_ratio,0.5) AS late_penalty_ratio
           FROM assignments a
@@ -487,15 +492,15 @@ func UpdateAssignment(a *Assignment) error {
            banned_functions=$9, banned_modules=$10, banned_tool_rules=$11,
            llm_interactive=$12, llm_feedback=$13, llm_auto_award=$14, llm_scenarios_json=$15,
            llm_strictness=$16, llm_rubric=$17, llm_teacher_baseline_json=$18,
-           second_deadline=$19, late_penalty_ratio=$20,
+           second_deadline=$19, late_penalty_ratio=$20, llm_help_why_failed=$21,
            updated_at=now()
-     WHERE id=$21`,
+     WHERE id=$22`,
 		a.Title, a.Description, a.Deadline,
 		a.MaxPoints, a.GradingPolicy, a.ShowTraceback, a.ShowTestDetails, a.ManualReview,
 		pq.Array(copyStringArray(a.BannedFunctions)), pq.Array(copyStringArray(a.BannedModules)), a.BannedToolRules,
 		a.LLMInteractive, a.LLMFeedback, a.LLMAutoAward, a.LLMScenariosRaw,
 		a.LLMStrictness, a.LLMRubric, a.LLMTeacherBaseline,
-		a.SecondDeadline, a.LatePenaltyRatio,
+		a.SecondDeadline, a.LatePenaltyRatio, a.LLMHelpWhyFailed,
 		a.ID)
 	if err != nil {
 		return err
@@ -572,6 +577,7 @@ func CloneAssignmentWithTests(sourceID, targetClassID, createdBy uuid.UUID) (uui
 		LLMStrictness:      src.LLMStrictness,
 		LLMRubric:          src.LLMRubric,
 		LLMTeacherBaseline: src.LLMTeacherBaseline,
+		LLMHelpWhyFailed:   src.LLMHelpWhyFailed,
 	}
 	if src.BannedToolRules != nil {
 		clone := *src.BannedToolRules

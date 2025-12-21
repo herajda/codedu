@@ -23,6 +23,7 @@
   let tree: FileNode[] = [];
   let selected: { name: string; content: string } | null = null;
   let highlighted = "";
+  import { Sparkles } from "lucide-svelte";
   let manualConsoleVisible = false;
   let esCtrl: { close: () => void } | null = null;
   let assignmentTitle: string = "";
@@ -32,6 +33,7 @@
   let assignmentLLMFeedback: boolean = false;
   let assignmentShowTestDetails = false;
   let assignmentShowTraceback = false;
+  let assignmentLLMHelpWhyFailed = false;
   let sid: number = 0;
   let role = "";
   $: role = $auth?.role ?? "";
@@ -129,7 +131,9 @@
           assignmentLLMInteractive = !!ad.assignment?.llm_interactive;
           assignmentLLMFeedback = !!ad.assignment?.llm_feedback;
           assignmentShowTestDetails = !!ad.assignment?.show_test_details;
+          assignmentShowTestDetails = !!ad.assignment?.show_test_details;
           assignmentShowTraceback = !!ad.assignment?.show_traceback;
+          assignmentLLMHelpWhyFailed = !!ad.assignment?.llm_help_why_failed;
           // Prefer aggregate tests_count when present (student view), fallback to tests array (teacher/admin)
           try {
             assignmentTestsCount =
@@ -371,6 +375,23 @@
     esCtrl?.close();
   });
   $: sid = submission?.id ?? id;
+
+  let explanations: Record<string, { loading: boolean; text?: string; error?: string }> = {};
+
+  async function askWhyFailed(sidStr: any, tcid: string) {
+    explanations[tcid] = { loading: true };
+    explanations = { ...explanations };
+    try {
+      const res = await apiJSON(`/api/submissions/${sidStr}/explain-test-failure`, {
+        method: "POST",
+        body: JSON.stringify({ test_case_id: tcid }),
+      });
+      explanations[tcid] = { loading: false, text: res.explanation };
+    } catch (e: any) {
+      explanations[tcid] = { loading: false, error: e.message };
+    }
+    explanations = { ...explanations };
+  }
 </script>
 
 {#if !submission}
@@ -771,6 +792,31 @@
                           <span class={`badge ${statusColor(r.status)}`}
                             >{r.status}</span
                           >
+                          {#if assignmentLLMHelpWhyFailed && r.status !== "passed" && r.status !== "running" && r.test_case_id}
+                             <div class="ml-2">
+                                {#if explanations[r.test_case_id]?.text}
+                                   <div class="p-2 bg-base-300 rounded-lg text-xs border border-base-content/10 shadow-sm max-w-xs text-left">
+                                      <div class="flex gap-2 items-start">
+                                         <Sparkles size={14} class="text-primary mt-0.5 shrink-0" />
+                                         <span class="leading-relaxed">{explanations[r.test_case_id].text}</span>
+                                      </div>
+                                   </div>
+                                {:else}
+                                   <button class="btn btn-xs btn-ghost gap-1 text-[10px] font-bold text-primary opacity-60 hover:opacity-100" on:click|preventDefault|stopPropagation={() => askWhyFailed(sid, r.test_case_id)} disabled={explanations[r.test_case_id]?.loading}>
+                                       {#if explanations[r.test_case_id]?.loading}
+                                           <span class="loading loading-spinner loading-xs"></span>
+                                           {t("frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_loading")}
+                                       {:else}
+                                           <Sparkles size={12}/>
+                                           {t("frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_btn")}
+                                       {/if}
+                                   </button>
+                                   {#if explanations[r.test_case_id]?.error}
+                                       <div class="text-[10px] text-error mt-1">{t("frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_error")}</div>
+                                   {/if}
+                                {/if}
+                             </div>
+                          {/if}
                           <span
                             class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-base-300"
                           >
