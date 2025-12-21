@@ -350,6 +350,12 @@
         if (latestSub) {
           const subData = await apiJSON(`/api/submissions/${latestSub.id}`);
           results = subData.results ?? [];
+          results.forEach((r: any) => {
+            if (r.failure_explanation) {
+              explanations[r.test_case_id] = { loading: false, text: r.failure_explanation };
+            }
+          });
+          explanations = { ...explanations };
         }
         const best = submissions.reduce((m: number, s: any) => {
           const p = s.override_points ?? s.points ?? 0;

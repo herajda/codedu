@@ -5267,20 +5267,27 @@ func explainTestFailure(c *gin.Context) {
 
 	// 4. Get Result and TestCase details
 	var data struct {
-		Stdin          string `db:"stdin"`
-		ExpectedStdout string `db:"expected_stdout"`
-		ActualStdout   string `db:"actual_stdout"`
-		Stderr         string `db:"stderr"`
-		Status         string `db:"status"`
+		Stdin              string  `db:"stdin"`
+		ExpectedStdout     string  `db:"expected_stdout"`
+		ActualStdout       string  `db:"actual_stdout"`
+		Stderr             string  `db:"stderr"`
+		Status             string  `db:"status"`
+		FailureExplanation *string `db:"failure_explanation"`
 	}
 	err = DB.Get(&data, `
-		SELECT tc.stdin, tc.expected_stdout, r.actual_stdout, r.stderr, r.status
+		SELECT tc.stdin, tc.expected_stdout, r.actual_stdout, r.stderr, r.status, r.failure_explanation
 		FROM results r
 		JOIN test_cases tc ON r.test_case_id = tc.id
 		WHERE r.submission_id = $1 AND r.test_case_id = $2
 	`, sid, tcid)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "result not found"})
+		return
+	}
+
+	// Return cached explanation if available
+	if data.FailureExplanation != nil && *data.FailureExplanation != "" {
+		c.JSON(http.StatusOK, gin.H{"explanation": *data.FailureExplanation})
 		return
 	}
 
@@ -5338,9 +5345,17 @@ func explainTestFailure(c *gin.Context) {
 	}
 	client := openai.NewClient(opts...)
 
+	// Get user language preference
+	user, err := GetUser(uid)
+	langInstruction := ""
+	if err == nil && user.PreferredLocale != nil && *user.PreferredLocale == "cs" {
+		langInstruction = "Reply in Czech language."
+	}
+
 	prompt := fmt.Sprintf(`You are a helpful coding tutor.
 The student's code failed a test case.
 Explain WHY it failed in ONE SHORT SENTENCE (max 30 words).
+%s
 Do NOT reveal the expected output values specific to this test case if they are hidden.
 Do NOT reveal the inputs if they are sensitive.
 Do NOT provide fixed code.
@@ -5357,7 +5372,7 @@ Input: %s
 Expected Output: %s
 Actual Output: %s
 Stderr: %s
-`, assign.Title, stripMarkdownImages(assign.Description), codeText, data.Stdin, data.ExpectedStdout, data.ActualStdout, data.Stderr)
+`, langInstruction, assign.Title, stripMarkdownImages(assign.Description), codeText, data.Stdin, data.ExpectedStdout, data.ActualStdout, data.Stderr)
 
 	schema := map[string]any{
 		"type":                 "object",
@@ -5409,6 +5424,8 @@ Stderr: %s
 		Explanation string `json:"explanation"`
 	}
 	if uErr := json.Unmarshal([]byte(rawJSON), &out); uErr == nil {
+		// Save explanation to DB
+		_, _ = DB.Exec(`UPDATE results SET failure_explanation=$1 WHERE submission_id=$2 AND test_case_id=$3`, out.Explanation, sid, tcid)
 		c.JSON(http.StatusOK, gin.H{"explanation": out.Explanation})
 		return
 	} else {

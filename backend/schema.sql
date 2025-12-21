@@ -196,6 +196,7 @@ CREATE TABLE IF NOT EXISTS results (
 ALTER TABLE results ADD COLUMN IF NOT EXISTS stderr TEXT;
 ALTER TABLE results ADD COLUMN IF NOT EXISTS exit_code INTEGER;
 ALTER TABLE results ADD COLUMN IF NOT EXISTS actual_return TEXT;
+ALTER TABLE results ADD COLUMN IF NOT EXISTS failure_explanation TEXT;
 
 -- LLM run artifacts per submission attempt
 CREATE TABLE IF NOT EXISTS llm_runs (

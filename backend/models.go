@@ -1459,26 +1459,27 @@ func NeedsTeacherGroupSync(sourceID uuid.UUID) (bool, []AssignmentClone, error) 
 
 // Result represents outcome of one test case execution.
 type Result struct {
-	ID             uuid.UUID `db:"id" json:"id"`
-	SubmissionID   uuid.UUID `db:"submission_id" json:"submission_id"`
-	TestCaseID     uuid.UUID `db:"test_case_id" json:"test_case_id"`
-	Status         string    `db:"status" json:"status"`
-	ActualStdout   string    `db:"actual_stdout" json:"actual_stdout"`
-	Stderr         string    `db:"stderr" json:"stderr"`
-	ExitCode       int       `db:"exit_code" json:"exit_code"`
-	RuntimeMS      int       `db:"runtime_ms" json:"runtime_ms"`
-	Stdin          *string   `db:"stdin" json:"stdin,omitempty"`
-	ExpectedStdout *string   `db:"expected_stdout" json:"expected_stdout,omitempty"`
-	UnittestCode   *string   `db:"unittest_code" json:"unittest_code,omitempty"`
-	UnittestName   *string   `db:"unittest_name" json:"unittest_name,omitempty"`
-	ExecutionMode  *string   `db:"execution_mode" json:"execution_mode,omitempty"`
-	FunctionName   *string   `db:"function_name" json:"function_name,omitempty"`
-	FunctionArgs   *string   `db:"function_args" json:"function_args,omitempty"`
-	FunctionKwargs *string   `db:"function_kwargs" json:"function_kwargs,omitempty"`
-	ExpectedReturn *string   `db:"expected_return" json:"expected_return,omitempty"`
-	ActualReturn   *string   `db:"actual_return" json:"actual_return,omitempty"`
-	TestNumber     *int      `db:"test_number" json:"test_number,omitempty"`
-	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	ID                 uuid.UUID `db:"id" json:"id"`
+	SubmissionID       uuid.UUID `db:"submission_id" json:"submission_id"`
+	TestCaseID         uuid.UUID `db:"test_case_id" json:"test_case_id"`
+	Status             string    `db:"status" json:"status"`
+	ActualStdout       string    `db:"actual_stdout" json:"actual_stdout"`
+	Stderr             string    `db:"stderr" json:"stderr"`
+	ExitCode           int       `db:"exit_code" json:"exit_code"`
+	RuntimeMS          int       `db:"runtime_ms" json:"runtime_ms"`
+	Stdin              *string   `db:"stdin" json:"stdin,omitempty"`
+	ExpectedStdout     *string   `db:"expected_stdout" json:"expected_stdout,omitempty"`
+	UnittestCode       *string   `db:"unittest_code" json:"unittest_code,omitempty"`
+	UnittestName       *string   `db:"unittest_name" json:"unittest_name,omitempty"`
+	ExecutionMode      *string   `db:"execution_mode" json:"execution_mode,omitempty"`
+	FunctionName       *string   `db:"function_name" json:"function_name,omitempty"`
+	FunctionArgs       *string   `db:"function_args" json:"function_args,omitempty"`
+	FunctionKwargs     *string   `db:"function_kwargs" json:"function_kwargs,omitempty"`
+	ExpectedReturn     *string   `db:"expected_return" json:"expected_return,omitempty"`
+	ActualReturn       *string   `db:"actual_return" json:"actual_return,omitempty"`
+	TestNumber         *int      `db:"test_number" json:"test_number,omitempty"`
+	FailureExplanation *string   `db:"failure_explanation" json:"failure_explanation,omitempty"`
+	CreatedAt          time.Time `db:"created_at" json:"created_at"`
 }
 
 // LLMRun stores artifacts from an LLM-interactive testing run for a submission.
@@ -1611,7 +1612,7 @@ func ListResultsForSubmission(subID uuid.UUID) ([]Result, error) {
                r.exit_code, r.runtime_ms, r.created_at,
                ot.stdin, ot.expected_stdout, ot.unittest_code, ot.unittest_name,
                ot.execution_mode, ot.function_name, ot.function_args, ot.function_kwargs, ot.expected_return,
-               r.actual_return,
+               r.actual_return, r.failure_explanation,
                ot.test_number
           FROM results r
           LEFT JOIN ordered_tests ot ON r.test_case_id = ot.id
