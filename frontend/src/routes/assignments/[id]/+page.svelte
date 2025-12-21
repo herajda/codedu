@@ -1494,12 +1494,7 @@
         <div class="flex-1 p-8 sm:p-10">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
             <div class="space-y-4">
-               <nav class="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] opacity-40">
-                  <Globe size={12} />
-                  <span>{assignment.class_title || assignment.class_id || 'Assignment'}</span>
-                  <ChevronRight size={10} />
-                  <span>Details</span>
-               </nav>
+
               <h1 class="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-base-content leading-tight">
                 {assignment.title}
               </h1>
@@ -2099,8 +2094,12 @@
                          <td class="pl-6">
                             <div class="flex items-center gap-3">
                                <div class="avatar placeholder">
-                                  <div class="bg-base-300 text-base-content/40 rounded-xl w-10 font-black text-xs uppercase">
-                                     {p.student.name?.substring(0, 2) || p.student.email?.substring(0, 2)}
+                                  <div class="bg-base-300 text-base-content/40 rounded-xl w-10 font-black text-xs uppercase overflow-hidden">
+                                     {#if p.student.avatar}
+                                       <img src={p.student.avatar} alt={p.student.name ?? p.student.email ?? ""} class="w-full h-full object-cover" loading="lazy" />
+                                     {:else}
+                                       {p.student.name?.substring(0, 2) || p.student.email?.substring(0, 2)}
+                                     {/if}
                                   </div>
                                </div>
                                <div class="flex flex-col">
