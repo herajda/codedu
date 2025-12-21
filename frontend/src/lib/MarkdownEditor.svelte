@@ -353,4 +353,26 @@
   :global(.ProseMirror a:hover) {
     text-decoration-color: hsl(var(--p));
   }
+
+  :global(.ProseMirror code) {
+    background-color: oklch(var(--b2) / 0.7);
+    padding: 0.15rem 0.4rem;
+    border-radius: 0.5rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 0.9em;
+  }
+
+  :global(.ProseMirror pre) {
+    background-color: oklch(var(--b2));
+    padding: 0.85rem 1rem;
+    border-radius: 0.75rem;
+    border: 1px solid oklch(var(--b3) / 0.3);
+    margin: 1rem 0;
+  }
+
+  :global(.ProseMirror pre code) {
+    background-color: transparent;
+    padding: 0;
+    font-size: 0.9em;
+  }
 </style>

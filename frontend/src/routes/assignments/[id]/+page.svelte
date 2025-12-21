@@ -13,6 +13,42 @@
   import { DeadlinePicker } from "$lib";
   import { strictnessGuidance } from "$lib/llmStrictness";
   import { t, translator } from "$lib/i18n";
+  import {
+    Calendar,
+    Clock,
+    Trophy,
+    GraduationCap,
+    FileCode,
+    Users,
+    Activity,
+    CheckCircle2,
+    AlertTriangle,
+    Info,
+    ChevronDown,
+    ChevronUp,
+    ChevronRight,
+    LayoutDashboard,
+    ListTodo,
+    History,
+    Settings2,
+    FlaskConical,
+    Send,
+    Eye,
+    Trash2,
+    Edit3,
+    ArrowRight,
+    Search,
+    Filter,
+    Table,
+    Download,
+    Upload,
+    Sparkles,
+    ShieldCheck,
+    Briefcase,
+    Globe,
+    ExternalLink
+  } from "lucide-svelte";
+
 
   $: id = $page.params.id;
   let role = "";
@@ -1034,12 +1070,12 @@
               <div class="grid sm:grid-cols-2 gap-3">
                 <!-- Main deadline: open picker modal -->
                 <div class="form-control">
-                  <label class="label"
+                  <div class="label"
                     ><span class="label-text"
                       >{t(
                         "frontend/src/routes/assignments/[id]/+page.svelte::main_deadline_label",
                       )}</span
-                    ></label
+                    ></div
                   >
                   <div class="flex items-center gap-2">
                     <input
@@ -1076,12 +1112,12 @@
                 </div>
                 {#if showAdvancedOptions}
                   <div class="form-control">
-                    <label class="label"
+                    <div class="label"
                       ><span class="label-text"
                         >{t(
                           "frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_label",
                         )}</span
-                      ></label
+                      ></div
                     >
                     <div class="flex items-center gap-2">
                       <input
@@ -1449,536 +1485,473 @@
     </div>
   {:else}
     <!-- Hero header -->
-    <section
-      class="relative overflow-hidden mb-6 rounded-2xl border border-base-300/60 bg-gradient-to-br from-primary/10 to-secondary/10 p-0"
-    >
-      <div
-        class="flex flex-col sm:flex-row items-stretch sm:items-center gap-0 sm:gap-6"
-      >
-        <div class="flex-1 p-6">
-          <div class="flex items-center justify-between gap-3">
-            <h1 class="text-2xl sm:text-3xl font-semibold tracking-tight">
-              {assignment.title}
-            </h1>
-            {#if role === "student" && !assignment.manual_review && testsCount > 0}
-              <div class="hidden sm:flex items-center gap-3">
-                <div
-                  class="radial-progress text-primary"
-                  style="--value:{testsPercent};"
-                  aria-valuenow={testsPercent}
-                  role="progressbar"
-                >
-                  {testsPercent}%
+    <section class="relative overflow-hidden mb-8 rounded-3xl border border-base-300 bg-gradient-to-br from-primary/15 via-base-100 to-secondary/15 shadow-xl shadow-primary/5">
+      <!-- Decorative background elements -->
+      <div class="absolute top-0 right-0 -mt-20 -mr-20 w-64 h-64 bg-primary/10 rounded-full blur-3xl"></div>
+      <div class="absolute bottom-0 left-0 -mb-20 -ml-20 w-64 h-64 bg-secondary/10 rounded-full blur-3xl"></div>
+
+      <div class="flex flex-col md:flex-row items-stretch md:items-center relative z-10">
+        <div class="flex-1 p-8 sm:p-10">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+            <div class="space-y-4">
+               <nav class="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] opacity-40">
+                  <Globe size={12} />
+                  <span>{assignment.class_title || assignment.class_id || 'Assignment'}</span>
+                  <ChevronRight size={10} />
+                  <span>Details</span>
+               </nav>
+              <h1 class="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-base-content leading-tight">
+                {assignment.title}
+              </h1>
+              
+              <div class="flex flex-wrap items-center gap-2">
+                <div class={`badge h-7 gap-2 px-2.5 font-black text-[9px] uppercase tracking-wider border-none shadow-sm ${isOverdue ? 'bg-error text-error-content' : 'bg-primary text-primary-content'}`}>
+                  <Clock size={12} />
+                  {deadlineLabel}
                 </div>
-                <span class="font-semibold"
-                  >{testsPassed} / {results.length}
-                  {t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::tests_label",
-                  )}</span
-                >
+                
+                {#if assignment.second_deadline}
+                  <div class="badge h-7 gap-2 px-2.5 font-black text-[9px] uppercase tracking-wider bg-warning text-warning-content border-none shadow-sm">
+                    <AlertTriangle size={12} />
+                    {secondDeadlineLabel}
+                  </div>
+                {/if}
+
+                <div class="badge h-7 gap-2 px-2.5 font-black text-[9px] uppercase tracking-wider bg-base-200 text-base-content border-none shadow-sm">
+                  <Trophy size={12} class="text-warning" />
+                  {t("frontend/src/routes/assignments/[id]/+page.svelte::max_points_badge", { maxPoints: assignment.max_points })}
+                </div>
+
+                {#if assignment.manual_review}
+                  <div class="badge h-7 gap-2 px-2.5 font-black text-[9px] uppercase tracking-wider bg-info text-info-content border-none shadow-sm">
+                    <GraduationCap size={12} />
+                    {t("frontend/src/routes/assignments/[id]/+page.svelte::manual_review_badge")}
+                  </div>
+                {/if}
+
+                {#if role !== "student"}
+                   <div class={`badge h-7 gap-2 px-2.5 font-black text-[9px] uppercase tracking-wider border-none shadow-sm ${assignment.published ? 'bg-success text-success-content' : 'bg-warning text-warning-content'}`}>
+                      {#if assignment.published}
+                        <Globe size={12} />
+                        {t("frontend/src/routes/assignments/[id]/+page.svelte::published_badge")}
+                      {:else}
+                        <Edit3 size={12} />
+                        {t("frontend/src/routes/assignments/[id]/+page.svelte::draft_badge")}
+                      {/if}
+                   </div>
+                {/if}
+
+                {#if done}
+                  <div class="badge h-7 gap-2 px-2.5 font-black text-[9px] uppercase tracking-wider bg-success text-success-content border-none shadow-sm">
+                    <CheckCircle2 size={12} />
+                    {t("frontend/src/routes/assignments/[id]/+page.svelte::completed_badge")}
+                  </div>
+                {/if}
               </div>
+            </div>
+
+             {#if role === "student" && !assignment.manual_review && testsCount > 0}
+               <div class="flex flex-col items-center gap-1.5 bg-base-100/60 backdrop-blur-md p-4 rounded-3xl border border-primary/20 shadow-xl shadow-primary/10 min-w-[110px] animate-in zoom-in-95 duration-500">
+                  <div class="radial-progress text-primary font-black" style="--value:{testsPercent}; --size:3.5rem; --thickness: 6px;" aria-valuenow={testsPercent} role="progressbar">
+                    <span class="text-xs">{testsPercent}%</span>
+                  </div>
+                  <div class="text-center">
+                    <div class="text-[8px] font-black uppercase tracking-widest opacity-40">{t("frontend/src/routes/assignments/[id]/+page.svelte::tests_label")}</div>
+                    <div class="font-black text-lg">{testsPassed}/{results.length || testsCount}</div>
+                  </div>
+               </div>
             {/if}
           </div>
-          <div class="mt-3 flex flex-wrap items-center gap-2">
-            <span class={`badge ${deadlineBadgeClass}`}>{deadlineLabel}</span>
-            {#if assignment.second_deadline}
-              <span class="badge badge-warning">{secondDeadlineLabel}</span>
-            {/if}
-            <span class="badge badge-ghost"
-              >{t(
-                "frontend/src/routes/assignments/[id]/+page.svelte::max_points_badge",
-                { maxPoints: assignment.max_points },
-              )}</span
-            >
-            <span class="badge badge-ghost"
-              >{policyLabel(assignment.grading_policy)}</span
-            >
-            {#if assignment.manual_review}
-              <span class="badge badge-info"
-                >{t(
-                  "frontend/src/routes/assignments/[id]/+page.svelte::manual_review_badge",
-                )}</span
-              >
-            {/if}
-            {#if role !== "student"}
-              {#if assignment.published}
-                <span class="badge badge-success"
-                  >{t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::published_badge",
-                  )}</span
-                >
-              {:else}
-                <span class="badge badge-warning"
-                  >{t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::draft_badge",
-                  )}</span
-                >
-              {/if}
-            {/if}
-            {#if done}
-              <span class="badge badge-success"
-                >{t(
-                  "frontend/src/routes/assignments/[id]/+page.svelte::completed_badge",
-                )}</span
-              >
-            {/if}
-          </div>
-          <div class="mt-4 flex flex-wrap items-center gap-2">
-            {#if assignment.template_path}
-              <a
-                class="btn btn-sm btn-ghost"
-                href={`/api/assignments/${id}/template`}
-                on:click|preventDefault={downloadTemplate}
-                >{t(
-                  "frontend/src/routes/assignments/[id]/+page.svelte::download_template_button",
-                )}</a
-              >
-            {/if}
-            {#if role === "teacher" || role === "admin"}
-              {#if !assignment.published}
-                <button class="btn btn-sm btn-secondary" on:click={publish}
-                  >{t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::publish_button",
-                  )}</button
-                >
-              {/if}
-              <button class="btn btn-sm" on:click={openTestsModal}>
-                {t("frontend/src/routes/assignments/[id]/+page.svelte::manage_tests_button")}
-              </button>
-              <button class="btn btn-sm" on:click={startEdit}
-                >{t(
-                  "frontend/src/routes/assignments/[id]/+page.svelte::edit_button",
-                )}</button
-              >
-              {#if teacherGroupSync?.needs_update}
-                <button
-                  class="btn btn-sm btn-warning"
-                  on:click={syncTeachersGroup}
-                  disabled={syncTGLoading}
-                >
-                  {syncTGLoading
-                    ? t(
-                        "frontend/src/routes/assignments/[id]/+page.svelte::syncing_teachers_group_button",
-                      )
-                    : t(
-                        "frontend/src/routes/assignments/[id]/+page.svelte::update_teachers_group_button",
-                      )}
-                </button>
-              {/if}
-              <button class="btn btn-sm btn-error" on:click={delAssignment}
-                >{t(
-                  "frontend/src/routes/assignments/[id]/+page.svelte::delete_button",
-                )}</button
-              >
+
+          <div class="mt-8 flex flex-wrap items-center gap-3">
+             {#if role === "teacher" || role === "admin"}
+               {#if !assignment.published}
+                 <button class="btn btn-secondary shadow-lg shadow-secondary/20 font-black uppercase tracking-widest text-[10px] gap-2 h-10 px-4" on:click={publish}>
+                   <Send size={14} />
+                   {t("frontend/src/routes/assignments/[id]/+page.svelte::publish_button")}
+                 </button>
+               {/if}
+               <button class="btn btn-primary shadow-lg shadow-primary/20 font-black uppercase tracking-widest text-[10px] gap-2 h-10 px-4" on:click={openTestsModal}>
+                 <FlaskConical size={14} />
+                 {t("frontend/src/routes/assignments/[id]/+page.svelte::manage_tests_button")}
+               </button>
+               <button class="btn bg-base-100 hover:bg-base-200 border-base-300 font-black uppercase tracking-widest text-[10px] gap-2 h-10 px-4 shadow-sm" on:click={startEdit}>
+                 <Settings2 size={14} />
+                 {t("frontend/src/routes/assignments/[id]/+page.svelte::edit_button")}
+               </button>
+               {#if teacherGroupSync?.needs_update}
+                 <button class="btn btn-warning shadow-lg shadow-warning/20 font-black uppercase tracking-widest text-[10px] gap-2 h-10 px-4" on:click={syncTeachersGroup} disabled={syncTGLoading}>
+                   <Activity size={14} class={syncTGLoading ? 'animate-spin' : ''} />
+                   {syncTGLoading ? t("frontend/src/routes/assignments/[id]/+page.svelte::syncing_teachers_group_button") : t("frontend/src/routes/assignments/[id]/+page.svelte::update_teachers_group_button")}
+                 </button>
+               {/if}
+               <button class="btn btn-ghost text-error hover:bg-error/10 font-black uppercase tracking-widest text-[10px] gap-2 h-10 px-4 ml-auto" on:click={delAssignment}>
+                 <Trash2 size={14} />
+                 {t("frontend/src/routes/assignments/[id]/+page.svelte::delete_button")}
+               </button>
             {:else}
-              <button
-                class="btn btn-sm btn-primary"
-                on:click={openSubmitModal}
-                disabled={assignment.second_deadline &&
-                  new Date() > assignment.deadline &&
-                  new Date() > assignment.second_deadline}
-                >{t(
-                  "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_button",
-                )}</button
-              >
+              <button class="btn btn-primary shadow-2xl shadow-primary/30 font-black uppercase tracking-[0.1em] h-12 px-6 gap-3 rounded-xl animate-in fade-in slide-in-from-bottom-2 duration-700 text-xs" on:click={openSubmitModal} disabled={assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}>
+                <Send size={18} />
+                {t("frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_button")}
+              </button>
+              {#if assignment.template_path}
+                 <button class="btn btn-ghost border-base-300 h-12 px-5 font-black uppercase tracking-widest text-[10px] gap-3 rounded-xl" on:click|preventDefault={downloadTemplate}>
+                   <Download size={18} />
+                   {t("frontend/src/routes/assignments/[id]/+page.svelte::download_template_button")}
+                 </button>
+              {/if}
             {/if}
           </div>
         </div>
+
         {#if role === "student"}
-          <div
-            class="sm:border-l border-base-300/60 p-6 flex items-center justify-center"
-          >
-            <div class="flex items-center gap-3">
-              <div
-                class="radial-progress text-primary"
-                style="--value:{percent}; --size:6rem; --thickness:10px"
-                aria-valuenow={percent}
-                role="progressbar"
-              >
-                {percent}%
-              </div>
-              <div>
-                <div class="text-xl font-semibold">
-                  {pointsEarned} / {assignment.max_points}
+          <div class="md:w-64 bg-primary/5 backdrop-blur-md p-6 md:border-l border-primary/10 flex flex-col items-center justify-center gap-4 relative overflow-hidden">
+             <div class="absolute inset-0 opacity-10 pointer-events-none">
+                <Trophy size={160} class="absolute -bottom-10 -right-10 rotate-12" />
+             </div>
+             <div class="relative">
+                <div class="radial-progress text-primary shadow-2xl shadow-primary/20 bg-base-100/50" style="--value:{percent}; --size:7rem; --thickness:12px" aria-valuenow={percent} role="progressbar">
+                  <span class="text-2xl font-black">{percent}%</span>
                 </div>
-                <div class="text-sm opacity-70">
-                  {t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::points_earned_label",
-                  )}
+                <div class="absolute -top-1 -right-1 bg-warning text-warning-content rounded-full p-2 shadow-xl scale-110 border-4 border-base-100">
+                   <Trophy size={14} />
                 </div>
-              </div>
-            </div>
+             </div>
+             <div class="text-center space-y-1 relative z-10">
+                <div class="text-[9px] font-black uppercase tracking-[0.2em] opacity-40">{t("frontend/src/routes/assignments/[id]/+page.svelte::points_earned_label")}</div>
+                <div class="text-3xl font-black text-primary tabular-nums">
+                  {pointsEarned}<span class="text-base-content/20 text-lg ml-1">/ {assignment.max_points}</span>
+                </div>
+             </div>
           </div>
         {/if}
       </div>
     </section>
+
     {#if role === "student" && assignment.manual_review}
-      <div class="alert alert-info mb-4">
-        <span
-          >{t(
-            "frontend/src/routes/assignments/[id]/+page.svelte::teacher_review_alert_body",
-          )}</span
-        >
+      <div class="alert bg-info/10 border-info/20 text-info-content mb-6 rounded-2xl shadow-sm">
+        <Info size={20} />
+        <span class="font-medium text-sm">{t("frontend/src/routes/assignments/[id]/+page.svelte::teacher_review_alert_body")}</span>
       </div>
     {/if}
     {#if deadlineSoon}
-      <div class="alert alert-warning mb-4">
-        <span
-          >{t(
-            "frontend/src/routes/assignments/[id]/+page.svelte::deadline_near_alert",
-          )}</span
-        >
+      <div class="alert bg-warning/10 border-warning/20 text-warning-content mb-6 rounded-2xl shadow-sm">
+        <Clock size={20} />
+        <span class="font-bold text-sm">{t("frontend/src/routes/assignments/[id]/+page.svelte::deadline_near_alert")}</span>
       </div>
     {/if}
     {#if secondDeadlineSoon}
-      <div class="alert alert-warning mb-4">
-        <span
-          >{t(
-            "frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_near_alert",
-            { penalty: Math.round(assignment.late_penalty_ratio * 100) },
-          )}</span
-        >
+      <div class="alert bg-warning/10 border-warning/20 text-warning-content mb-6 rounded-2xl shadow-sm">
+        <AlertTriangle size={20} />
+        <span class="font-bold text-sm">{t("frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_near_alert", { penalty: Math.round(assignment.late_penalty_ratio * 100) })}</span>
       </div>
     {/if}
 
     <!-- Content with tabs and optional sidebar for students -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
       <div
         class={`col-span-full ${role === "student" ? "lg:col-span-8" : "lg:col-span-12"}`}
       >
-        <div class="tabs tabs-boxed w-full mb-4">
+        <!-- Custom styled tabs -->
+        <div class="flex flex-wrap items-center gap-1.5 p-1 bg-base-200/50 backdrop-blur-sm rounded-[1rem] border border-base-300/50 mb-6 max-w-fit shadow-inner">
           <button
-            class={`tab ${activeTab === "overview" ? "tab-active" : ""}`}
+            class={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${activeTab === "overview" ? "bg-base-100 text-primary shadow-lg shadow-base-300 scale-[1.02] border border-base-300" : "hover:bg-base-300/50 opacity-50 hover:opacity-100"}`}
             on:click={() => setTab("overview")}
-            >{t(
-              "frontend/src/routes/assignments/[id]/+page.svelte::tab_overview",
-            )}</button
           >
+            <LayoutDashboard size={12} />
+            {t("frontend/src/routes/assignments/[id]/+page.svelte::tab_overview")}
+          </button>
           {#if role === "student"}
             <button
-              class={`tab ${activeTab === "submissions" ? "tab-active" : ""}`}
+              class={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${activeTab === "submissions" ? "bg-base-100 text-primary shadow-lg shadow-base-300 scale-[1.02] border border-base-300" : "hover:bg-base-300/50 opacity-50 hover:opacity-100"}`}
               on:click={() => setTab("submissions")}
-              >{t(
-                "frontend/src/routes/assignments/[id]/+page.svelte::tab_submissions",
-              )}</button
             >
+              <History size={12} />
+              {t("frontend/src/routes/assignments/[id]/+page.svelte::tab_submissions")}
+            </button>
             {#if !assignment.manual_review}
               <button
-                class={`tab ${activeTab === "results" ? "tab-active" : ""}`}
+                class={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${activeTab === "results" ? "bg-base-100 text-primary shadow-lg shadow-base-300 scale-[1.02] border border-base-300" : "hover:bg-base-300/50 opacity-50 hover:opacity-100"}`}
                 on:click={() => setTab("results")}
-                >{t(
-                  "frontend/src/routes/assignments/[id]/+page.svelte::tab_results",
-                )}</button
               >
+                <Activity size={12} />
+                {t("frontend/src/routes/assignments/[id]/+page.svelte::tab_results")}
+              </button>
             {/if}
           {/if}
           {#if role === "teacher" || role === "admin"}
             <button
-              class={`tab ${activeTab === "instructor" ? "tab-active" : ""}`}
+              class={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${activeTab === "instructor" ? "bg-base-100 text-primary shadow-lg shadow-base-300 scale-[1.02] border border-base-300" : "hover:bg-base-300/50 opacity-50 hover:opacity-100"}`}
               on:click={() => setTab("instructor")}
-              >{t(
-                "frontend/src/routes/assignments/[id]/+page.svelte::tab_instructor",
-              )}</button
             >
+              <GraduationCap size={12} />
+              {t("frontend/src/routes/assignments/[id]/+page.svelte::tab_instructor")}
+            </button>
             <button
-              class={`tab ${activeTab === "teacher-runs" ? "tab-active" : ""}`}
+              class={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${activeTab === "teacher-runs" ? "bg-base-100 text-primary shadow-lg shadow-base-300 scale-[1.02] border border-base-300" : "hover:bg-base-300/50 opacity-50 hover:opacity-100"}`}
               on:click={() => setTab("teacher-runs")}
-              >{t(
-                "frontend/src/routes/assignments/[id]/+page.svelte::tab_teacher_runs",
-              )}</button
             >
+              <FlaskConical size={12} />
+              {t("frontend/src/routes/assignments/[id]/+page.svelte::tab_teacher_runs")}
+            </button>
           {/if}
         </div>
 
         {#if activeTab === "overview"}
-          <article class="card-elevated p-6 space-y-4">
-            <div class="markdown assignment-description">{@html safeDesc}</div>
-            {#if role === "student" && assignment.second_deadline && new Date() > assignment.deadline && new Date() <= assignment.second_deadline}
-              <div class="alert alert-warning">
-                <span>
-                  <strong
-                    >{t(
-                      "frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_active_alert_strong",
-                    )}</strong
-                  >
-                  {t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_active_alert_body",
-                    {
-                      penalty: Math.round(assignment.late_penalty_ratio * 100),
-                    },
-                  )}
-                  <br />{t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_label_with_date",
-                  )}: {formatDateTime(assignment.second_deadline)}
-                </span>
-              </div>
-            {:else if role === "student" && assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}
-              <div class="alert alert-error">
-                <span>
-                  <strong
-                    >{t(
-                      "frontend/src/routes/assignments/[id]/+page.svelte::all_deadlines_passed_alert_strong",
-                    )}</strong
-                  >
-                  {t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::all_deadlines_passed_alert_body",
-                  )}
-                </span>
-              </div>
-            {/if}
-            <div class="grid sm:grid-cols-3 gap-3">
-              <div
-                class="stat bg-base-100 rounded-xl border border-base-300/60"
-              >
-                <div class="stat-title">
-                  {t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::stat_deadline_title",
-                  )}
-                </div>
-                <div
-                  class="stat-value text-lg whitespace-normal break-anywhere"
-                >
-                  {formatDateTime(assignment.deadline)}
-                </div>
-                <div class="stat-desc">
-                  {relativeToDeadline(assignment.deadline)}
-                </div>
-              </div>
-              {#if assignment.second_deadline}
-                <div
-                  class="stat bg-base-100 rounded-xl border border-base-300/60"
-                >
-                  <div class="stat-title">
-                    {t(
-                      "frontend/src/routes/assignments/[id]/+page.svelte::stat_second_deadline_title",
-                    )}
+          <article class="space-y-4">
+            <div class="card-elevated p-5 sm:p-6 space-y-5 bg-base-100 rounded-[1.25rem] border border-base-200">
+               <div class="flex items-center gap-3 border-b border-base-200 pb-4 mb-0.5">
+                  <div class="p-2 bg-primary/10 rounded-lg text-primary">
+                    <ListTodo size={18} />
                   </div>
-                  <div
-                    class="stat-value text-lg whitespace-normal break-anywhere"
-                  >
-                    {formatDateTime(assignment.second_deadline)}
+                  <div>
+                    <h3 class="text-base font-black">{t("frontend/src/routes/assignments/[id]/+page.svelte::basic_info_heading")}</h3>
+                    <p class="text-[9px] font-bold opacity-40 uppercase tracking-widest">{assignment.manual_review ? t("frontend/src/routes/assignments/[id]/+page.svelte::manual_teacher_review_option") : t("frontend/src/routes/assignments/[id]/+page.svelte::automatic_tests_option")}</p>
                   </div>
-                  <div class="stat-desc">
-                    {relativeToDeadline(assignment.second_deadline)} • {Math.round(
-                      assignment.late_penalty_ratio * 100,
-                    )}% {t(
-                      "frontend/src/routes/assignments/[id]/+page.svelte::points_label",
-                    )}
+               </div>
+
+              <div class="markdown assignment-description text-base-content/90 leading-relaxed font-medium">{@html safeDesc}</div>
+              
+              {#if role === "student" && assignment.second_deadline && new Date() > assignment.deadline && new Date() <= assignment.second_deadline}
+                <div class="alert bg-warning/10 border-warning/20 text-warning-content rounded-2xl flex items-start gap-3">
+                  <AlertTriangle size={20} class="mt-0.5 shrink-0" />
+                  <div class="text-sm">
+                    <strong class="font-black uppercase tracking-wider text-[10px] block mb-1">{t("frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_active_alert_strong")}</strong>
+                    {t("frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_active_alert_body", { penalty: Math.round(assignment.late_penalty_ratio * 100) })}
+                    <div class="mt-2 font-black tabular-nums">{t("frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_label_with_date")}: {formatDateTime(assignment.second_deadline)}</div>
+                  </div>
+                </div>
+              {:else if role === "student" && assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}
+                <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl flex items-start gap-3">
+                  <AlertTriangle size={20} class="mt-0.5 shrink-0" />
+                  <div class="text-sm">
+                    <strong class="font-black uppercase tracking-wider text-[10px] block mb-1">{t("frontend/src/routes/assignments/[id]/+page.svelte::all_deadlines_passed_alert_strong")}</strong>
+                    {t("frontend/src/routes/assignments/[id]/+page.svelte::all_deadlines_passed_alert_body")}
                   </div>
                 </div>
               {/if}
-              <div
-                class="stat bg-base-100 rounded-xl border border-base-300/60"
-              >
-                <div class="stat-title">
-                  {t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::stat_max_points_title",
-                  )}
+
+              <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 border-t border-base-200 pt-8">
+                <div class="bg-base-200/30 p-4 rounded-xl border border-base-200 space-y-2.5 hover:border-primary/20 transition-all group">
+                  <div class="flex items-center gap-2 opacity-40 group-hover:opacity-100 transition-opacity">
+                    <Calendar size={14} class="text-primary" />
+                    <span class="text-[10px] font-black uppercase tracking-widest">{t("frontend/src/routes/assignments/[id]/+page.svelte::stat_deadline_title")}</span>
+                  </div>
+                  <div class="space-y-1">
+                    <div class="font-black text-base truncate" title={formatDateTime(assignment.deadline)}>{formatDateTime(assignment.deadline)}</div>
+                    <div class="text-[10px] font-bold text-primary uppercase tracking-wider bg-primary/10 px-2 py-0.5 rounded-full w-fit">{relativeToDeadline(assignment.deadline)}</div>
+                  </div>
                 </div>
-                <div class="stat-value text-lg">{assignment.max_points}</div>
-                <div class="stat-desc">
-                  {policyLabel(assignment.grading_policy)}
+
+                {#if assignment.second_deadline}
+                  <div class="bg-base-200/30 p-5 rounded-2xl border border-base-200 space-y-3 hover:border-warning/50 transition-all group">
+                    <div class="flex items-center gap-2 opacity-40 group-hover:opacity-100 transition-opacity">
+                      <Clock size={14} class="text-warning" />
+                      <span class="text-[10px] font-black uppercase tracking-widest">{t("frontend/src/routes/assignments/[id]/+page.svelte::stat_second_deadline_title")}</span>
+                    </div>
+                    <div class="space-y-1">
+                      <div class="font-black text-base truncate" title={formatDateTime(assignment.second_deadline)}>{formatDateTime(assignment.second_deadline)}</div>
+                      <div class="text-[10px] font-bold text-warning uppercase tracking-wider bg-warning/10 px-2 py-0.5 rounded-full w-fit">{Math.round(assignment.late_penalty_ratio * 100)}% {t("frontend/src/routes/assignments/[id]/+page.svelte::points_label")}</div>
+                    </div>
+                  </div>
+                {/if}
+
+                <div class="bg-base-200/30 p-4 rounded-xl border border-base-200 space-y-2.5 hover:border-primary/20 transition-all group">
+                  <div class="flex items-center gap-2 opacity-40 group-hover:opacity-100 transition-opacity">
+                    <Trophy size={14} class="text-warning" />
+                    <span class="text-[10px] font-black uppercase tracking-widest">{t("frontend/src/routes/assignments/[id]/+page.svelte::stat_max_points_title")}</span>
+                  </div>
+                  <div class="space-y-1">
+                    <div class="font-black text-2xl tabular-nums">{assignment.max_points}</div>
+                    <div class="text-[10px] font-bold text-base-content/40 uppercase tracking-widest">{policyLabel(assignment.grading_policy)}</div>
+                  </div>
                 </div>
+
+                {#if role !== "student"}
+                  <div class="bg-base-200/30 p-5 rounded-2xl border border-base-200 space-y-3 transition-all group">
+                    <div class="flex items-center gap-2 opacity-40 group-hover:opacity-100 transition-opacity">
+                      <Activity size={14} class="text-secondary" />
+                      <span class="text-[10px] font-black uppercase tracking-widest">{t("frontend/src/routes/assignments/[id]/+page.svelte::stat_status_title")}</span>
+                    </div>
+                    <div class="space-y-1">
+                      <div class="font-black text-base uppercase tracking-wider">
+                        {#if assignment.published}
+                           <span class="text-success">{t("frontend/src/routes/assignments/[id]/+page.svelte::stat_published_value")}</span>
+                        {:else}
+                           <span class="text-warning">{t("frontend/src/routes/assignments/[id]/+page.svelte::stat_draft_value")}</span>
+                        {/if}
+                      </div>
+                      <div class="text-[10px] font-bold text-base-content/40 uppercase tracking-widest">{t("frontend/src/routes/assignments/[id]/+page.svelte::stat_assignment_visibility_desc")}</div>
+                    </div>
+                  </div>
+                {/if}
               </div>
-              {#if role !== "student"}
-                <div
-                  class="stat bg-base-100 rounded-xl border border-base-300/60"
-                >
-                  <div class="stat-title">
-                    {t(
-                      "frontend/src/routes/assignments/[id]/+page.svelte::stat_status_title",
-                    )}
-                  </div>
-                  <div class="stat-value text-lg">
-                    {assignment.published
-                      ? t(
-                          "frontend/src/routes/assignments/[id]/+page.svelte::stat_published_value",
-                        )
-                      : t(
-                          "frontend/src/routes/assignments/[id]/+page.svelte::stat_draft_value",
-                        )}
-                  </div>
-                  <div class="stat-desc">
-                    {t(
-                      "frontend/src/routes/assignments/[id]/+page.svelte::stat_assignment_visibility_desc",
-                    )}
-                  </div>
-                </div>
-              {/if}
             </div>
+            
+            {#if role === "student" && submissions.length > 0}
+               <div class="bg-primary/5 rounded-[2rem] p-8 border border-primary/10 flex flex-col md:flex-row items-center gap-8 animate-in fade-in slide-in-from-top-4 duration-700">
+                  <div class="relative group">
+                    <div class="absolute inset-0 bg-primary/20 rounded-full blur-2xl group-hover:blur-3xl transition-all duration-500 opacity-50"></div>
+                    <div class="radial-progress text-primary bg-base-100 shadow-2xl shadow-primary/20 relative z-10" style="--value:{percent}; --size:6rem; --thickness:10px">
+                       <span class="text-xl font-black">{percent}%</span>
+                    </div>
+                  </div>
+                  <div class="flex-1 space-y-2.5 text-center md:text-left">
+                     <h4 class="font-black text-xl tracking-tight">{t("frontend/src/routes/assignments/[id]/+page.svelte::good_job_message", { name: ($auth as any)?.display_name ?? ($auth as any)?.name ?? 'there' })}</h4>
+                     <p class="text-sm text-base-content/60 leading-relaxed font-medium max-w-xl">
+                        {t("frontend/src/routes/assignments/[id]/+page.svelte::overview_progress_desc", { points: pointsEarned, max: assignment.max_points })}
+                     </p>
+                     <div class="pt-3 flex flex-wrap justify-center md:justify-start gap-2.5">
+                        <button class="btn bg-base-100 hover:bg-base-200 border-base-300 rounded-xl px-6 h-10 font-black uppercase tracking-widest text-[10px] shadow-sm transform transition-all active:scale-95" on:click={() => setTab('submissions')}>
+                           <History size={14} class="text-primary" />
+                           {t("frontend/src/routes/assignments/[id]/+page.svelte::view_my_submissions")}
+                        </button>
+                        <button class="btn btn-primary rounded-xl px-6 h-10 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20 transform transition-all active:scale-95" on:click={openSubmitModal}>
+                           <Send size={14} />
+                           {t("frontend/src/routes/assignments/[id]/+page.svelte::submit_new_attempt")}
+                        </button>
+                     </div>
+                  </div>
+               </div>
+            {/if}
           </article>
         {/if}
 
         {#if activeTab === "submissions" && role === "student"}
-          <section class="card-elevated p-6 space-y-3">
-            <div class="flex items-center justify-between">
-              <h3 class="font-semibold text-lg">
-                {t(
-                  "frontend/src/routes/assignments/[id]/+page.svelte::your_submissions_heading",
-                )}
-              </h3>
+          <section class="card-elevated p-8 sm:p-10 bg-base-100 rounded-[2rem] border border-base-200">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-10">
+              <div class="flex items-center gap-4">
+                 <div class="p-4 bg-primary/10 rounded-[1.25rem] text-primary shadow-inner">
+                    <History size={24} />
+                 </div>
+                 <div>
+                    <h3 class="text-2xl font-black tracking-tight">{t("frontend/src/routes/assignments/[id]/+page.svelte::your_submissions_heading")}</h3>
+                    <p class="text-[10px] font-black opacity-40 uppercase tracking-[0.2em]">{submissions.length} {t("frontend/src/routes/assignments/[id]/+page.svelte::total_attempts_label")}</p>
+                 </div>
+              </div>
               <button
-                class="btn btn-sm"
+                class="btn btn-primary rounded-2xl px-8 h-12 font-black uppercase tracking-widest text-[11px] shadow-lg shadow-primary/20"
                 on:click={openSubmitModal}
                 disabled={assignment.second_deadline &&
                   new Date() > assignment.deadline &&
                   new Date() > assignment.second_deadline}
-                >{t(
-                  "frontend/src/routes/assignments/[id]/+page.svelte::new_submission_button",
-                )}</button
               >
+                <Upload size={16} />
+                {t("frontend/src/routes/assignments/[id]/+page.svelte::new_submission_button")}
+              </button>
             </div>
+            
             {#if assignment.second_deadline && new Date() > assignment.deadline && new Date() <= assignment.second_deadline}
-              <div class="alert alert-info">
-                <span>
-                  <strong
-                    >{t(
-                      "frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_period_info_strong",
-                    )}</strong
-                  >
-                  {t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_period_info_body",
-                    {
-                      penalty: Math.round(assignment.late_penalty_ratio * 100),
-                    },
-                  )}
-                </span>
+              <div class="alert bg-warning/10 border-warning/20 text-warning-content rounded-2xl flex items-start gap-4 mb-8">
+                <Clock size={20} class="mt-0.5 shrink-0" />
+                <div class="text-sm">
+                  <strong class="font-black uppercase tracking-widest text-[10px] block mb-1">{t("frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_period_info_strong")}</strong>
+                  {t("frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_period_info_body", { penalty: Math.round(assignment.late_penalty_ratio * 100) })}
+                </div>
               </div>
             {:else if assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}
-              <div class="alert alert-error">
-                <span>
-                  <strong
-                    >{t(
-                      "frontend/src/routes/assignments/[id]/+page.svelte::all_deadlines_passed_alert_strong",
-                    )}</strong
-                  >
-                  {t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::all_deadlines_passed_alert_body",
-                  )}
-                </span>
+              <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl flex items-start gap-4 mb-8">
+                <AlertTriangle size={20} class="mt-0.5 shrink-0" />
+                <div class="text-sm">
+                  <strong class="font-black uppercase tracking-widest text-[10px] block mb-1">{t("frontend/src/routes/assignments/[id]/+page.svelte::all_deadlines_passed_alert_strong")}</strong>
+                  {t("frontend/src/routes/assignments/[id]/+page.svelte::all_deadlines_passed_alert_body")}
+                </div>
               </div>
             {/if}
-            <div class="overflow-x-auto">
-              <table class="table table-zebra">
+
+            <div class="overflow-x-auto -mx-2">
+              <table class="table w-full">
                 <thead>
                   <tr>
-                    <th
-                      >{t(
-                        "frontend/src/routes/assignments/[id]/+page.svelte::submission_table_header_attempt",
-                      )}</th
-                    >
-                    <th
-                      >{t(
-                        "frontend/src/routes/assignments/[id]/+page.svelte::submission_table_header_date",
-                      )}</th
-                    >
-                    <th
-                      >{t(
-                        "frontend/src/routes/assignments/[id]/+page.svelte::submission_table_header_deadline",
-                      )}</th
-                    >
-                    <th
-                      >{t(
-                        "frontend/src/routes/assignments/[id]/+page.svelte::submission_table_header_status",
-                      )}</th
-                    >
+                    <th class="pl-6">{t("frontend/src/routes/assignments/[id]/+page.svelte::submission_table_header_attempt")}</th>
+                    <th>{t("frontend/src/routes/assignments/[id]/+page.svelte::submission_table_header_date")}</th>
+                    <th>{t("frontend/src/routes/assignments/[id]/+page.svelte::submission_table_header_deadline")}</th>
+                    <th>{t("frontend/src/routes/assignments/[id]/+page.svelte::submission_table_header_status")}</th>
                     {#if testsCount > 0}
-                      <th
-                        >{t(
-                          "frontend/src/routes/assignments/[id]/+page.svelte::submission_table_header_passed",
-                        )}</th
-                      >
-                      <th
-                        >{t(
-                          "frontend/src/routes/assignments/[id]/+page.svelte::submission_table_header_points",
-                        )}</th
-                      >
+                      <th>{t("frontend/src/routes/assignments/[id]/+page.svelte::submission_table_header_passed")}</th>
+                      <th>{t("frontend/src/routes/assignments/[id]/+page.svelte::submission_table_header_points")}</th>
                     {/if}
-                    <th></th>
+                    <th class="pr-6"></th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody class="text-sm font-medium">
                   {#each submissions as s}
-                    <tr>
-                      <td
-                        >{t(
-                          "frontend/src/routes/assignments/[id]/+page.svelte::attempt_num_label",
-                          { num: s.attempt_number ?? "?" },
-                        )}</td
-                      >
-                      <td>{formatDateTime(s.created_at)}</td>
+                    <tr class="hover:bg-base-200/50 transition-colors group border-b border-base-200/50 last:border-none">
+                      <td class="pl-6">
+                        <div class="font-black text-base tabular-nums">
+                          #{s.attempt_number ?? "?"}
+                        </div>
+                      </td>
+                      <td>
+                        <div class="flex flex-col">
+                           <span>{formatDateTime(s.created_at)}</span>
+                           <span class="text-[10px] opacity-40 font-bold">{relativeToDeadline(s.created_at)}</span>
+                        </div>
+                      </td>
                       <td>
                         {#if s.created_at > assignment.deadline}
                           {#if assignment.second_deadline && s.created_at <= assignment.second_deadline}
-                            <span class="badge badge-warning badge-sm"
-                              >{t(
-                                "frontend/src/routes/assignments/[id]/+page.svelte::submission_table_badge_second_deadline",
-                                {
-                                  penalty: Math.round(
-                                    assignment.late_penalty_ratio * 100,
-                                  ),
-                                },
-                              )}</span
-                            >
+                            <div class="badge bg-warning/10 text-warning border-none font-black text-[10px] uppercase tracking-wider py-3">
+                              {t("frontend/src/routes/assignments/[id]/+page.svelte::submission_table_badge_second_deadline", { penalty: Math.round(assignment.late_penalty_ratio * 100) })}
+                            </div>
                           {:else}
-                            <span class="badge badge-error badge-sm"
-                              >{t(
-                                "frontend/src/routes/assignments/[id]/+page.svelte::submission_table_badge_late",
-                              )}</span
-                            >
+                            <div class="badge bg-error/10 text-error border-none font-black text-[10px] uppercase tracking-wider py-3">
+                              {t("frontend/src/routes/assignments/[id]/+page.svelte::submission_table_badge_late")}
+                            </div>
                           {/if}
                         {:else}
-                          <span class="badge badge-success badge-sm"
-                            >{t(
-                              "frontend/src/routes/assignments/[id]/+page.svelte::submission_table_badge_on_time",
-                            )}</span
-                          >
+                          <div class="badge bg-success/10 text-success border-none font-black text-[10px] uppercase tracking-wider py-3">
+                            {t("frontend/src/routes/assignments/[id]/+page.svelte::submission_table_badge_on_time")}
+                          </div>
                         {/if}
                       </td>
-                      <td
-                        ><span class={`badge ${statusColor(s.status)}`}
-                          >{s.status}</span
-                        ></td
-                      >
+                      <td>
+                        <div class={`badge border-none font-black text-[10px] uppercase tracking-wider py-3 ${statusColor(s.status).replace('badge-', 'bg-')}/20 ${statusColor(s.status).replace('badge-', 'text-')}`}>
+                          {s.status}
+                        </div>
+                      </td>
                       {#if testsCount > 0}
-                        <td
-                          >{#if subStats[s.id]}{subStats[s.id].passed} / {testsCount}{:else}-{/if}</td
-                        >
-                        <td
-                          >{s.override_points ?? s.points ?? 0}
-                          {#if s.manually_accepted}<span
-                              class="badge badge-xs badge-outline badge-success ml-2"
-                              title={t(
-                                "frontend/src/routes/assignments/[id]/+page.svelte::submission_table_badge_accepted_title",
-                              )}
-                              >{t(
-                                "frontend/src/routes/assignments/[id]/+page.svelte::accepted_label",
-                              )}</span
-                            >{/if}</td
-                        >
+                        <td>
+                          {#if s.tests_passed !== undefined}
+                            <div class="flex items-center gap-3">
+                               <div class="w-16 bg-base-300 rounded-full h-2 overflow-hidden shadow-inner">
+                                  <div class="bg-primary h-full rounded-full" style="width: {(s.tests_passed / (s.tests_total || testsCount)) * 100}%"></div>
+                               </div>
+                               <span class="font-black tabular-nums">{s.tests_passed}/{s.tests_total || testsCount}</span>
+                            </div>
+                          {:else}
+                            <span class="opacity-20 font-black">—</span>
+                          {/if}
+                        </td>
+                        <td>
+                          {#if s.points_earned !== undefined}
+                            <span class="font-black text-primary tabular-nums text-lg">{s.points_earned}</span>
+                            <span class="text-[10px] opacity-40 ml-0.5 font-bold">/ {assignment.max_points}</span>
+                          {:else}
+                            <span class="opacity-20 font-black">—</span>
+                          {/if}
+                        </td>
                       {/if}
-                      <td
-                        ><a
-                          href={`/submissions/${s.id}?fromTab=${activeTab}`}
-                          class="btn btn-sm btn-outline"
-                          on:click={saveState}
-                          >{t(
-                            "frontend/src/routes/assignments/[id]/+page.svelte::submission_table_view_button",
-                          )}</a
-                        ></td
-                      >
+                      <td class="pr-6 text-right">
+                         <a
+                           class="btn btn-ghost btn-circle btn-sm opacity-0 group-hover:opacity-100 transition-all hover:bg-primary hover:text-primary-content"
+                           href={`/submissions/${s.id}?fromTab=${activeTab}`}
+                           on:click={saveState}
+                         >
+                           <ArrowRight size={18} />
+                         </a>
+                      </td>
                     </tr>
                   {/each}
                   {#if !submissions.length}
-                    <tr
-                      ><td colspan={testsCount > 0 ? 7 : 5}
-                        ><i
-                          >{t(
-                            "frontend/src/routes/assignments/[id]/+page.svelte::no_submissions_yet_table",
-                          )}</i
-                        ></td
-                      ></tr
-                    >
+                    <tr>
+                      <td colspan={testsCount > 0 ? 7 : 5} class="py-24 text-center">
+                         <div class="flex flex-col items-center gap-4 opacity-20">
+                            <History size={64} strokeWidth={1} />
+                            <p class="font-black uppercase tracking-[0.3em] text-xs">{t("frontend/src/routes/assignments/[id]/+page.svelte::no_submissions_yet_table")}</p>
+                         </div>
+                      </td>
+                    </tr>
                   {/if}
                 </tbody>
               </table>
@@ -1986,461 +1959,363 @@
           </section>
         {/if}
 
+
         {#if activeTab === "results" && role === "student"}
-          <section class="card-elevated p-6 space-y-3">
-            <h3 class="font-semibold text-lg">
-              {t(
-                "frontend/src/routes/assignments/[id]/+page.svelte::latest_results_heading",
-              )}
-            </h3>
+          <section class="card-elevated p-8 sm:p-10 bg-base-100 rounded-[2rem] border border-base-200">
+            <div class="flex items-center gap-4 mb-10">
+               <div class="p-4 bg-primary/10 rounded-[1.25rem] text-primary shadow-inner">
+                  <Activity size={24} />
+               </div>
+               <div>
+                  <h3 class="text-2xl font-black tracking-tight">{t("frontend/src/routes/assignments/[id]/+page.svelte::latest_results_heading")}</h3>
+                  {#if latestSub}
+                    <p class="text-[10px] font-black opacity-40 uppercase tracking-[0.2em]">{t("frontend/src/routes/assignments/[id]/+page.svelte::attempt_label")}{latestSub.attempt_number ?? "?"}</p>
+                  {/if}
+               </div>
+               {#if latestSub}
+                  <div class="ml-auto">
+                     <a
+                       class="btn bg-base-100 hover:bg-base-200 border-base-300 rounded-2xl px-6 h-12 font-black uppercase tracking-widest text-[11px] shadow-sm transform transition-all active:scale-95"
+                       href={`/submissions/${latestSub.id}?fromTab=${activeTab}`}
+                       on:click={saveState}
+                     >
+                       <Eye size={16} class="mr-2" />
+                       {t("frontend/src/routes/assignments/[id]/+page.svelte::submission_table_view_button")}
+                     </a>
+                  </div>
+               {/if}
+            </div>
+
             {#if latestSub}
-              <div class="flex items-center gap-2">
-                <span
-                  >{t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::submission_label",
-                  )}</span
-                >
-                <span class="text-xs opacity-70"
-                  >{t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::attempt_label",
-                  )}{latestSub.attempt_number ?? "?"}</span
-                >
-                <a
-                  class="link"
-                  href={`/submissions/${latestSub.id}?fromTab=${activeTab}`}
-                  on:click={saveState}>{formatDateTime(latestSub.created_at)}</a
-                >
-                <span class={`badge ${statusColor(latestSub.status)}`}
-                  >{latestSub.status}</span
-                >
-              </div>
-              <div class="overflow-x-auto mt-2">
-                <table class="table table-zebra">
+              <div class="overflow-x-auto -mx-2">
+                <table class="table w-full">
                   <thead>
-                    <tr
-                      ><th
-                        >{t(
-                          "frontend/src/routes/assignments/[id]/+page.svelte::results_table_header_num",
-                        )}</th
-                      ><th
-                        >{t(
-                          "frontend/src/routes/assignments/[id]/+page.svelte::results_table_header_status",
-                        )}</th
-                      ><th
-                        >{t(
-                          "frontend/src/routes/assignments/[id]/+page.svelte::results_table_header_runtime",
-                        )}</th
-                      ><th
-                        >{t(
-                          "frontend/src/routes/assignments/[id]/+page.svelte::results_table_header_exit",
-                        )}</th
-                      ><th
-                        >{t(
-                          "frontend/src/routes/assignments/[id]/+page.svelte::results_table_header_traceback",
-                        )}</th
-                      ></tr
-                    >
+                    <tr>
+                      <th class="pl-6">{t("frontend/src/routes/assignments/[id]/+page.svelte::results_table_header_num")}</th>
+                      <th>{t("frontend/src/routes/assignments/[id]/+page.svelte::results_table_header_status")}</th>
+                      <th>{t("frontend/src/routes/assignments/[id]/+page.svelte::results_table_header_runtime")}</th>
+                      <th>{t("frontend/src/routes/assignments/[id]/+page.svelte::results_table_header_exit")}</th>
+                      <th class="pr-6">{t("frontend/src/routes/assignments/[id]/+page.svelte::results_table_header_traceback")}</th>
+                    </tr>
                   </thead>
-                  <tbody>
+                  <tbody class="text-sm font-medium">
                     {#each results as r, i}
-                      <tr>
-                        <td>{i + 1}</td>
-                        <td
-                          ><span class={`badge ${statusColor(r.status)}`}
-                            >{r.status}</span
-                          ></td
-                        >
-                        <td>{r.runtime_ms}</td>
-                        <td>{r.exit_code}</td>
-                        <td
-                          ><pre
-                            class="whitespace-pre-wrap max-w-xs overflow-x-auto">{r.stderr}</pre></td
-                        >
+                      <tr class="hover:bg-base-200/50 transition-colors border-b border-base-200/50 last:border-none">
+                        <td class="pl-6 font-black tabular-nums">#{i + 1}</td>
+                        <td>
+                          <div class={`badge border-none font-black text-[10px] uppercase tracking-wider py-3 ${statusColor(r.status).replace('badge-', 'bg-')}/20 ${statusColor(r.status).replace('badge-', 'text-')}`}>
+                            {r.status}
+                          </div>
+                        </td>
+                        <td class="tabular-nums font-bold opacity-60">{r.runtime_ms}ms</td>
+                        <td>
+                           <span class={`badge font-mono text-[10px] font-black ${r.exit_code === 0 ? 'badge-ghost opacity-40' : 'badge-error'}`}>{r.exit_code}</span>
+                        </td>
+                        <td class="pr-6">
+                           {#if r.stderr}
+                             <div class="group relative">
+                                <pre class="max-w-md max-h-32 text-[11px] overflow-hidden group-hover:overflow-auto transition-all bg-base-200/50 p-3 rounded-xl border border-base-300/50 font-mono leading-relaxed">{r.stderr}</pre>
+                                <div class="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                   <button class="btn btn-circle btn-xs btn-ghost" on:click={() => {navigator.clipboard.writeText(r.stderr); alert(t("frontend/src/routes/assignments/[id]/tests/+page.svelte::copied"))}}>
+                                      <Search size={12} />
+                                   </button>
+                                </div>
+                             </div>
+                           {:else}
+                             <span class="opacity-20 font-black tracking-widest text-[10px]">EMPTY</span>
+                           {/if}
+                        </td>
                       </tr>
                     {/each}
                     {#if !results.length}
-                      <tr
-                        ><td colspan="5"
-                          ><i
-                            >{t(
-                              "frontend/src/routes/assignments/[id]/+page.svelte::no_results_yet_table",
-                            )}</i
-                          ></td
-                        ></tr
-                      >
+                      <tr>
+                        <td colspan="5" class="py-20 text-center">
+                           <div class="flex flex-col items-center gap-4 opacity-20">
+                              <FlaskConical size={48} strokeWidth={1} />
+                              <p class="font-black uppercase tracking-[0.2em] text-xs">{t("frontend/src/routes/assignments/[id]/+page.svelte::no_results_yet_table")}</p>
+                           </div>
+                        </td>
+                      </tr>
                     {/if}
                   </tbody>
                 </table>
               </div>
             {:else}
-              <div class="alert">
-                <span
-                  >{t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::no_submission_yet_alert",
-                  )}</span
-                >
+              <div class="bg-base-200/30 rounded-[2rem] p-20 flex flex-col items-center justify-center gap-6 border border-dashed border-base-300">
+                <div class="p-6 bg-base-100 rounded-full shadow-lg opacity-20 transform -rotate-12">
+                   <Send size={48} strokeWidth={1} />
+                </div>
+                <div class="text-center space-y-2">
+                   <h4 class="font-black text-xl opacity-40">{t("frontend/src/routes/assignments/[id]/+page.svelte::no_submission_yet_alert")}</h4>
+                   <button class="btn btn-primary btn-sm rounded-full px-8 font-black uppercase tracking-widest text-[10px]" on:click={openSubmitModal}>
+                      {t("frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_button")}
+                   </button>
+                </div>
               </div>
             {/if}
           </section>
         {/if}
 
         {#if activeTab === "instructor" && (role === "teacher" || role === "admin")}
-          <section class="space-y-4">
-            <div class="card-elevated p-6">
-              <div class="flex items-center justify-between">
-                <h3 class="font-semibold text-lg">
-                  {t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::student_progress_heading",
-                  )}
-                </h3>
-                <button class="btn btn-sm" on:click={openTestsModal}>
-                  {t("frontend/src/routes/assignments/[id]/+page.svelte::manage_tests_button")}
-                </button>
-              </div>
-              <div class="overflow-x-auto mt-3">
-                <table class="table table-zebra">
-                  <thead>
-                    <tr
-                      ><th
-                        >{t(
-                          "frontend/src/routes/assignments/[id]/+page.svelte::progress_table_header_student",
-                        )}</th
-                      ><th
-                        >{t(
-                          "frontend/src/routes/assignments/[id]/+page.svelte::progress_table_header_status",
-                        )}</th
-                      ><th
-                        >{t(
-                          "frontend/src/routes/assignments/[id]/+page.svelte::progress_table_header_deadline",
-                        )}</th
-                      ><th
-                        >{t(
-                          "frontend/src/routes/assignments/[id]/+page.svelte::progress_table_header_last_submission",
-                        )}</th
-                      ><th class="w-40"
-                        >{t(
-                          "frontend/src/routes/assignments/[id]/+page.svelte::progress_table_header_extension",
-                        )}</th
-                      ></tr
-                    >
-                  </thead>
-                  <tbody>
-                    {#each progress as p (p.student.id)}
-                      <tr
-                        class="cursor-pointer"
-                        on:click={() => toggleStudent(p.student.id)}
-                      >
-                        <td>{p.student.name ?? p.student.email}</td>
-                        <td
-                          ><span class={`badge ${statusColor(p.displayStatus)}`}
-                            >{p.displayStatus}</span
-                          ></td
-                        >
-                        <td>
-                          {#if p.latest}
-                            {#if p.latest.created_at > assignment.deadline}
-                              {#if assignment.second_deadline && p.latest.created_at <= assignment.second_deadline}
-                                <span
-                                  class="badge badge-warning flex-wrap whitespace-normal break-words text-center h-auto py-1 leading-tight"
-                                  >{t(
-                                    "frontend/src/routes/assignments/[id]/+page.svelte::submission_table_badge_second_deadline",
-                                    {
-                                      penalty: Math.round(
-                                        assignment.late_penalty_ratio * 100,
-                                      ),
-                                    },
-                                  )}</span
-                                >
-                              {:else}
-                                <span
-                                  class="badge badge-error flex-wrap whitespace-normal break-words text-center h-auto py-1 leading-tight"
-                                  >{t(
-                                    "frontend/src/routes/assignments/[id]/+page.svelte::submission_table_badge_late",
-                                  )}</span
-                                >
-                              {/if}
-                            {:else}
-                              <span
-                                class="badge badge-success flex-wrap whitespace-normal break-words text-center h-auto py-1 leading-tight"
-                                >{t(
-                                  "frontend/src/routes/assignments/[id]/+page.svelte::submission_table_badge_on_time",
-                                )}</span
-                              >
-                            {/if}
-                          {:else}
-                            <span
-                              class="badge badge-ghost flex-wrap whitespace-normal break-words text-center h-auto py-1 leading-tight"
-                              >{t(
-                                "frontend/src/routes/assignments/[id]/+page.svelte::progress_table_badge_no_submission",
-                              )}</span
-                            >
-                          {/if}
-                        </td>
-                        <td
-                          >{p.latest
-                            ? formatDateTime(p.latest.created_at)
-                            : "-"}</td
-                        >
-                        <td>
-                          {#if overrideMap[p.student.id]}
-                            <div class="flex items-center gap-2 flex-nowrap">
-                              <span
-                                class="badge badge-info badge-sm whitespace-nowrap"
-                                title={overrideMap[p.student.id].note || ""}
-                                >{t(
-                                  "frontend/src/routes/assignments/[id]/+page.svelte::progress_table_extension_until",
-                                )}
-                                {formatDateTime(
-                                  overrideMap[p.student.id].new_deadline,
-                                )}</span
-                              >
-                              <button
-                                class="btn btn-ghost btn-xs whitespace-nowrap"
-                                on:click|stopPropagation={() =>
-                                  openExtendDialog(p.student)}
-                                >{t(
-                                  "frontend/src/routes/assignments/[id]/+page.svelte::progress_table_extension_edit",
-                                )}</button
-                              >
+          <section class="space-y-6">
+            <div class="card-elevated p-8 sm:p-10 bg-base-100 rounded-[2rem] border border-base-200">
+               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-10">
+                  <div class="flex items-center gap-4">
+                     <div class="p-4 bg-secondary/10 rounded-[1.25rem] text-secondary shadow-inner">
+                        <Users size={24} />
+                     </div>
+                     <div>
+                        <h3 class="text-2xl font-black tracking-tight">{t("frontend/src/routes/assignments/[id]/+page.svelte::student_progress_heading")}</h3>
+                        <p class="text-[10px] font-black opacity-40 uppercase tracking-[0.2em]">{progress.length} {t("frontend/src/routes/assignments/[id]/+page.svelte::students_enrolled_label")}</p>
+                     </div>
+                  </div>
+                  <div class="flex items-center gap-3">
+                     <div class="join shadow-sm border border-base-300 rounded-2xl overflow-hidden bg-base-100">
+                        <div class="join-item flex items-center px-4 bg-base-200/50 border-r border-base-300">
+                           <Search size={14} class="opacity-40" />
+                        </div>
+                        <input type="text" placeholder={t("frontend/src/routes/assignments/[id]/+page.svelte::search_students_placeholder")} class="join-item input input-ghost input-sm focus:bg-base-100 transition-all font-medium py-5 px-4 w-48 sm:w-64" />
+                     </div>
+                  </div>
+               </div>
+
+               <div class="overflow-x-auto -mx-2">
+                 <table class="table w-full">
+                   <thead>
+                     <tr>
+                       <th class="pl-6">{t("frontend/src/routes/assignments/[id]/+page.svelte::progress_table_header_student")}</th>
+                       <th>{t("frontend/src/routes/assignments/[id]/+page.svelte::progress_table_header_status")}</th>
+                       <th>{t("frontend/src/routes/assignments/[id]/+page.svelte::progress_table_header_deadline")}</th>
+                       <th>{t("frontend/src/routes/assignments/[id]/+page.svelte::progress_table_header_latest")}</th>
+                       <th class="pr-6">{t("frontend/src/routes/assignments/[id]/+page.svelte::progress_table_header_extension")}</th>
+                     </tr>
+                   </thead>
+                   <tbody class="text-sm font-medium">
+                     {#each progress as p (p.student.id)}
+                       <tr
+                         class="hover:bg-base-200/50 transition-colors cursor-pointer group border-b border-base-200/50 last:border-none"
+                         on:click={() => toggleStudent(p.student.id)}
+                       >
+                         <td class="pl-6">
+                            <div class="flex items-center gap-3">
+                               <div class="avatar placeholder">
+                                  <div class="bg-base-300 text-base-content/40 rounded-xl w-10 font-black text-xs uppercase">
+                                     {p.student.name?.substring(0, 2) || p.student.email?.substring(0, 2)}
+                                  </div>
+                               </div>
+                               <div class="flex flex-col">
+                                  <span class="font-black text-base">{p.student.name ?? p.student.email}</span>
+                                  {#if p.student.name}
+                                    <span class="text-[10px] opacity-40 font-bold uppercase tracking-wider">{p.student.email}</span>
+                                  {/if}
+                               </div>
                             </div>
-                          {:else}
-                            <button
-                              class="btn btn-ghost btn-xs whitespace-nowrap"
-                              on:click|stopPropagation={() =>
-                                openExtendDialog(p.student)}
-                              >{t(
-                                "frontend/src/routes/assignments/[id]/+page.svelte::progress_table_extension_extend",
-                              )}</button
-                            >
-                          {/if}
-                        </td>
-                      </tr>
-                      {#if expanded === p.student.id}
-                        <tr>
-                          <td colspan="5">
-                            {#if p.all && p.all.length}
-                              <ul
-                                class="timeline timeline-vertical timeline-compact m-0 p-0"
-                              >
-                                {#each p.all as s, i}
-                                  <li>
-                                    {#if i !== 0}<hr />{/if}
-                                    <div class="timeline-middle">
-                                      {#if s.status === "completed" || s.status === "passed"}
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          viewBox="0 0 20 20"
-                                          fill="currentColor"
-                                          class="h-5 w-5 text-success"
-                                        >
-                                          <path
-                                            fill-rule="evenodd"
-                                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
-                                            clip-rule="evenodd"
-                                          />
-                                        </svg>
-                                      {:else}
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          viewBox="0 0 20 20"
-                                          fill="currentColor"
-                                          class="h-5 w-5 text-error"
-                                        >
-                                          <path
-                                            fill-rule="evenodd"
-                                            d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM8.28 7.22a.75.75 0 0 0-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 1 0 1.06 1.06L10 11.06l1.72 1.72a.75.75 0 1 0 1.06-1.06L11.06 10l1.72-1.72a.75.75 0 0 0-1.06-1.06L10 8.94 8.28 7.22Z"
-                                            clip-rule="evenodd"
-                                          />
-                                        </svg>
-                                      {/if}
-                                    </div>
-                                    <div
-                                      class="timeline-end timeline-box m-0 space-y-2"
-                                    >
-                                      <div
-                                        class="flex flex-wrap items-center gap-2"
-                                      >
-                                        <span class="mr-2 text-xs opacity-70"
-                                          >{t(
-                                            "frontend/src/routes/assignments/[id]/+page.svelte::timeline_attempt_label",
-                                            { num: s.attempt_number ?? "?" },
-                                          )}</span
-                                        >
-                                        <a
-                                          class="link"
-                                          href={`/submissions/${s.id}?fromTab=${activeTab}`}
-                                          on:click={saveState}
-                                          >{formatDateTime(s.created_at)}</a
-                                        >
-                                        {#if s.created_at > assignment.deadline}
-                                          {#if assignment.second_deadline && s.created_at <= assignment.second_deadline}
-                                            <span
-                                              class="badge badge-xs badge-warning"
-                                              title={t(
-                                                "frontend/src/routes/assignments/[id]/+page.svelte::timeline_second_deadline_title",
-                                              )}
-                                              >{t(
-                                                "frontend/src/routes/assignments/[id]/+page.svelte::timeline_second_deadline_short",
-                                                {
-                                                  penalty: Math.round(
-                                                    assignment.late_penalty_ratio *
-                                                      100,
-                                                  ),
-                                                },
-                                              )}</span
-                                            >
-                                          {:else}
-                                            <span
-                                              class="badge badge-xs badge-error"
-                                              title={t(
-                                                "frontend/src/routes/assignments/[id]/+page.svelte::timeline_late_title",
-                                              )}
-                                              >{t(
-                                                "frontend/src/routes/assignments/[id]/+page.svelte::late_label",
-                                              )}</span
-                                            >
-                                          {/if}
-                                        {/if}
-                                        {#if s.manually_accepted}
-                                          <span
-                                            class="badge badge-xs badge-outline badge-success"
-                                            title={t(
-                                              "frontend/src/routes/assignments/[id]/+page.svelte::timeline_accepted_by_teacher_title",
-                                            )}
-                                            >{t(
-                                              "frontend/src/routes/assignments/[id]/+page.svelte::accepted_label",
-                                            )}</span
-                                          >
-                                        {/if}
-                                      </div>
-                                      <div
-                                        class="flex flex-wrap items-center gap-2 text-xs"
-                                      >
-                                        {#if testsCount > 0}
-                                          <span
-                                            class="badge badge-ghost badge-xs"
-                                          >
-                                            {#if subStats[s.id]}
-                                              {subStats[s.id].passed} / {subStats[
-                                                s.id
-                                              ].total || testsCount}
-                                              {t(
-                                                "frontend/src/routes/assignments/[id]/+page.svelte::timeline_tests_label",
-                                              )}
-                                            {:else}
-                                              - / - {t(
-                                                "frontend/src/routes/assignments/[id]/+page.svelte::timeline_tests_label",
-                                              )}
-                                            {/if}
-                                          </span>
-                                        {/if}
-                                        <span
-                                          class="badge badge-outline badge-xs"
-                                          >{s.override_points ?? s.points ?? 0}
-                                          {t(
-                                            "frontend/src/routes/assignments/[id]/+page.svelte::timeline_points_label",
-                                          )}</span
-                                        >
-                                      </div>
-                                    </div>
-                                    {#if i !== p.all.length - 1}<hr />{/if}
-                                  </li>
-                                {/each}
-                              </ul>
+                         </td>
+                         <td>
+                           <div class={`badge border-none font-black text-[10px] uppercase tracking-wider py-3 ${statusColor(p.displayStatus).replace('badge-', 'bg-')}/20 ${statusColor(p.displayStatus).replace('badge-', 'text-')}`}>
+                             {p.displayStatus}
+                           </div>
+                         </td>
+                         <td>
+                           {#if p.latest}
+                             {#if p.latest.created_at > assignment.deadline}
+                               {#if assignment.second_deadline && p.latest.created_at <= assignment.second_deadline}
+                                 <div class="badge bg-warning/10 text-warning border-none font-black text-[10px] uppercase tracking-wider py-3">
+                                   {t("frontend/src/routes/assignments/[id]/+page.svelte::submission_table_badge_second_deadline", { penalty: Math.round(assignment.late_penalty_ratio * 100) })}
+                                 </div>
+                               {:else}
+                                 <div class="badge bg-error/10 text-error border-none font-black text-[10px] uppercase tracking-wider py-3">
+                                   {t("frontend/src/routes/assignments/[id]/+page.svelte::submission_table_badge_late")}
+                                 </div>
+                               {/if}
+                             {:else}
+                               <div class="badge bg-success/10 text-success border-none font-black text-[10px] uppercase tracking-wider py-3">
+                                 {t("frontend/src/routes/assignments/[id]/+page.svelte::submission_table_badge_on_time")}
+                               </div>
+                             {/if}
+                           {:else}
+                             <div class="badge bg-base-200 text-base-content/40 border-none font-black text-[10px] uppercase tracking-wider py-3">
+                               {t("frontend/src/routes/assignments/[id]/+page.svelte::progress_table_badge_no_submission")}
+                             </div>
+                           {/if}
+                         </td>
+                         <td>
+                            {#if p.latest}
+                               <div class="flex flex-col">
+                                  <span class="font-bold">{formatDateTime(p.latest.created_at)}</span>
+                                  <span class="text-[10px] opacity-40 font-bold uppercase tracking-wider">Attempt #{p.latest.attempt_number ?? "?"}</span>
+                               </div>
                             {:else}
-                              <i
-                                >{t(
-                                  "frontend/src/routes/assignments/[id]/+page.svelte::no_submissions_timeline",
-                                )}</i
-                              >
+                               <span class="opacity-20 font-black">—</span>
                             {/if}
-                          </td>
+                         </td>
+                         <td class="pr-6">
+                           {#if overrideMap[p.student.id]}
+                             <div class="flex items-center gap-2">
+                               <div class="badge bg-info/10 text-info border-none font-black text-[10px] uppercase tracking-wider py-3" title={overrideMap[p.student.id].note || ""}>
+                                 {t("frontend/src/routes/assignments/[id]/+page.svelte::progress_table_extension_until")} {formatDateTime(overrideMap[p.student.id].new_deadline)}
+                               </div>
+                               <button
+                                 class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                                 on:click|stopPropagation={() => openExtendDialog(p.student)}
+                               >
+                                 <Edit3 size={12} />
+                               </button>
+                             </div>
+                           {:else}
+                             <button
+                               class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 transition-opacity font-black uppercase tracking-widest text-[9px] text-primary"
+                               on:click|stopPropagation={() => openExtendDialog(p.student)}
+                             >
+                               {t("frontend/src/routes/assignments/[id]/+page.svelte::progress_table_extension_extend")}
+                             </button>
+                           {/if}
+                         </td>
+                       </tr>
+
+                       {#if expanded === p.student.id}
+                         <tr class="bg-base-200/20 border-b border-base-200/50">
+                           <td colspan="5" class="p-8">
+                             {#if p.all && p.all.length}
+                               <div class="space-y-4">
+                                  <h4 class="text-[10px] font-black uppercase tracking-[0.2em] opacity-40 mb-6">{t("frontend/src/routes/assignments/[id]/+page.svelte::submission_history_label")}</h4>
+                                  <div class="grid gap-3">
+                                    {#each p.all as s}
+                                      <div class="flex items-center gap-6 p-4 bg-base-100 rounded-2xl border border-base-200/60 shadow-sm hover:border-primary/20 transition-all">
+                                         <div class="w-10 h-10 rounded-xl flex items-center justify-center font-black tabular-nums bg-base-200 text-base-content/40">
+                                            #{s.attempt_number ?? "?"}
+                                         </div>
+                                         <div class="flex-1 flex items-center gap-8">
+                                            <div class="flex flex-col">
+                                               <span class="font-bold text-sm">{formatDateTime(s.created_at)}</span>
+                                               <span class="text-[10px] opacity-40 font-bold uppercase tracking-wider">{relativeToDeadline(s.created_at)}</span>
+                                            </div>
+                                            <div class={`badge border-none font-black text-[9px] uppercase tracking-wider ${statusColor(s.status).replace('badge-', 'bg-')}/15 ${statusColor(s.status).replace('badge-', 'text-')}`}>
+                                               {s.status}
+                                            </div>
+                                            {#if testsCount > 0}
+                                              <div class="flex items-center gap-3">
+                                                 <div class="w-12 bg-base-200 rounded-full h-1.5 overflow-hidden">
+                                                    <div class="bg-primary h-full rounded-full" style="width: {(s.tests_passed / (s.tests_total || testsCount)) * 100}%"></div>
+                                                 </div>
+                                                 <span class="font-black text-xs tabular-nums text-base-content/60">{s.tests_passed}/{s.tests_total || testsCount}</span>
+                                              </div>
+                                            {/if}
+                                         </div>
+                                         <a
+                                           class="btn btn-ghost btn-sm rounded-xl font-black text-[9px] uppercase tracking-widest text-primary"
+                                           href={`/submissions/${s.id}?fromTab=${activeTab}`}
+                                           on:click={saveState}
+                                         >
+                                            {t("frontend/src/routes/assignments/[id]/+page.svelte::submission_table_view_button")}
+                                            <ArrowRight size={14} class="ml-1" />
+                                         </a>
+                                      </div>
+                                    {/each}
+                                  </div>
+                               </div>
+                             {:else}
+                               <div class="py-10 text-center opacity-20">
+                                  <History size={32} class="mx-auto mb-3" />
+                                  <p class="font-black uppercase tracking-widest text-[10px]">{t("frontend/src/routes/assignments/[id]/+page.svelte::no_submissions_yet_table")}</p>
+                               </div>
+                             {/if}
+                           </td>
+                         </tr>
+                       {/if}
+                     {/each}
+                     {#if !progress.length}
+                        <tr>
+                           <td colspan="5" class="py-20 text-center">
+                              <div class="flex flex-col items-center gap-4 opacity-20">
+                                 <Users size={48} strokeWidth={1} />
+                                 <p class="font-black uppercase tracking-[0.2em] text-xs">{t("frontend/src/routes/assignments/[id]/+page.svelte::no_students_table")}</p>
+                              </div>
+                           </td>
                         </tr>
-                      {/if}
-                    {/each}
-                    {#if !progress.length}
-                      <tr
-                        ><td colspan="4"
-                          ><i
-                            >{t(
-                              "frontend/src/routes/assignments/[id]/+page.svelte::no_students_table",
-                            )}</i
-                          ></td
-                        ></tr
-                      >
-                    {/if}
-                  </tbody>
-                </table>
-              </div>
+                     {/if}
+                   </tbody>
+                 </table>
+               </div>
             </div>
           </section>
         {/if}
 
         {#if activeTab === "teacher-runs" && (role === "teacher" || role === "admin")}
-          <section class="card-elevated p-6 space-y-3">
-            <div class="flex items-center justify-between">
-              <h3 class="font-semibold text-lg">
-                {t(
-                  "frontend/src/routes/assignments/[id]/+page.svelte::your_runs_heading",
-                )}
-              </h3>
-              <button class="btn btn-sm" on:click={openTeacherRunModal}
-                >{t(
-                  "frontend/src/routes/assignments/[id]/+page.svelte::new_run_button",
-                )}</button
+          <section class="card-elevated p-8 sm:p-10 bg-base-100 rounded-[2rem] border border-base-200">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-10">
+              <div class="flex items-center gap-4">
+                 <div class="p-4 bg-secondary/10 rounded-[1.25rem] text-secondary shadow-inner">
+                    <FlaskConical size={24} />
+                 </div>
+                 <div>
+                    <h3 class="text-2xl font-black tracking-tight">{t("frontend/src/routes/assignments/[id]/+page.svelte::your_runs_heading")}</h3>
+                    <p class="text-[10px] font-black opacity-40 uppercase tracking-[0.2em]">{teacherRuns.length} {t("frontend/src/routes/assignments/[id]/+page.svelte::total_runs_label")}</p>
+                 </div>
+              </div>
+              <button
+                class="btn btn-primary rounded-2xl px-8 h-12 font-black uppercase tracking-widest text-[11px] shadow-lg shadow-primary/20"
+                on:click={openTeacherRunModal}
               >
+                <FlaskConical size={16} />
+                {t("frontend/src/routes/assignments/[id]/+page.svelte::new_run_button")}
+              </button>
             </div>
-            <div class="overflow-x-auto">
-              <table class="table table-zebra">
+
+            <div class="overflow-x-auto -mx-2">
+              <table class="table w-full">
                 <thead>
-                  <tr
-                    ><th
-                      >{t(
-                        "frontend/src/routes/assignments/[id]/+page.svelte::teacher_runs_table_header_date",
-                      )}</th
-                    ><th
-                      >{t(
-                        "frontend/src/routes/assignments/[id]/+page.svelte::teacher_runs_table_header_status",
-                      )}</th
-                    ><th
-                      >{t(
-                        "frontend/src/routes/assignments/[id]/+page.svelte::teacher_runs_table_header_first_failure",
-                      )}</th
-                    ><th></th></tr
-                  >
+                  <tr>
+                    <th class="pl-6">{t("frontend/src/routes/assignments/[id]/+page.svelte::teacher_runs_table_header_date")}</th>
+                    <th>{t("frontend/src/routes/assignments/[id]/+page.svelte::teacher_runs_table_header_status")}</th>
+                    <th>{t("frontend/src/routes/assignments/[id]/+page.svelte::teacher_runs_table_header_first_failure")}</th>
+                    <th class="pr-6"></th>
+                  </tr>
                 </thead>
-                <tbody>
+                <tbody class="text-sm font-medium">
                   {#each teacherRuns as s}
-                    <tr>
-                      <td>{formatDateTime(s.created_at)}</td>
-                      <td
-                        ><span class={`badge ${statusColor(s.status)}`}
-                          >{s.status}</span
-                        ></td
-                      >
-                      <td>{s.failure_reason ?? "-"}</td>
-                      <td
-                        ><a
-                          class="btn btn-sm btn-outline"
-                          href={`/submissions/${s.id}?fromTab=${activeTab}`}
-                          on:click={saveState}
-                          >{t(
-                            "frontend/src/routes/assignments/[id]/+page.svelte::submission_table_view_button",
-                          )}</a
-                        ></td
-                      >
+                    <tr class="hover:bg-base-200/50 transition-colors group border-b border-base-200/50 last:border-none">
+                      <td class="pl-6">
+                        <div class="flex flex-col">
+                           <span class="font-bold">{formatDateTime(s.created_at)}</span>
+                           <span class="text-[10px] opacity-40 font-bold uppercase tracking-wider">{relativeToDeadline(s.created_at)}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div class={`badge border-none font-black text-[10px] uppercase tracking-wider py-3 ${statusColor(s.status).replace('badge-', 'bg-')}/20 ${statusColor(s.status).replace('badge-', 'text-')}`}>
+                          {s.status}
+                        </div>
+                      </td>
+                      <td>
+                        {#if s.failure_reason}
+                           <div class="flex items-center gap-2 text-error">
+                              <AlertTriangle size={14} />
+                              <span class="font-bold text-xs truncate max-w-xs">{s.failure_reason}</span>
+                           </div>
+                        {:else}
+                           <span class="opacity-20 font-black tracking-widest text-[10px]">NONE</span>
+                        {/if}
+                      </td>
+                      <td class="pr-6 text-right">
+                         <a
+                           class="btn btn-ghost btn-circle btn-sm opacity-0 group-hover:opacity-100 transition-all hover:bg-primary hover:text-primary-content"
+                           href={`/submissions/${s.id}?fromTab=${activeTab}`}
+                           on:click={saveState}
+                         >
+                           <ArrowRight size={18} />
+                         </a>
+                      </td>
                     </tr>
                   {/each}
                   {#if !teacherRuns.length}
-                    <tr
-                      ><td colspan="4"
-                        ><i
-                          >{t(
-                            "frontend/src/routes/assignments/[id]/+page.svelte::no_runs_yet_table",
-                          )}</i
-                        ></td
-                      ></tr
-                    >
+                    <tr>
+                      <td colspan="4" class="py-24 text-center">
+                         <div class="flex flex-col items-center gap-4 opacity-20">
+                            <FlaskConical size={64} strokeWidth={1} />
+                            <p class="font-black uppercase tracking-[0.3em] text-xs">{t("frontend/src/routes/assignments/[id]/+page.svelte::no_runs_yet_table")}</p>
+                         </div>
+                      </td>
+                    </tr>
                   {/if}
                 </tbody>
               </table>
@@ -2675,24 +2550,24 @@
         )}
       </h3>
       <div class="form-control">
-        <label class="label"
+        <div class="label"
           ><span class="label-text"
             >{t(
               "frontend/src/routes/assignments/[id]/+page.svelte::extend_deadline_modal_student_label",
             )}</span
-          ></label
+          ></div
         >
         <div class="input input-bordered">
           {extStudent?.name ?? extStudent?.email}
         </div>
       </div>
       <div class="form-control">
-        <label class="label"
+        <div class="label"
           ><span class="label-text"
             >{t(
               "frontend/src/routes/assignments/[id]/+page.svelte::extend_deadline_modal_new_deadline_label",
             )}</span
-          ></label
+          ></div
         >
         <div class="flex items-center gap-2">
           <input
@@ -2721,12 +2596,12 @@
         </div>
       </div>
       <div class="form-control">
-        <label class="label"
+        <div class="label"
           ><span class="label-text"
             >{t(
               "frontend/src/routes/assignments/[id]/+page.svelte::extend_deadline_modal_note_label",
             )}</span
-          ></label
+          ></div
         >
         <input
           type="text"
@@ -2845,4 +2720,72 @@
 {/if}
 
 <style>
+  .card-elevated {
+    background-color: var(--fallback-b1,oklch(var(--b1)/1));
+    border-radius: 2rem;
+    border-width: 1px;
+    border-color: rgba(var(--fallback-b2,oklch(var(--b2)/1)), 0.6);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    transition-property: all;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 300ms;
+  }
+
+  .card-elevated:hover {
+    border-color: rgba(var(--fallback-p,oklch(var(--p)/1)), 0.2);
+    box-shadow: 0 20px 25px -5px rgba(var(--fallback-p,oklch(var(--p)/1)), 0.05);
+  }
+
+  .markdown :global(p) {
+    margin-bottom: 1rem;
+  }
+
+  .markdown :global(h1), .markdown :global(h2), .markdown :global(h3) {
+    font-weight: 900;
+    letter-spacing: -0.025em;
+    margin-bottom: 1rem;
+    margin-top: 1.5rem;
+    color: var(--fallback-bc,oklch(var(--bc)/0.9));
+  }
+
+  .markdown :global(ul) {
+    list-style-type: disc;
+    list-style-position: inside;
+    margin-bottom: 1rem;
+  }
+  
+  .markdown :global(ul > li) {
+    margin-top: 0.5rem;
+  }
+
+  .markdown :global(ol) {
+    list-style-type: decimal;
+    list-style-position: inside;
+    margin-bottom: 1rem;
+  }
+  
+  .markdown :global(ol > li) {
+    margin-top: 0.5rem;
+  }
+
+  .table thead th {
+    font-size: 0.625rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    opacity: 0.4;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  .table tbody td {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  /* Smooth scroll for the entire page */
+  :global(html) {
+    scroll-behavior: smooth;
+  }
 </style>
+

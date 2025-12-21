@@ -2936,7 +2936,7 @@ class MyTests(unittest.TestCase):
 {:else}
   <div class="mb-4 flex items-center justify-between">
     <div>
-      <h1 class="text-2xl font-semibold">
+      <h1 class="text-xl font-bold tracking-tight">
         {translate(
           "frontend/src/routes/assignments/[id]/tests/+page.svelte::manage_tests",
         )} — {assignment.title}
@@ -2970,7 +2970,7 @@ class MyTests(unittest.TestCase):
       )}</a
     >
   </div>
-  <div class="card-elevated p-6 space-y-6">
+  <div class="card-elevated p-4 sm:p-5 space-y-5">
     {#if assignment.llm_interactive}
       <div class="grid gap-4">
         <div class="space-y-3">
@@ -3065,21 +3065,21 @@ class MyTests(unittest.TestCase):
     {:else}
 
 
-      <div class="flex justify-end gap-2 mb-4">
+      <div class="flex justify-end gap-2 mb-3">
         <button
-          class="btn btn-outline"
+          class="btn btn-outline btn-sm min-h-0 h-9"
           on:click={() => document.getElementById("banned_tools_modal").showModal()}
         >
-          <Shield size={16} />
+          <Shield size={14} />
           {translate(
             "frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_tools_tab",
           )}
         </button>
         <button
-          class="btn btn-neutral"
+          class="btn btn-neutral btn-sm min-h-0 h-9"
           on:click={() => document.getElementById("existing_tests_modal").showModal()}
         >
-          <Eye size={16} />
+          <Eye size={14} />
           {translate(
             "frontend/src/routes/assignments/[id]/tests/+page.svelte::manage_existing_tests_button",
           )}
@@ -3087,24 +3087,23 @@ class MyTests(unittest.TestCase):
       </div>
 
       <dialog id="banned_tools_modal" class="modal">
-        <div class="modal-box w-11/12 max-w-4xl bg-base-200/50 backdrop-blur-xl border border-white/10 shadow-2xl p-0 overflow-hidden text-base-content">
+        <div class="modal-box w-11/12 max-w-2xl bg-base-200/50 backdrop-blur-xl border border-white/10 shadow-2xl p-0 overflow-hidden text-base-content">
           <!-- Premium Header -->
-          <div class="p-8 bg-gradient-to-br from-error/10 via-transparent to-transparent border-b border-white/5">
+          <div class="p-6 bg-gradient-to-br from-error/10 via-transparent to-transparent border-b border-white/5">
             <form method="dialog">
-              <button class="btn btn-sm btn-circle btn-ghost absolute right-4 top-4 z-10 transition-transform hover:rotate-90">✕</button>
+              <button class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3 z-10 transition-transform hover:rotate-90">✕</button>
             </form>
-            <div class="flex items-center gap-6">
-              <div class="w-16 h-16 rounded-2xl bg-error/20 text-error flex items-center justify-center shadow-lg shadow-error/10 border border-error/20">
-                <ShieldAlert size={32} />
+            <div class="flex items-center gap-5">
+              <div class="w-12 h-12 rounded-xl bg-error/20 text-error flex items-center justify-center shadow-lg shadow-error/10 border border-error/20">
+                <ShieldAlert size={24} />
               </div>
               <div>
-              <div>
-                <h4 class="text-2xl font-black tracking-tight">
+                <h4 class="text-xl font-black tracking-tight">
                   {translate(
                     "frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_tools_heading",
                   )}
                 </h4>
-                <p class="text-xs opacity-60 font-medium max-w-xl mt-0.5">
+                <p class="text-[10px] opacity-60 font-medium max-w-xl mt-0.5">
                   {translate(
                     "frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_tools_hint",
                   )}
@@ -3113,17 +3112,17 @@ class MyTests(unittest.TestCase):
             </div>
 
             <!-- Stylized Mode Switcher -->
-            <div class="flex bg-base-300/50 p-1 rounded-xl mt-4 w-fit border border-white/5">
+            <div class="flex bg-base-300/50 p-1 rounded-lg mt-3 w-fit border border-white/5">
               <button 
                 type="button"
-                class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 {toolMode === 'structured' ? 'bg-base-100 shadow-md scale-[1.02] text-primary' : 'hover:bg-base-100/30 opacity-60'}"
+                class="px-3 py-1 rounded-md text-[10px] font-bold transition-all duration-200 {toolMode === 'structured' ? 'bg-base-100 shadow-md scale-[1.02] text-primary' : 'hover:bg-base-100/30 opacity-60'}"
                 on:click={() => { toolMode = "structured"; bannedSaved = false; }}
               >
                 {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_mode_structured")}
               </button>
               <button 
                 type="button"
-                class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 {toolMode === 'advanced' ? 'bg-base-100 shadow-md scale-[1.02] text-primary' : 'hover:bg-base-100/30 opacity-60'}"
+                class="px-3 py-1 rounded-md text-[10px] font-bold transition-all duration-200 {toolMode === 'advanced' ? 'bg-base-100 shadow-md scale-[1.02] text-primary' : 'hover:bg-base-100/30 opacity-60'}"
                 on:click={() => { toolMode = "advanced"; bannedSaved = false; }}
               >
                 {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_mode_advanced")}
@@ -3131,7 +3130,7 @@ class MyTests(unittest.TestCase):
             </div>
           </div>
 
-          <div class="p-4 space-y-4 max-h-[65vh] overflow-y-auto custom-scrollbar">
+          <div class="p-3 space-y-3 max-h-[65vh] overflow-y-auto custom-scrollbar">
             {#if toolMode === "structured"}
               <!-- Add New Rule Section -->
               <div class="card bg-base-100/40 border border-base-300/30 shadow-sm p-4 space-y-4">
@@ -3291,29 +3290,29 @@ class MyTests(unittest.TestCase):
           </div>
 
           <!-- Premium Footer Section -->
-          <div class="p-8 bg-base-300/30 border-t border-white/5 flex items-center justify-between">
-            <div class="flex items-center gap-3">
+          <div class="p-6 bg-base-300/30 border-t border-white/5 flex items-center justify-between">
+            <div class="flex items-center gap-2">
               {#if bannedSaved}
-                <div class="flex items-center gap-2 text-success font-bold text-sm">
-                  <Check size={16} />
+                <div class="flex items-center gap-1.5 text-success font-bold text-xs">
+                  <Check size={14} />
                   {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_tools_saved")}
                 </div>
               {/if}
             </div>
 
-            <div class="flex items-center gap-4">
+            <div class="flex items-center gap-3">
               <form method="dialog">
-                <button class="btn btn-ghost font-bold px-6">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::close")}</button>
+                <button class="btn btn-ghost btn-sm font-bold px-4">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::close")}</button>
               </form>
               <button
-                class="btn btn-primary px-8 shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all font-black"
+                class="btn btn-primary btn-sm px-6 shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all font-black"
                 on:click={saveBannedTools}
                 disabled={bannedSaving}
               >
                 {#if bannedSaving}
-                  <span class="loading loading-spinner loading-sm"></span>
+                  <span class="loading loading-spinner loading-xs"></span>
                 {:else}
-                  <Save size={18} />
+                  <Save size={16} />
                 {/if}
                 {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::save_banned_tools")}
               </button>
@@ -3327,14 +3326,14 @@ class MyTests(unittest.TestCase):
 
 
       <dialog id="existing_tests_modal" class="modal">
-        <div class="modal-box w-11/12 max-w-5xl bg-base-200/50 backdrop-blur-xl border border-white/10 shadow-2xl p-0 overflow-hidden">
-          <div class="p-4 pb-0">
+        <div class="modal-box w-11/12 max-w-3xl bg-base-200/50 backdrop-blur-xl border border-white/10 shadow-2xl p-0 overflow-hidden">
+          <div class="p-3 pb-0">
             <form method="dialog">
-              <button class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3 z-10">✕</button>
+              <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 z-10">✕</button>
             </form>
-            <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center justify-between mb-2">
               <div>
-                <h3 class="font-bold text-xl tracking-tight">
+                <h3 class="font-bold text-base tracking-tight">
                   {translate(
                     "frontend/src/routes/assignments/[id]/tests/+page.svelte::existing_tests",
                   )}
@@ -3802,23 +3801,23 @@ class MyTests(unittest.TestCase):
         />
         <div
           role="tabpanel"
-          class="tab-content bg-base-100 border-base-300 rounded-box p-4"
+          class="tab-content bg-base-100 border-base-300 rounded-box p-3"
         >
           <div class="group relative bg-base-100 rounded-xl border border-base-300/50 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 border-l-secondary">
             <!-- Header -->
-            <div class="flex flex-wrap items-center justify-between p-3 bg-base-200/30 border-b border-base-200 gap-3">
-              <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center justify-between p-2.5 bg-base-200/30 border-b border-base-200 gap-2.5">
+              <div class="flex items-center gap-2.5">
                 <div class="flex flex-col">
-                  <span class="text-[9px] uppercase tracking-widest font-bold opacity-40 mb-0.5">New Test Case</span>
+                  <span class="text-[8px] uppercase tracking-widest font-black opacity-30 mb-0.5">New Test Case</span>
                   <div class="flex items-center gap-2">
-                    <div class="w-8 h-8 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center">
-                      <Code size={16} />
+                    <div class="w-7 h-7 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center">
+                      <Code size={14} />
                     </div>
                     <div>
-                      <h4 class="font-bold text-base leading-none">
+                      <h4 class="font-bold text-sm leading-none">
                         {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::add_io_test")}
                       </h4>
-                      <p class="text-[10px] opacity-50 font-medium mt-0.5">
+                      <p class="text-[9px] opacity-50 font-medium mt-0.5">
                         {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::io_expected_source_hint")}
                       </p>
                     </div>
@@ -4026,7 +4025,7 @@ class MyTests(unittest.TestCase):
         />
         <div
           role="tabpanel"
-          class="tab-content bg-base-100 border-base-300 rounded-box p-4 space-y-4"
+          class="tab-content bg-base-100 border-base-300 rounded-box p-3 space-y-3"
         >
           <div class="group relative bg-base-100 rounded-xl border border-base-300/50 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 border-l-primary">
             <!-- Header -->
@@ -4053,7 +4052,7 @@ class MyTests(unittest.TestCase):
               <div class="flex flex-wrap gap-1.5">
                 <button
                   type="button"
-                  class={`option-pill py-1 px-3 text-xs ${utOutputMode === "manual" ? "selected" : ""}`}
+                  class={`option-pill py-0.5 px-2 text-[10px] ${utOutputMode === "manual" ? "selected" : ""}`}
                   aria-pressed={utOutputMode === "manual"}
                   on:click={() => (utOutputMode = "manual")}
                 >
@@ -4100,23 +4099,23 @@ class MyTests(unittest.TestCase):
                 {/if}
 
                 <!-- Class Settings -->
-                <div class="grid sm:grid-cols-[1fr_auto] gap-3 items-end bg-base-200/30 p-3 rounded-xl border border-base-200">
+                <div class="grid sm:grid-cols-[1fr_auto] gap-3 items-end bg-base-200/30 p-2.5 rounded-xl border border-base-200">
                   <label class="form-control w-full space-y-1">
-                    <span class="text-[9px] uppercase font-black tracking-widest opacity-40 px-1">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::class_name")}</span>
+                    <span class="text-[8px] uppercase font-black tracking-widest opacity-40 px-1">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::class_name")}</span>
                     <input
-                      class="input input-bordered input-sm w-full font-bold"
+                      class="input input-bordered input-sm w-full font-bold h-8"
                       bind:value={utClassName}
                       placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_assignment_placeholder")}
                     />
                   </label>
                   <div class="flex gap-2">
-                    <button type="button" class="btn btn-outline btn-sm font-bold h-8 min-h-0 px-3" on:click={addUTTest}>
+                    <button type="button" class="btn btn-outline btn-sm font-bold h-8 min-h-0 px-3 text-[11px]" on:click={addUTTest}>
                       <Plus size={14} />
                       {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::add_test_method")}
                     </button>
                     <button
                       type="button"
-                      class="btn btn-ghost btn-sm h-8 min-h-0 font-bold px-3 border border-transparent hover:border-base-300"
+                      class="btn btn-ghost btn-sm h-8 min-h-0 font-bold px-3 border border-transparent hover:border-base-300 text-[11px]"
                       on:click={() => { utShowPreview = !utShowPreview; refreshPreview(); }}
                     >
                       <Eye size={14} />
@@ -4150,9 +4149,9 @@ class MyTests(unittest.TestCase):
                 </div>
 
                 <!-- Test Methods -->
-                <div class="grid gap-3 pt-2">
+                <div class="grid gap-2.5 pt-1.5">
                   {#each utTests as ut, ti}
-                    <div class="rounded-xl border border-base-300/50 bg-base-100/50 p-4 space-y-4 relative group/method hover:border-primary/30 transition-all shadow-sm">
+                    <div class="rounded-xl border border-base-300/50 bg-base-100/50 p-3 space-y-3 relative group/method hover:border-primary/30 transition-all shadow-sm">
                       <button
                         type="button"
                         class="btn btn-circle btn-ghost btn-xs absolute right-2 top-2 text-error/30 hover:text-error hover:bg-error/10 opacity-0 group-hover/method:opacity-100 transition-opacity"
@@ -4228,7 +4227,7 @@ class MyTests(unittest.TestCase):
                       </div>
 
                       <!-- Assertions -->
-                      <div class="space-y-3 bg-base-200/40 p-4 rounded-xl border border-base-200">
+                      <div class="space-y-2.5 bg-base-200/40 p-3 rounded-xl border border-base-200">
                          <div class="flex items-center justify-between">
                             <div class="flex items-center gap-1.5 font-bold text-[10px] uppercase tracking-wider opacity-60">
                                 <Shield size={12} class="text-primary" />
@@ -4848,7 +4847,7 @@ class MyTests(unittest.TestCase):
         />
         <div
           role="tabpanel"
-          class="tab-content bg-base-100 border-base-300 rounded-box p-4 space-y-4"
+          class="tab-content bg-base-100 border-base-300 rounded-box p-3 space-y-3"
         >
           <div class="group relative bg-base-100 rounded-xl border border-base-300/50 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 border-l-secondary">
             <!-- Premium Header -->
@@ -4898,15 +4897,15 @@ class MyTests(unittest.TestCase):
               </div>
             </div>
 
-            <div class="p-4 space-y-4">
-              <div class="grid gap-4 xl:grid-cols-[1fr_0.8fr]">
+            <div class="p-3 space-y-3">
+              <div class="grid gap-3 xl:grid-cols-[1fr_0.8fr]">
                 <!-- Left Column: Settings -->
-                <div class="space-y-4">
+                <div class="space-y-3">
                   <!-- Mode Selectors Card -->
-                  <div class="card bg-base-200/30 border border-base-300/40 p-4 space-y-4">
-                    <div class="grid gap-4 md:grid-cols-2">
+                  <div class="card bg-base-200/30 border border-base-300/40 p-3.5 space-y-3">
+                    <div class="grid gap-3 md:grid-cols-2">
                       <!-- Call Mode -->
-                      <div class="space-y-2">
+                      <div class="space-y-1.5">
                         <h5 class="text-[9px] font-black uppercase tracking-widest opacity-60 flex items-center gap-1.5">
                           <Terminal size={12} class="text-secondary" />
                           {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::call_mode")}
@@ -4914,14 +4913,14 @@ class MyTests(unittest.TestCase):
                         <div class="flex bg-base-300/50 p-1 rounded-lg w-full border border-white/5">
                           <button 
                             type="button"
-                            class="flex-1 py-1.5 rounded-md text-xs font-bold transition-all duration-200 {aiCallMode === 'stdin' ? 'bg-base-100 shadow-sm scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
+                            class="flex-1 py-1 rounded-md text-[10px] font-bold transition-all duration-200 {aiCallMode === 'stdin' ? 'bg-base-100 shadow-sm scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
                             on:click={() => (aiCallMode = "stdin")}
                           >
                             {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin_stdout_button")}
                           </button>
                           <button 
                             type="button"
-                            class="flex-1 py-1.5 rounded-md text-xs font-bold transition-all duration-200 {aiCallMode === 'function' ? 'bg-base-100 shadow-sm scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
+                            class="flex-1 py-1 rounded-md text-[10px] font-bold transition-all duration-200 {aiCallMode === 'function' ? 'bg-base-100 shadow-sm scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
                             on:click={() => (aiCallMode = "function")}
                           >
                             {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::function_return_button")}
@@ -4930,7 +4929,7 @@ class MyTests(unittest.TestCase):
                       </div>
 
                       <!-- Difficulty -->
-                      <div class="space-y-2">
+                      <div class="space-y-1.5">
                         <h5 class="text-[9px] font-black uppercase tracking-widest opacity-60 flex items-center gap-1.5">
                           <Scale size={12} class="text-secondary" />
                           {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::task_difficulty")}
@@ -4938,14 +4937,14 @@ class MyTests(unittest.TestCase):
                         <div class="flex bg-base-300/50 p-1 rounded-lg w-full border border-white/5">
                           <button 
                             type="button"
-                            class="flex-1 py-1.5 rounded-md text-xs font-bold transition-all duration-200 {aiDifficulty === 'simple' ? 'bg-base-100 shadow-sm scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
+                            class="flex-1 py-1 rounded-md text-[10px] font-bold transition-all duration-200 {aiDifficulty === 'simple' ? 'bg-base-100 shadow-sm scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
                             on:click={() => (aiDifficulty = "simple")}
                           >
                             {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::simple_task_button")}
                           </button>
                           <button 
                             type="button"
-                            class="flex-1 py-1.5 rounded-md text-xs font-bold transition-all duration-200 {aiDifficulty === 'hard' ? 'bg-base-100 shadow-sm scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
+                            class="flex-1 py-1 rounded-md text-[10px] font-bold transition-all duration-200 {aiDifficulty === 'hard' ? 'bg-base-100 shadow-sm scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
                             on:click={() => (aiDifficulty = "hard")}
                           >
                             {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::hard_task_button")}
@@ -4955,7 +4954,7 @@ class MyTests(unittest.TestCase):
                     </div>
 
                     <!-- Test Count Mode -->
-                    <div class="space-y-3 pt-3 border-t border-base-300/50">
+                    <div class="space-y-2.5 pt-2.5 border-t border-base-300/50">
                       <h5 class="text-[9px] font-black uppercase tracking-widest opacity-60 flex items-center gap-1.5">
                         <Cpu size={12} class="text-secondary" />
                         {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_count_mode")}
@@ -4964,14 +4963,14 @@ class MyTests(unittest.TestCase):
                         <div class="flex bg-base-300/50 p-1 rounded-lg w-fit border border-white/5">
                           <button 
                             type="button"
-                            class="px-4 py-1.5 rounded-md text-xs font-bold transition-all duration-200 {aiAuto ? 'bg-base-100 shadow-sm scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
+                            class="px-3 py-1 rounded-md text-[10px] font-bold transition-all duration-200 {aiAuto ? 'bg-base-100 shadow-sm scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
                             on:click={() => (aiAuto = true)}
                           >
                             {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::auto")}
                           </button>
                           <button 
                             type="button"
-                            class="px-4 py-1.5 rounded-md text-xs font-bold transition-all duration-200 {!aiAuto ? 'bg-base-100 shadow-sm scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
+                            class="px-3 py-1 rounded-md text-[10px] font-bold transition-all duration-200 {!aiAuto ? 'bg-base-100 shadow-sm scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
                             on:click={() => (aiAuto = false)}
                           >
                             {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::manual")}
@@ -4980,15 +4979,15 @@ class MyTests(unittest.TestCase):
 
                         {#if !aiAuto}
                           <div class="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-300">
-                            <ArrowRight size={12} class="opacity-40" />
+                            <ArrowRight size={10} class="opacity-40" />
                             <input
                               type="number"
                               min="1"
                               max="50"
-                              class="input input-bordered input-sm w-20 font-bold text-center bg-base-100"
+                              class="input input-bordered input-xs w-16 font-bold text-center bg-base-100 h-8"
                               bind:value={aiNumTests}
                             />
-                            <span class="text-[10px] font-bold opacity-40 uppercase tracking-widest">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_plural")}</span>
+                            <span class="text-[9px] font-bold opacity-40 uppercase tracking-widest">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_plural")}</span>
                           </div>
                         {/if}
                       </div>
@@ -4996,7 +4995,7 @@ class MyTests(unittest.TestCase):
                   </div>
 
                   <!-- Instructions Card -->
-                  <div class="card bg-base-100 border border-base-300/50 shadow-sm p-4 space-y-3">
+                  <div class="card bg-base-100 border border-base-300/50 shadow-sm p-3.5 space-y-2.5">
                     <h5 class="text-[9px] font-black uppercase tracking-widest opacity-60 flex items-center gap-1.5">
                       <Code size={12} class="text-secondary" />
                       {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::additional_instructions_optional")}
@@ -5014,24 +5013,24 @@ class MyTests(unittest.TestCase):
                 </div>
 
                 <!-- Right Column: Teacher Solution -->
-                <div class="space-y-4">
-                  <div class="card bg-secondary/5 border border-dashed border-secondary/30 p-4 space-y-3 flex flex-col items-center text-center">
-                    <div class="w-10 h-10 rounded-full bg-secondary/10 text-secondary flex items-center justify-center shadow-inner">
-                      <FileCode2 size={16} />
+                <div class="space-y-3">
+                  <div class="card bg-secondary/5 border border-dashed border-secondary/30 p-3.5 space-y-2.5 flex flex-col items-center text-center">
+                    <div class="w-8 h-8 rounded-full bg-secondary/10 text-secondary flex items-center justify-center shadow-inner">
+                      <FileCode2 size={14} />
                     </div>
                     <div class="space-y-0.5">
-                      <h4 class="font-bold text-sm">
+                      <h4 class="font-bold text-xs">
                         {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_label")}
                       </h4>
-                      <p class="text-[9px] opacity-60 leading-relaxed max-w-xs mx-auto">
+                      <p class="text-[8px] opacity-60 leading-relaxed max-w-[200px] mx-auto">
                         {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_hint")}
                       </p>
                     </div>
 
                     <label class="w-full cursor-pointer group/file">
-                      <div class="flex flex-col items-center justify-center p-2.5 border-2 border-dashed border-secondary/20 rounded-xl bg-base-100/50 group-hover/file:border-secondary/50 group-hover/file:bg-secondary/5 transition-all duration-300">
-                        <UploadIcon size={16} class="mb-1 text-secondary/40 group-hover/file:text-secondary group-hover/file:scale-110 transition-all" />
-                        <span class="text-[10px] font-bold opacity-60">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_teacher_solution")}</span>
+                      <div class="flex flex-col items-center justify-center p-2 border-2 border-dashed border-secondary/20 rounded-lg bg-base-100/50 group-hover/file:border-secondary/50 group-hover/file:bg-secondary/5 transition-all duration-300">
+                        <UploadIcon size={14} class="mb-1 text-secondary/40 group-hover/file:text-secondary group-hover/file:scale-110 transition-all" />
+                        <span class="text-[9px] font-bold opacity-60">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_teacher_solution")}</span>
                         <input
                           id="ai-solution-upload"
                           type="file"
@@ -5043,20 +5042,20 @@ class MyTests(unittest.TestCase):
                     </label>
 
                     {#if aiSolutionError}
-                      <div class="badge badge-error gap-1.5 py-2 text-[10px]">{aiSolutionError}</div>
+                      <div class="badge badge-error gap-1 py-1.5 text-[9px] h-auto">{aiSolutionError}</div>
                     {/if}
 
                     {#if aiSolutionText.trim().length}
-                      <div class="w-full space-y-3 animate-in fade-in slide-in-from-top-4 duration-500">
+                      <div class="w-full space-y-2 animate-in fade-in slide-in-from-top-4 duration-500">
                         <div class="flex items-center justify-between px-1">
-                          <div class="flex items-center gap-1.5 text-[10px] font-bold text-secondary">
-                             <Check size={12} />
+                          <div class="flex items-center gap-1.5 text-[9px] font-bold text-secondary">
+                             <Check size={10} />
                              {aiSolutionFile?.name || translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_manual")}
-                             <span class="opacity-40 text-[9px] ml-1.5 font-mono">{aiSolutionText.length}B</span>
+                             <span class="opacity-40 text-[8px] ml-1.5 font-mono">{aiSolutionText.length}B</span>
                           </div>
                           <button
                             type="button"
-                            class="btn btn-ghost btn-xs text-error hover:bg-error/10 h-5 px-1 font-bold text-[10px]"
+                            class="btn btn-ghost btn-xs text-error hover:bg-error/10 h-5 px-1 font-bold text-[9px]"
                             on:click={resetAISolutionInput}
                           >
                              {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_clear")}
@@ -5121,28 +5120,28 @@ class MyTests(unittest.TestCase):
               </div>
 
               <!-- Action Bar -->
-              <div class="flex flex-col gap-3 border-t border-base-300/50 pt-4 mt-2">
-                <div class="flex flex-col sm:flex-row gap-3">
+              <div class="flex flex-col gap-2.5 border-t border-base-300/50 pt-3.5 mt-1.5">
+                <div class="flex flex-col sm:flex-row gap-2.5">
                   <button
-                    class="btn btn-secondary flex-1 h-10 text-base font-black shadow-xl shadow-secondary/20 hover:scale-[1.02] transition-all group"
+                    class="btn btn-secondary flex-1 h-9 text-xs font-black shadow-xl shadow-secondary/20 hover:scale-[1.02] transition-all group"
                     on:click={generateWithAI}
                     disabled={aiGenerating}
                   >
                     {#if aiGenerating}
-                      <RotateCw size={16} class="animate-spin" />
+                      <RotateCw size={14} class="animate-spin" />
                       {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::generating")}
                     {:else}
-                      <Wand2 size={16} class="group-hover:rotate-12 transition-transform" />
+                      <Wand2 size={14} class="group-hover:rotate-12 transition-transform" />
                       {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::generate_with_ai")}
                     {/if}
                   </button>
                   
                   <button
-                    class="btn btn-outline btn-sm flex-1 h-10 text-base font-black hover:bg-primary hover:text-primary-content border-2 hover:border-primary transition-all duration-300"
+                    class="btn btn-outline btn-sm flex-1 h-9 text-xs font-black hover:bg-primary hover:text-primary-content border-2 hover:border-primary transition-all duration-300"
                     on:click={uploadAIUnitTestsCode}
                     disabled={builderMode !== "unittest" || !aiCode}
                   >
-                    <Save size={16} />
+                    <Save size={14} />
                     {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::save_as_tests")}
                   </button>
                 </div>
