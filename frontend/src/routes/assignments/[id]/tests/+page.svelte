@@ -3049,7 +3049,16 @@
         </div>
       </div>
 
-      <div class="flex justify-end mb-4">
+      <div class="flex justify-end gap-2 mb-4">
+        <button
+          class="btn btn-outline"
+          on:click={() => document.getElementById("banned_tools_modal").showModal()}
+        >
+          <Shield size={16} />
+          {translate(
+            "frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_tools_tab",
+          )}
+        </button>
         <button
           class="btn btn-neutral"
           on:click={() => document.getElementById("existing_tests_modal").showModal()}
@@ -3060,6 +3069,245 @@
           )}
         </button>
       </div>
+
+      <dialog id="banned_tools_modal" class="modal">
+        <div class="modal-box w-11/12 max-w-4xl bg-base-200/50 backdrop-blur-xl border border-white/10 shadow-2xl p-0 overflow-hidden text-base-content">
+          <!-- Premium Header -->
+          <div class="p-8 bg-gradient-to-br from-error/10 via-transparent to-transparent border-b border-white/5">
+            <form method="dialog">
+              <button class="btn btn-sm btn-circle btn-ghost absolute right-4 top-4 z-10 transition-transform hover:rotate-90">✕</button>
+            </form>
+            <div class="flex items-center gap-6">
+              <div class="w-16 h-16 rounded-2xl bg-error/20 text-error flex items-center justify-center shadow-lg shadow-error/10 border border-error/20">
+                <ShieldAlert size={32} />
+              </div>
+              <div>
+                <h4 class="text-3xl font-black tracking-tight">
+                  {translate(
+                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_tools_heading",
+                  )}
+                </h4>
+                <p class="text-sm opacity-60 font-medium max-w-xl mt-1">
+                  {translate(
+                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_tools_hint",
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <!-- Stylized Mode Switcher -->
+            <div class="flex bg-base-300/50 p-1 rounded-xl mt-8 w-fit border border-white/5">
+              <button 
+                type="button"
+                class="px-6 py-2 rounded-lg text-sm font-bold transition-all duration-200 {toolMode === 'structured' ? 'bg-base-100 shadow-md scale-[1.02] text-primary' : 'hover:bg-base-100/30 opacity-60'}"
+                on:click={() => { toolMode = "structured"; bannedSaved = false; }}
+              >
+                {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_mode_structured")}
+              </button>
+              <button 
+                type="button"
+                class="px-6 py-2 rounded-lg text-sm font-bold transition-all duration-200 {toolMode === 'advanced' ? 'bg-base-100 shadow-md scale-[1.02] text-primary' : 'hover:bg-base-100/30 opacity-60'}"
+                on:click={() => { toolMode = "advanced"; bannedSaved = false; }}
+              >
+                {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_mode_advanced")}
+              </button>
+            </div>
+          </div>
+
+          <div class="p-8 space-y-8 max-h-[60vh] overflow-y-auto custom-scrollbar">
+            {#if toolMode === "structured"}
+              <!-- Add New Rule Section -->
+              <div class="card bg-base-100/40 border border-base-300/30 shadow-sm p-6 space-y-6">
+                <h5 class="text-sm font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
+                  <Plus size={16} class="text-primary" />
+                  {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::add_rule")}
+                </h5>
+
+                <div class="grid gap-6 md:grid-cols-2">
+                  <label class="form-control w-full group">
+                    <span class="label-text font-bold text-xs uppercase opacity-40 mb-2 transition-opacity group-focus-within:opacity-100">
+                      {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_library_label")}
+                    </span>
+                    <select
+                      class="select select-bordered w-full bg-base-200/50 focus:bg-base-100 border-base-300/50 transition-all font-medium"
+                      bind:value={draftLibrary}
+                      on:change={() => (bannedSaved = false)}
+                    >
+                      {#each bannedCatalog as entry}
+                        <option value={entry.library}>{entry.label}</option>
+                      {/each}
+                    </select>
+                  </label>
+
+                  <label class="form-control w-full group">
+                    <span class="label-text font-bold text-xs uppercase opacity-40 mb-2 transition-opacity group-focus-within:opacity-100">
+                      {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_function_label")}
+                    </span>
+                    <div class="flex gap-2">
+                      <div class="relative flex-1">
+                        <input
+                          class="input input-bordered w-full bg-base-200/50 focus:bg-base-100 border-base-300/50 transition-all font-mono"
+                          list="banned-function-options"
+                          bind:value={draftFunction}
+                          placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_function_placeholder")}
+                          on:input={() => (bannedSaved = false)}
+                        />
+                        <datalist id="banned-function-options">
+                          {#each functionOptions as fn}
+                            <option value={fn.name}>{fn.label ?? fn.name}</option>
+                          {/each}
+                        </datalist>
+                      </div>
+                      <button
+                        type="button"
+                        class="btn btn-outline border-base-300/50 hover:border-primary/50 transition-colors font-bold"
+                        on:click={() => {
+                          draftFunction = "*";
+                          bannedSaved = false;
+                        }}
+                      >
+                        {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_any_button")}
+                      </button>
+                    </div>
+                  </label>
+
+                  <label class="form-control md:col-span-2 group">
+                    <span class="label-text font-bold text-xs uppercase opacity-40 mb-2 transition-opacity group-focus-within:opacity-100">
+                      {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_note_label")}
+                    </span>
+                    <input
+                      class="input input-bordered w-full bg-base-200/50 focus:bg-base-100 border-base-300/50 transition-all"
+                      bind:value={draftNote}
+                      placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_note_placeholder")}
+                      on:input={() => (bannedSaved = false)}
+                    />
+                  </label>
+
+                  <div class="md:col-span-2 flex justify-end">
+                    <button
+                      type="button"
+                      class="btn btn-primary px-8 shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all font-bold"
+                      on:click={addStructuredRule}
+                    >
+                      <Plus size={18} />
+                      {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_add_button")}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Configured Rules List -->
+              <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                  <h5 class="text-sm font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
+                    <Shield size={16} class="text-error" />
+                    {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_rules_heading")}
+                  </h5>
+                </div>
+
+                {#if structuredRules.length}
+                  <div class="grid gap-3">
+                    {#each structuredRules as rule, idx}
+                      <div class="flex items-center gap-4 p-4 rounded-xl bg-base-100 border border-base-300/40 hover:border-error/30 transition-all group/rule">
+                        <div class="w-12 h-12 rounded-lg bg-base-300/30 flex items-center justify-center font-mono text-xs font-black opacity-40 group-hover/rule:bg-error/10 group-hover/rule:text-error group-hover/rule:opacity-100 transition-all">
+                          {rule.library.slice(0, 2).toUpperCase()}
+                        </div>
+                        
+                        <div class="flex-1 min-w-0">
+                          <div class="flex items-center gap-2 mb-1">
+                            <span class="font-bold text-sm tracking-tight">{libraryLabel(rule.library)}</span>
+                            <span class="text-xs opacity-30">/</span>
+                            <code class="text-xs px-2 py-0.5 rounded bg-base-300/50 font-bold text-error">
+                              {rule.function === "*" ? "*" : rule.function}()
+                            </code>
+                          </div>
+                          
+                          <input
+                            class="w-full bg-transparent border-none text-sm opacity-60 focus:opacity-100 focus:outline-none placeholder:italic"
+                            value={rule.note}
+                            on:input={(event) => updateStructuredNote(idx, (event.target as HTMLInputElement).value)}
+                            placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_note_placeholder")}
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-ghost hover:bg-error/10 hover:text-error transition-all opacity-20 group-hover/rule:opacity-100"
+                          on:click={() => removeStructuredRule(idx)}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    {/each}
+                  </div>
+                {:else}
+                  <div class="flex flex-col items-center justify-center py-12 px-6 rounded-2xl border-2 border-dashed border-base-300/50 bg-base-200/20 text-center space-y-4">
+                    <p class="text-sm opacity-50 font-medium">
+                      {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_empty_state")}
+                    </p>
+                  </div>
+                {/if}
+              </div>
+            {:else}
+              <!-- Advanced Mode -->
+              <div class="space-y-4">
+                <div class="alert bg-info/10 border-info/20 text-info p-4 rounded-xl flex gap-4">
+                  <ShieldAlert size={20} />
+                  <p class="text-xs font-medium leading-relaxed">
+                    {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::advanced_tip")}
+                  </p>
+                </div>
+                
+                <label class="form-control w-full group">
+                  <span class="label-text font-bold text-xs uppercase opacity-40 mb-3 transition-opacity group-focus-within:opacity-100">
+                    {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::advanced_label")}
+                  </span>
+                  <textarea
+                    class="textarea textarea-bordered w-full h-64 bg-base-200/50 focus:bg-base-100 border-base-300/50 transition-all font-mono text-sm p-6"
+                    bind:value={advancedPatternsText}
+                    placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::advanced_placeholder")}
+                    on:input={() => (bannedSaved = false)}
+                  ></textarea>
+                </label>
+              </div>
+            {/if}
+          </div>
+
+          <!-- Premium Footer Section -->
+          <div class="p-8 bg-base-300/30 border-t border-white/5 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              {#if bannedSaved}
+                <div class="flex items-center gap-2 text-success font-bold text-sm">
+                  <Check size={16} />
+                  {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_tools_saved")}
+                </div>
+              {/if}
+            </div>
+
+            <div class="flex items-center gap-4">
+              <form method="dialog">
+                <button class="btn btn-ghost font-bold px-6">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::close")}</button>
+              </form>
+              <button
+                class="btn btn-primary px-8 shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all font-black"
+                on:click={saveBannedTools}
+                disabled={bannedSaving}
+              >
+                {#if bannedSaving}
+                  <span class="loading loading-spinner loading-sm"></span>
+                {:else}
+                  <Save size={18} />
+                {/if}
+                {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::save_banned_tools")}
+              </button>
+            </div>
+          </div>
+        </div>
+        <form method="dialog" class="modal-backdrop backdrop-blur-sm bg-base-900/40">
+          <button>close</button>
+        </form>
+      </dialog>
+
 
       <dialog id="existing_tests_modal" class="modal">
         <div class="modal-box w-11/12 max-w-5xl bg-base-200/50 backdrop-blur-xl border border-white/10 shadow-2xl p-0 overflow-hidden">
@@ -3523,271 +3771,7 @@
         </form>
       </dialog>
 
-      <!-- Tabs -->
       <div role="tablist" class="tabs tabs-lifted">
-        <input
-          type="radio"
-          name="tests-tab"
-          role="tab"
-          class="tab"
-          aria-label={translate(
-            "frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_tools_tab",
-          )}
-        />
-        <div
-          role="tabpanel"
-          class="tab-content bg-base-100 border-base-300 rounded-box p-4 space-y-4"
-        >
-          <div class="space-y-2">
-            <h4 class="text-lg font-semibold flex items-center gap-2">
-              <Shield size={18} />
-              {translate(
-                "frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_tools_heading",
-              )}
-            </h4>
-            <p class="text-sm opacity-70">
-              {translate(
-                "frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_tools_hint",
-              )}
-            </p>
-          </div>
-          <div class="flex flex-wrap gap-4">
-            <label class="label cursor-pointer gap-2">
-              <input
-                type="radio"
-                class="radio"
-                value="structured"
-                bind:group={toolMode}
-                on:change={() => (bannedSaved = false)}
-              />
-              <span class="label-text"
-                >{translate(
-                  "frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_mode_structured",
-                )}</span
-              >
-            </label>
-            <label class="label cursor-pointer gap-2">
-              <input
-                type="radio"
-                class="radio"
-                value="advanced"
-                bind:group={toolMode}
-                on:change={() => (bannedSaved = false)}
-              />
-              <span class="label-text"
-                >{translate(
-                  "frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_mode_advanced",
-                )}</span
-              >
-            </label>
-          </div>
-
-          {#if toolMode === "structured"}
-            <div class="space-y-4">
-              <div class="grid gap-4 md:grid-cols-2">
-                <label class="form-control w-full">
-                  <span class="label-text"
-                    >{translate(
-                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_library_label",
-                    )}</span
-                  >
-                  <select
-                    class="select select-bordered w-full"
-                    bind:value={draftLibrary}
-                    on:change={() => (bannedSaved = false)}
-                  >
-                    {#each bannedCatalog as entry}
-                      <option value={entry.library}>{entry.label}</option>
-                    {/each}
-                  </select>
-                </label>
-                <label class="form-control w-full">
-                  <span class="label-text"
-                    >{translate(
-                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_function_label",
-                    )}</span
-                  >
-                  <div class="flex gap-2">
-                    <input
-                      class="input input-bordered flex-1"
-                      list="banned-function-options"
-                      bind:value={draftFunction}
-                      placeholder={translate(
-                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_function_placeholder",
-                      )}
-                      on:input={() => (bannedSaved = false)}
-                    />
-                    <datalist id="banned-function-options">
-                      {#each functionOptions as fn}
-                        <option value={fn.name}>{fn.label ?? fn.name}</option>
-                      {/each}
-                    </datalist>
-                    <button
-                      type="button"
-                      class="btn btn-outline"
-                      on:click={() => {
-                        draftFunction = "*";
-                        bannedSaved = false;
-                      }}
-                      >{translate(
-                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_any_button",
-                      )}</button
-                    >
-                  </div>
-                  <span class="label-text-alt text-xs"
-                    >{translate(
-                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_function_hint",
-                    )}</span
-                  >
-                </label>
-                <label class="form-control md:col-span-2">
-                  <span class="label-text"
-                    >{translate(
-                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_note_label",
-                    )}</span
-                  >
-                  <input
-                    class="input input-bordered w-full"
-                    bind:value={draftNote}
-                    placeholder={translate(
-                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_note_placeholder",
-                    )}
-                    on:input={() => (bannedSaved = false)}
-                  />
-                  <span class="label-text-alt text-xs"
-                    >{translate(
-                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_note_hint",
-                    )}</span
-                  >
-                </label>
-                <div class="md:col-span-2 flex justify-end">
-                  <button
-                    type="button"
-                    class="btn"
-                    on:click={addStructuredRule}
-                  >
-                    <Plus size={16} />
-                    {translate(
-                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_add_button",
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {#if structuredRules.length}
-                <div class="space-y-2">
-                  <h5 class="font-semibold">
-                    {translate(
-                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_rules_heading",
-                    )}
-                  </h5>
-                  <p class="text-xs opacity-70">
-                    {translate(
-                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_rules_hint",
-                    )}
-                  </p>
-                  <div class="space-y-2">
-                    {#each structuredRules as rule, idx}
-                      <div
-                        class="rounded-lg border border-base-300/60 p-3 space-y-2 md:space-y-0 md:flex md:items-center md:gap-3"
-                      >
-                        <div class="font-mono text-sm md:w-48">
-                          {structuredRuleDisplay(rule)}
-                        </div>
-                        <div class="flex-1 w-full">
-                          <label class="form-control w-full">
-                            <span class="label-text text-xs"
-                              >{translate(
-                                "frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_rule_note_label",
-                              )}</span
-                            >
-                            <input
-                              class="input input-bordered w-full"
-                              value={rule.note}
-                              on:input={(event) =>
-                                updateStructuredNote(
-                                  idx,
-                                  (event.target as HTMLInputElement).value,
-                                )}
-                              placeholder={translate(
-                                "frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_note_placeholder",
-                              )}
-                            />
-                          </label>
-                        </div>
-                        <button
-                          type="button"
-                          class="btn btn-ghost btn-sm"
-                          on:click={() => removeStructuredRule(idx)}
-                        >
-                          <Trash2 size={14} />
-                          {translate(
-                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_remove_button",
-                          )}
-                        </button>
-                      </div>
-                    {/each}
-                  </div>
-                </div>
-              {:else}
-                <p class="text-sm opacity-70">
-                  {translate(
-                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_empty_state",
-                  )}
-                </p>
-              {/if}
-            </div>
-          {:else}
-            <div class="space-y-2">
-              <label class="form-control w-full">
-                <span class="label-text"
-                  >{translate(
-                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::advanced_label",
-                  )}</span
-                >
-                <textarea
-                  class="textarea textarea-bordered h-48"
-                  bind:value={advancedPatternsText}
-                  placeholder={translate(
-                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::advanced_placeholder",
-                  )}
-                  on:input={() => (bannedSaved = false)}
-                ></textarea>
-                <span class="label-text-alt text-xs"
-                  >{translate(
-                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::advanced_tip",
-                  )}</span
-                >
-              </label>
-            </div>
-          {/if}
-
-          <div class="flex items-center gap-3">
-            <button
-              class="btn btn-primary"
-              on:click={saveBannedTools}
-              disabled={bannedSaving}
-            >
-              {#if bannedSaving}
-                <span class="loading loading-spinner loading-sm"></span>
-              {:else}
-                <Save size={16} />
-              {/if}
-              <span
-                >{translate(
-                  "frontend/src/routes/assignments/[id]/tests/+page.svelte::save_banned_tools",
-                )}</span
-              >
-            </button>
-            {#if bannedSaved}
-              <span class="text-sm text-success"
-                >{translate(
-                  "frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_tools_saved",
-                )}</span
-              >
-            {/if}
-          </div>
-        </div>
 
         <input
           type="radio"
