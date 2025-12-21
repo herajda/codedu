@@ -36,6 +36,8 @@
     Check,
     RotateCw,
     ShieldAlert,
+    Sparkles,
+    Wand2,
   } from "lucide-svelte";
   import {
     readFileBase64,
@@ -4964,514 +4966,341 @@
           role="tabpanel"
           class="tab-content bg-base-100 border-base-300 rounded-box p-4 space-y-4"
         >
-          <div class="space-y-6">
-            <section class="panel ai-hero">
-              <div
-                class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
-              >
-                <div class="flex items-start gap-3">
-                  <div class="ai-hero__icon">
-                    <FlaskConical size={18} />
+          <div class="group relative bg-base-100 rounded-2xl border border-base-300/50 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border-l-[6px] border-l-secondary">
+            <!-- Premium Header -->
+            <div class="p-8 bg-gradient-to-br from-secondary/10 via-transparent to-transparent border-b border-base-200">
+              <div class="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+                <div class="flex items-center gap-6">
+                  <div class="w-16 h-16 rounded-2xl bg-secondary/20 text-secondary flex items-center justify-center shadow-lg shadow-secondary/10 border border-secondary/20 transition-transform group-hover:scale-110 duration-500">
+                    <Sparkles size={32} />
                   </div>
                   <div class="space-y-1">
-                    <h3 class="text-lg font-semibold">
+                    <h3 class="text-3xl font-black tracking-tight">
                       {translate(
                         "frontend/src/routes/assignments/[id]/tests/+page.svelte::generate_with_ai",
                       )}
                     </h3>
-                    <p class="text-sm opacity-75">
+                    <p class="text-sm opacity-60 font-medium max-w-lg">
                       {translate(
                         "frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_call_mode_hint",
                       )}
                     </p>
                   </div>
                 </div>
-                <div class="flex flex-wrap gap-2 text-xs font-medium">
-                  <span class="stat-chip">
-                    {translate(
-                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::call_mode",
-                    )}:
-                    <strong
-                      >{aiCallMode === "stdin"
-                        ? translate(
-                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin_stdout_button",
-                          )
-                        : translate(
-                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_return_button",
-                          )}</strong
-                    >
+
+                <div class="flex flex-wrap gap-2">
+                  <span class="badge badge-lg bg-base-200 border-none font-bold gap-2 px-4 py-6 shadow-inner">
+                    <Terminal size={14} class="text-secondary" />
+                    <span class="opacity-50 text-[10px] uppercase tracking-wider">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::call_mode")}</span>
+                    <span class="text-secondary">
+                      {aiCallMode === "stdin"
+                        ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin_stdout_button")
+                        : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::function_return_button")}
+                    </span>
                   </span>
-                  <span class="stat-chip">
-                    {translate(
-                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::task_difficulty",
-                    )}:
-                    <strong
-                      >{aiDifficulty === "simple"
-                        ? translate(
-                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::simple_task_button",
-                          )
-                        : translate(
-                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::hard_task_button",
-                          )}</strong
-                    >
-                  </span>
-                  <span class="stat-chip">
-                    {translate(
-                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_count_mode",
-                    )}:
-                    <strong
-                      >{aiAuto
-                        ? translate(
-                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::auto",
-                          )
-                        : `${translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::manual")} · ${aiNumTests}`}</strong
-                    >
+                  <span class="badge badge-lg bg-base-200 border-none font-bold gap-2 px-4 py-6 shadow-inner">
+                    <Scale size={14} class="text-secondary" />
+                    <span class="opacity-50 text-[10px] uppercase tracking-wider">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::task_difficulty")}</span>
+                    <span class="text-secondary">
+                      {aiDifficulty === "simple"
+                        ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::simple_task_button")
+                        : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::hard_task_button")}
+                    </span>
                   </span>
                 </div>
               </div>
-            </section>
+            </div>
 
-            <div class="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-              <div class="space-y-6">
-                <section class="panel space-y-6">
-                  <div class="space-y-4">
-                    <div class="space-y-2">
-                      <span class="section-label"
-                        >{translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::call_mode",
-                        )}</span
-                      >
-                      <div class="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          class={`option-pill ${aiCallMode === "stdin" ? "selected" : ""}`}
-                          aria-pressed={aiCallMode === "stdin"}
-                          on:click={() => (aiCallMode = "stdin")}
-                        >
-                          <span
-                            class="option-pill__indicator"
-                            aria-hidden="true"
-                          />
-                          <span
-                            >{translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin_stdout_button",
-                            )}</span
+            <div class="p-8 space-y-8">
+              <div class="grid gap-8 xl:grid-cols-[1fr_0.8fr]">
+                <!-- Left Column: Settings -->
+                <div class="space-y-8">
+                  <!-- Mode Selectors Card -->
+                  <div class="card bg-base-200/30 border border-base-300/40 p-6 space-y-8">
+                    <div class="grid gap-8 md:grid-cols-2">
+                      <!-- Call Mode -->
+                      <div class="space-y-3">
+                        <h5 class="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
+                          <Terminal size={14} class="text-secondary" />
+                          {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::call_mode")}
+                        </h5>
+                        <div class="flex bg-base-300/50 p-1 rounded-xl w-full border border-white/5">
+                          <button 
+                            type="button"
+                            class="flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-200 {aiCallMode === 'stdin' ? 'bg-base-100 shadow-md scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
+                            on:click={() => (aiCallMode = "stdin")}
                           >
-                        </button>
-                        <button
-                          type="button"
-                          class={`option-pill ${aiCallMode === "function" ? "selected" : ""}`}
-                          aria-pressed={aiCallMode === "function"}
-                          on:click={() => (aiCallMode = "function")}
-                        >
-                          <span
-                            class="option-pill__indicator"
-                            aria-hidden="true"
-                          />
-                          <span
-                            >{translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_return_button",
-                            )}</span
+                            {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin_stdout_button")}
+                          </button>
+                          <button 
+                            type="button"
+                            class="flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-200 {aiCallMode === 'function' ? 'bg-base-100 shadow-md scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
+                            on:click={() => (aiCallMode = "function")}
                           >
-                        </button>
-                      </div>
-                      <p class="hint">
-                        {translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_call_mode_hint",
-                        )}
-                      </p>
-                    </div>
-
-                    <div class="space-y-2">
-                      <span class="section-label"
-                        >{translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::task_difficulty",
-                        )}</span
-                      >
-                      <div class="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          class={`option-pill ${aiDifficulty === "simple" ? "selected" : ""}`}
-                          aria-pressed={aiDifficulty === "simple"}
-                          on:click={() => (aiDifficulty = "simple")}
-                        >
-                          <span
-                            class="option-pill__indicator"
-                            aria-hidden="true"
-                          />
-                          <span
-                            >{translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::simple_task_button",
-                            )}</span
-                          >
-                        </button>
-                        <button
-                          type="button"
-                          class={`option-pill ${aiDifficulty === "hard" ? "selected" : ""}`}
-                          aria-pressed={aiDifficulty === "hard"}
-                          on:click={() => (aiDifficulty = "hard")}
-                        >
-                          <span
-                            class="option-pill__indicator"
-                            aria-hidden="true"
-                          />
-                          <span
-                            >{translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::hard_task_button",
-                            )}</span
-                          >
-                        </button>
-                      </div>
-                      <p class="hint">
-                        {translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_difficulty_hint",
-                        )}
-                      </p>
-                    </div>
-
-                    <div class="space-y-2">
-                      <span class="section-label"
-                        >{translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_count_mode",
-                        )}</span
-                      >
-                      <div class="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          class={`option-pill ${aiAuto ? "selected" : ""}`}
-                          aria-pressed={aiAuto}
-                          on:click={() => (aiAuto = true)}
-                        >
-                          <span
-                            class="option-pill__indicator"
-                            aria-hidden="true"
-                          />
-                          <span
-                            >{translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::auto",
-                            )}</span
-                          >
-                        </button>
-                        <button
-                          type="button"
-                          class={`option-pill ${!aiAuto ? "selected" : ""}`}
-                          aria-pressed={!aiAuto}
-                          on:click={() => (aiAuto = false)}
-                        >
-                          <span
-                            class="option-pill__indicator"
-                            aria-hidden="true"
-                          />
-                          <span
-                            >{translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::manual",
-                            )}</span
-                          >
-                        </button>
-                      </div>
-                      {#if !aiAuto}
-                        <div
-                          class="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-                        >
-                          <input
-                            type="number"
-                            min="1"
-                            class="input input-bordered w-full"
-                            bind:value={aiNumTests}
-                            placeholder={translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::how_many_tests_placeholder",
-                            )}
-                          />
+                            {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::function_return_button")}
+                          </button>
                         </div>
-                      {/if}
-                      <p class="hint">
-                        {translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::auto_lets_model_decide_number_of_tests",
-                        )}
-                      </p>
+                      </div>
+
+                      <!-- Difficulty -->
+                      <div class="space-y-3">
+                        <h5 class="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
+                          <Scale size={14} class="text-secondary" />
+                          {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::task_difficulty")}
+                        </h5>
+                        <div class="flex bg-base-300/50 p-1 rounded-xl w-full border border-white/5">
+                          <button 
+                            type="button"
+                            class="flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-200 {aiDifficulty === 'simple' ? 'bg-base-100 shadow-md scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
+                            on:click={() => (aiDifficulty = "simple")}
+                          >
+                            {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::simple_task_button")}
+                          </button>
+                          <button 
+                            type="button"
+                            class="flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-200 {aiDifficulty === 'hard' ? 'bg-base-100 shadow-md scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
+                            on:click={() => (aiDifficulty = "hard")}
+                          >
+                            {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::hard_task_button")}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Test Count Mode -->
+                    <div class="space-y-4 pt-4 border-t border-base-300/50">
+                      <h5 class="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
+                        <Cpu size={14} class="text-secondary" />
+                        {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_count_mode")}
+                      </h5>
+                      <div class="flex flex-wrap gap-4 items-center">
+                        <div class="flex bg-base-300/50 p-1 rounded-xl w-fit border border-white/5">
+                          <button 
+                            type="button"
+                            class="px-6 py-2 rounded-lg text-sm font-bold transition-all duration-200 {aiAuto ? 'bg-base-100 shadow-md scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
+                            on:click={() => (aiAuto = true)}
+                          >
+                            {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::auto")}
+                          </button>
+                          <button 
+                            type="button"
+                            class="px-6 py-2 rounded-lg text-sm font-bold transition-all duration-200 {!aiAuto ? 'bg-base-100 shadow-md scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
+                            on:click={() => (aiAuto = false)}
+                          >
+                            {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::manual")}
+                          </button>
+                        </div>
+
+                        {#if !aiAuto}
+                          <div class="flex items-center gap-3 animate-in fade-in slide-in-from-left-2 duration-300">
+                            <ArrowRight size={14} class="opacity-40" />
+                            <input
+                              type="number"
+                              min="1"
+                              max="50"
+                              class="input input-bordered w-24 font-bold text-center bg-base-100"
+                              bind:value={aiNumTests}
+                            />
+                            <span class="text-xs font-bold opacity-40 uppercase tracking-widest">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_plural")}</span>
+                          </div>
+                        {/if}
+                      </div>
                     </div>
                   </div>
 
-                  <div class="space-y-2">
-                    <span class="section-label"
-                      >{translate(
-                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::additional_instructions_optional",
-                      )}</span
-                    >
+                  <!-- Instructions Card -->
+                  <div class="card bg-base-100 border border-base-300/50 shadow-sm p-6 space-y-4">
+                    <h5 class="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
+                      <Code size={14} class="text-secondary" />
+                      {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::additional_instructions_optional")}
+                    </h5>
                     <textarea
-                      class="textarea textarea-bordered min-h-[110px]"
+                      class="textarea textarea-bordered w-full min-h-[140px] bg-base-200/30 focus:bg-base-100 transition-all leading-relaxed"
                       bind:value={aiInstructions}
-                      placeholder={translate(
-                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::edge_cases_to_cover_placeholder",
-                      )}
+                      placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::edge_cases_to_cover_placeholder")}
                     ></textarea>
-                    <p class="hint">
-                      {translate(
-                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_instructions_hint",
-                      )}
+                    <p class="text-[10px] opacity-50 italic flex items-center gap-2">
+                       <Shield size={12} />
+                       {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_instructions_hint")}
                     </p>
                   </div>
-                </section>
+                </div>
 
-                <section class="panel space-y-4">
-                  <div class="space-y-1">
-                    <h4 class="text-base font-semibold">
-                      {translate(
-                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_label",
-                      )}
-                    </h4>
-                    <p class="hint">
-                      {translate(
-                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_hint",
-                      )}
-                    </p>
-                  </div>
-                  <label class="form-control w-full">
-                    <input
-                      id="ai-solution-upload"
-                      type="file"
-                      accept=".py,.txt"
-                      class="file-input file-input-bordered w-full"
-                      on:change={handleAISolutionChange}
-                    />
-                  </label>
-                  {#if aiSolutionError}
-                    <div class="text-xs text-error">{aiSolutionError}</div>
-                  {/if}
-                  {#if aiSolutionText.trim().length}
-                    <div
-                      class="flex flex-wrap items-center justify-between gap-2 text-xs"
-                    >
-                      <span
-                        >{translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_loaded",
-                          {
-                            name: aiSolutionFile
-                              ? aiSolutionFile.name
-                              : translate(
-                                  "frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_manual",
-                                ),
-                            bytes: aiSolutionText.length,
-                          },
-                        )}</span
-                      >
-                      <button
-                        type="button"
-                        class="btn btn-ghost btn-xs"
-                        on:click={resetAISolutionInput}
-                        >{translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_clear",
-                        )}</button
-                      >
+                <!-- Right Column: Teacher Solution -->
+                <div class="space-y-6">
+                  <div class="card bg-secondary/5 border border-dashed border-secondary/30 p-8 space-y-6 flex flex-col items-center text-center">
+                    <div class="w-16 h-16 rounded-full bg-secondary/10 text-secondary flex items-center justify-center shadow-inner">
+                      <FileCode2 size={24} />
                     </div>
-                    <CodeMirror
-                      bind:value={aiSolutionText}
-                      lang={python()}
-                      readOnly={false}
-                      placeholder={translate(
-                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_hint",
-                      )}
-                    />
-                  {/if}
-                </section>
-
-                {#if (aiCode && aiCode.trim().length) || hasAIBuilder}
-                  <section class="panel space-y-4">
-                    <div class="flex items-center justify-between gap-2">
-                      <h4 class="text-base font-semibold">
-                        {translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::optional_test_on_teacher_solution",
-                        )}
+                    <div class="space-y-2">
+                      <h4 class="font-bold text-lg">
+                        {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_label")}
                       </h4>
-                      <span class="badge badge-outline badge-sm"
-                        >{translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_teacher_solution",
-                        )}</span
-                      >
+                      <p class="text-xs opacity-60 leading-relaxed max-w-xs mx-auto">
+                        {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_hint")}
+                      </p>
                     </div>
-                    <div
-                      class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-                    >
-                      <input
-                        type="file"
-                        accept=".py,.zip"
-                        class="file-input file-input-bordered w-full"
-                        on:change={(e) =>
-                          (teacherSolutionFile =
-                            (e.target as HTMLInputElement).files?.[0] || null)}
-                      />
-                      <button
-                        class="btn btn-outline sm:w-max"
-                        disabled={!teacherSolutionFile || teacherRunLoading}
-                        on:click={runTeacherSolution}
-                      >
-                        <FlaskConical size={16} />
-                        {teacherRunLoading
-                          ? translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::running",
-                            )
-                          : translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::run_tests_on_solution",
-                            )}
-                      </button>
-                    </div>
-                    {#if teacherRun}
-                      <div class="panel-soft space-y-3">
-                        <div
-                          class="flex items-center justify-between text-sm font-medium"
-                        >
-                          <span
-                            >{translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::results_passed",
-                              {
-                                passed: teacherRun.passed,
-                                total: teacherRun.total,
-                              },
-                            )}</span
+
+                    <label class="w-full cursor-pointer group/file">
+                      <div class="flex flex-col items-center justify-center p-6 border-2 border-dashed border-secondary/20 rounded-2xl bg-base-100/50 group-hover/file:border-secondary/50 group-hover/file:bg-secondary/5 transition-all duration-300">
+                        <UploadIcon size={24} class="mb-2 text-secondary/40 group-hover/file:text-secondary group-hover/file:scale-110 transition-all" />
+                        <span class="text-sm font-bold opacity-60">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_teacher_solution")}</span>
+                        <input
+                          id="ai-solution-upload"
+                          type="file"
+                          accept=".py,.txt"
+                          class="hidden"
+                          on:change={handleAISolutionChange}
+                        />
+                      </div>
+                    </label>
+
+                    {#if aiSolutionError}
+                      <div class="badge badge-error gap-2 py-3">{aiSolutionError}</div>
+                    {/if}
+
+                    {#if aiSolutionText.trim().length}
+                      <div class="w-full space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                        <div class="flex items-center justify-between px-2">
+                          <div class="flex items-center gap-2 text-xs font-bold text-secondary">
+                             <Check size={14} />
+                             {aiSolutionFile?.name || translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_manual")}
+                             <span class="opacity-40 text-[10px] ml-2 font-mono">{aiSolutionText.length}B</span>
+                          </div>
+                          <button
+                            type="button"
+                            class="btn btn-ghost btn-xs text-error hover:bg-error/10"
+                            on:click={resetAISolutionInput}
                           >
-                          <span class="badge badge-primary badge-sm"
-                            >{teacherRun.passed}/{teacherRun.total}</span
-                          >
+                             {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_clear")}
+                          </button>
                         </div>
-                        <div class="grid gap-2 max-h-56 overflow-y-auto pr-1">
-                          {#each teacherRun.results as r}
-                            <div class="result-item">
-                              <div
-                                class="flex items-center justify-between text-xs font-medium"
-                              >
-                                <div class="flex items-center gap-2">
-                                  {#if r.preview}
-                                    <span class="badge badge-secondary badge-sm"
-                                      >{translate(
-                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::preview_badge",
-                                      )}</span
-                                    >
-                                  {:else if r.test_case_id}
-                                    <span class="badge badge-outline badge-sm"
-                                      >#{r.test_case_id}</span
-                                    >
-                                  {/if}
-                                  {#if r.unittest_name}<span
-                                      class="badge badge-primary badge-sm"
-                                      >{r.unittest_name}</span
-                                    >{/if}
-                                </div>
-                                <span
-                                  class="badge {r.status === 'passed'
-                                    ? 'badge-success'
-                                    : 'badge-error'} badge-sm"
-                                >
-                                  {r.status === "passed"
-                                    ? translate(
-                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::passed",
-                                      )
-                                    : translate(
-                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::failed",
-                                      )}
-                                </span>
-                              </div>
-                              {#if r.stderr}
-                                <pre class="result-log">{r.stderr}</pre>
-                              {/if}
-                            </div>
-                          {/each}
+                        <div class="rounded-xl overflow-hidden border border-secondary/20 shadow-lg">
+                          <CodeMirror
+                            bind:value={aiSolutionText}
+                            lang={python()}
+                            readOnly={false}
+                          />
                         </div>
                       </div>
                     {/if}
-                  </section>
+                  </div>
+
+                  <!-- Run Tests on Solution Button (only if generated something) -->
+                  {#if (aiCode && aiCode.trim().length) || hasAIBuilder}
+                    <div class="card bg-base-100 border border-base-300/50 shadow-sm p-6 space-y-4 animate-in zoom-in-95 duration-300">
+                      <div class="flex items-center justify-between">
+                         <h5 class="text-[10px] font-black uppercase tracking-widest opacity-60">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::optional_test_on_teacher_solution")}</h5>
+                         <span class="badge badge-sm badge-outline opacity-40">Teacher Sim</span>
+                      </div>
+                      <div class="grid gap-3">
+                        <input
+                          type="file"
+                          accept=".py,.zip"
+                          class="file-input file-input-bordered file-input-sm w-full bg-base-200/50"
+                          on:change={(e) => (teacherSolutionFile = (e.target as HTMLInputElement).files?.[0] || null)}
+                        />
+                        <button
+                          class="btn btn-secondary btn-sm font-black shadow-lg shadow-secondary/10"
+                          disabled={!teacherSolutionFile || teacherRunLoading}
+                          on:click={runTeacherSolution}
+                        >
+                          {#if teacherRunLoading}
+                            <RotateCw size={14} class="animate-spin" />
+                            {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::running")}
+                          {:else}
+                            <FlaskConical size={14} />
+                            {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::run_tests_on_solution")}
+                          {/if}
+                        </button>
+                      </div>
+
+                      {#if teacherRun}
+                         <div class="mt-4 space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                           {#each teacherRun.results as r}
+                             <div class="flex items-center justify-between p-2 rounded-lg bg-base-200/50 border border-base-300/30 text-[10px]">
+                               <div class="flex items-center gap-2 truncate">
+                                  <span class="badge {r.status === 'passed' ? 'badge-success' : 'badge-error'} badge-xs"></span>
+                                  <span class="font-mono opacity-70 truncate">{r.unittest_name || 'Test Case'}</span>
+                               </div>
+                               <span class="font-bold {r.status === 'passed' ? 'text-success' : 'text-error'} uppercase tracking-tight">{r.status}</span>
+                             </div>
+                           {/each}
+                         </div>
+                      {/if}
+                    </div>
+                  {/if}
+                </div>
+              </div>
+
+              <!-- Action Bar -->
+              <div class="flex flex-col gap-4 border-t border-base-300/50 pt-8 mt-4">
+                <div class="flex flex-col sm:flex-row gap-4">
+                  <button
+                    class="btn btn-secondary flex-1 h-14 text-lg font-black shadow-xl shadow-secondary/20 hover:scale-[1.02] transition-all group"
+                    on:click={generateWithAI}
+                    disabled={aiGenerating}
+                  >
+                    {#if aiGenerating}
+                      <RotateCw size={20} class="animate-spin" />
+                      {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::generating")}
+                    {:else}
+                      <Wand2 size={20} class="group-hover:rotate-12 transition-transform" />
+                      {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::generate_with_ai")}
+                    {/if}
+                  </button>
+                  
+                  <button
+                    class="btn btn-outline border-2 flex-1 h-14 text-lg font-black hover:bg-primary hover:text-primary-content hover:border-primary transition-all duration-300"
+                    on:click={uploadAIUnitTestsCode}
+                    disabled={builderMode !== "unittest" || !aiCode}
+                  >
+                    <Save size={20} />
+                    {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::save_as_tests")}
+                  </button>
+                </div>
+
+                {#if aiGenerating}
+                   <div class="flex items-center justify-center gap-3 text-secondary font-bold animate-pulse">
+                      <div class="loading loading-dots loading-md"></div>
+                      <span class="text-sm uppercase tracking-[0.2em]">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::generating")}</span>
+                   </div>
+                {/if}
+
+                {#if hasAIBuilder}
+                  <div class="flex items-center gap-3 p-4 rounded-xl bg-primary/10 border border-primary/20 text-primary animate-in slide-in-from-bottom-2 duration-500">
+                    <Check size={18} />
+                    <span class="text-sm font-bold">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_prepared_builder_structure_below")}</span>
+                  </div>
                 {/if}
               </div>
 
-              <div class="space-y-6">
-                <section class="panel space-y-4 lg:sticky lg:top-28">
-                  <div class="space-y-1">
-                    <h4 class="text-base font-semibold">
-                      {translate(
-                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::generate_with_ai",
-                      )}
-                    </h4>
-                    <p class="hint">
-                      {translate(
-                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::you_can_edit_this_before_saving",
-                      )}
-                    </p>
+              <!-- Generated Preview Section -->
+              {#if aiCode && builderMode === "unittest"}
+                <div class="space-y-6 pt-8 border-t border-base-300/50 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                      <div class="w-10 h-10 rounded-xl bg-success/10 text-success flex items-center justify-center">
+                        <Code size={20} />
+                      </div>
+                      <div>
+                        <h4 class="font-bold text-lg">
+                          {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_python_editable")}
+                        </h4>
+                        <p class="text-[10px] opacity-40 font-black uppercase tracking-widest">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::preview_badge")}</p>
+                      </div>
+                    </div>
+                    <div class="badge badge-success font-bold px-4 py-3">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::save_as_tests")}</div>
                   </div>
-                  <div class="flex flex-col gap-2 sm:flex-row">
-                    <button
-                      class="btn btn-primary flex-1"
-                      on:click={generateWithAI}
-                      disabled={aiGenerating}
-                    >
-                      <FlaskConical size={16} />
-                      {aiGenerating
-                        ? translate(
-                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::generating",
-                          )
-                        : translate(
-                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::generate_with_ai",
-                          )}
-                    </button>
-                    <button
-                      class="btn btn-outline flex-1"
-                      on:click={uploadAIUnitTestsCode}
-                      disabled={builderMode !== "unittest" || !aiCode}
-                      title={builderMode !== "unittest"
-                        ? translate(
-                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::available_only_for_unittest_generation",
-                          )
-                        : ""}
-                    >
-                      <UploadIcon size={16} />
-                      {translate(
-                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::save_as_tests",
-                      )}
-                    </button>
-                  </div>
-                  {#if aiGenerating}
-                    <div
-                      class="inline-flex items-center gap-2 text-xs font-medium text-warning"
-                    >
-                      <Clock size={14} />
-                      <span
-                        >{translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::generating",
-                        )}</span
-                      >
-                    </div>
-                  {/if}
-                  {#if hasAIBuilder}
-                    <div class="panel-soft border border-primary/30 text-sm">
-                      <span
-                        >{translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_prepared_builder_structure_below",
-                        )}</span
-                      >
-                    </div>
-                  {/if}
-                </section>
-
-                {#if aiCode && builderMode === "unittest"}
-                  <section class="panel space-y-3">
-                    <div class="flex items-center justify-between">
-                      <h4 class="text-base font-semibold">
-                        {translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_python_editable",
-                        )}
-                      </h4>
-                      <span class="badge badge-outline badge-sm"
-                        >{translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::save_as_tests",
-                        )}</span
-                      >
-                    </div>
+                  <div class="rounded-2xl overflow-hidden border border-base-300/50 shadow-2xl">
                     <CodeMirror
                       bind:value={aiCode}
                       lang={python()}
                       readOnly={false}
                     />
-                  </section>
-                {/if}
-              </div>
+                  </div>
+                </div>
+              {/if}
             </div>
           </div>
         </div>
