@@ -38,6 +38,8 @@
     ShieldAlert,
     Sparkles,
     Wand2,
+    BookOpen,
+    X,
   } from "lucide-svelte";
   import {
     readFileBase64,
@@ -168,6 +170,7 @@
   let utShowPreview = false;
   let utPreviewCode = "";
   let showAdvanced = false;
+  let exampleCopied = false;
   let copiedPreview = false;
 
   type FnParameter = { name: string; type?: string };
@@ -293,6 +296,25 @@
     t.file_create_text = "";
     t.file_create_dirty = false;
     tests = [...tests];
+  }
+
+  function copyExample() {
+    const code = `import unittest
+
+class MyTests(unittest.TestCase):
+    def test_hello(self):
+        # Run student's program with multiple inputs
+        output = student_code("John", "Doe")
+        self.assertIn("John", output)
+        self.assertIn("Doe", output)
+
+    def test_add(self):
+        # Import and call specific function
+        add = student_function("add")
+        self.assertEqual(add(2, 3), 5)`;
+    navigator.clipboard.writeText(code);
+    exampleCopied = true;
+    setTimeout(() => (exampleCopied = false), 2000);
   }
 
   function replaceMethodInUnittest(
@@ -4968,40 +4990,43 @@
         >
           <div class="group relative bg-base-100 rounded-2xl border border-base-300/50 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border-l-[6px] border-l-secondary">
             <!-- Premium Header -->
-            <div class="p-8 bg-gradient-to-br from-secondary/10 via-transparent to-transparent border-b border-base-200">
-              <div class="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-                <div class="flex items-center gap-6">
-                  <div class="w-16 h-16 rounded-2xl bg-secondary/20 text-secondary flex items-center justify-center shadow-lg shadow-secondary/10 border border-secondary/20 transition-transform group-hover:scale-110 duration-500">
-                    <Sparkles size={32} />
-                  </div>
-                  <div class="space-y-1">
-                    <h3 class="text-3xl font-black tracking-tight">
-                      {translate(
-                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::generate_with_ai",
-                      )}
-                    </h3>
-                    <p class="text-sm opacity-60 font-medium max-w-lg">
-                      {translate(
-                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_call_mode_hint",
-                      )}
-                    </p>
+            <div class="p-5 bg-gradient-to-br from-secondary/10 via-transparent to-transparent border-b border-base-200">
+              <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div class="flex flex-col">
+                  <span class="text-[10px] uppercase tracking-widest font-bold opacity-40 mb-1">AI Generation</span>
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-secondary/20 text-secondary flex items-center justify-center shadow-lg shadow-secondary/10 border border-secondary/20 transition-transform group-hover:scale-110 duration-500">
+                      <Sparkles size={20} />
+                    </div>
+                    <div>
+                      <h4 class="text-lg font-bold leading-none">
+                        {translate(
+                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::generate_with_ai",
+                        )}
+                      </h4>
+                      <p class="text-xs opacity-50 font-medium mt-1">
+                        {translate(
+                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_call_mode_hint",
+                        )}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
                 <div class="flex flex-wrap gap-2">
-                  <span class="badge badge-lg bg-base-200 border-none font-bold gap-2 px-4 py-6 shadow-inner">
-                    <Terminal size={14} class="text-secondary" />
+                  <span class="badge badge-lg bg-base-200 border-none font-bold gap-2 px-3 py-5 shadow-inner">
+                    <Terminal size={12} class="text-secondary" />
                     <span class="opacity-50 text-[10px] uppercase tracking-wider">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::call_mode")}</span>
-                    <span class="text-secondary">
+                    <span class="text-secondary text-xs">
                       {aiCallMode === "stdin"
                         ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin_stdout_button")
                         : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::function_return_button")}
                     </span>
                   </span>
-                  <span class="badge badge-lg bg-base-200 border-none font-bold gap-2 px-4 py-6 shadow-inner">
-                    <Scale size={14} class="text-secondary" />
+                  <span class="badge badge-lg bg-base-200 border-none font-bold gap-2 px-3 py-5 shadow-inner">
+                    <Scale size={12} class="text-secondary" />
                     <span class="opacity-50 text-[10px] uppercase tracking-wider">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::task_difficulty")}</span>
-                    <span class="text-secondary">
+                    <span class="text-secondary text-xs">
                       {aiDifficulty === "simple"
                         ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::simple_task_button")
                         : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::hard_task_button")}
@@ -5011,10 +5036,10 @@
               </div>
             </div>
 
-            <div class="p-8 space-y-8">
-              <div class="grid gap-8 xl:grid-cols-[1fr_0.8fr]">
+            <div class="p-6 space-y-6">
+              <div class="grid gap-6 xl:grid-cols-[1fr_0.8fr]">
                 <!-- Left Column: Settings -->
-                <div class="space-y-8">
+                <div class="space-y-6">
                   <!-- Mode Selectors Card -->
                   <div class="card bg-base-200/30 border border-base-300/40 p-6 space-y-8">
                     <div class="grid gap-8 md:grid-cols-2">
@@ -5128,23 +5153,23 @@
 
                 <!-- Right Column: Teacher Solution -->
                 <div class="space-y-6">
-                  <div class="card bg-secondary/5 border border-dashed border-secondary/30 p-8 space-y-6 flex flex-col items-center text-center">
-                    <div class="w-16 h-16 rounded-full bg-secondary/10 text-secondary flex items-center justify-center shadow-inner">
-                      <FileCode2 size={24} />
+                  <div class="card bg-secondary/5 border border-dashed border-secondary/30 p-6 space-y-4 flex flex-col items-center text-center">
+                    <div class="w-12 h-12 rounded-full bg-secondary/10 text-secondary flex items-center justify-center shadow-inner">
+                      <FileCode2 size={20} />
                     </div>
-                    <div class="space-y-2">
-                      <h4 class="font-bold text-lg">
+                    <div class="space-y-1">
+                      <h4 class="font-bold text-base">
                         {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_label")}
                       </h4>
-                      <p class="text-xs opacity-60 leading-relaxed max-w-xs mx-auto">
+                      <p class="text-[10px] opacity-60 leading-relaxed max-w-xs mx-auto">
                         {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_hint")}
                       </p>
                     </div>
 
                     <label class="w-full cursor-pointer group/file">
-                      <div class="flex flex-col items-center justify-center p-6 border-2 border-dashed border-secondary/20 rounded-2xl bg-base-100/50 group-hover/file:border-secondary/50 group-hover/file:bg-secondary/5 transition-all duration-300">
-                        <UploadIcon size={24} class="mb-2 text-secondary/40 group-hover/file:text-secondary group-hover/file:scale-110 transition-all" />
-                        <span class="text-sm font-bold opacity-60">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_teacher_solution")}</span>
+                      <div class="flex flex-col items-center justify-center p-4 border-2 border-dashed border-secondary/20 rounded-2xl bg-base-100/50 group-hover/file:border-secondary/50 group-hover/file:bg-secondary/5 transition-all duration-300">
+                        <UploadIcon size={20} class="mb-1 text-secondary/40 group-hover/file:text-secondary group-hover/file:scale-110 transition-all" />
+                        <span class="text-xs font-bold opacity-60">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_teacher_solution")}</span>
                         <input
                           id="ai-solution-upload"
                           type="file"
@@ -5318,43 +5343,128 @@
           role="tabpanel"
           class="tab-content bg-base-100 border-base-300 rounded-box p-4"
         >
-          <h4 class="font-semibold mb-2 flex items-center gap-2">
-            <FileUp size={18} />
-            {translate(
-              "frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_unittest_file",
-            )}
-          </h4>
-          <input
-            type="file"
-            accept=".py"
-            class="file-input file-input-bordered w-full"
-            on:change={(e) =>
-              (unittestFile =
-                (e.target as HTMLInputElement).files?.[0] || null)}
-          />
-          <div class="mt-2">
-            <button
-              class="btn"
-              on:click={uploadUnitTests}
-              disabled={!unittestFile}
-              ><UploadIcon size={16} />
-              {translate(
-                "frontend/src/routes/assignments/[id]/tests/+page.svelte::upload",
-              )}</button
-            >
-          </div>
-          <div class="mt-4 space-y-3 text-sm opacity-90 border-t border-base-300 pt-4">
-            <p class="font-bold">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_intro")}</p>
-            <ul class="list-disc list-inside space-y-1 opacity-80">
-               <li>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_item_1")}</li>
-               <li>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_item_2")}</li>
-               <li>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_item_3")}</li>
-               <li>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_item_4")}</li>
-            </ul>
-            <p class="font-bold text-xs mt-4 uppercase opacity-50 tracking-wider">
-               {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::example_label")}:
-            </p>
-            <pre class="bg-base-300/30 p-6 rounded-2xl text-[13px] leading-relaxed font-mono overflow-x-auto whitespace-pre border border-white/5 shadow-inner">
+          <div class="group relative bg-base-100 rounded-2xl border border-base-300/50 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border-l-[6px] border-l-accent">
+            <!-- Header -->
+            <div class="p-5 bg-gradient-to-br from-accent/10 via-transparent to-transparent border-b border-base-200">
+              <div class="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+                <div class="flex flex-col">
+                  <span class="text-[10px] uppercase tracking-widest font-bold opacity-40 mb-1">Unittest Upload</span>
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-accent/20 text-accent flex items-center justify-center shadow-lg shadow-accent/10 border border-accent/20 transition-transform group-hover:scale-110 duration-500">
+                      <FileUp size={20} />
+                    </div>
+                    <div>
+                      <h4 class="text-lg font-bold leading-none">
+                        {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_unittest_file")}
+                      </h4>
+                      <p class="text-xs opacity-50 font-medium mt-1">
+                        {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_intro")}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-6 space-y-6">
+              <!-- Upload Section -->
+              <div class="space-y-4">
+                <div class="relative group/upload">
+                  {#if !unittestFile}
+                    <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-accent/20 rounded-2xl bg-accent/5 hover:bg-accent/10 hover:border-accent/40 transition-all cursor-pointer group-hover/upload:scale-[1.005]">
+                      <div class="flex flex-col items-center justify-center p-4">
+                        <div class="w-10 h-10 rounded-full bg-accent/10 text-accent flex items-center justify-center mb-2 group-hover/upload:scale-110 transition-transform">
+                          <FileUp size={20} />
+                        </div>
+                        <p class="mb-1 text-sm font-bold text-accent">
+                          {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_upload")}
+                        </p>
+                        <p class="text-[10px] opacity-50 font-medium">
+                          {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_drag_drop_hint")}
+                        </p>
+                      </div>
+                      <input
+                        type="file"
+                        accept=".py"
+                        class="hidden"
+                        on:change={(e) => (unittestFile = (e.target as HTMLInputElement).files?.[0] || null)}
+                      />
+                    </label>
+                  {:else}
+                    <div class="flex flex-col items-center justify-center w-full min-h-32 border-2 border-accent/40 rounded-2xl bg-accent/10 p-6 space-y-4">
+                      <div class="flex items-center gap-3 bg-base-100 p-3 rounded-xl shadow-lg border border-accent/20 w-full max-w-sm animate-in fade-in zoom-in duration-300">
+                        <div class="w-10 h-10 rounded-lg bg-accent text-white flex items-center justify-center shrink-0 shadow-lg shadow-accent/20">
+                          <Code size={20} />
+                        </div>
+                        <div class="flex-1 min-w-0">
+                          <p class="text-sm font-black truncate">{unittestFile.name}</p>
+                          <p class="text-[10px] font-bold opacity-40 uppercase tracking-widest">{(unittestFile.size / 1024).toFixed(1)} KB</p>
+                        </div>
+                        <button 
+                          class="btn btn-circle btn-ghost btn-xs hover:bg-error/10 hover:text-error transition-colors"
+                          on:click={() => (unittestFile = null)}
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                      
+                      <button
+                        class="btn btn-accent px-8 font-black shadow-xl shadow-accent/20 hover:scale-105 active:scale-95 transition-all gap-2"
+                        on:click={uploadUnitTests}
+                      >
+                        <UploadIcon size={18} />
+                        {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::upload")}
+                      </button>
+                    </div>
+                  {/if}
+                </div>
+              </div>
+
+              <!-- Documentation & Examples -->
+              <div class="grid lg:grid-cols-2 gap-8 pt-4">
+                <!-- How to -->
+                <div class="space-y-6">
+                  <div class="flex items-center gap-3">
+                     <div class="w-8 h-8 rounded-lg bg-accent/10 text-accent flex items-center justify-center">
+                        <BookOpen size={18} />
+                     </div>
+                     <h4 class="font-bold uppercase tracking-widest text-xs opacity-60">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_requirements")}</h4>
+                  </div>
+                  <div class="space-y-4">
+                     <div class="flex gap-4 p-4 rounded-xl bg-base-100 border border-base-300/30 shadow-sm transition-all hover:bg-accent/5 hover:border-accent/20">
+                        <div class="w-6 h-6 rounded-full bg-accent/20 text-accent text-[10px] font-black flex items-center justify-center shrink-0">1</div>
+                        <p class="text-sm font-semibold opacity-80 leading-relaxed">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_item_1")}</p>
+                     </div>
+                     <div class="flex gap-4 p-4 rounded-xl bg-base-100 border border-base-300/30 shadow-sm transition-all hover:bg-accent/5 hover:border-accent/20">
+                        <div class="w-6 h-6 rounded-full bg-accent/20 text-accent text-[10px] font-black flex items-center justify-center shrink-0">2</div>
+                        <p class="text-sm font-semibold opacity-80 leading-relaxed">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_item_2")}</p>
+                     </div>
+                     <div class="flex gap-4 p-4 rounded-xl bg-base-100 border border-base-300/30 shadow-sm transition-all hover:bg-accent/5 hover:border-accent/20">
+                        <div class="w-6 h-6 rounded-full bg-accent/20 text-accent text-[10px] font-black flex items-center justify-center shrink-0">3</div>
+                        <p class="text-sm font-semibold opacity-80 leading-relaxed">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_item_3")}</p>
+                     </div>
+                     <div class="flex gap-4 p-4 rounded-xl bg-base-100 border border-base-300/30 shadow-sm transition-all hover:bg-accent/5 hover:border-accent/20">
+                        <div class="w-6 h-6 rounded-full bg-accent/20 text-accent text-[10px] font-black flex items-center justify-center shrink-0">4</div>
+                        <p class="text-sm font-semibold opacity-80 leading-relaxed">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_item_4")}</p>
+                     </div>
+                  </div>
+                </div>
+
+                <!-- Example -->
+                <div class="space-y-6">
+                   <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-3">
+                         <div class="w-8 h-8 rounded-lg bg-accent/10 text-accent flex items-center justify-center">
+                            <Code size={18} />
+                         </div>
+                         <h4 class="font-bold uppercase tracking-widest text-xs opacity-60">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_example_code")}</h4>
+                      </div>
+                      <span class="badge badge-accent badge-outline font-black text-[10px] tracking-tighter uppercase">Python 3.10+</span>
+                   </div>
+                   
+                   <div class="relative group/code">
+                      <div class="absolute -inset-1 bg-gradient-to-r from-accent/20 to-purple-500/20 rounded-2xl blur opacity-20 group-hover/code:opacity-40 transition duration-500"></div>
+                      <pre class="relative bg-base-300/50 p-6 rounded-2xl text-[13px] leading-relaxed font-mono overflow-x-auto whitespace-pre border border-white/5 shadow-2xl custom-scrollbar">
 <span class="text-purple-400">import</span> unittest
 
 <span class="text-purple-400">class</span> <span class="text-blue-400">MyTests</span>(unittest.TestCase):
@@ -5368,8 +5478,11 @@
         <span class="opacity-40"># Import and call specific function</span>
         add = student_function(<span class="text-emerald-400">"add"</span>)
         self.assertEqual(add(<span class="text-orange-300">2</span>, <span class="text-orange-300">3</span>), <span class="text-orange-300">5</span>)</pre>
+                   </div>
+                </div>
+              </div>
+            </div>
           </div>
-
         </div>
       </div>
     {/if}
