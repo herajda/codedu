@@ -2214,7 +2214,9 @@ def student_code(*args):
 def student_function(function_path, *args, **kwargs):
     module = _load_student_module()
     func = _resolve_attr(module, function_path)
-    return func(*args, **kwargs)
+    if args or kwargs:
+        return func(*args, **kwargs)
+    return func
 
 %s
 

@@ -884,7 +884,7 @@ Teacher solution (reference only):
 	} else {
 		callInstruction := "- Each test must call student_code(...) to execute the student's program with stdin-style inputs and assert on stdout.\n- Pass each stdin value as a separate argument (e.g., student_code(\"1\", \"2\", \"3\")) in the order the program reads them.\n- Compare stdout against the exact expected string, using \\n for multi-line output when needed.\n- Avoid adding a trailing newline at the end of expected stdout; encode intentional blank lines explicitly within the string."
 		if callMode == "function" {
-			callInstruction = "- Each test must call student_function('function_name', ...) to import the student's solution function and assert on the returned value.\n- When the function returns multiple values, encode the expected tuple as a JSON array (e.g., [value1, value2]) so the builder knows each element."
+			callInstruction = "- Each test must call student_function('function_name') to import the student's solution function, then call it and assert on the returned value.\n- When the function returns multiple values, encode the expected tuple as a JSON array (e.g., [value1, value2]) so the builder knows each element."
 		}
 		refInstruction := "- Define a helper reference_solution(...) inside the test module and compare student results to it."
 		additional := ""

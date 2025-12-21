@@ -3036,18 +3036,7 @@
         </div>
       </div>
     {:else}
-      <div class="alert">
-        <div>
-          <span class="font-medium"
-            >{translate(
-              "frontend/src/routes/assignments/[id]/tests/+page.svelte::tip",
-            )}</span
-          >
-          {translate(
-            "frontend/src/routes/assignments/[id]/tests/+page.svelte::assertion_helper_text",
-          )}
-        </div>
-      </div>
+
 
       <div class="flex justify-end gap-2 mb-4">
         <button
@@ -5525,11 +5514,32 @@
               )}</button
             >
           </div>
-          <p class="text-xs opacity-70 mt-2">
-            {translate(
-              "frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_guidance",
-            )}
-          </p>
+          <div class="mt-4 space-y-3 text-sm opacity-90 border-t border-base-300 pt-4">
+            <p class="font-bold">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_intro")}</p>
+            <ul class="list-disc list-inside space-y-1 opacity-80">
+               <li>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_item_1")}</li>
+               <li>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_item_2")}</li>
+               <li>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_item_3")}</li>
+               <li>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_item_4")}</li>
+            </ul>
+            <p class="font-bold text-xs mt-4 uppercase opacity-50 tracking-wider">
+               {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::example_label")}:
+            </p>
+            <pre class="bg-base-200 p-4 rounded-xl text-xs font-mono overflow-x-auto whitespace-pre border border-base-300 shadow-inner">import unittest
+
+class MyTests(unittest.TestCase):
+    def test_hello(self):
+        # Run student's program with multiple inputs
+        output = student_code("John", "Doe")
+        self.assertIn("John", output)
+        self.assertIn("Doe", output)
+
+    def test_add(self):
+        # Import and call specific function
+        add = student_function("add")
+        self.assertEqual(add(2, 3), 5)</pre>
+          </div>
+
         </div>
       </div>
     {/if}
