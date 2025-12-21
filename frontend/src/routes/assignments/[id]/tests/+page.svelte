@@ -40,6 +40,9 @@
     Wand2,
     BookOpen,
     X,
+    AlertCircle,
+    List,
+    CornerDownRight,
   } from "lucide-svelte";
   import {
     readFileBase64,
@@ -3095,12 +3098,13 @@ class MyTests(unittest.TestCase):
                 <ShieldAlert size={32} />
               </div>
               <div>
-                <h4 class="text-3xl font-black tracking-tight">
+              <div>
+                <h4 class="text-2xl font-black tracking-tight">
                   {translate(
                     "frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_tools_heading",
                   )}
                 </h4>
-                <p class="text-sm opacity-60 font-medium max-w-xl mt-1">
+                <p class="text-xs opacity-60 font-medium max-w-xl mt-0.5">
                   {translate(
                     "frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_tools_hint",
                   )}
@@ -3109,17 +3113,17 @@ class MyTests(unittest.TestCase):
             </div>
 
             <!-- Stylized Mode Switcher -->
-            <div class="flex bg-base-300/50 p-1 rounded-xl mt-8 w-fit border border-white/5">
+            <div class="flex bg-base-300/50 p-1 rounded-xl mt-4 w-fit border border-white/5">
               <button 
                 type="button"
-                class="px-6 py-2 rounded-lg text-sm font-bold transition-all duration-200 {toolMode === 'structured' ? 'bg-base-100 shadow-md scale-[1.02] text-primary' : 'hover:bg-base-100/30 opacity-60'}"
+                class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 {toolMode === 'structured' ? 'bg-base-100 shadow-md scale-[1.02] text-primary' : 'hover:bg-base-100/30 opacity-60'}"
                 on:click={() => { toolMode = "structured"; bannedSaved = false; }}
               >
                 {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_mode_structured")}
               </button>
               <button 
                 type="button"
-                class="px-6 py-2 rounded-lg text-sm font-bold transition-all duration-200 {toolMode === 'advanced' ? 'bg-base-100 shadow-md scale-[1.02] text-primary' : 'hover:bg-base-100/30 opacity-60'}"
+                class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 {toolMode === 'advanced' ? 'bg-base-100 shadow-md scale-[1.02] text-primary' : 'hover:bg-base-100/30 opacity-60'}"
                 on:click={() => { toolMode = "advanced"; bannedSaved = false; }}
               >
                 {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::banned_mode_advanced")}
@@ -3127,22 +3131,22 @@ class MyTests(unittest.TestCase):
             </div>
           </div>
 
-          <div class="p-8 space-y-8 max-h-[60vh] overflow-y-auto custom-scrollbar">
+          <div class="p-4 space-y-4 max-h-[65vh] overflow-y-auto custom-scrollbar">
             {#if toolMode === "structured"}
               <!-- Add New Rule Section -->
-              <div class="card bg-base-100/40 border border-base-300/30 shadow-sm p-6 space-y-6">
-                <h5 class="text-sm font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
-                  <Plus size={16} class="text-primary" />
+              <div class="card bg-base-100/40 border border-base-300/30 shadow-sm p-4 space-y-4">
+                <h5 class="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-1.5">
+                  <Plus size={14} class="text-primary" />
                   {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::add_rule")}
                 </h5>
 
-                <div class="grid gap-6 md:grid-cols-2">
+                <div class="grid gap-3 md:grid-cols-2">
                   <label class="form-control w-full group">
-                    <span class="label-text font-bold text-xs uppercase opacity-40 mb-2 transition-opacity group-focus-within:opacity-100">
+                    <span class="label-text font-bold text-[10px] uppercase opacity-40 mb-1.5 transition-opacity group-focus-within:opacity-100">
                       {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_library_label")}
                     </span>
                     <select
-                      class="select select-bordered w-full bg-base-200/50 focus:bg-base-100 border-base-300/50 transition-all font-medium"
+                      class="select select-bordered select-sm w-full bg-base-200/50 focus:bg-base-100 border-base-300/50 transition-all font-medium"
                       bind:value={draftLibrary}
                       on:change={() => (bannedSaved = false)}
                     >
@@ -3153,13 +3157,13 @@ class MyTests(unittest.TestCase):
                   </label>
 
                   <label class="form-control w-full group">
-                    <span class="label-text font-bold text-xs uppercase opacity-40 mb-2 transition-opacity group-focus-within:opacity-100">
+                    <span class="label-text font-bold text-[10px] uppercase opacity-40 mb-1.5 transition-opacity group-focus-within:opacity-100">
                       {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_function_label")}
                     </span>
-                    <div class="flex gap-2">
+                    <div class="flex gap-1.5">
                       <div class="relative flex-1">
                         <input
-                          class="input input-bordered w-full bg-base-200/50 focus:bg-base-100 border-base-300/50 transition-all font-mono"
+                          class="input input-bordered input-sm w-full bg-base-200/50 focus:bg-base-100 border-base-300/50 transition-all font-mono"
                           list="banned-function-options"
                           bind:value={draftFunction}
                           placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_function_placeholder")}
@@ -3173,7 +3177,7 @@ class MyTests(unittest.TestCase):
                       </div>
                       <button
                         type="button"
-                        class="btn btn-outline border-base-300/50 hover:border-primary/50 transition-colors font-bold"
+                        class="btn btn-sm btn-outline border-base-300/50 hover:border-primary/50 transition-colors font-bold px-2"
                         on:click={() => {
                           draftFunction = "*";
                           bannedSaved = false;
@@ -3185,11 +3189,11 @@ class MyTests(unittest.TestCase):
                   </label>
 
                   <label class="form-control md:col-span-2 group">
-                    <span class="label-text font-bold text-xs uppercase opacity-40 mb-2 transition-opacity group-focus-within:opacity-100">
+                    <span class="label-text font-bold text-[10px] uppercase opacity-40 mb-1.5 transition-opacity group-focus-within:opacity-100">
                       {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_note_label")}
                     </span>
                     <input
-                      class="input input-bordered w-full bg-base-200/50 focus:bg-base-100 border-base-300/50 transition-all"
+                      class="input input-bordered input-sm w-full bg-base-200/50 focus:bg-base-100 border-base-300/50 transition-all"
                       bind:value={draftNote}
                       placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_note_placeholder")}
                       on:input={() => (bannedSaved = false)}
@@ -3199,10 +3203,10 @@ class MyTests(unittest.TestCase):
                   <div class="md:col-span-2 flex justify-end">
                     <button
                       type="button"
-                      class="btn btn-primary px-8 shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all font-bold"
+                      class="btn btn-primary btn-sm px-6 shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all font-bold"
                       on:click={addStructuredRule}
                     >
-                      <Plus size={18} />
+                      <Plus size={16} />
                       {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_add_button")}
                     </button>
                   </div>
@@ -3210,33 +3214,33 @@ class MyTests(unittest.TestCase):
               </div>
 
               <!-- Configured Rules List -->
-              <div class="space-y-4">
+              <div class="space-y-3">
                 <div class="flex items-center justify-between">
-                  <h5 class="text-sm font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
-                    <Shield size={16} class="text-error" />
+                  <h5 class="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-1.5">
+                    <Shield size={14} class="text-error" />
                     {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_rules_heading")}
                   </h5>
                 </div>
 
                 {#if structuredRules.length}
-                  <div class="grid gap-3">
+                  <div class="grid gap-2">
                     {#each structuredRules as rule, idx}
-                      <div class="flex items-center gap-4 p-4 rounded-xl bg-base-100 border border-base-300/40 hover:border-error/30 transition-all group/rule">
-                        <div class="w-12 h-12 rounded-lg bg-base-300/30 flex items-center justify-center font-mono text-xs font-black opacity-40 group-hover/rule:bg-error/10 group-hover/rule:text-error group-hover/rule:opacity-100 transition-all">
+                      <div class="flex items-center gap-3 p-2.5 rounded-xl bg-base-100 border border-base-300/40 hover:border-error/30 transition-all group/rule">
+                        <div class="w-10 h-10 rounded-lg bg-base-300/30 flex items-center justify-center font-mono text-[10px] font-black opacity-40 group-hover/rule:bg-error/10 group-hover/rule:text-error group-hover/rule:opacity-100 transition-all">
                           {rule.library.slice(0, 2).toUpperCase()}
                         </div>
                         
                         <div class="flex-1 min-w-0">
-                          <div class="flex items-center gap-2 mb-1">
-                            <span class="font-bold text-sm tracking-tight">{libraryLabel(rule.library)}</span>
-                            <span class="text-xs opacity-30">/</span>
-                            <code class="text-xs px-2 py-0.5 rounded bg-base-300/50 font-bold text-error">
+                          <div class="flex items-center gap-1.5 mb-0.5">
+                            <span class="font-bold text-xs tracking-tight">{libraryLabel(rule.library)}</span>
+                            <span class="text-[10px] opacity-30">/</span>
+                            <code class="text-[10px] px-1.5 py-0.5 rounded bg-base-300/50 font-bold text-error">
                               {rule.function === "*" ? "*" : rule.function}()
                             </code>
                           </div>
                           
                           <input
-                            class="w-full bg-transparent border-none text-sm opacity-60 focus:opacity-100 focus:outline-none placeholder:italic"
+                            class="w-full bg-transparent border-none text-[11px] opacity-60 focus:opacity-100 focus:outline-none placeholder:italic"
                             value={rule.note}
                             on:input={(event) => updateStructuredNote(idx, (event.target as HTMLInputElement).value)}
                             placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_note_placeholder")}
@@ -3324,18 +3328,18 @@ class MyTests(unittest.TestCase):
 
       <dialog id="existing_tests_modal" class="modal">
         <div class="modal-box w-11/12 max-w-5xl bg-base-200/50 backdrop-blur-xl border border-white/10 shadow-2xl p-0 overflow-hidden">
-          <div class="p-6 pb-0">
+          <div class="p-4 pb-0">
             <form method="dialog">
-              <button class="btn btn-sm btn-circle btn-ghost absolute right-4 top-4 z-10">✕</button>
+              <button class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3 z-10">✕</button>
             </form>
-            <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center justify-between mb-3">
               <div>
-                <h3 class="font-bold text-2xl tracking-tight">
+                <h3 class="font-bold text-xl tracking-tight">
                   {translate(
                     "frontend/src/routes/assignments/[id]/tests/+page.svelte::existing_tests",
                   )}
                 </h3>
-                <p class="text-sm opacity-50 font-medium">
+                <p class="text-xs opacity-50 font-medium">
                   {tests?.length || 0}
                   {tests?.length === 1
                     ? translate(
@@ -3349,7 +3353,7 @@ class MyTests(unittest.TestCase):
             </div>
           </div>
 
-          <div class="grid gap-6 max-h-[70vh] overflow-y-auto px-6 pb-6">
+          <div class="grid gap-3 max-h-[75vh] overflow-y-auto px-4 pb-4">
             {#each tests as t, i}
               {@const mode =
                 t.execution_mode ??
@@ -3363,38 +3367,38 @@ class MyTests(unittest.TestCase):
                 typeof t.unittest_code === "string" &&
                 t.unittest_code.trim().length > 0}
               
-              <div class="group relative bg-base-100 rounded-2xl border border-base-300/50 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden
-                {mode === 'unittest' ? 'border-l-[6px] border-l-primary' : 
-                 mode === 'function' ? 'border-l-[6px] border-l-info' : 
-                 'border-l-[6px] border-l-secondary'}"
+              <div class="group relative bg-base-100 rounded-xl border border-base-300/50 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden
+                {mode === 'unittest' ? 'border-l-4 border-l-primary' : 
+                 mode === 'function' ? 'border-l-4 border-l-info' : 
+                 'border-l-4 border-l-secondary'}"
               >
                 <!-- Card Header -->
-                <div class="flex items-center justify-between p-5 bg-base-200/30 border-b border-base-200">
-                  <div class="flex items-center gap-4">
+                <div class="flex items-center justify-between p-3 bg-base-200/30 border-b border-base-200 gap-3">
+                  <div class="flex items-center gap-3">
                     <div class="flex flex-col">
-                      <span class="text-[10px] uppercase tracking-widest font-bold opacity-40 mb-1">Test Case</span>
-                      <div class="flex items-center gap-2">
-                        <span class="text-lg font-black opacity-20">#{i + 1}</span>
-                        <div class="flex items-center gap-2">
+                      <span class="text-[9px] uppercase tracking-widest font-bold opacity-40 mb-0.5">Test Case</span>
+                      <div class="flex items-center gap-1.5">
+                        <span class="text-base font-black opacity-20">#{i + 1}</span>
+                        <div class="flex items-center gap-1.5">
                           {#if mode === "function"}
-                            <span class="badge badge-info badge-sm font-bold gap-1 py-3 px-3">
+                            <span class="badge badge-info badge-xs font-bold gap-1 py-2 px-2">
                               {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::function")}
                             </span>
                             {#if t.function_name}
-                              <span class="font-mono text-sm font-semibold text-info/80">{t.function_name}()</span>
+                              <span class="font-mono text-xs font-semibold text-info/80">{t.function_name}()</span>
                             {/if}
                           {:else if mode === "unittest"}
-                            <span class="badge badge-primary badge-sm font-bold gap-1 py-3 px-3">
-                              <FlaskConical size={12} />
+                            <span class="badge badge-primary badge-xs font-bold gap-1 py-2 px-2">
+                              <FlaskConical size={10} />
                               {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest")}
                             </span>
                             {#if utName}
-                              <code class="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded font-bold">{utName}</code>
+                              <code class="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold">{utName}</code>
                             {:else}
-                              <span class="text-sm opacity-50 italic">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unnamed_test")}</span>
+                              <span class="text-xs opacity-50 italic">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unnamed_test")}</span>
                             {/if}
                           {:else}
-                            <span class="badge badge-secondary badge-sm font-bold gap-1 py-3 px-3">
+                            <span class="badge badge-secondary badge-xs font-bold gap-1 py-2 px-2">
                               {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::io")}
                             </span>
                           {/if}
@@ -3403,58 +3407,58 @@ class MyTests(unittest.TestCase):
                     </div>
                   </div>
 
-                  <div class="flex gap-2">
+                  <div class="flex gap-1.5">
                     {#if mode === "unittest" && hasUnittestCode}
                       <button
-                        class="btn btn-sm btn-ghost hover:bg-base-300 transition-colors tooltip tooltip-bottom"
+                        class="btn btn-xs btn-ghost hover:bg-base-300 transition-colors tooltip tooltip-bottom"
                         data-tip={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::edit")}
                         on:click={() => openEditUnitTest(t)}
                       >
-                        <Code size={18} />
+                        <Code size={16} />
                       </button>
                     {/if}
                     <button 
-                      class="btn btn-sm btn-ghost hover:bg-success/20 hover:text-success transition-colors tooltip tooltip-bottom" 
+                      class="btn btn-xs btn-ghost hover:bg-success/20 hover:text-success transition-colors tooltip tooltip-bottom" 
                       data-tip={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::save")}
                       on:click={() => updateTest(t)}
                     >
-                      <Save size={18} />
+                      <Save size={16} />
                     </button>
                     <button
-                      class="btn btn-sm btn-ghost hover:bg-error/20 hover:text-error transition-colors tooltip tooltip-left"
+                      class="btn btn-xs btn-ghost hover:bg-error/20 hover:text-error transition-colors tooltip tooltip-left"
                       data-tip={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::delete")}
                       on:click={() => delTest(t.id)}
                     >
-                      <Trash2 size={18} />
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 </div>
 
-                <div class="p-6 space-y-6">
+                <div class="p-3 space-y-3">
                   {#if mode === "function"}
                     {@const prep = ensurePrepared(t)}
-                    <div class="space-y-6">
-                      <div class="grid gap-4 md:grid-cols-2">
+                    <div class="space-y-3">
+                      <div class="grid gap-3 md:grid-cols-2">
                         <div class="form-control w-full">
-                          <label class="label pb-1">
-                            <span class="label-text font-bold text-xs uppercase opacity-60 tracking-wider">
+                          <label class="label pb-0.5">
+                            <span class="label-text font-bold text-[10px] uppercase opacity-60 tracking-wider">
                               {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::function_name")}
                             </span>
                           </label>
                           <input
-                            class="input input-bordered w-full bg-base-200/50 focus:bg-base-100 transition-all font-mono"
+                            class="input input-bordered input-sm w-full bg-base-200/50 focus:bg-base-100 transition-all font-mono text-xs"
                             placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::function_name_example_multiply")}
                             bind:value={t.function_name}
                           />
                         </div>
                         <div class="form-control w-full">
-                          <label class="label pb-1">
-                            <span class="label-text font-bold text-xs uppercase opacity-60 tracking-wider">
+                          <label class="label pb-0.5">
+                            <span class="label-text font-bold text-[10px] uppercase opacity-60 tracking-wider">
                               {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_json")}
                             </span>
                           </label>
                           <textarea
-                            class="textarea textarea-bordered w-full bg-base-200/50 focus:bg-base-100 transition-all font-mono min-h-[3rem]"
+                            class="textarea textarea-bordered h-8 min-h-0 py-1 w-full bg-base-200/50 focus:bg-base-100 transition-all font-mono text-xs"
                             rows="1"
                             placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::example_6")}
                             bind:value={t.expected_return}
@@ -3462,49 +3466,49 @@ class MyTests(unittest.TestCase):
                         </div>
                       </div>
 
-                      <div class="space-y-3 p-4 rounded-2xl bg-base-200/30 border border-base-200">
-                        <div class="flex items-center justify-between mb-2">
-                          <h5 class="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
-                            <ChevronRight size={14} class="text-info" />
+                      <div class="space-y-2 p-2.5 rounded-xl bg-base-200/30 border border-base-200">
+                        <div class="flex items-center justify-between mb-1">
+                          <h5 class="text-[9px] font-black uppercase tracking-widest opacity-60 flex items-center gap-1.5">
+                            <ChevronRight size={12} class="text-info" />
                             {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::arguments")}
                           </h5>
                           <button
-                            class="btn btn-xs btn-outline btn-info border-2 font-bold px-3 hover:scale-105 transition-transform"
+                            class="btn btn-xs btn-outline btn-info border font-bold px-2 h-6 min-h-0 hover:scale-105 transition-transform text-[10px]"
                             on:click={() => addPreparedKwarg(t)}
                           >
-                            <Plus size={14} />
+                            <Plus size={12} />
                             {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::add_arg")}
                           </button>
                         </div>
                         
-                        <div class="grid gap-3 md:grid-cols-2">
+                        <div class="grid gap-2 md:grid-cols-2">
                           {#each prep as arg, ai}
-                            <div class="flex items-center gap-2 group/arg">
+                            <div class="flex items-center gap-1.5 group/arg">
                               <input
-                                class="input input-bordered input-sm w-32 bg-base-100 font-mono text-xs font-bold transition-all focus:ring-1 focus:ring-info"
+                                class="input input-bordered input-xs w-28 bg-base-100 font-mono text-[10px] font-bold transition-all focus:ring-1 focus:ring-info"
                                 class:text-info={!arg.is_pos}
                                 placeholder={arg.is_pos ? "Arg name" : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_name")}
                                 bind:value={arg.key}
                               />
-                              <span class="opacity-30 font-bold">=</span>
+                              <span class="opacity-30 font-bold text-xs">=</span>
                               <div class="flex-1 flex items-center gap-1">
                                 <input
-                                  class="input input-bordered input-sm flex-1 bg-base-100 transition-all focus:ring-1 focus:ring-info"
+                                  class="input input-bordered input-xs flex-1 bg-base-100 transition-all focus:ring-1 focus:ring-info text-[10px]"
                                   placeholder="Value"
                                   bind:value={arg.value}
                                 />
                                 <button
-                                  class="btn btn-circle btn-ghost btn-xs text-error/40 hover:text-error hover:bg-error/10 transition-all opacity-0 group-hover/arg:opacity-100"
+                                  class="btn btn-circle btn-ghost btn-xs text-error/40 hover:text-error hover:bg-error/10 transition-all opacity-0 group-hover/arg:opacity-100 h-5 w-5 min-h-0"
                                   on:click={() => removePreparedArg(t, ai)}
                                 >
-                                  <Trash2 size={12} />
+                                  <Trash2 size={10} />
                                 </button>
                               </div>
                             </div>
                           {/each}
                           {#if prep.length === 0}
-                            <div class="flex flex-col items-center justify-center py-4 opacity-40 md:col-span-2">
-                              <p class="text-xs italic">
+                            <div class="flex flex-col items-center justify-center py-2 opacity-40 md:col-span-2">
+                              <p class="text-[10px] italic">
                                 {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::no_arguments")}
                               </p>
                             </div>
@@ -3515,40 +3519,40 @@ class MyTests(unittest.TestCase):
                   {:else if t.unittest_name}
                     {#if t.unittest_code}
                       <details class="group/details">
-                        <summary class="cursor-pointer text-sm font-bold opacity-60 hover:opacity-100 flex items-center gap-2 transition-all p-2 rounded-lg hover:bg-base-200 w-fit">
-                          <Eye size={16} class="text-primary" />
+                        <summary class="cursor-pointer text-xs font-bold opacity-60 hover:opacity-100 flex items-center gap-1.5 transition-all p-1.5 rounded-lg hover:bg-base-200 w-fit">
+                          <Eye size={14} class="text-primary" />
                           {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::view_test_method_code")}
-                          <ChevronRight size={14} class="group-open/details:rotate-90 transition-transform" />
+                          <ChevronRight size={12} class="group-open/details:rotate-90 transition-transform" />
                         </summary>
-                        <div class="mt-4 p-4 rounded-xl bg-base-900 text-base-content border border-base-200 overflow-x-auto">
-                          <pre class="text-xs leading-relaxed font-mono">{extractMethodFromUnittest(t.unittest_code, t.unittest_name)}</pre>
+                        <div class="mt-2 p-3 rounded-xl bg-base-900 text-base-content border border-base-200 overflow-x-auto">
+                          <pre class="text-[10px] leading-relaxed font-mono">{extractMethodFromUnittest(t.unittest_code, t.unittest_name)}</pre>
                         </div>
                       </details>
                     {/if}
                   {:else}
-                    <div class="grid sm:grid-cols-2 gap-6">
+                    <div class="grid sm:grid-cols-2 gap-4">
                       <div class="form-control w-full">
-                        <label class="label pb-1">
-                          <span class="label-text font-bold text-xs uppercase opacity-60 tracking-wider">
+                        <label class="label pb-0.5">
+                          <span class="label-text font-bold text-[10px] uppercase opacity-60 tracking-wider text-secondary">
                             {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::input")}
                           </span>
                         </label>
                         <textarea
-                          class="textarea textarea-bordered w-full bg-base-200/50 focus:bg-base-100 transition-all font-mono min-h-[6rem]"
-                          rows="4"
+                          class="textarea textarea-bordered w-full bg-base-200/50 focus:bg-base-100 transition-all font-mono min-h-[4rem] text-xs py-1.5"
+                          rows="3"
                           placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin")}
                           bind:value={t.stdin}
                         ></textarea>
                       </div>
                       <div class="form-control w-full">
-                        <label class="label pb-1">
-                          <span class="label-text font-bold text-xs uppercase opacity-60 tracking-wider">
+                        <label class="label pb-0.5">
+                          <span class="label-text font-bold text-[10px] uppercase opacity-60 tracking-wider text-secondary">
                             {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_output")}
                           </span>
                         </label>
                         <textarea
-                          class="textarea textarea-bordered w-full bg-base-200/50 focus:bg-base-100 transition-all font-mono min-h-[6rem]"
-                          rows="4"
+                          class="textarea textarea-bordered w-full bg-base-200/50 focus:bg-base-100 transition-all font-mono min-h-[4rem] text-xs py-1.5"
+                          rows="3"
                           placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_stdout")}
                           bind:value={t.expected_stdout}
                         ></textarea>
@@ -3556,40 +3560,40 @@ class MyTests(unittest.TestCase):
                     </div>
                   {/if}
 
-                  <div class="flex flex-wrap items-end justify-between gap-6 pt-4 border-t border-base-200/50">
-                    <div class="flex flex-wrap gap-6">
+                  <div class="flex flex-wrap items-end justify-between gap-4 pt-3 border-t border-base-200/50">
+                    <div class="flex flex-wrap gap-4">
                       <div class="form-control">
-                        <label class="label pb-1.5 px-0">
-                          <span class="label-text flex items-center gap-2 font-bold text-[10px] uppercase tracking-widest opacity-60">
-                            <Clock size={14} class="text-warning" />
+                        <label class="label pb-1 px-0">
+                          <span class="label-text flex items-center gap-1.5 font-bold text-[9px] uppercase tracking-widest opacity-60">
+                            <Clock size={12} class="text-warning" />
                             {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::time_limit_s_small")}
                           </span>
                         </label>
                         <div class="relative flex items-center">
                           <input
-                            class="input input-bordered input-sm w-32 font-bold bg-base-200/30 transition-all focus:w-40"
+                            class="input input-bordered input-xs w-24 font-bold bg-base-200/30 transition-all focus:w-28"
                             placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::seconds")}
                             bind:value={t.time_limit_sec}
                           />
-                          <span class="absolute right-3 text-[10px] font-black opacity-30 pointer-events-none">SEC</span>
+                          <span class="absolute right-2 text-[8px] font-black opacity-30 pointer-events-none">SEC</span>
                         </div>
                       </div>
                       
                       {#if assignment?.grading_policy === "weighted"}
                         <div class="form-control">
-                          <label class="label pb-1.5 px-0">
-                            <span class="label-text flex items-center gap-2 font-bold text-[10px] uppercase tracking-widest opacity-60">
-                              <Scale size={14} class="text-error" />
+                          <label class="label pb-1 px-0">
+                            <span class="label-text flex items-center gap-1.5 font-bold text-[9px] uppercase tracking-widest opacity-60">
+                              <Scale size={12} class="text-error" />
                               {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::points")}
                             </span>
                           </label>
                           <div class="relative flex items-center">
                             <input
-                              class="input input-bordered input-sm w-32 font-bold bg-base-200/30 transition-all focus:w-40"
+                              class="input input-bordered input-xs w-24 font-bold bg-base-200/30 transition-all focus:w-28"
                               placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::points_placeholder")}
                               bind:value={t.weight}
                             />
-                            <span class="absolute right-3 text-[10px] font-black opacity-30 pointer-events-none">PTS</span>
+                            <span class="absolute right-2 text-[8px] font-black opacity-30 pointer-events-none">PTS</span>
                           </div>
                         </div>
                       {/if}
@@ -3601,21 +3605,21 @@ class MyTests(unittest.TestCase):
                         {@const hasFiles = t.files && t.files.length > 0}
                         <div class="flex items-center gap-2">
                           {#if hasFiles}
-                            <div class="flex -space-x-2 mr-2">
+                            <div class="flex -space-x-1.5 mr-1.5">
                               {#each t.files.slice(0, 3) as _, fi}
-                                <div class="w-6 h-6 rounded-full bg-base-300 border-2 border-base-100 flex items-center justify-center shadow-sm">
-                                  <FileCode2 size={10} class="opacity-70" />
+                                <div class="w-5 h-5 rounded-full bg-base-300 border border-base-100 flex items-center justify-center shadow-sm">
+                                  <FileCode2 size={8} class="opacity-70" />
                                 </div>
                               {/each}
                               {#if t.files.length > 3}
-                                <div class="w-6 h-6 rounded-full bg-base-200 border-2 border-base-100 flex items-center justify-center text-[8px] font-bold">
+                                <div class="w-5 h-5 rounded-full bg-base-200 border border-base-100 flex items-center justify-center text-[7px] font-bold">
                                   +{t.files.length - 3}
                                 </div>
                               {/if}
                             </div>
                           {/if}
                           <button
-                            class="btn btn-sm {hasFiles ? 'btn-ghost' : 'btn-outline'} gap-2 px-4 shadow-sm hover:scale-105 transition-all"
+                            class="btn btn-xs {hasFiles ? 'btn-ghost' : 'btn-outline'} gap-1.5 px-3 shadow-sm hover:scale-105 transition-all text-[10px] h-7 min-h-0"
                             on:click={() => {
                               t.showFileEditor = !t.showFileEditor;
                               if (!t.showFileEditor) t.selectedFileIndex = undefined;
@@ -3623,10 +3627,10 @@ class MyTests(unittest.TestCase):
                             }}
                           >
                             {#if hasFiles}
-                              <FileCode2 size={16} class="text-primary" />
+                              <FileCode2 size={12} class="text-primary" />
                               <span class="font-bold">{t.files.length} {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::attached_files")}</span>
                             {:else}
-                              <FileUp size={16} />
+                              <FileUp size={12} />
                               <span>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::attach_files")}</span>
                             {/if}
                           </button>
@@ -3800,21 +3804,21 @@ class MyTests(unittest.TestCase):
           role="tabpanel"
           class="tab-content bg-base-100 border-base-300 rounded-box p-4"
         >
-          <div class="group relative bg-base-100 rounded-2xl border border-base-300/50 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border-l-[6px] border-l-secondary">
+          <div class="group relative bg-base-100 rounded-xl border border-base-300/50 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 border-l-secondary">
             <!-- Header -->
-            <div class="flex flex-wrap items-center justify-between p-5 bg-base-200/30 border-b border-base-200 gap-4">
-              <div class="flex items-center gap-4">
+            <div class="flex flex-wrap items-center justify-between p-3 bg-base-200/30 border-b border-base-200 gap-3">
+              <div class="flex items-center gap-3">
                 <div class="flex flex-col">
-                  <span class="text-[10px] uppercase tracking-widest font-bold opacity-40 mb-1">New Test Case</span>
-                  <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center">
-                      <Code size={20} />
+                  <span class="text-[9px] uppercase tracking-widest font-bold opacity-40 mb-0.5">New Test Case</span>
+                  <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center">
+                      <Code size={16} />
                     </div>
                     <div>
-                      <h4 class="font-bold text-lg leading-none">
+                      <h4 class="font-bold text-base leading-none">
                         {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::add_io_test")}
                       </h4>
-                      <p class="text-xs opacity-50 font-medium mt-1">
+                      <p class="text-[10px] opacity-50 font-medium mt-0.5">
                         {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::io_expected_source_hint")}
                       </p>
                     </div>
@@ -3822,14 +3826,14 @@ class MyTests(unittest.TestCase):
                 </div>
               </div>
               
-              <div class="flex flex-wrap gap-2">
+              <div class="flex flex-wrap gap-1.5">
                 <button
                   type="button"
-                  class={`option-pill ${ioOutputMode === "manual" ? "selected" : ""}`}
+                  class={`option-pill py-1 px-3 text-xs ${ioOutputMode === "manual" ? "selected" : ""}`}
                   aria-pressed={ioOutputMode === "manual"}
                   on:click={() => (ioOutputMode = "manual")}
                 >
-                  <span class="option-pill__indicator" aria-hidden="true" />
+                  <span class="option-pill__indicator w-1.5 h-1.5" aria-hidden="true" />
                   <span
                     >{translate(
                       "frontend/src/routes/assignments/[id]/tests/+page.svelte::output_source_manual",
@@ -3838,11 +3842,11 @@ class MyTests(unittest.TestCase):
                 </button>
                 <button
                   type="button"
-                  class={`option-pill ${ioOutputMode === "teacher" ? "selected" : ""}`}
+                  class={`option-pill py-1 px-3 text-xs ${ioOutputMode === "teacher" ? "selected" : ""}`}
                   aria-pressed={ioOutputMode === "teacher"}
                   on:click={() => (ioOutputMode = "teacher")}
                 >
-                  <span class="option-pill__indicator" aria-hidden="true" />
+                  <span class="option-pill__indicator w-1.5 h-1.5" aria-hidden="true" />
                   <span
                     >{translate(
                       "frontend/src/routes/assignments/[id]/tests/+page.svelte::output_source_teacher",
@@ -3852,17 +3856,17 @@ class MyTests(unittest.TestCase):
               </div>
             </div>
 
-            <div class="p-6 space-y-6">
+            <div class="p-4 space-y-4">
               <!-- Teacher Solution Upload (if applicable) -->
               {#if ioOutputMode === "teacher"}
-                <div class="p-5 rounded-2xl bg-primary/5 border border-dashed border-primary/30 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div class="p-4 rounded-xl bg-primary/5 border border-dashed border-primary/30 space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
                   <div class="flex items-center justify-between">
-                    <span class="text-xs font-black uppercase tracking-widest text-primary/70">
+                    <span class="text-[10px] font-black uppercase tracking-widest text-primary/70">
                       {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_solution_file")}
                     </span>
                     {#if teacherSolutionFile}
-                      <div class="badge badge-primary gap-2 py-3">
-                        <Check size={12} />
+                      <div class="badge badge-primary badge-sm gap-1.5 py-2">
+                        <Check size={10} />
                         {teacherSolutionFile.name}
                       </div>
                     {/if}
@@ -3870,37 +3874,37 @@ class MyTests(unittest.TestCase):
                   <input
                     type="file"
                     accept=".py,.zip,.txt"
-                    class="file-input file-input-bordered file-input-primary w-full bg-base-100"
+                    class="file-input file-input-bordered file-input-primary file-input-sm w-full bg-base-100"
                     on:change={(e) =>
                       (teacherSolutionFile =
                         (e.target as HTMLInputElement).files?.[0] || null)}
                   />
-                  <p class="text-[10px] opacity-60 italic">
+                  <p class="text-[9px] opacity-60 italic">
                     {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_solution_vm_hint")}
                   </p>
                 </div>
               {/if}
 
               <!-- IO Inputs -->
-              <div class="grid sm:grid-cols-2 gap-6">
+              <div class="grid sm:grid-cols-2 gap-4">
                 <div class="form-control w-full">
-                  <label class="label pb-1.5 px-0">
-                    <span class="label-text flex items-center gap-2 font-bold text-xs uppercase tracking-wider opacity-60 text-secondary">
-                      <Terminal size={14} />
+                  <label class="label pb-1 px-0">
+                    <span class="label-text flex items-center gap-1.5 font-bold text-[10px] uppercase tracking-wider opacity-60 text-secondary">
+                      <Terminal size={12} />
                       {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::input")}
                     </span>
                   </label>
                   <textarea
-                    class="textarea textarea-bordered w-full bg-base-200/50 focus:bg-base-100 transition-all font-mono min-h-[8rem] shadow-inner"
+                    class="textarea textarea-bordered w-full bg-base-200/50 focus:bg-base-100 transition-all font-mono min-h-[6rem] shadow-inner text-xs"
                     placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin")}
                     bind:value={tStdin}
                   ></textarea>
                 </div>
 
                 <div class="form-control w-full">
-                  <label class="label pb-1.5 px-0">
-                    <span class="label-text flex items-center gap-2 font-bold text-xs uppercase tracking-wider opacity-60 text-secondary">
-                      <ArrowRight size={14} />
+                  <label class="label pb-1 px-0">
+                    <span class="label-text flex items-center gap-1.5 font-bold text-[10px] uppercase tracking-wider opacity-60 text-secondary">
+                      <ArrowRight size={12} />
                       {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_output")}
                       {#if ioOutputMode === "teacher"}
                         <span class="badge badge-secondary badge-xs font-black">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::auto_from_teacher")}</span>
@@ -3909,18 +3913,18 @@ class MyTests(unittest.TestCase):
                   </label>
                   {#if ioOutputMode === "manual"}
                     <textarea
-                      class="textarea textarea-bordered w-full bg-base-200/50 focus:bg-base-100 transition-all font-mono min-h-[8rem] shadow-inner"
+                      class="textarea textarea-bordered w-full bg-base-200/50 focus:bg-base-100 transition-all font-mono min-h-[6rem] shadow-inner text-xs"
                       placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_stdout")}
                       bind:value={tStdout}
                     ></textarea>
                   {:else}
-                    <div class="flex flex-col items-center justify-center min-h-[8rem] rounded-xl border border-dashed border-base-300 bg-base-200/30 text-center p-4">
+                    <div class="flex flex-col items-center justify-center min-h-[6rem] rounded-xl border border-dashed border-base-300 bg-base-200/30 text-center p-3">
                       {#if ioOutputLoading}
-                        <span class="loading loading-spinner text-secondary mb-2"></span>
-                        <p class="text-xs font-medium opacity-60">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_solution_running")}</p>
+                        <span class="loading loading-spinner text-secondary mb-1.5 loading-xs"></span>
+                        <p class="text-[10px] font-medium opacity-60">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_solution_running")}</p>
                       {:else}
-                        <Cpu size={24} class="opacity-20 mb-2" />
-                        <p class="text-xs font-medium opacity-60 leading-relaxed">
+                        <Cpu size={16} class="opacity-20 mb-1.5" />
+                        <p class="text-[10px] font-medium opacity-60 leading-tight">
                           {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_output_from_teacher")}
                         </p>
                       {/if}
@@ -3930,40 +3934,40 @@ class MyTests(unittest.TestCase):
               </div>
 
               <!-- Settings & Files -->
-              <div class="flex flex-wrap items-end justify-between gap-6 pt-6 border-t border-base-200/50">
-                <div class="flex flex-wrap gap-6">
+              <div class="flex flex-wrap items-end justify-between gap-4 pt-3 border-t border-base-200/50">
+                <div class="flex flex-wrap gap-4">
                   <div class="form-control">
-                    <label class="label pb-1.5 px-0">
-                      <span class="label-text flex items-center gap-2 font-bold text-[10px] uppercase tracking-widest opacity-60">
-                        <Clock size={14} class="text-warning" />
+                    <label class="label pb-1 px-0">
+                      <span class="label-text flex items-center gap-1.5 font-bold text-[9px] uppercase tracking-widest opacity-60">
+                        <Clock size={12} class="text-warning" />
                         {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::time_limit_s")}
                       </span>
                     </label>
                     <div class="relative flex items-center">
                       <input
-                        class="input input-bordered input-sm w-32 font-bold bg-base-200/30 transition-all focus:w-40"
+                        class="input input-bordered input-xs w-24 font-bold bg-base-200/30 transition-all focus:w-28"
                         placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::seconds")}
                         bind:value={tLimit}
                       />
-                      <span class="absolute right-3 text-[10px] font-black opacity-30 pointer-events-none">SEC</span>
+                      <span class="absolute right-2 text-[8px] font-black opacity-30 pointer-events-none">SEC</span>
                     </div>
                   </div>
 
                   {#if assignment?.grading_policy === "weighted"}
                     <div class="form-control">
-                      <label class="label pb-1.5 px-0">
-                        <span class="label-text flex items-center gap-2 font-bold text-[10px] uppercase tracking-widest opacity-60">
-                          <Scale size={14} class="text-error" />
+                      <label class="label pb-1 px-0">
+                        <span class="label-text flex items-center gap-1.5 font-bold text-[9px] uppercase tracking-widest opacity-60">
+                          <Scale size={12} class="text-error" />
                           {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::points")}
                         </span>
                       </label>
                       <div class="relative flex items-center">
                         <input
-                          class="input input-bordered input-sm w-32 font-bold bg-base-200/30 transition-all focus:w-40"
+                          class="input input-bordered input-xs w-24 font-bold bg-base-200/30 transition-all focus:w-28"
                           placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::points_placeholder")}
                           bind:value={tWeight}
                         />
-                        <span class="absolute right-3 text-[10px] font-black opacity-30 pointer-events-none">PTS</span>
+                        <span class="absolute right-2 text-[8px] font-black opacity-30 pointer-events-none">PTS</span>
                       </div>
                     </div>
                   {/if}
@@ -3982,12 +3986,12 @@ class MyTests(unittest.TestCase):
               </div>
 
               <!-- Footer / Action -->
-              <div class="flex flex-wrap items-center justify-between gap-4 pt-4">
-                <p class="text-[10px] opacity-40 font-medium max-w-md italic">
+              <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
+                <p class="text-[9px] opacity-40 font-medium max-w-sm italic">
                   {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin_stdout_multiline_hint")}
                 </p>
                 <button
-                  class="btn btn-secondary px-8 font-bold shadow-lg shadow-secondary/20 hover:scale-105 transition-all"
+                  class="btn btn-secondary btn-sm px-6 font-bold shadow-lg shadow-secondary/20 hover:scale-105 transition-all h-9 min-h-0"
                   on:click={addTest}
                   disabled={!tStdin ||
                     ioOutputLoading ||
@@ -3996,9 +4000,9 @@ class MyTests(unittest.TestCase):
                       : !teacherSolutionFile)}
                 >
                   {#if ioOutputLoading}
-                    <span class="loading loading-spinner loading-sm"></span>
+                    <span class="loading loading-spinner loading-xs"></span>
                   {:else}
-                    <Plus size={18} />
+                    <Plus size={16} />
                   {/if}
                   {translate(
                     ioOutputMode === "teacher"
@@ -4024,21 +4028,21 @@ class MyTests(unittest.TestCase):
           role="tabpanel"
           class="tab-content bg-base-100 border-base-300 rounded-box p-4 space-y-4"
         >
-          <div class="group relative bg-base-100 rounded-2xl border border-base-300/50 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border-l-[6px] border-l-primary">
+          <div class="group relative bg-base-100 rounded-xl border border-base-300/50 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 border-l-primary">
             <!-- Header -->
-            <div class="flex flex-wrap items-center justify-between p-5 bg-base-200/30 border-b border-base-200 gap-4">
-              <div class="flex items-center gap-4">
+            <div class="flex flex-wrap items-center justify-between p-3 bg-base-200/30 border-b border-base-200 gap-3">
+              <div class="flex items-center gap-3">
                 <div class="flex flex-col">
-                  <span class="text-[10px] uppercase tracking-widest font-bold opacity-40 mb-1">Advanced Testing</span>
-                  <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                      <FlaskConical size={20} />
+                  <span class="text-[9px] uppercase tracking-widest font-bold opacity-40 mb-0.5">Advanced Testing</span>
+                  <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                      <FlaskConical size={16} />
                     </div>
                     <div>
-                      <h4 class="font-bold text-lg leading-none">
+                      <h4 class="font-bold text-base leading-none">
                         {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_builder")}
                       </h4>
-                      <p class="text-xs opacity-50 font-medium mt-1">
+                      <p class="text-[10px] opacity-50 font-medium mt-0.5">
                         {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_expected_hint")}
                       </p>
                     </div>
@@ -4046,39 +4050,39 @@ class MyTests(unittest.TestCase):
                 </div>
               </div>
               
-              <div class="flex flex-wrap gap-2">
+              <div class="flex flex-wrap gap-1.5">
                 <button
                   type="button"
-                  class={`option-pill ${utOutputMode === "manual" ? "selected" : ""}`}
+                  class={`option-pill py-1 px-3 text-xs ${utOutputMode === "manual" ? "selected" : ""}`}
                   aria-pressed={utOutputMode === "manual"}
                   on:click={() => (utOutputMode = "manual")}
                 >
-                  <span class="option-pill__indicator" aria-hidden="true" />
+                  <span class="option-pill__indicator w-1.5 h-1.5" aria-hidden="true" />
                   <span>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::output_source_manual")}</span>
                 </button>
                 <button
                   type="button"
-                  class={`option-pill ${utOutputMode === "teacher" ? "selected" : ""}`}
+                  class={`option-pill py-1 px-3 text-xs ${utOutputMode === "teacher" ? "selected" : ""}`}
                   aria-pressed={utOutputMode === "teacher"}
                   on:click={() => (utOutputMode = "teacher")}
                 >
-                  <span class="option-pill__indicator" aria-hidden="true" />
+                  <span class="option-pill__indicator w-1.5 h-1.5" aria-hidden="true" />
                   <span>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::output_source_teacher")}</span>
                 </button>
               </div>
             </div>
 
-            <div class="p-6 space-y-6">
+            <div class="p-4 space-y-4">
                 <!-- Teacher Solution (if teacher mode) -->
                 {#if utOutputMode === "teacher"}
-                  <div class="p-5 rounded-2xl bg-primary/5 border border-dashed border-primary/30 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div class="p-3 rounded-xl bg-primary/5 border border-dashed border-primary/30 space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
                     <div class="flex items-center justify-between">
-                      <span class="text-xs font-black uppercase tracking-widest text-primary/70">
+                      <span class="text-[9px] font-black uppercase tracking-widest text-primary/70">
                         {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_solution_file")}
                       </span>
                       {#if teacherSolutionFile}
-                        <div class="badge badge-primary gap-2 py-3">
-                          <Check size={12} />
+                        <div class="badge badge-primary badge-sm gap-1.5 py-2">
+                          <Check size={10} />
                           {teacherSolutionFile.name}
                         </div>
                       {/if}
@@ -4086,36 +4090,36 @@ class MyTests(unittest.TestCase):
                     <input
                       type="file"
                       accept=".py,.zip,.txt"
-                      class="file-input file-input-bordered file-input-primary w-full bg-base-100"
+                      class="file-input file-input-bordered file-input-primary file-input-sm w-full bg-base-100"
                       on:change={(e) => (teacherSolutionFile = (e.target as HTMLInputElement).files?.[0] || null)}
                     />
-                    <p class="text-[10px] opacity-60 italic leading-relaxed">
+                    <p class="text-[9px] opacity-60 italic leading-relaxed">
                       {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_teacher_autofill_hint")}
                     </p>
                   </div>
                 {/if}
 
                 <!-- Class Settings -->
-                <div class="grid sm:grid-cols-[1fr_auto] gap-4 items-end bg-base-200/30 p-4 rounded-xl border border-base-200">
+                <div class="grid sm:grid-cols-[1fr_auto] gap-3 items-end bg-base-200/30 p-3 rounded-xl border border-base-200">
                   <label class="form-control w-full space-y-1">
-                    <span class="text-[10px] uppercase font-black tracking-widest opacity-40 px-1">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::class_name")}</span>
+                    <span class="text-[9px] uppercase font-black tracking-widest opacity-40 px-1">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::class_name")}</span>
                     <input
-                      class="input input-bordered w-full font-bold"
+                      class="input input-bordered input-sm w-full font-bold"
                       bind:value={utClassName}
                       placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_assignment_placeholder")}
                     />
                   </label>
                   <div class="flex gap-2">
-                    <button type="button" class="btn btn-outline border-2 font-bold px-6" on:click={addUTTest}>
-                      <Plus size={18} />
+                    <button type="button" class="btn btn-outline btn-sm font-bold h-8 min-h-0 px-3" on:click={addUTTest}>
+                      <Plus size={14} />
                       {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::add_test_method")}
                     </button>
                     <button
                       type="button"
-                      class="btn btn-ghost border-2 border-transparent hover:border-base-300 font-bold"
+                      class="btn btn-ghost btn-sm h-8 min-h-0 font-bold px-3 border border-transparent hover:border-base-300"
                       on:click={() => { utShowPreview = !utShowPreview; refreshPreview(); }}
                     >
-                      <Eye size={18} />
+                      <Eye size={14} />
                       {utShowPreview ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::hide_code") : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::preview_code")}
                     </button>
                   </div>
@@ -4128,65 +4132,65 @@ class MyTests(unittest.TestCase):
                     class="btn btn-ghost btn-xs font-black uppercase tracking-widest opacity-60 hover:opacity-100"
                     on:click={() => (showAdvanced = !showAdvanced)}
                   >
-                    <ChevronRight size={14} class={showAdvanced ? 'rotate-90' : ''} />
+                    <ChevronRight size={12} class={showAdvanced ? 'rotate-90' : ''} />
                     {showAdvanced ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::hide_code") : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::advanced_setup_teardown")}
                   </button>
                   {#if showAdvanced}
-                    <div class="grid sm:grid-cols-2 gap-4 mt-4 animate-in fade-in slide-in-from-top-2">
-                      <div class="space-y-2">
-                        <span class="text-[10px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::setup_optional")}</span>
-                        <div class="rounded-xl overflow-hidden border border-base-300"><CodeMirror bind:value={utSetup} lang={python()} readOnly={false} /></div>
+                    <div class="grid sm:grid-cols-2 gap-3 mt-2 animate-in fade-in slide-in-from-top-2">
+                      <div class="space-y-1.5">
+                        <span class="text-[9px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::setup_optional")}</span>
+                        <div class="rounded-lg overflow-hidden border border-base-300 shadow-inner"><CodeMirror bind:value={utSetup} lang={python()} readOnly={false} /></div>
                       </div>
-                      <div class="space-y-2">
-                        <span class="text-[10px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::teardown_optional")}</span>
-                        <div class="rounded-xl overflow-hidden border border-base-300"><CodeMirror bind:value={utTeardown} lang={python()} readOnly={false} /></div>
+                      <div class="space-y-1.5">
+                        <span class="text-[9px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::teardown_optional")}</span>
+                        <div class="rounded-lg overflow-hidden border border-base-300 shadow-inner"><CodeMirror bind:value={utTeardown} lang={python()} readOnly={false} /></div>
                       </div>
                     </div>
                   {/if}
                 </div>
 
                 <!-- Test Methods -->
-                <div class="space-y-4 pt-4">
+                <div class="grid gap-3 pt-2">
                   {#each utTests as ut, ti}
-                    <div class="rounded-2xl border border-base-300/50 bg-base-100/50 p-6 space-y-6 relative group/method hover:border-primary/30 transition-all shadow-sm">
+                    <div class="rounded-xl border border-base-300/50 bg-base-100/50 p-4 space-y-4 relative group/method hover:border-primary/30 transition-all shadow-sm">
                       <button
                         type="button"
-                        class="btn btn-circle btn-ghost btn-xs absolute right-4 top-4 text-error/30 hover:text-error hover:bg-error/10"
+                        class="btn btn-circle btn-ghost btn-xs absolute right-2 top-2 text-error/30 hover:text-error hover:bg-error/10 opacity-0 group-hover/method:opacity-100 transition-opacity"
                         on:click={() => removeUTTest(ti)}
-                      ><Trash2 size={14} /></button>
+                      ><Trash2 size={12} /></button>
 
-                      <div class="grid gap-6 sm:grid-cols-2">
+                      <div class="grid gap-4 sm:grid-cols-2">
                         <div class="form-control space-y-1">
-                          <span class="text-[10px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::method_name")}</span>
+                          <span class="text-[9px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::method_name")}</span>
                           <input
-                            class="input input-bordered w-full font-mono font-bold text-sm"
+                            class="input input-bordered input-sm w-full font-mono font-bold text-xs"
                             bind:value={ut.name}
                             placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_something_placeholder")}
                           />
                         </div>
                         <div class="form-control space-y-1">
-                          <span class="text-[10px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::description")}</span>
+                          <span class="text-[9px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::description")}</span>
                           <input
-                            class="input input-bordered w-full text-sm"
+                            class="input input-bordered input-sm w-full text-xs"
                             bind:value={ut.description}
                             placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::what_this_test_checks_placeholder")}
                           />
                         </div>
                       </div>
 
-                      <div class="grid sm:grid-cols-2 gap-6">
+                      <div class="grid sm:grid-cols-2 gap-4">
                         <div class="form-control space-y-1">
-                          <span class="text-[10px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::call_mode")}</span>
-                          <select class="select select-bordered w-full font-semibold" bind:value={ut.callMode}>
+                          <span class="text-[9px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::call_mode")}</span>
+                          <select class="select select-bordered select-sm w-full font-semibold text-xs h-8 min-h-0" bind:value={ut.callMode}>
                             <option value="stdin">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::student_code_stdin_stdout")}</option>
                             <option value="function">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::student_function_return_value")}</option>
                           </select>
                         </div>
                         {#if ut.callMode === "function"}
                           <div class="form-control space-y-1 animate-in fade-in slide-in-from-left-2">
-                            <span class="text-[10px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::function_name")}</span>
+                            <span class="text-[9px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::function_name")}</span>
                             <input
-                              class="input input-bordered w-full font-mono font-bold text-sm"
+                              class="input input-bordered input-sm w-full font-mono font-bold text-xs"
                               bind:value={ut.functionName}
                               placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::solve_placeholder")}
                             />
@@ -4194,20 +4198,20 @@ class MyTests(unittest.TestCase):
                         {/if}
                       </div>
 
-                      <div class="flex flex-wrap gap-6 pt-4 border-t border-base-200/50">
+                      <div class="flex flex-wrap gap-4 pt-3 border-t border-base-200/50">
                         <div class="form-control">
-                          <span class="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1.5 flex items-center gap-2"><Clock size={12} class="text-warning" /> {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::time_limit_s")}</span>
+                          <span class="text-[9px] font-black uppercase tracking-widest opacity-40 mb-1 flex items-center gap-1.5"><Clock size={10} class="text-warning" /> {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::time_limit_s")}</span>
                           <div class="relative flex items-center">
-                            <input class="input input-bordered input-sm w-28 font-bold" bind:value={ut.timeLimit} />
-                            <span class="absolute right-2 text-[8px] font-black opacity-30">SEC</span>
+                            <input class="input input-bordered input-xs w-24 font-bold" bind:value={ut.timeLimit} />
+                            <span class="absolute right-2 text-[7px] font-black opacity-30">SEC</span>
                           </div>
                         </div>
                         {#if assignment?.grading_policy === "weighted"}
                           <div class="form-control">
-                            <span class="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1.5 flex items-center gap-2"><Scale size={12} class="text-error" /> {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::points")}</span>
+                            <span class="text-[9px] font-black uppercase tracking-widest opacity-40 mb-1 flex items-center gap-1.5"><Scale size={10} class="text-error" /> {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::points")}</span>
                             <div class="relative flex items-center">
-                              <input class="input input-bordered input-sm w-28 font-bold" bind:value={ut.weight} />
-                              <span class="absolute right-2 text-[8px] font-black opacity-30">PTS</span>
+                              <input class="input input-bordered input-xs w-24 font-bold" bind:value={ut.weight} />
+                              <span class="absolute right-2 text-[7px] font-black opacity-30">PTS</span>
                             </div>
                           </div>
                         {/if}
@@ -4224,75 +4228,75 @@ class MyTests(unittest.TestCase):
                       </div>
 
                       <!-- Assertions -->
-                      <div class="space-y-4 bg-base-200/40 p-5 rounded-2xl border border-base-200">
+                      <div class="space-y-3 bg-base-200/40 p-4 rounded-xl border border-base-200">
                          <div class="flex items-center justify-between">
-                            <div class="flex items-center gap-2 font-bold text-xs uppercase tracking-wider opacity-60">
-                                <Shield size={14} class="text-primary" />
+                            <div class="flex items-center gap-1.5 font-bold text-[10px] uppercase tracking-wider opacity-60">
+                                <Shield size={12} class="text-primary" />
                                 {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::assertions")}
                                 {#if utOutputMode === "teacher"}
-                                    <span class="badge badge-primary badge-xs font-black">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_equals_only_badge")}</span>
+                                    <span class="badge badge-primary badge-xs font-black uppercase tracking-tighter shadow-sm py-1 px-1.5">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_equals_only_badge")}</span>
                                 {/if}
                             </div>
                             <div class="dropdown dropdown-end">
-                              <label tabindex="0" class="btn btn-primary btn-xs font-bold gap-1 px-3">
-                                <Plus size={12} /> Add Assertion
+                              <label tabindex="0" class="btn btn-primary btn-xs font-bold gap-1 px-2 h-6 min-h-0">
+                                <Plus size={10} /> Add Assertion
                               </label>
-                              <ul tabindex="0" class="dropdown-content z-[20] menu p-2 shadow-xl bg-base-100 rounded-box w-52 border border-base-200 mt-2">
-                                <li><button type="button" on:click={() => addUTAssertion(ti, "equals")}>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::equals")}</button></li>
-                                <li><button type="button" disabled={utOutputMode === "teacher"} on:click={() => addUTAssertion(ti, "notEquals")}>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::not_equals")}</button></li>
-                                <li><button type="button" disabled={utOutputMode === "teacher"} on:click={() => addUTAssertion(ti, "contains")}>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::contains")}</button></li>
-                                <li><button type="button" disabled={utOutputMode === "teacher"} on:click={() => addUTAssertion(ti, "notContains")}>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::not_contains")}</button></li>
-                                <li><button type="button" disabled={utOutputMode === "teacher"} on:click={() => addUTAssertion(ti, "regex")}>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::regex")}</button></li>
-                                <li><button type="button" disabled={utOutputMode === "teacher"} on:click={() => addUTAssertion(ti, "raises")}>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::raises")}</button></li>
-                                <li><button type="button" disabled={utOutputMode === "teacher"} on:click={() => addUTAssertion(ti, "custom")}>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::custom")}</button></li>
+                              <ul tabindex="0" class="dropdown-content z-[20] menu p-1.5 shadow-xl bg-base-100 rounded-box w-48 border border-base-200 mt-1">
+                                <li><button class="py-1.5 text-xs" type="button" on:click={() => addUTAssertion(ti, "equals")}>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::equals")}</button></li>
+                                <li><button class="py-1.5 text-xs" type="button" disabled={utOutputMode === "teacher"} on:click={() => addUTAssertion(ti, "notEquals")}>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::not_equals")}</button></li>
+                                <li><button class="py-1.5 text-xs" type="button" disabled={utOutputMode === "teacher"} on:click={() => addUTAssertion(ti, "contains")}>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::contains")}</button></li>
+                                <li><button class="py-1.5 text-xs" type="button" disabled={utOutputMode === "teacher"} on:click={() => addUTAssertion(ti, "notContains")}>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::not_contains")}</button></li>
+                                <li><button class="py-1.5 text-xs" type="button" disabled={utOutputMode === "teacher"} on:click={() => addUTAssertion(ti, "regex")}>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::regex")}</button></li>
+                                <li><button class="py-1.5 text-xs" type="button" disabled={utOutputMode === "teacher"} on:click={() => addUTAssertion(ti, "raises")}>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::raises")}</button></li>
+                                <li><button class="py-1.5 text-xs" type="button" disabled={utOutputMode === "teacher"} on:click={() => addUTAssertion(ti, "custom")}>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::custom")}</button></li>
                               </ul>
                             </div>
                          </div>
 
-                         <div class="grid gap-3">
+                         <div class="grid gap-2">
                             {#each ut.assertions as a, ai}
-                                <div class="bg-base-100 rounded-xl border border-base-300 p-4 space-y-4 shadow-sm animate-in zoom-in-95 duration-200">
+                                <div class="bg-base-100 rounded-lg border border-base-300 p-3 space-y-3 shadow-sm animate-in zoom-in-95 duration-200">
                                      <div class="flex items-center justify-between">
-                                        <span class="text-[10px] font-black uppercase tracking-widest bg-primary/10 text-primary px-2 py-1 rounded">{a.kind}</span>
-                                        <button type="button" class="btn btn-ghost btn-circle btn-xs text-error/40 hover:text-error" on:click={() => removeUTAssertion(ti, ai)}><Trash2 size={12} /></button>
+                                        <span class="text-[9px] font-black uppercase tracking-widest bg-primary/10 text-primary px-1.5 py-0.5 rounded">{a.kind}</span>
+                                        <button type="button" class="btn btn-ghost btn-circle btn-xs text-error/40 hover:text-error h-6 w-6" on:click={() => removeUTAssertion(ti, ai)}><Trash2 size={10} /></button>
                                      </div>
 
                                      {#if a.kind === "custom"}
                                         <div class="form-control space-y-1">
-                                            <span class="text-[10px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::custom_python_inside_test_method")}</span>
-                                            <textarea class="textarea textarea-bordered h-28 font-mono text-xs" value={getCustom(a)} on:input={(e) => setCustom(a, e.target.value)} placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::self_assert_true_placeholder")}></textarea>
+                                            <span class="text-[9px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::custom_python_inside_test_method")}</span>
+                                            <textarea class="textarea textarea-bordered h-20 font-mono text-xs py-1.5 px-2 bg-base-200/20" value={getCustom(a)} on:input={(e) => setCustom(a, e.target.value)} placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::self_assert_true_placeholder")}></textarea>
                                         </div>
                                      {:else if a.kind === "regex"}
-                                         <div class="grid sm:grid-cols-2 gap-4">
+                                         <div class="grid sm:grid-cols-2 gap-3">
                                              <div class="form-control space-y-1">
-                                                <span class="text-[10px] font-black uppercase tracking-widest opacity-40">{ut.callMode === "function" ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::arguments_python_expressions_one_per_line") : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::inputs_one_per_line")}</span>
-                                                <textarea class="textarea textarea-bordered h-24 font-mono text-xs" value={getInputs(a)} on:input={(e) => setInputs(a, e.target.value)} placeholder={ut.callMode === "function" ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::example_args_1_2_3") : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::example_inputs_2_3")}></textarea>
+                                                <span class="text-[9px] font-black uppercase tracking-widest opacity-40">{ut.callMode === "function" ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::arguments_python_expressions_one_per_line") : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::inputs_one_per_line")}</span>
+                                                <textarea class="textarea textarea-bordered h-16 font-mono text-xs py-1.5 px-2 bg-base-200/20" value={getInputs(a)} on:input={(e) => setInputs(a, e.target.value)} placeholder={ut.callMode === "function" ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::example_args_1_2_3") : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::example_inputs_2_3")}></textarea>
                                              </div>
                                              <div class="form-control space-y-1">
-                                                <span class="text-[10px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::regex_pattern")}</span>
-                                                <input class="input input-bordered w-full font-mono text-xs" value={getPattern(a)} on:input={(e) => setPattern(a, e.target.value)} />
+                                                <span class="text-[9px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::regex_pattern")}</span>
+                                                <input class="input input-bordered input-sm w-full font-mono text-xs bg-base-200/20" value={getPattern(a)} on:input={(e) => setPattern(a, e.target.value)} />
                                              </div>
                                          </div>
                                      {:else if a.kind === "raises"}
-                                         <div class="grid sm:grid-cols-2 gap-4">
+                                         <div class="grid sm:grid-cols-2 gap-3">
                                                <div class="form-control space-y-1">
-                                                <span class="text-[10px] font-black uppercase tracking-widest opacity-40">{ut.callMode === "function" ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::arguments_python_expressions_one_per_line") : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::inputs_one_per_line")}</span>
-                                                <textarea class="textarea textarea-bordered h-24 font-mono text-xs" value={getInputs(a)} on:input={(e) => setInputs(a, e.target.value)} placeholder={ut.callMode === "function" ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::example_args_1_2_3") : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::example_inputs_2_3")}></textarea>
+                                                <span class="text-[9px] font-black uppercase tracking-widest opacity-40">{ut.callMode === "function" ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::arguments_python_expressions_one_per_line") : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::inputs_one_per_line")}</span>
+                                                <textarea class="textarea textarea-bordered h-16 font-mono text-xs py-1.5 px-2 bg-base-200/20" value={getInputs(a)} on:input={(e) => setInputs(a, e.target.value)} placeholder={ut.callMode === "function" ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::example_args_1_2_3") : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::example_inputs_2_3")}></textarea>
                                              </div>
                                              <div class="form-control space-y-1">
-                                                <span class="text-[10px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::exception_type_e_g_valueerror")}</span>
-                                                <input class="input input-bordered w-full font-mono text-xs" value={getException(a)} on:input={(e) => setException(a, e.target.value)} placeholder="ValueError" />
+                                                <span class="text-[9px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::exception_type_e_g_valueerror")}</span>
+                                                <input class="input input-bordered input-sm w-full font-mono text-xs bg-base-200/20" value={getException(a)} on:input={(e) => setException(a, e.target.value)} placeholder="ValueError" />
                                              </div>
                                          </div>
                                      {:else}
-                                         <div class="grid sm:grid-cols-2 gap-4">
-                                              <div class="form-control space-y-1">
-                                                <span class="text-[10px] font-black uppercase tracking-widest opacity-40">{ut.callMode === "function" ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::arguments_python_expressions_one_per_line") : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::inputs_one_per_line")}</span>
-                                                <textarea class="textarea textarea-bordered h-24 font-mono text-xs" value={getInputs(a)} on:input={(e) => setInputs(a, e.target.value)} placeholder={ut.callMode === "function" ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::example_args_1_2_3") : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::example_inputs_2_3")}></textarea>
+                                         <div class="grid sm:grid-cols-2 gap-3">
+                                               <div class="form-control space-y-1">
+                                                <span class="text-[9px] font-black uppercase tracking-widest opacity-40">{ut.callMode === "function" ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::arguments_python_expressions_one_per_line") : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::inputs_one_per_line")}</span>
+                                                <textarea class="textarea textarea-bordered h-16 font-mono text-xs py-1.5 px-2 bg-base-200/20" value={getInputs(a)} on:input={(e) => setInputs(a, e.target.value)} placeholder={ut.callMode === "function" ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::example_args_1_2_3") : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::example_inputs_2_3")}></textarea>
                                              </div>
                                              <div class="form-control space-y-1">
-                                                <span class="text-[10px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_value_python_expression")}</span>
-                                                <textarea class="textarea textarea-bordered h-24 font-mono text-xs" value={getExpected(a)} on:input={(e) => setExpected(a, e.target.value)} placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::example_expect_7_or_hello")}></textarea>
+                                                <span class="text-[9px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_value_python_expression")}</span>
+                                                <textarea class="textarea textarea-bordered h-16 font-mono text-xs py-1.5 px-2 bg-base-200/20" value={getExpected(a)} on:input={(e) => setExpected(a, e.target.value)} placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::example_expect_7_or_hello")}></textarea>
                                              </div>
                                          </div>
                                      {/if}
@@ -4300,59 +4304,59 @@ class MyTests(unittest.TestCase):
                             {/each}
                          </div>
                          {#if ut.assertions.length === 0}
-                            <div class="py-12 border-2 border-dashed border-base-300 rounded-xl flex flex-col items-center justify-center text-center px-4">
-                                 <ShieldAlert size={32} class="opacity-20 mb-3" />
-                                 <p class="text-xs font-semibold opacity-40 tracking-wide">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::no_assertions_added")}</p>
+                            <div class="py-8 border border-dashed border-base-300 rounded-lg flex flex-col items-center justify-center text-center px-4 bg-base-100/50">
+                                 <Shield size={20} class="opacity-10 mb-2" />
+                                 <p class="text-[10px] font-black uppercase tracking-widest opacity-30">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::no_assertions_added")}</p>
                             </div>
                          {/if}
                       </div>
                     </div>
                   {/each}
                   {#if utTests.length === 0}
-                    <div class="py-16 border-2 border-dashed border-base-300 rounded-2xl flex flex-col items-center justify-center text-center px-4">
-                         <div class="w-16 h-16 rounded-full bg-base-200 flex items-center justify-center mb-4"><FlaskConical size={32} class="opacity-20" /></div>
-                         <p class="text-sm font-bold opacity-30">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::no_test_methods_yet")}</p>
+                    <div class="py-12 border border-dashed border-base-300 rounded-xl flex flex-col items-center justify-center text-center px-4 bg-base-200/10">
+                         <div class="w-12 h-12 rounded-full bg-base-200 flex items-center justify-center mb-3 shadow-inner"><FlaskConical size={24} class="opacity-20" /></div>
+                         <p class="text-[10px] font-black uppercase tracking-widest opacity-30">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::no_test_methods_yet")}</p>
                     </div>
                   {/if}
                 </div>
 
                 <!-- Preview Area -->
                 {#if utShowPreview}
-                  <div class="space-y-4 animate-in slide-in-from-bottom-4 duration-500">
+                  <div class="space-y-3 animate-in slide-in-from-bottom-4 duration-500 pt-2 border-t border-base-200">
                     <div class="flex items-center justify-between">
                       <div class="flex items-center gap-2">
-                         <div class="w-2 h-2 rounded-full bg-success animate-pulse"></div>
-                         <h4 class="font-bold text-xs uppercase tracking-widest opacity-60">
+                         <div class="w-1.5 h-1.5 rounded-full bg-success animate-pulse"></div>
+                         <h4 class="font-bold text-[10px] uppercase tracking-widest opacity-60">
                             {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::generated_python")}
                          </h4>
                       </div>
-                      <div class="flex gap-2">
-                        <button type="button" class="btn btn-ghost btn-xs font-bold gap-1" on:click={refreshPreview}>
-                          <RotateCw size={12} /> {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::refresh")}
+                      <div class="flex gap-1.5">
+                        <button type="button" class="btn btn-ghost btn-xs font-bold gap-1 px-2 h-6 min-h-0" on:click={refreshPreview}>
+                          <RotateCw size={10} /> {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::refresh")}
                         </button>
-                        <button type="button" class="btn btn-ghost btn-xs font-bold gap-1" on:click={copyPreview}>
-                          <Copy size={12} /> {copiedPreview ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::copied") : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::copy")}
+                        <button type="button" class="btn btn-ghost btn-xs font-bold gap-1 px-2 h-6 min-h-0" on:click={copyPreview}>
+                          <Copy size={10} /> {copiedPreview ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::copied") : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::copy")}
                         </button>
                       </div>
                     </div>
-                    <div class="rounded-xl overflow-hidden border border-base-300 shadow-inner">
+                    <div class="rounded-lg overflow-hidden border border-base-300 shadow-inner">
                       <CodeMirror bind:value={utPreviewCode} lang={python()} readOnly={true} />
                     </div>
                   </div>
                 {/if}
 
                 <!-- Create Button -->
-                <div class="flex justify-center pt-8">
+                <div class="flex justify-center pt-4 border-t border-base-200/50">
                   <button
                     type="button"
-                    class="btn btn-primary btn-lg px-12 font-bold shadow-xl shadow-primary/20 hover:scale-105 transition-all"
+                    class="btn btn-primary btn-sm px-10 font-black shadow-lg shadow-primary/20 hover:scale-105 transition-all text-white h-9 min-h-0"
                     disabled={utTests.length === 0 || utOutputLoading || (utOutputMode === "teacher" && !teacherSolutionFile)}
                     on:click={uploadGeneratedUnitTests}
                   >
                     {#if utOutputLoading}
-                      <span class="loading loading-spinner"></span>
+                      <span class="loading loading-spinner loading-xs"></span>
                     {:else}
-                      <FlaskConical size={20} />
+                      <FlaskConical size={16} />
                     {/if}
                     {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::create_tests")}
                   </button>
@@ -4372,606 +4376,464 @@ class MyTests(unittest.TestCase):
         />
         <div
           role="tabpanel"
-          class="tab-content bg-base-100 border-base-300 rounded-box p-4 space-y-4"
+          class="tab-content bg-base-100 border-base-300 rounded-box p-3 space-y-3"
         >
-          <div class="space-y-4">
-            <div
-              class="rounded-xl border border-base-300/70 bg-base-200/60 p-3 flex flex-wrap items-start justify-between gap-3"
-            >
-              <div class="space-y-1">
-                <span class="section-label"
-                  >{translate(
-                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_output_source",
-                  )}</span
-                >
-                <p class="hint">
-                  {translate(
-                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_expected_hint",
-                  )}
-                </p>
+          <div class="group relative bg-base-100 rounded-xl border border-base-300/50 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 border-l-info">
+            <!-- Header -->
+            <div class="flex flex-wrap items-center justify-between p-3 bg-base-200/30 border-b border-base-200 gap-3">
+              <div class="flex items-center gap-3">
+                <div class="flex flex-col">
+                  <span class="text-[9px] uppercase tracking-widest font-bold opacity-40 mb-0.5">Function Setup</span>
+                  <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-info/10 text-info flex items-center justify-center shadow-sm border border-info/20">
+                      <Code size={16} />
+                    </div>
+                    <div>
+                      <h4 class="font-bold text-base leading-none">
+                        {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::function_tests_builder")}
+                      </h4>
+                      <p class="text-[10px] opacity-50 font-medium mt-0.5">
+                        {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::function_expected_hint")}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div class="flex flex-wrap gap-2">
+              
+              <div class="flex flex-wrap gap-1.5">
                 <button
                   type="button"
-                  class={`option-pill ${fnOutputMode === "manual" ? "selected" : ""}`}
+                  class={`option-pill py-1 px-3 text-xs ${fnOutputMode === "manual" ? "selected" : ""}`}
                   aria-pressed={fnOutputMode === "manual"}
                   on:click={() => (fnOutputMode = "manual")}
                 >
-                  <span class="option-pill__indicator" aria-hidden="true" />
-                  <span
-                    >{translate(
-                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::output_source_manual",
-                    )}</span
-                  >
+                  <span class="option-pill__indicator w-1.5 h-1.5" aria-hidden="true" />
+                  <span>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::output_source_manual")}</span>
                 </button>
                 <button
                   type="button"
-                  class={`option-pill ${fnOutputMode === "teacher" ? "selected" : ""}`}
+                  class={`option-pill py-1 px-3 text-xs ${fnOutputMode === "teacher" ? "selected" : ""}`}
                   aria-pressed={fnOutputMode === "teacher"}
                   on:click={() => (fnOutputMode = "teacher")}
                 >
-                  <span class="option-pill__indicator" aria-hidden="true" />
-                  <span
-                    >{translate(
-                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::output_source_teacher",
-                    )}</span
-                  >
+                  <span class="option-pill__indicator w-1.5 h-1.5" aria-hidden="true" />
+                  <span>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::output_source_teacher")}</span>
                 </button>
               </div>
             </div>
-            {#if fnOutputMode === "teacher"}
-              <div class="panel-soft space-y-2">
-                <div class="flex items-center justify-between gap-2 flex-wrap">
-                  <h5 class="font-semibold">
-                    {translate(
-                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_solution_file",
-                    )}
-                  </h5>
-                  <span class="badge badge-outline badge-primary badge-sm"
-                    >{teacherSolutionFile
-                      ? translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::using_teacher_solution",
-                          { name: teacherSolutionFile.name },
-                        )
-                      : translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_teacher_solution_prompt",
-                        )}</span
-                  >
+
+            <div class="p-4 space-y-4">
+              <!-- Teacher Solution Selection (if mode=teacher) -->
+              {#if fnOutputMode === "teacher"}
+                <div class="p-3 rounded-xl bg-info/5 border border-dashed border-info/30 space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[9px] font-black uppercase tracking-widest text-info/70">
+                      {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_solution_file")}
+                    </span>
+                    {#if teacherSolutionFile}
+                      <div class="badge badge-info badge-sm gap-1.5 py-2">
+                        <Check size={10} />
+                        {teacherSolutionFile.name}
+                      </div>
+                    {/if}
+                  </div>
+                  <div class="grid gap-3 sm:grid-cols-[1fr_auto] items-center">
+                    <input
+                      type="file"
+                      accept=".py,.zip,.txt"
+                      class="file-input file-input-bordered file-input-info file-input-sm w-full bg-base-100"
+                      on:change={(e) => (teacherSolutionFile = (e.target as HTMLInputElement).files?.[0] || null)}
+                    />
+                    <p class="text-[9px] opacity-60 italic leading-relaxed max-w-xs">
+                      {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::function_teacher_autofill_hint")}
+                    </p>
+                  </div>
                 </div>
-                <div class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                  <input
-                    type="file"
-                    accept=".py,.zip,.txt"
-                    class="file-input file-input-bordered w-full"
-                    on:change={(e) =>
-                      (teacherSolutionFile =
-                        (e.target as HTMLInputElement).files?.[0] || null)}
+              {/if}
+
+              <!-- Function Signature Builder -->
+              <div class="rounded-xl border border-base-200 bg-base-200/30 p-4 space-y-3">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <h4 class="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-1.5">
+                      <Code size={14} class="text-info" />
+                      {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::define_function_signature")}
+                    </h4>
+                    <p class="text-[10px] opacity-50 mt-0.5">
+                      {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::write_python_function_header_to_describe_arguments")}
+                    </p>
+                  </div>
+                  {#if fnMeta}
+                    <div class="badge badge-info badge-outline badge-sm font-bold gap-1 animate-in zoom-in">
+                      <Check size={10} />
+                      {fnMeta.name}
+                    </div>
+                  {/if}
+                </div>
+                
+                <div class="rounded-lg overflow-hidden border border-base-300 shadow-inner bg-base-100">
+                  <CodeMirror
+                    bind:value={fnSignature}
+                    lang={python()}
+                    readOnly={false}
+                    placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::function_signature_placeholder")}
                   />
-                  <span class="text-xs opacity-70">
-                    {translate(
-                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_solution_vm_hint",
-                    )}
-                  </span>
                 </div>
-                <p class="hint">
-                  {translate(
-                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_teacher_autofill_hint",
-                  )}
-                </p>
+
+                {#if fnSignatureError}
+                  <div class="alert alert-error py-1.5 text-[10px] shadow-sm shadow-error/10 animate-in shake duration-300">
+                    <AlertCircle size={14} />
+                    {fnSignatureError}
+                  </div>
+                {:else if fnMeta}
+                  <div class="flex flex-wrap gap-1.5 animate-in fade-in slide-in-from-bottom-2">
+                    {#if fnMeta.params.length}
+                      {#each fnMeta.params as p}
+                        <span class="badge badge-xs bg-base-100 border-base-300 font-mono py-2 shadow-sm">{p.name}{p.type ? `: ${p.type}` : ""}</span>
+                      {/each}
+                    {:else if !fnMeta.kwargs}
+                      <span class="badge badge-xs badge-ghost py-2 italic opacity-60 uppercase tracking-tighter text-[8px]">
+                        {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::no_arguments")}
+                      </span>
+                    {/if}
+                    {#if fnMeta.kwargs}
+                      <span class="badge badge-xs bg-info/10 border-info/20 text-info font-mono py-2 shadow-sm">**{fnMeta.kwargs.name}{fnMeta.kwargs.type ? `: ${fnMeta.kwargs.type}` : ""}</span>
+                    {/if}
+                    
+                    <div class="divider divider-horizontal mx-1"></div>
+
+                    {#if fnMeta.returns.length === 0}
+                      <span class="badge badge-xs badge-ghost py-2 italic opacity-60 uppercase tracking-tighter text-[8px]">
+                        {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::returns_none")}
+                      </span>
+                    {:else}
+                      {#each fnMeta.returns as r, ri}
+                        <span class="badge badge-xs bg-success/10 border-success/20 text-success font-mono py-2 shadow-sm">
+                          {fnMeta.returns.length > 1
+                            ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::return_n", { ri: ri + 1 })
+                            : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::return_single")}{r.type ? `: ${r.type}` : ""}
+                        </span>
+                      {/each}
+                    {/if}
+                  </div>
+                {/if}
               </div>
-            {/if}
-            <div
-              class="rounded-2xl border border-base-300/70 bg-base-200/40 p-4 space-y-3"
-            >
-              <div>
-                <h4 class="font-semibold flex items-center gap-2">
-                  <Code size={18} />
-                  {translate(
-                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::define_function_signature",
-                  )}
-                </h4>
-                <p class="text-sm opacity-70">
-                  {translate(
-                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::write_python_function_header_to_describe_arguments",
-                  )}
-                </p>
+
+              <!-- Case List Header / Actions -->
+              <div class="flex flex-wrap items-center justify-between gap-3 py-2 border-t border-base-200">
+                 <div class="flex items-center gap-2">
+                    <div class="flex -space-x-1.5">
+                      {#each Array(Math.min(fnCases.length, 5)) as _, i}
+                        <div class="w-6 h-6 rounded-full border border-base-100 bg-info/10 text-info flex items-center justify-center text-[9px] font-black group-hover:scale-110 transition-transform shadow-sm">
+                          #{i+1}
+                        </div>
+                      {/each}
+                      {#if fnCases.length > 5}
+                        <div class="w-6 h-6 rounded-full border border-base-100 bg-base-200 text-base-content/40 flex items-center justify-center text-[9px] font-black shadow-sm">
+                          +{fnCases.length - 5}
+                        </div>
+                      {/if}
+                    </div>
+                    <div class="text-[10px] font-black opacity-40 uppercase tracking-widest ml-1">
+                      {fnCases.length}
+                      {fnCases.length === 1
+                        ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::case_singular")
+                        : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::case_plural")}
+                    </div>
+                 </div>
+                 
+                 <div class="flex items-center gap-2">
+                    <button
+                      class="btn btn-outline btn-sm font-bold h-9 min-h-0"
+                      on:click={addFnCase}
+                      disabled={!fnMeta}
+                    >
+                      <Plus size={14} />
+                      {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::add_case")}
+                    </button>
+                    <button
+                      class="btn btn-info btn-sm font-black shadow-lg shadow-info/20 hover:scale-105 transition-all text-white h-9 min-h-0 px-6"
+                      disabled={!fnMeta || fnCases.length === 0 || fnOutputLoading || (fnOutputMode === "teacher" && !teacherSolutionFile)}
+                      on:click={createFunctionTestsFromBuilder}
+                    >
+                      {#if fnOutputLoading}
+                        <span class="loading loading-spinner loading-xs"></span>
+                      {:else}
+                        <FlaskConical size={16} />
+                      {/if}
+                      {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::create_function_tests")}
+                    </button>
+                 </div>
               </div>
-              <CodeMirror
-                bind:value={fnSignature}
-                lang={python()}
-                readOnly={false}
-                placeholder={translate(
-                  "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_signature_placeholder",
-                )}
-              />
-              {#if fnSignatureError}
-                <div class="alert alert-error text-sm">{fnSignatureError}</div>
-              {:else if fnMeta}
-                <div class="flex flex-wrap gap-2 text-xs">
-                  <span class="badge badge-outline badge-sm"
-                    >{translate(
-                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_label",
-                    )}
-                    {fnMeta.name}</span
-                  >
-                  {#if fnMeta.params.length}
-                    {#each fnMeta.params as p}
-                      <span class="badge badge-outline badge-sm"
-                        >{p.name}{p.type ? `: ${p.type}` : ""}</span
-                      >
-                    {/each}
-                  {:else if !fnMeta.kwargs}
-                    <span class="badge badge-outline badge-sm"
-                      >{translate(
-                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::no_arguments",
-                      )}</span
-                    >
-                  {/if}
-                  {#if fnMeta.kwargs}
-                    <span class="badge badge-outline badge-sm"
-                      >**{fnMeta.kwargs.name}{fnMeta.kwargs.type
-                        ? `: ${fnMeta.kwargs.type}`
-                        : ""}</span
-                    >
-                  {/if}
-                  {#if fnMeta.returns.length === 0}
-                    <span class="badge badge-outline badge-sm"
-                      >{translate(
-                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::returns_none",
-                      )}</span
-                    >
-                  {:else}
-                    {#each fnMeta.returns as r, ri}
-                      <span class="badge badge-outline badge-sm"
-                        >{fnMeta.returns.length > 1
-                          ? translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::return_n",
-                              { ri: ri + 1 },
-                            )
-                          : translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::return_single",
-                            )}{r.type ? `: ${r.type}` : ""}</span
-                      >
-                    {/each}
+
+              {#if !fnMeta}
+                <div class="py-10 border border-dashed border-base-300 rounded-2xl flex flex-col items-center justify-center text-center px-4 bg-base-200/20">
+                    <div class="w-12 h-12 rounded-full bg-base-200 flex items-center justify-center mb-4 shadow-inner">
+                      <Code size={24} class="opacity-20" />
+                    </div>
+                    <p class="text-[10px] font-black opacity-30 uppercase tracking-widest max-w-xs">
+                      {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::define_function_signature_to_start_adding_test_cases")}
+                    </p>
+                </div>
+              {:else}
+                <div class="grid gap-3">
+                  {#each fnCases as fc, fi}
+                    <div class="group/case relative bg-base-100 rounded-xl border border-base-300/50 p-4 space-y-4 hover:border-info/40 hover:shadow-md transition-all duration-300">
+                       <button
+                          type="button"
+                          class="btn btn-circle btn-ghost btn-xs absolute right-2 top-2 text-error/30 hover:text-error hover:bg-error/10 opacity-0 group-hover/case:opacity-100 transition-opacity"
+                          on:click={() => removeFnCase(fi)}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+
+                        <div class="flex flex-wrap items-end justify-between gap-4">
+                           <div class="form-control flex-1 min-w-[150px] space-y-1.5 group">
+                              <span class="text-[9px] font-black uppercase tracking-widest opacity-40 px-1 transition-opacity group-focus-within:opacity-100">Test Case Name</span>
+                              <input
+                                class="input input-bordered input-sm w-full font-bold bg-base-200/30 focus:bg-base-100 transition-all border-base-300/50"
+                                bind:value={fc.name}
+                                placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::case_n_placeholder", { fi: fi + 1 })}
+                              />
+                           </div>
+
+                           <div class="flex flex-wrap gap-3">
+                              <div class="form-control space-y-1.5">
+                                <span class="text-[9px] font-black uppercase tracking-widest opacity-40 px-1 flex items-center gap-1.5"><Clock size={10} class="text-warning" /> {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::time_limit_s")}</span>
+                                <div class="relative flex items-center">
+                                  <input class="input input-bordered input-xs w-20 font-bold bg-base-200/30 focus:bg-base-100 transition-all" bind:value={fc.timeLimit} />
+                                  <span class="absolute right-2 text-[7px] font-black opacity-30">SEC</span>
+                                </div>
+                              </div>
+                              {#if assignment?.grading_policy === "weighted"}
+                                <div class="form-control space-y-1.5">
+                                  <span class="text-[9px] font-black uppercase tracking-widest opacity-40 px-1 flex items-center gap-1.5"><Scale size={10} class="text-error" /> {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::points")}</span>
+                                  <div class="relative flex items-center">
+                                    <input class="input input-bordered input-xs w-20 font-bold bg-base-200/30 focus:bg-base-100 transition-all" bind:value={fc.weight} />
+                                    <span class="absolute right-2 text-[7px] font-black opacity-30">PTS</span>
+                                  </div>
+                                </div>
+                              {/if}
+                           </div>
+                        </div>
+
+                        <!-- Arguments & Multi-column Inputs -->
+                        <div class="grid gap-3 xl:grid-cols-2">
+                          <!-- Positional Arguments -->
+                          {#if fnMeta.params.length}
+                             <div class="p-3 rounded-xl bg-base-200/50 border border-base-300/30 space-y-3">
+                                <h5 class="text-[9px] font-black uppercase tracking-widest opacity-50 flex items-center gap-1.5">
+                                   <List size={12} class="text-info" />
+                                   {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::arguments")}
+                                </h5>
+                                <div class="grid gap-3 sm:grid-cols-2">
+                                  {#each fnMeta.params as param, pi}
+                                    {@const control = describeTypeControl(param.type)}
+                                    <div class="form-control space-y-1">
+                                      <div class="flex items-center justify-between px-0.5">
+                                        <span class="text-[10px] font-bold opacity-60">
+                                          {param.name}
+                                        </span>
+                                        {#if param.type}
+                                          <span class="text-[8px] font-black uppercase opacity-25 bg-base-300 px-1 rounded">{param.type}</span>
+                                        {/if}
+                                      </div>
+                                      {#if control.control === "boolean"}
+                                        <label class="label cursor-pointer justify-start gap-2.5 rounded-lg border border-base-300/50 px-3 py-1.5 bg-base-100 shadow-sm transition-all hover:border-info/30 h-8">
+                                          <input
+                                            type="checkbox"
+                                            class="toggle toggle-info toggle-xs shadow-inner"
+                                            checked={stringToBool(fc.args[pi])}
+                                            on:change={(e) => updateFnArg(fi, pi, (e.target as HTMLInputElement).checked ? "true" : "false")}
+                                          />
+                                          <span class="label-text font-bold text-[11px]">
+                                            {stringToBool(fc.args[pi])
+                                              ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::true")
+                                              : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::false")}
+                                          </span>
+                                        </label>
+                                      {:else if control.control === "textarea"}
+                                        <textarea
+                                          class="textarea textarea-bordered h-16 py-1.5 px-2 font-mono text-xs bg-base-100 shadow-inner"
+                                          value={fc.args[pi]}
+                                          on:input={(e) => updateFnArg(fi, pi, (e.target as HTMLTextAreaElement).value)}
+                                          placeholder={param.type ?? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder")}
+                                        ></textarea>
+                                      {:else}
+                                        <input
+                                          class="input input-bordered input-sm w-full font-mono text-xs bg-base-100 shadow-inner h-8"
+                                          type={control.control === "integer" || control.control === "number" ? "number" : "text"}
+                                          step={control.control === "integer" ? "1" : (control.control === "number" ? "any" : undefined)}
+                                          value={fc.args[pi]}
+                                          on:input={(e) => updateFnArg(fi, pi, (e.target as HTMLInputElement).value)}
+                                          placeholder={param.type ?? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder")}
+                                        />
+                                      {/if}
+                                    </div>
+                                  {/each}
+                                </div>
+                             </div>
+                          {/if}
+
+                          <!-- Keyword Arguments -->
+                          {#if fnMeta.kwargs}
+                             <div class="p-3 rounded-xl bg-base-200/50 border border-base-300/30 space-y-3">
+                                <div class="flex items-center justify-between">
+                                  <h5 class="text-[9px] font-black uppercase tracking-widest opacity-50 flex items-center gap-1.5">
+                                     <Plus size={12} class="text-info" />
+                                     {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_arguments")}
+                                  </h5>
+                                  <button type="button" class="btn btn-xs btn-ghost font-bold gap-1 bg-base-300/50 hover:bg-base-300 py-0" on:click={() => addFnKwarg(fi)}>
+                                     <Plus size={10} /> {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::add")}
+                                  </button>
+                                </div>
+                                
+                                {#if fc.kwargs.length === 0}
+                                  <div class="py-4 rounded-lg border border-dashed border-base-300 flex flex-col items-center opacity-30">
+                                    <p class="text-[9px] font-bold uppercase tracking-wider">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::no_keyword_arguments")}</p>
+                                  </div>
+                                {:else}
+                                  <div class="grid gap-2">
+                                    {#each fc.kwargs as kw, ki}
+                                      <div class="grid gap-2 grid-cols-[1fr_1.2fr_auto] items-end bg-base-100 p-2 rounded-lg border border-base-300 shadow-sm animate-in zoom-in-95 duration-200">
+                                        <div class="form-control space-y-1">
+                                          <input
+                                            class="input input-bordered input-xs w-full font-mono font-bold"
+                                            placeholder="key"
+                                            value={kw.key}
+                                            on:input={(e) => updateFnKwargKey(fi, ki, (e.target as HTMLInputElement).value)}
+                                          />
+                                        </div>
+                                        <div class="form-control space-y-1">
+                                          <input
+                                            class="input input-bordered input-xs w-full font-mono"
+                                            placeholder="value"
+                                            value={kw.value}
+                                            on:input={(e) => updateFnKwargValue(fi, ki, (e.target as HTMLInputElement).value)}
+                                          />
+                                        </div>
+                                        <button type="button" class="btn btn-ghost btn-circle btn-xs text-error/30 hover:text-error h-6 w-6" on:click={() => removeFnKwarg(fi, ki)}>
+                                          <Trash2 size={10} />
+                                        </button>
+                                      </div>
+                                    {/each}
+                                  </div>
+                                {/if}
+                             </div>
+                          {/if}
+
+                          <!-- Returns -->
+                          {#if fnMeta.returns.length > 0}
+                             <div class="p-3 rounded-xl bg-info/5 border border-info/10 space-y-3 {!(fnMeta.params.length || fnMeta.kwargs) ? 'xl:col-span-2' : ''}">
+                                <h5 class="text-[9px] font-black uppercase tracking-widest text-info flex items-center gap-1.5">
+                                   <CornerDownRight size={12} />
+                                   {fnMeta.returns.length > 1
+                                    ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_values")
+                                    : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_value")}
+                                   {#if fnOutputMode === "teacher"}
+                                     <span class="badge badge-info badge-xs font-black ml-auto uppercase tracking-tighter shadow-sm py-1.5 px-1.5">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::auto")}</span>
+                                   {/if}
+                                </h5>
+
+                                {#if fnOutputMode === "teacher"}
+                                  <div class="p-2.5 rounded-lg border border-dashed border-info/20 bg-base-100/50 flex items-center gap-2">
+                                    <div class="w-6 h-6 rounded-full bg-info/10 text-info flex items-center justify-center animate-pulse">
+                                      <RotateCw size={12} />
+                                    </div>
+                                    <p class="text-[9px] font-bold opacity-60 leading-tight">
+                                      {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_from_teacher")}
+                                    </p>
+                                  </div>
+                                {:else}
+                                  <div class="grid gap-3 sm:grid-cols-2">
+                                    {#each fnMeta.returns as ret, ri}
+                                      {@const control = describeTypeControl(ret.type)}
+                                      <div class="form-control space-y-1">
+                                        <div class="flex items-center justify-between px-0.5">
+                                          <span class="text-[10px] font-bold opacity-60">
+                                            {fnMeta.returns.length > 1
+                                              ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::return_n_capitalized", { ri: ri + 1 })
+                                              : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::return_single_capitalized")}
+                                          </span>
+                                          {#if ret.type}
+                                            <span class="text-[8px] font-black uppercase opacity-25 bg-base-300 px-1 rounded">{ret.type}</span>
+                                          {/if}
+                                        </div>
+                                        {#if control.control === "boolean"}
+                                          <label class="label cursor-pointer justify-start gap-2.5 rounded-lg border border-base-300/50 px-3 py-1.5 bg-base-100 shadow-sm transition-all hover:border-info/30 h-8">
+                                            <input
+                                              type="checkbox"
+                                              class="toggle toggle-success toggle-xs shadow-inner"
+                                              checked={stringToBool(fc.returns[ri])}
+                                              on:change={(e) => updateFnReturn(fi, ri, (e.target as HTMLInputElement).checked ? "true" : "false")}
+                                            />
+                                            <span class="label-text font-bold text-[11px]">
+                                              {stringToBool(fc.returns[ri])
+                                                ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::true")
+                                                : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::false")}
+                                            </span>
+                                          </label>
+                                        {:else if control.control === "textarea"}
+                                          <textarea
+                                            class="textarea textarea-bordered h-16 py-1.5 px-2 font-mono text-xs bg-base-100 shadow-inner"
+                                            value={fc.returns[ri]}
+                                            on:input={(e) => updateFnReturn(fi, ri, (e.target as HTMLTextAreaElement).value)}
+                                            placeholder={ret.type ?? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder")}
+                                          ></textarea>
+                                        {:else}
+                                          <input
+                                            class="input input-bordered input-sm w-full font-mono text-xs bg-base-100 shadow-inner h-8"
+                                            type={control.control === "integer" || control.control === "number" ? "number" : "text"}
+                                            step={control.control === "integer" ? "1" : (control.control === "number" ? "any" : undefined)}
+                                            value={fc.returns[ri]}
+                                            on:input={(e) => updateFnReturn(fi, ri, (e.target as HTMLInputElement).value)}
+                                            placeholder={ret.type ?? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder")}
+                                          />
+                                        {/if}
+                                      </div>
+                                    {/each}
+                                  </div>
+                                {/if}
+                             </div>
+                          {/if}
+
+                          {#if !fnMeta.returns.length}
+                           <div class="p-3 rounded-xl border border-dashed border-base-300 bg-base-200/30 flex items-center gap-2">
+                             <div class="w-6 h-6 rounded-full bg-base-200 flex items-center justify-center opacity-40">
+                               <X size={12} />
+                             </div>
+                             <p class="text-[9px] font-black opacity-30 uppercase tracking-widest">
+                               {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::this_function_returns_none")}
+                             </p>
+                           </div>
+                          {/if}
+                        </div>
+
+                        <div class="pt-2 border-t border-base-200/50 flex justify-end">
+                          <TestFileManager
+                            bind:files={fc.files}
+                            bind:selectedIndex={fc.selectedFileIndex}
+                            bind:fileName={fc.fileName}
+                            bind:fileText={fc.fileText}
+                            bind:open={fc.showFile}
+                            onError={(message) => (err = message)}
+                          />
+                        </div>
+                    </div>
+                  {/each}
+                  
+                  {#if fnCases.length === 0}
+                    <div class="py-12 border border-dashed border-base-300 rounded-2xl flex flex-col items-center justify-center text-center px-4 bg-base-200/10">
+                         <div class="w-12 h-12 rounded-full bg-base-200 flex items-center justify-center mb-3 transition-transform hover:scale-110 duration-500 shadow-inner"><FlaskConical size={24} class="opacity-20" /></div>
+                         <h5 class="text-[10px] font-black opacity-30 uppercase tracking-widest mb-1">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::no_function_cases_yet")}</h5>
+                         <button class="btn btn-ghost btn-xs font-bold text-info" on:click={addFnCase}>
+                            <Plus size={14} /> Add your first case
+                         </button>
+                    </div>
                   {/if}
                 </div>
               {/if}
             </div>
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <div class="text-sm opacity-70">
-                {fnCases.length}
-                {fnCases.length === 1
-                  ? translate(
-                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::case_singular",
-                    )
-                  : translate(
-                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::case_plural",
-                    )}
-              </div>
-              <div class="flex items-center gap-2">
-                <button
-                  class="btn btn-outline"
-                  on:click={addFnCase}
-                  disabled={!fnMeta}
-                  ><Plus size={16} />
-                  {translate(
-                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_case",
-                  )}</button
-                >
-                <button
-                  class="btn btn-primary"
-                  disabled={!fnMeta || fnCases.length === 0 || fnOutputLoading ||
-                    (fnOutputMode === "teacher" && !teacherSolutionFile)}
-                  on:click={createFunctionTestsFromBuilder}
-                  >
-                  {#if fnOutputLoading}
-                    <span class="loading loading-spinner loading-sm"></span>
-                  {:else}
-                    <FlaskConical size={16} />
-                  {/if}
-                  {translate(
-                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::create_function_tests",
-                  )}</button
-                >
-              </div>
-            </div>
-            {#if !fnMeta}
-              <div
-                class="rounded-xl border border-dashed border-base-300/80 p-6 text-center text-sm opacity-70"
-              >
-                {translate(
-                  "frontend/src/routes/assignments/[id]/tests/+page.svelte::define_function_signature_to_start_adding_test_cases",
-                )}
-              </div>
-            {:else}
-              <div class="space-y-3">
-                {#each fnCases as fc, fi}
-                  <div
-                    class="rounded-2xl border border-base-300/70 bg-base-100 p-4 space-y-4 shadow-sm"
-                  >
-                    <div
-                      class="flex flex-wrap items-center justify-between gap-3"
-                    >
-                      <input
-                        class="input input-bordered w-full flex-1"
-                        bind:value={fc.name}
-                        placeholder={translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::case_n_placeholder",
-                          { fi: fi + 1 },
-                        )}
-                      />
-                      <div class="flex items-center gap-2 flex-wrap">
-                        <label class="form-control w-32">
-                          <span class="label-text text-xs"
-                            >{translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::time_limit_s_small",
-                            )}</span
-                          >
-                          <input
-                            class="input input-bordered w-full"
-                            bind:value={fc.timeLimit}
-                          />
-                        </label>
-                        {#if assignment?.grading_policy === "weighted"}
-                          <label class="form-control w-28">
-                            <span class="label-text text-xs"
-                              >{translate(
-                                "frontend/src/routes/assignments/[id]/tests/+page.svelte::points_small",
-                              )}</span
-                            >
-                            <input
-                              class="input input-bordered w-full"
-                              bind:value={fc.weight}
-                            />
-                          </label>
-                        {/if}
-                        <button
-                          class="btn btn-ghost btn-xs"
-                          on:click={() => removeFnCase(fi)}
-                          ><Trash2 size={14} />
-                          {translate(
-                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::remove",
-                          )}</button
-                        >
-                      </div>
-                    </div>
-                    {#if fnMeta.params.length}
-                      <div class="space-y-2">
-                        <h5 class="text-sm font-semibold">
-                          {translate(
-                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::arguments",
-                          )}
-                        </h5>
-                        <div class="grid gap-3 md:grid-cols-2">
-                          {#each fnMeta.params as param, pi}
-                            {@const control = describeTypeControl(param.type)}
-                            <div class="form-control space-y-1">
-                              <span
-                                class="label-text text-xs font-semibold uppercase tracking-wide flex items-center gap-2"
-                              >
-                                {param.name}
-                                {#if param.type}
-                                  <span class="badge badge-outline badge-sm"
-                                    >{param.type}</span
-                                  >
-                                {/if}
-                              </span>
-                              {#if control.control === "boolean"}
-                                <label
-                                  class="label cursor-pointer justify-start gap-2 rounded-lg border border-base-300/60 px-3 py-2 bg-base-200/60"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    class="toggle toggle-sm"
-                                    checked={stringToBool(fc.args[pi])}
-                                    on:change={(e) =>
-                                      updateFnArg(
-                                        fi,
-                                        pi,
-                                        (e.target as HTMLInputElement).checked
-                                          ? "true"
-                                          : "false",
-                                      )}
-                                  />
-                                  <span class="label-text text-sm"
-                                    >{stringToBool(fc.args[pi])
-                                      ? translate(
-                                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::true",
-                                        )
-                                      : translate(
-                                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::false",
-                                        )}</span
-                                  >
-                                </label>
-                              {:else if control.control === "textarea"}
-                                <textarea
-                                  class="textarea textarea-bordered h-24"
-                                  value={fc.args[pi]}
-                                  on:input={(e) =>
-                                    updateFnArg(
-                                      fi,
-                                      pi,
-                                      (e.target as HTMLTextAreaElement).value,
-                                    )}
-                                  placeholder={param.type ??
-                                    translate(
-                                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder",
-                                    )}
-                                ></textarea>
-                              {:else}
-                                <input
-                                  class="input input-bordered w-full"
-                                  type={control.control === "integer" ||
-                                  control.control === "number"
-                                    ? "number"
-                                    : "text"}
-                                  step={control.control === "integer"
-                                    ? "1"
-                                    : control.control === "number"
-                                      ? "any"
-                                      : undefined}
-                                  value={fc.args[pi]}
-                                  on:input={(e) =>
-                                    updateFnArg(
-                                      fi,
-                                      pi,
-                                      (e.target as HTMLInputElement).value,
-                                    )}
-                                  placeholder={param.type ??
-                                    translate(
-                                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder",
-                                    )}
-                                />
-                              {/if}
-                            </div>
-                          {/each}
-                        </div>
-                      </div>
-                    {/if}
-                    {#if fnMeta.kwargs}
-                      <div class="space-y-2">
-                        <div class="flex items-center justify-between gap-2">
-                          <h5 class="text-sm font-semibold">
-                            {translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_arguments",
-                            )}
-                          </h5>
-                          <button
-                            type="button"
-                            class="btn btn-xs btn-outline"
-                            on:click={() => addFnKwarg(fi)}
-                          >
-                            <Plus size={12} />
-                            {translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_keyword_argument",
-                            )}
-                          </button>
-                        </div>
-                        <p class="hint">
-                          {translate(
-                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_args_builder_hint",
-                          )}
-                        </p>
-                        {#if fc.kwargs.length === 0}
-                          <div class="kwarg-empty">
-                            {translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::no_keyword_arguments",
-                            )}
-                          </div>
-                        {:else}
-                          <div class="grid gap-2">
-                            {#each fc.kwargs as kw, ki}
-                              <div class="kwarg-card">
-                                <div class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto] items-center">
-                                  <label class="form-control w-full">
-                                    <span class="label-text text-xs"
-                                      >{translate(
-                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_name",
-                                      )}</span
-                                    >
-                                    <input
-                                      class="input input-bordered w-full"
-                                      value={kw.key}
-                                      placeholder={translate(
-                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_name_placeholder",
-                                      )}
-                                      on:input={(e) =>
-                                        updateFnKwargKey(
-                                          fi,
-                                          ki,
-                                          (e.target as HTMLInputElement).value,
-                                        )}
-                                    />
-                                  </label>
-                                  <label class="form-control w-full">
-                                    <span class="label-text text-xs"
-                                      >{translate(
-                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_value",
-                                      )}</span
-                                    >
-                                    <input
-                                      class="input input-bordered w-full"
-                                      value={kw.value}
-                                      placeholder={translate(
-                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_value_placeholder",
-                                      )}
-                                      on:input={(e) =>
-                                        updateFnKwargValue(
-                                          fi,
-                                          ki,
-                                          (e.target as HTMLInputElement).value,
-                                        )}
-                                    />
-                                  </label>
-                                  <button
-                                    type="button"
-                                    class="btn btn-ghost btn-xs"
-                                    on:click={() => removeFnKwarg(fi, ki)}
-                                  >
-                                    <Trash2 size={14} />
-                                    {translate(
-                                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::remove",
-                                    )}
-                                  </button>
-                                </div>
-                              </div>
-                            {/each}
-                          </div>
-                        {/if}
-                      </div>
-                    {/if}
-                    {#if fnMeta.returns.length > 0}
-                      <div class="space-y-2">
-                        <h5 class="text-sm font-semibold flex items-center gap-2">
-                          {fnMeta.returns.length > 1
-                            ? translate(
-                                "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_values",
-                              )
-                            : translate(
-                                "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_value",
-                              )}
-                          {#if fnOutputMode === "teacher"}
-                            <span class="badge badge-ghost badge-sm"
-                              >{translate(
-                                "frontend/src/routes/assignments/[id]/tests/+page.svelte::auto_from_teacher",
-                              )}</span
-                            >
-                          {/if}
-                        </h5>
-                        {#if fnOutputMode === "teacher"}
-                          <div
-                            class="rounded-lg border border-dashed border-base-300/70 bg-base-200/50 px-4 py-3 text-xs opacity-80"
-                          >
-                            {translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_from_teacher",
-                            )}
-                          </div>
-                        {:else}
-                          <div class="grid gap-3 md:grid-cols-2">
-                            {#each fnMeta.returns as ret, ri}
-                              {@const control = describeTypeControl(ret.type)}
-                              <div class="form-control space-y-1">
-                                <span
-                                  class="label-text text-xs font-semibold uppercase tracking-wide flex items-center gap-2"
-                                >
-                                  {fnMeta.returns.length > 1
-                                    ? translate(
-                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::return_n_capitalized",
-                                        { ri: ri + 1 },
-                                      )
-                                    : translate(
-                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::return_single_capitalized",
-                                      )}
-                                  {#if ret.type}
-                                    <span class="badge badge-outline badge-sm"
-                                      >{ret.type}</span
-                                    >
-                                  {/if}
-                                </span>
-                                {#if control.control === "boolean"}
-                                  <label
-                                    class="label cursor-pointer justify-start gap-2 rounded-lg border border-base-300/60 px-3 py-2 bg-base-200/60"
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      class="toggle toggle-sm"
-                                      checked={stringToBool(fc.returns[ri])}
-                                      on:change={(e) =>
-                                        updateFnReturn(
-                                          fi,
-                                          ri,
-                                          (e.target as HTMLInputElement).checked
-                                            ? "true"
-                                            : "false",
-                                        )}
-                                    />
-                                    <span class="label-text text-sm"
-                                      >{stringToBool(fc.returns[ri])
-                                        ? translate(
-                                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::true",
-                                          )
-                                        : translate(
-                                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::false",
-                                          )}</span
-                                    >
-                                  </label>
-                                {:else if control.control === "textarea"}
-                                  <textarea
-                                    class="textarea textarea-bordered h-24"
-                                    value={fc.returns[ri]}
-                                    on:input={(e) =>
-                                      updateFnReturn(
-                                        fi,
-                                        ri,
-                                        (e.target as HTMLTextAreaElement).value,
-                                      )}
-                                    placeholder={ret.type ??
-                                      translate(
-                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder",
-                                      )}
-                                  ></textarea>
-                                {:else}
-                                  <input
-                                    class="input input-bordered w-full"
-                                    type={control.control === "integer" ||
-                                    control.control === "number"
-                                      ? "number"
-                                      : "text"}
-                                    step={control.control === "integer"
-                                      ? "1"
-                                      : control.control === "number"
-                                        ? "any"
-                                        : undefined}
-                                    value={fc.returns[ri]}
-                                    on:input={(e) =>
-                                      updateFnReturn(
-                                        fi,
-                                        ri,
-                                        (e.target as HTMLInputElement).value,
-                                      )}
-                                    placeholder={ret.type ??
-                                      translate(
-                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder",
-                                      )}
-                                  />
-                                {/if}
-                              </div>
-                            {/each}
-                          </div>
-                        {/if}
-                      </div>
-                    {:else}
-                      <div
-                        class="rounded-lg border border-dashed border-base-300/70 bg-base-200/50 px-4 py-3 text-xs opacity-70"
-                      >
-                        {translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::this_function_returns_none",
-                        )}
-                      </div>
-                    {/if}
-                  <div class="space-y-2">
-                    <TestFileManager
-                      bind:files={fc.files}
-                      bind:selectedIndex={fc.selectedFileIndex}
-                      bind:fileName={fc.fileName}
-                      bind:fileText={fc.fileText}
-                      bind:open={fc.showFile}
-                      onError={(message) => (err = message)}
-                    />
-                  </div>
-                  </div>
-                {/each}
-                {#if fnCases.length === 0}
-                  <div
-                    class="rounded-xl border border-dashed border-base-300/80 p-6 text-center text-sm opacity-70"
-                  >
-                    {translate(
-                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::no_function_cases_yet",
-                    )}
-                  </div>
-                {/if}
-              </div>
-            {/if}
           </div>
         </div>
 
@@ -4988,23 +4850,23 @@ class MyTests(unittest.TestCase):
           role="tabpanel"
           class="tab-content bg-base-100 border-base-300 rounded-box p-4 space-y-4"
         >
-          <div class="group relative bg-base-100 rounded-2xl border border-base-300/50 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border-l-[6px] border-l-secondary">
+          <div class="group relative bg-base-100 rounded-xl border border-base-300/50 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 border-l-secondary">
             <!-- Premium Header -->
-            <div class="p-5 bg-gradient-to-br from-secondary/10 via-transparent to-transparent border-b border-base-200">
-              <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div class="p-3 bg-gradient-to-br from-secondary/10 via-transparent to-transparent border-b border-base-200">
+              <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div class="flex flex-col">
-                  <span class="text-[10px] uppercase tracking-widest font-bold opacity-40 mb-1">AI Generation</span>
-                  <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-secondary/20 text-secondary flex items-center justify-center shadow-lg shadow-secondary/10 border border-secondary/20 transition-transform group-hover:scale-110 duration-500">
-                      <Sparkles size={20} />
+                  <span class="text-[9px] uppercase tracking-widest font-bold opacity-40 mb-0.5">AI Generation</span>
+                  <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-secondary/20 text-secondary flex items-center justify-center shadow-lg shadow-secondary/10 border border-secondary/20 transition-transform group-hover:scale-110 duration-500">
+                      <Sparkles size={16} />
                     </div>
                     <div>
-                      <h4 class="text-lg font-bold leading-none">
+                      <h4 class="text-base font-bold leading-none">
                         {translate(
                           "frontend/src/routes/assignments/[id]/tests/+page.svelte::generate_with_ai",
                         )}
                       </h4>
-                      <p class="text-xs opacity-50 font-medium mt-1">
+                      <p class="text-[10px] opacity-50 font-medium mt-0.5">
                         {translate(
                           "frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_call_mode_hint",
                         )}
@@ -5013,20 +4875,20 @@ class MyTests(unittest.TestCase):
                   </div>
                 </div>
 
-                <div class="flex flex-wrap gap-2">
-                  <span class="badge badge-lg bg-base-200 border-none font-bold gap-2 px-3 py-5 shadow-inner">
-                    <Terminal size={12} class="text-secondary" />
-                    <span class="opacity-50 text-[10px] uppercase tracking-wider">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::call_mode")}</span>
-                    <span class="text-secondary text-xs">
+                <div class="flex flex-wrap gap-1.5">
+                  <span class="badge badge-md bg-base-200 border-none font-bold gap-2 px-3 py-4 shadow-inner">
+                    <Terminal size={10} class="text-secondary" />
+                    <span class="opacity-50 text-[9px] uppercase tracking-wider">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::call_mode")}</span>
+                    <span class="text-secondary text-[10px]">
                       {aiCallMode === "stdin"
                         ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin_stdout_button")
                         : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::function_return_button")}
                     </span>
                   </span>
-                  <span class="badge badge-lg bg-base-200 border-none font-bold gap-2 px-3 py-5 shadow-inner">
-                    <Scale size={12} class="text-secondary" />
-                    <span class="opacity-50 text-[10px] uppercase tracking-wider">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::task_difficulty")}</span>
-                    <span class="text-secondary text-xs">
+                  <span class="badge badge-md bg-base-200 border-none font-bold gap-2 px-3 py-4 shadow-inner">
+                    <Scale size={10} class="text-secondary" />
+                    <span class="opacity-50 text-[9px] uppercase tracking-wider">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::task_difficulty")}</span>
+                    <span class="text-secondary text-[10px]">
                       {aiDifficulty === "simple"
                         ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::simple_task_button")
                         : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::hard_task_button")}
@@ -5036,30 +4898,30 @@ class MyTests(unittest.TestCase):
               </div>
             </div>
 
-            <div class="p-6 space-y-6">
-              <div class="grid gap-6 xl:grid-cols-[1fr_0.8fr]">
+            <div class="p-4 space-y-4">
+              <div class="grid gap-4 xl:grid-cols-[1fr_0.8fr]">
                 <!-- Left Column: Settings -->
-                <div class="space-y-6">
+                <div class="space-y-4">
                   <!-- Mode Selectors Card -->
-                  <div class="card bg-base-200/30 border border-base-300/40 p-6 space-y-8">
-                    <div class="grid gap-8 md:grid-cols-2">
+                  <div class="card bg-base-200/30 border border-base-300/40 p-4 space-y-4">
+                    <div class="grid gap-4 md:grid-cols-2">
                       <!-- Call Mode -->
-                      <div class="space-y-3">
-                        <h5 class="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
-                          <Terminal size={14} class="text-secondary" />
+                      <div class="space-y-2">
+                        <h5 class="text-[9px] font-black uppercase tracking-widest opacity-60 flex items-center gap-1.5">
+                          <Terminal size={12} class="text-secondary" />
                           {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::call_mode")}
                         </h5>
-                        <div class="flex bg-base-300/50 p-1 rounded-xl w-full border border-white/5">
+                        <div class="flex bg-base-300/50 p-1 rounded-lg w-full border border-white/5">
                           <button 
                             type="button"
-                            class="flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-200 {aiCallMode === 'stdin' ? 'bg-base-100 shadow-md scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
+                            class="flex-1 py-1.5 rounded-md text-xs font-bold transition-all duration-200 {aiCallMode === 'stdin' ? 'bg-base-100 shadow-sm scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
                             on:click={() => (aiCallMode = "stdin")}
                           >
                             {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin_stdout_button")}
                           </button>
                           <button 
                             type="button"
-                            class="flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-200 {aiCallMode === 'function' ? 'bg-base-100 shadow-md scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
+                            class="flex-1 py-1.5 rounded-md text-xs font-bold transition-all duration-200 {aiCallMode === 'function' ? 'bg-base-100 shadow-sm scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
                             on:click={() => (aiCallMode = "function")}
                           >
                             {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::function_return_button")}
@@ -5068,22 +4930,22 @@ class MyTests(unittest.TestCase):
                       </div>
 
                       <!-- Difficulty -->
-                      <div class="space-y-3">
-                        <h5 class="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
-                          <Scale size={14} class="text-secondary" />
+                      <div class="space-y-2">
+                        <h5 class="text-[9px] font-black uppercase tracking-widest opacity-60 flex items-center gap-1.5">
+                          <Scale size={12} class="text-secondary" />
                           {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::task_difficulty")}
                         </h5>
-                        <div class="flex bg-base-300/50 p-1 rounded-xl w-full border border-white/5">
+                        <div class="flex bg-base-300/50 p-1 rounded-lg w-full border border-white/5">
                           <button 
                             type="button"
-                            class="flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-200 {aiDifficulty === 'simple' ? 'bg-base-100 shadow-md scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
+                            class="flex-1 py-1.5 rounded-md text-xs font-bold transition-all duration-200 {aiDifficulty === 'simple' ? 'bg-base-100 shadow-sm scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
                             on:click={() => (aiDifficulty = "simple")}
                           >
                             {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::simple_task_button")}
                           </button>
                           <button 
                             type="button"
-                            class="flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-200 {aiDifficulty === 'hard' ? 'bg-base-100 shadow-md scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
+                            class="flex-1 py-1.5 rounded-md text-xs font-bold transition-all duration-200 {aiDifficulty === 'hard' ? 'bg-base-100 shadow-sm scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
                             on:click={() => (aiDifficulty = "hard")}
                           >
                             {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::hard_task_button")}
@@ -5093,23 +4955,23 @@ class MyTests(unittest.TestCase):
                     </div>
 
                     <!-- Test Count Mode -->
-                    <div class="space-y-4 pt-4 border-t border-base-300/50">
-                      <h5 class="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
-                        <Cpu size={14} class="text-secondary" />
+                    <div class="space-y-3 pt-3 border-t border-base-300/50">
+                      <h5 class="text-[9px] font-black uppercase tracking-widest opacity-60 flex items-center gap-1.5">
+                        <Cpu size={12} class="text-secondary" />
                         {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_count_mode")}
                       </h5>
-                      <div class="flex flex-wrap gap-4 items-center">
-                        <div class="flex bg-base-300/50 p-1 rounded-xl w-fit border border-white/5">
+                      <div class="flex flex-wrap gap-3 items-center">
+                        <div class="flex bg-base-300/50 p-1 rounded-lg w-fit border border-white/5">
                           <button 
                             type="button"
-                            class="px-6 py-2 rounded-lg text-sm font-bold transition-all duration-200 {aiAuto ? 'bg-base-100 shadow-md scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
+                            class="px-4 py-1.5 rounded-md text-xs font-bold transition-all duration-200 {aiAuto ? 'bg-base-100 shadow-sm scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
                             on:click={() => (aiAuto = true)}
                           >
                             {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::auto")}
                           </button>
                           <button 
                             type="button"
-                            class="px-6 py-2 rounded-lg text-sm font-bold transition-all duration-200 {!aiAuto ? 'bg-base-100 shadow-md scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
+                            class="px-4 py-1.5 rounded-md text-xs font-bold transition-all duration-200 {!aiAuto ? 'bg-base-100 shadow-sm scale-[1.02] text-secondary' : 'hover:bg-base-100/30 opacity-60'}"
                             on:click={() => (aiAuto = false)}
                           >
                             {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::manual")}
@@ -5117,16 +4979,16 @@ class MyTests(unittest.TestCase):
                         </div>
 
                         {#if !aiAuto}
-                          <div class="flex items-center gap-3 animate-in fade-in slide-in-from-left-2 duration-300">
-                            <ArrowRight size={14} class="opacity-40" />
+                          <div class="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-300">
+                            <ArrowRight size={12} class="opacity-40" />
                             <input
                               type="number"
                               min="1"
                               max="50"
-                              class="input input-bordered w-24 font-bold text-center bg-base-100"
+                              class="input input-bordered input-sm w-20 font-bold text-center bg-base-100"
                               bind:value={aiNumTests}
                             />
-                            <span class="text-xs font-bold opacity-40 uppercase tracking-widest">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_plural")}</span>
+                            <span class="text-[10px] font-bold opacity-40 uppercase tracking-widest">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_plural")}</span>
                           </div>
                         {/if}
                       </div>
@@ -5134,42 +4996,42 @@ class MyTests(unittest.TestCase):
                   </div>
 
                   <!-- Instructions Card -->
-                  <div class="card bg-base-100 border border-base-300/50 shadow-sm p-6 space-y-4">
-                    <h5 class="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
-                      <Code size={14} class="text-secondary" />
+                  <div class="card bg-base-100 border border-base-300/50 shadow-sm p-4 space-y-3">
+                    <h5 class="text-[9px] font-black uppercase tracking-widest opacity-60 flex items-center gap-1.5">
+                      <Code size={12} class="text-secondary" />
                       {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::additional_instructions_optional")}
                     </h5>
                     <textarea
-                      class="textarea textarea-bordered w-full min-h-[140px] bg-base-200/30 focus:bg-base-100 transition-all leading-relaxed"
+                      class="textarea textarea-bordered w-full min-h-[100px] bg-base-200/30 focus:bg-base-100 transition-all leading-relaxed text-xs py-2"
                       bind:value={aiInstructions}
                       placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::edge_cases_to_cover_placeholder")}
                     ></textarea>
-                    <p class="text-[10px] opacity-50 italic flex items-center gap-2">
-                       <Shield size={12} />
+                    <p class="text-[9px] opacity-50 italic flex items-center gap-1.5">
+                       <Shield size={10} />
                        {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_instructions_hint")}
                     </p>
                   </div>
                 </div>
 
                 <!-- Right Column: Teacher Solution -->
-                <div class="space-y-6">
-                  <div class="card bg-secondary/5 border border-dashed border-secondary/30 p-6 space-y-4 flex flex-col items-center text-center">
-                    <div class="w-12 h-12 rounded-full bg-secondary/10 text-secondary flex items-center justify-center shadow-inner">
-                      <FileCode2 size={20} />
+                <div class="space-y-4">
+                  <div class="card bg-secondary/5 border border-dashed border-secondary/30 p-4 space-y-3 flex flex-col items-center text-center">
+                    <div class="w-10 h-10 rounded-full bg-secondary/10 text-secondary flex items-center justify-center shadow-inner">
+                      <FileCode2 size={16} />
                     </div>
-                    <div class="space-y-1">
-                      <h4 class="font-bold text-base">
+                    <div class="space-y-0.5">
+                      <h4 class="font-bold text-sm">
                         {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_label")}
                       </h4>
-                      <p class="text-[10px] opacity-60 leading-relaxed max-w-xs mx-auto">
+                      <p class="text-[9px] opacity-60 leading-relaxed max-w-xs mx-auto">
                         {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_hint")}
                       </p>
                     </div>
 
                     <label class="w-full cursor-pointer group/file">
-                      <div class="flex flex-col items-center justify-center p-4 border-2 border-dashed border-secondary/20 rounded-2xl bg-base-100/50 group-hover/file:border-secondary/50 group-hover/file:bg-secondary/5 transition-all duration-300">
-                        <UploadIcon size={20} class="mb-1 text-secondary/40 group-hover/file:text-secondary group-hover/file:scale-110 transition-all" />
-                        <span class="text-xs font-bold opacity-60">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_teacher_solution")}</span>
+                      <div class="flex flex-col items-center justify-center p-2.5 border-2 border-dashed border-secondary/20 rounded-xl bg-base-100/50 group-hover/file:border-secondary/50 group-hover/file:bg-secondary/5 transition-all duration-300">
+                        <UploadIcon size={16} class="mb-1 text-secondary/40 group-hover/file:text-secondary group-hover/file:scale-110 transition-all" />
+                        <span class="text-[10px] font-bold opacity-60">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_teacher_solution")}</span>
                         <input
                           id="ai-solution-upload"
                           type="file"
@@ -5181,26 +5043,26 @@ class MyTests(unittest.TestCase):
                     </label>
 
                     {#if aiSolutionError}
-                      <div class="badge badge-error gap-2 py-3">{aiSolutionError}</div>
+                      <div class="badge badge-error gap-1.5 py-2 text-[10px]">{aiSolutionError}</div>
                     {/if}
 
                     {#if aiSolutionText.trim().length}
-                      <div class="w-full space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
-                        <div class="flex items-center justify-between px-2">
-                          <div class="flex items-center gap-2 text-xs font-bold text-secondary">
-                             <Check size={14} />
+                      <div class="w-full space-y-3 animate-in fade-in slide-in-from-top-4 duration-500">
+                        <div class="flex items-center justify-between px-1">
+                          <div class="flex items-center gap-1.5 text-[10px] font-bold text-secondary">
+                             <Check size={12} />
                              {aiSolutionFile?.name || translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_manual")}
-                             <span class="opacity-40 text-[10px] ml-2 font-mono">{aiSolutionText.length}B</span>
+                             <span class="opacity-40 text-[9px] ml-1.5 font-mono">{aiSolutionText.length}B</span>
                           </div>
                           <button
                             type="button"
-                            class="btn btn-ghost btn-xs text-error hover:bg-error/10"
+                            class="btn btn-ghost btn-xs text-error hover:bg-error/10 h-5 px-1 font-bold text-[10px]"
                             on:click={resetAISolutionInput}
                           >
                              {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_teacher_solution_clear")}
                           </button>
                         </div>
-                        <div class="rounded-xl overflow-hidden border border-secondary/20 shadow-lg">
+                        <div class="rounded-lg overflow-hidden border border-secondary/20 shadow-lg">
                           <CodeMirror
                             bind:value={aiSolutionText}
                             lang={python()}
@@ -5213,39 +5075,39 @@ class MyTests(unittest.TestCase):
 
                   <!-- Run Tests on Solution Button (only if generated something) -->
                   {#if (aiCode && aiCode.trim().length) || hasAIBuilder}
-                    <div class="card bg-base-100 border border-base-300/50 shadow-sm p-6 space-y-4 animate-in zoom-in-95 duration-300">
+                    <div class="card bg-base-100 border border-base-300/50 shadow-sm p-4 space-y-3 animate-in zoom-in-95 duration-300">
                       <div class="flex items-center justify-between">
-                         <h5 class="text-[10px] font-black uppercase tracking-widest opacity-60">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::optional_test_on_teacher_solution")}</h5>
-                         <span class="badge badge-sm badge-outline opacity-40">Teacher Sim</span>
+                         <h5 class="text-[9px] font-black uppercase tracking-widest opacity-60">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::optional_test_on_teacher_solution")}</h5>
+                         <span class="badge badge-xs badge-outline opacity-40">Teacher Sim</span>
                       </div>
-                      <div class="grid gap-3">
+                      <div class="grid gap-2">
                         <input
                           type="file"
                           accept=".py,.zip"
-                          class="file-input file-input-bordered file-input-sm w-full bg-base-200/50"
+                          class="file-input file-input-bordered file-input-xs w-full bg-base-200/50"
                           on:change={(e) => (teacherSolutionFile = (e.target as HTMLInputElement).files?.[0] || null)}
                         />
                         <button
-                          class="btn btn-secondary btn-sm font-black shadow-lg shadow-secondary/10"
+                          class="btn btn-secondary btn-xs h-7 font-black shadow-lg shadow-secondary/10"
                           disabled={!teacherSolutionFile || teacherRunLoading}
                           on:click={runTeacherSolution}
                         >
                           {#if teacherRunLoading}
-                            <RotateCw size={14} class="animate-spin" />
+                            <RotateCw size={10} class="animate-spin" />
                             {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::running")}
                           {:else}
-                            <FlaskConical size={14} />
+                            <FlaskConical size={10} />
                             {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::run_tests_on_solution")}
                           {/if}
                         </button>
                       </div>
 
                       {#if teacherRun}
-                         <div class="mt-4 space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                         <div class="mt-2 space-y-1.5 max-h-40 overflow-y-auto pr-1.5 custom-scrollbar">
                            {#each teacherRun.results as r}
-                             <div class="flex items-center justify-between p-2 rounded-lg bg-base-200/50 border border-base-300/30 text-[10px]">
-                               <div class="flex items-center gap-2 truncate">
-                                  <span class="badge {r.status === 'passed' ? 'badge-success' : 'badge-error'} badge-xs"></span>
+                             <div class="flex items-center justify-between p-1.5 rounded bg-base-200/50 border border-base-300/30 text-[9px]">
+                               <div class="flex items-center gap-1.5 truncate">
+                                  <span class="badge {r.status === 'passed' ? 'badge-success' : 'badge-error'} badge-xs w-1.5 h-1.5 p-0"></span>
                                   <span class="font-mono opacity-70 truncate">{r.unittest_name || 'Test Case'}</span>
                                </div>
                                <span class="font-bold {r.status === 'passed' ? 'text-success' : 'text-error'} uppercase tracking-tight">{r.status}</span>
@@ -5259,65 +5121,65 @@ class MyTests(unittest.TestCase):
               </div>
 
               <!-- Action Bar -->
-              <div class="flex flex-col gap-4 border-t border-base-300/50 pt-8 mt-4">
-                <div class="flex flex-col sm:flex-row gap-4">
+              <div class="flex flex-col gap-3 border-t border-base-300/50 pt-4 mt-2">
+                <div class="flex flex-col sm:flex-row gap-3">
                   <button
-                    class="btn btn-secondary flex-1 h-14 text-lg font-black shadow-xl shadow-secondary/20 hover:scale-[1.02] transition-all group"
+                    class="btn btn-secondary flex-1 h-10 text-base font-black shadow-xl shadow-secondary/20 hover:scale-[1.02] transition-all group"
                     on:click={generateWithAI}
                     disabled={aiGenerating}
                   >
                     {#if aiGenerating}
-                      <RotateCw size={20} class="animate-spin" />
+                      <RotateCw size={16} class="animate-spin" />
                       {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::generating")}
                     {:else}
-                      <Wand2 size={20} class="group-hover:rotate-12 transition-transform" />
+                      <Wand2 size={16} class="group-hover:rotate-12 transition-transform" />
                       {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::generate_with_ai")}
                     {/if}
                   </button>
                   
                   <button
-                    class="btn btn-outline border-2 flex-1 h-14 text-lg font-black hover:bg-primary hover:text-primary-content hover:border-primary transition-all duration-300"
+                    class="btn btn-outline btn-sm flex-1 h-10 text-base font-black hover:bg-primary hover:text-primary-content border-2 hover:border-primary transition-all duration-300"
                     on:click={uploadAIUnitTestsCode}
                     disabled={builderMode !== "unittest" || !aiCode}
                   >
-                    <Save size={20} />
+                    <Save size={16} />
                     {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::save_as_tests")}
                   </button>
                 </div>
 
                 {#if aiGenerating}
-                   <div class="flex items-center justify-center gap-3 text-secondary font-bold animate-pulse">
-                      <div class="loading loading-dots loading-md"></div>
-                      <span class="text-sm uppercase tracking-[0.2em]">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::generating")}</span>
+                   <div class="flex items-center justify-center gap-2 text-secondary font-bold animate-pulse">
+                      <div class="loading loading-dots loading-sm"></div>
+                      <span class="text-xs uppercase tracking-[0.2em]">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::generating")}</span>
                    </div>
                 {/if}
 
                 {#if hasAIBuilder}
-                  <div class="flex items-center gap-3 p-4 rounded-xl bg-primary/10 border border-primary/20 text-primary animate-in slide-in-from-bottom-2 duration-500">
-                    <Check size={18} />
-                    <span class="text-sm font-bold">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_prepared_builder_structure_below")}</span>
+                  <div class="flex items-center gap-2 p-2.5 rounded-lg bg-primary/10 border border-primary/20 text-primary animate-in slide-in-from-bottom-2 duration-500">
+                    <Check size={14} />
+                    <span class="text-xs font-bold">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_prepared_builder_structure_below")}</span>
                   </div>
                 {/if}
               </div>
 
               <!-- Generated Preview Section -->
               {#if aiCode && builderMode === "unittest"}
-                <div class="space-y-6 pt-8 border-t border-base-300/50 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                      <div class="w-10 h-10 rounded-xl bg-success/10 text-success flex items-center justify-center">
-                        <Code size={20} />
+                <div class="space-y-4 pt-4 border-t border-base-300/50 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div class="flex items-center justify-between px-1">
+                    <div class="flex items-center gap-2">
+                      <div class="w-8 h-8 rounded-lg bg-success/10 text-success flex items-center justify-center">
+                        <Code size={16} />
                       </div>
                       <div>
-                        <h4 class="font-bold text-lg">
+                        <h4 class="font-bold text-base leading-none">
                           {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_python_editable")}
                         </h4>
-                        <p class="text-[10px] opacity-40 font-black uppercase tracking-widest">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::preview_badge")}</p>
+                        <p class="text-[9px] opacity-40 font-black uppercase tracking-widest mt-0.5">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::preview_badge")}</p>
                       </div>
                     </div>
-                    <div class="badge badge-success font-bold px-4 py-3">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::save_as_tests")}</div>
+                    <div class="badge badge-success badge-sm font-bold px-3 py-2 h-7 min-h-0">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::save_as_tests")}</div>
                   </div>
-                  <div class="rounded-2xl overflow-hidden border border-base-300/50 shadow-2xl">
+                  <div class="rounded-xl overflow-hidden border border-base-300/50 shadow-xl">
                     <CodeMirror
                       bind:value={aiCode}
                       lang={python()}
@@ -5343,21 +5205,21 @@ class MyTests(unittest.TestCase):
           role="tabpanel"
           class="tab-content bg-base-100 border-base-300 rounded-box p-4"
         >
-          <div class="group relative bg-base-100 rounded-2xl border border-base-300/50 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border-l-[6px] border-l-accent">
+          <div class="group relative bg-base-100 rounded-xl border border-base-300/50 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 border-l-accent">
             <!-- Header -->
-            <div class="p-5 bg-gradient-to-br from-accent/10 via-transparent to-transparent border-b border-base-200">
-              <div class="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div class="p-3 bg-gradient-to-br from-accent/10 via-transparent to-transparent border-b border-base-200">
+              <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div class="flex flex-col">
-                  <span class="text-[10px] uppercase tracking-widest font-bold opacity-40 mb-1">Unittest Upload</span>
-                  <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-accent/20 text-accent flex items-center justify-center shadow-lg shadow-accent/10 border border-accent/20 transition-transform group-hover:scale-110 duration-500">
-                      <FileUp size={20} />
+                  <span class="text-[9px] uppercase tracking-widest font-bold opacity-40 mb-0.5">Unittest Upload</span>
+                  <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-accent/20 text-accent flex items-center justify-center shadow-lg shadow-accent/10 border border-accent/20 transition-transform group-hover:scale-110 duration-500">
+                      <FileUp size={16} />
                     </div>
                     <div>
-                      <h4 class="text-lg font-bold leading-none">
+                      <h4 class="text-base font-bold leading-none">
                         {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_unittest_file")}
                       </h4>
-                      <p class="text-xs opacity-50 font-medium mt-1">
+                      <p class="text-[10px] opacity-50 font-medium mt-0.5">
                         {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_intro")}
                       </p>
                     </div>
@@ -5366,20 +5228,20 @@ class MyTests(unittest.TestCase):
               </div>
             </div>
 
-            <div class="p-6 space-y-6">
+            <div class="p-4 space-y-4">
               <!-- Upload Section -->
-              <div class="space-y-4">
+              <div class="space-y-3">
                 <div class="relative group/upload">
                   {#if !unittestFile}
-                    <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-accent/20 rounded-2xl bg-accent/5 hover:bg-accent/10 hover:border-accent/40 transition-all cursor-pointer group-hover/upload:scale-[1.005]">
-                      <div class="flex flex-col items-center justify-center p-4">
-                        <div class="w-10 h-10 rounded-full bg-accent/10 text-accent flex items-center justify-center mb-2 group-hover/upload:scale-110 transition-transform">
-                          <FileUp size={20} />
+                    <label class="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-accent/20 rounded-xl bg-accent/5 hover:bg-accent/10 hover:border-accent/40 transition-all cursor-pointer group-hover/upload:scale-[1.005]">
+                      <div class="flex flex-col items-center justify-center p-2">
+                        <div class="w-8 h-8 rounded-full bg-accent/10 text-accent flex items-center justify-center mb-1 group-hover/upload:scale-110 transition-transform">
+                          <FileUp size={16} />
                         </div>
-                        <p class="mb-1 text-sm font-bold text-accent">
+                        <p class="mb-0.5 text-xs font-bold text-accent">
                           {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_upload")}
                         </p>
-                        <p class="text-[10px] opacity-50 font-medium">
+                        <p class="text-[9px] opacity-50 font-medium">
                           {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_drag_drop_hint")}
                         </p>
                       </div>
@@ -5391,28 +5253,28 @@ class MyTests(unittest.TestCase):
                       />
                     </label>
                   {:else}
-                    <div class="flex flex-col items-center justify-center w-full min-h-32 border-2 border-accent/40 rounded-2xl bg-accent/10 p-6 space-y-4">
-                      <div class="flex items-center gap-3 bg-base-100 p-3 rounded-xl shadow-lg border border-accent/20 w-full max-w-sm animate-in fade-in zoom-in duration-300">
-                        <div class="w-10 h-10 rounded-lg bg-accent text-white flex items-center justify-center shrink-0 shadow-lg shadow-accent/20">
-                          <Code size={20} />
+                    <div class="flex flex-col items-center justify-center w-full min-h-24 border-2 border-accent/40 rounded-xl bg-accent/10 p-3 space-y-3">
+                      <div class="flex items-center gap-2 bg-base-100 p-2 rounded-lg shadow-md border border-accent/20 w-full max-w-sm animate-in fade-in zoom-in duration-300">
+                        <div class="w-8 h-8 rounded-lg bg-accent text-white flex items-center justify-center shrink-0 shadow-lg shadow-accent/20">
+                          <Code size={16} />
                         </div>
                         <div class="flex-1 min-w-0">
-                          <p class="text-sm font-black truncate">{unittestFile.name}</p>
-                          <p class="text-[10px] font-bold opacity-40 uppercase tracking-widest">{(unittestFile.size / 1024).toFixed(1)} KB</p>
+                          <p class="text-xs font-black truncate">{unittestFile.name}</p>
+                          <p class="text-[9px] font-bold opacity-40 uppercase tracking-widest">{(unittestFile.size / 1024).toFixed(1)} KB</p>
                         </div>
                         <button 
-                          class="btn btn-circle btn-ghost btn-xs hover:bg-error/10 hover:text-error transition-colors"
+                          class="btn btn-circle btn-ghost btn-xs hover:bg-error/10 hover:text-error transition-colors h-6 w-6 min-h-0"
                           on:click={() => (unittestFile = null)}
                         >
-                          <X size={14} />
+                          <X size={12} />
                         </button>
                       </div>
                       
                       <button
-                        class="btn btn-accent px-8 font-black shadow-xl shadow-accent/20 hover:scale-105 active:scale-95 transition-all gap-2"
+                        class="btn btn-accent btn-sm h-8 px-6 font-black shadow-xl shadow-accent/20 hover:scale-105 active:scale-95 transition-all gap-1.5"
                         on:click={uploadUnitTests}
                       >
-                        <UploadIcon size={18} />
+                        <UploadIcon size={16} />
                         {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::upload")}
                       </button>
                     </div>
@@ -5421,50 +5283,50 @@ class MyTests(unittest.TestCase):
               </div>
 
               <!-- Documentation & Examples -->
-              <div class="grid lg:grid-cols-2 gap-8 pt-4">
+              <div class="grid lg:grid-cols-2 gap-4 pt-2">
                 <!-- How to -->
-                <div class="space-y-6">
-                  <div class="flex items-center gap-3">
-                     <div class="w-8 h-8 rounded-lg bg-accent/10 text-accent flex items-center justify-center">
-                        <BookOpen size={18} />
+                <div class="space-y-3">
+                  <div class="flex items-center gap-2">
+                     <div class="w-6 h-6 rounded-lg bg-accent/10 text-accent flex items-center justify-center">
+                        <BookOpen size={14} />
                      </div>
-                     <h4 class="font-bold uppercase tracking-widest text-xs opacity-60">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_requirements")}</h4>
+                     <h4 class="font-bold uppercase tracking-widest text-[10px] opacity-60">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_requirements")}</h4>
                   </div>
-                  <div class="space-y-4">
-                     <div class="flex gap-4 p-4 rounded-xl bg-base-100 border border-base-300/30 shadow-sm transition-all hover:bg-accent/5 hover:border-accent/20">
-                        <div class="w-6 h-6 rounded-full bg-accent/20 text-accent text-[10px] font-black flex items-center justify-center shrink-0">1</div>
-                        <p class="text-sm font-semibold opacity-80 leading-relaxed">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_item_1")}</p>
+                  <div class="space-y-2">
+                     <div class="flex gap-3 p-2.5 rounded-lg bg-base-100 border border-base-300/30 shadow-sm transition-all hover:bg-accent/5 hover:border-accent/20">
+                        <div class="w-5 h-5 rounded-full bg-accent/20 text-accent text-[9px] font-black flex items-center justify-center shrink-0">1</div>
+                        <p class="text-xs font-semibold opacity-80 leading-relaxed">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_item_1")}</p>
                      </div>
-                     <div class="flex gap-4 p-4 rounded-xl bg-base-100 border border-base-300/30 shadow-sm transition-all hover:bg-accent/5 hover:border-accent/20">
-                        <div class="w-6 h-6 rounded-full bg-accent/20 text-accent text-[10px] font-black flex items-center justify-center shrink-0">2</div>
-                        <p class="text-sm font-semibold opacity-80 leading-relaxed">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_item_2")}</p>
+                     <div class="flex gap-3 p-2.5 rounded-lg bg-base-100 border border-base-300/30 shadow-sm transition-all hover:bg-accent/5 hover:border-accent/20">
+                        <div class="w-5 h-5 rounded-full bg-accent/20 text-accent text-[9px] font-black flex items-center justify-center shrink-0">2</div>
+                        <p class="text-xs font-semibold opacity-80 leading-relaxed">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_item_2")}</p>
                      </div>
-                     <div class="flex gap-4 p-4 rounded-xl bg-base-100 border border-base-300/30 shadow-sm transition-all hover:bg-accent/5 hover:border-accent/20">
-                        <div class="w-6 h-6 rounded-full bg-accent/20 text-accent text-[10px] font-black flex items-center justify-center shrink-0">3</div>
-                        <p class="text-sm font-semibold opacity-80 leading-relaxed">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_item_3")}</p>
+                     <div class="flex gap-3 p-2.5 rounded-lg bg-base-100 border border-base-300/30 shadow-sm transition-all hover:bg-accent/5 hover:border-accent/20">
+                        <div class="w-5 h-5 rounded-full bg-accent/20 text-accent text-[9px] font-black flex items-center justify-center shrink-0">3</div>
+                        <p class="text-xs font-semibold opacity-80 leading-relaxed">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_item_3")}</p>
                      </div>
-                     <div class="flex gap-4 p-4 rounded-xl bg-base-100 border border-base-300/30 shadow-sm transition-all hover:bg-accent/5 hover:border-accent/20">
-                        <div class="w-6 h-6 rounded-full bg-accent/20 text-accent text-[10px] font-black flex items-center justify-center shrink-0">4</div>
-                        <p class="text-sm font-semibold opacity-80 leading-relaxed">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_item_4")}</p>
+                     <div class="flex gap-3 p-2.5 rounded-lg bg-base-100 border border-base-300/30 shadow-sm transition-all hover:bg-accent/5 hover:border-accent/20">
+                        <div class="w-5 h-5 rounded-full bg-accent/20 text-accent text-[9px] font-black flex items-center justify-center shrink-0">4</div>
+                        <p class="text-xs font-semibold opacity-80 leading-relaxed">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_item_4")}</p>
                      </div>
                   </div>
                 </div>
 
                 <!-- Example -->
-                <div class="space-y-6">
+                <div class="space-y-3">
                    <div class="flex items-center justify-between">
-                      <div class="flex items-center gap-3">
-                         <div class="w-8 h-8 rounded-lg bg-accent/10 text-accent flex items-center justify-center">
-                            <Code size={18} />
+                      <div class="flex items-center gap-2">
+                         <div class="w-6 h-6 rounded-lg bg-accent/10 text-accent flex items-center justify-center">
+                            <Code size={14} />
                          </div>
-                         <h4 class="font-bold uppercase tracking-widest text-xs opacity-60">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_example_code")}</h4>
+                         <h4 class="font-bold uppercase tracking-widest text-[10px] opacity-60">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_example_code")}</h4>
                       </div>
-                      <span class="badge badge-accent badge-outline font-black text-[10px] tracking-tighter uppercase">Python 3.10+</span>
+                      <span class="badge badge-accent badge-outline font-black text-[9px] tracking-tighter uppercase px-1.5 h-4">Python 3.10+</span>
                    </div>
                    
                    <div class="relative group/code">
-                      <div class="absolute -inset-1 bg-gradient-to-r from-accent/20 to-purple-500/20 rounded-2xl blur opacity-20 group-hover/code:opacity-40 transition duration-500"></div>
-                      <pre class="relative bg-base-300/50 p-6 rounded-2xl text-[13px] leading-relaxed font-mono overflow-x-auto whitespace-pre border border-white/5 shadow-2xl custom-scrollbar">
+                      <div class="absolute -inset-1 bg-gradient-to-r from-accent/20 to-purple-500/20 rounded-xl blur opacity-20 group-hover/code:opacity-40 transition duration-500"></div>
+                      <pre class="relative bg-base-300/50 p-4 rounded-xl text-xs leading-relaxed font-mono overflow-x-auto whitespace-pre border border-white/5 shadow-2xl custom-scrollbar">
 <span class="text-purple-400">import</span> unittest
 
 <span class="text-purple-400">class</span> <span class="text-blue-400">MyTests</span>(unittest.TestCase):
