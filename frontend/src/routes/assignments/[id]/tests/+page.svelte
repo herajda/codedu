@@ -28,6 +28,7 @@
     Scale,
     Shield,
     Upload as UploadIcon,
+    ChevronRight,
   } from "lucide-svelte";
   import {
     readFileBase64,
@@ -1414,6 +1415,7 @@
           function_name: fnMeta.name,
           function_args: JSON.stringify(argsValues),
           function_kwargs: JSON.stringify(kwargsObject),
+          function_arg_names: JSON.stringify(fnMeta.params.map((p) => p.name)),
           expected_return: expectedJSON,
           stdin: "",
           expected_stdout: "",
@@ -2631,6 +2633,121 @@
     }
   }
 
+  function safeParseJSONArray(json: string): any[] {
+    try {
+      const parsed = JSON.parse(json || "[]");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function safeParseJSONObject(json: string): Record<string, any> {
+    try {
+      const parsed = JSON.parse(json || "{}");
+      return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+        ? parsed
+        : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function safeParseArgNames(json: string): string[] {
+    return safeParseJSONArray(json)
+      .map((val) => String(val).trim())
+      .filter((val) => val.length > 0);
+  }
+
+  function isGenericArgKey(key: string): boolean {
+    const trimmed = String(key || "").trim();
+    return (
+      !trimmed ||
+      trimmed.startsWith("#") ||
+      (trimmed.startsWith("arg") && /^\d+$/.test(trimmed.substring(3)))
+    );
+  }
+
+  function coerceArg(val: any): any {
+    if (typeof val !== "string") return val;
+    const trimmed = val.trim();
+    if (!trimmed) return null;
+    if (trimmed.toLowerCase() === "true") return true;
+    if (trimmed.toLowerCase() === "false") return false;
+    if (trimmed.toLowerCase() === "none" || trimmed.toLowerCase() === "null")
+      return null;
+    if (/^-?\d+$/.test(trimmed)) return parseInt(trimmed, 10);
+    if (/^-?\d*\.\d+$/.test(trimmed)) return parseFloat(trimmed);
+    try {
+      if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+        return JSON.parse(trimmed);
+      }
+    } catch {
+      // ignore
+    }
+    return trimmed;
+  }
+
+  function ensurePrepared(t: any) {
+    if (t._prepared_all === undefined) {
+      const argsArray = safeParseJSONArray(t.function_args)
+        .map(val => typeof val === 'object' ? JSON.stringify(val) : String(val));
+      const kwargsObj = safeParseJSONObject(t.function_kwargs);
+      const savedArgNames = safeParseArgNames(t.function_arg_names ?? "");
+      const metaArgNames =
+        fnMeta && fnMeta.name === t.function_name
+          ? fnMeta.params.map((p) => p.name)
+          : [];
+      const argNames = metaArgNames.length ? metaArgNames : savedArgNames;
+      
+      const all = [];
+      // Positional args
+      argsArray.forEach((val, i) => {
+        const name = argNames[i] || `arg${i + 1}`;
+        all.push({ key: name, value: val, is_pos: true, original_idx: i });
+      });
+      // Keyword args
+      Object.entries(kwargsObj).forEach(([k, v]) => {
+        all.push({
+          key: k,
+          value: typeof v === 'object' ? JSON.stringify(v) : String(v),
+          is_pos: false
+        });
+      });
+      t._prepared_all = all;
+    }
+    return t._prepared_all;
+  }
+
+  function addPreparedArg(t: any) {
+    ensurePrepared(t);
+    let nextName = `arg${t._prepared_all.length + 1}`;
+    const posCount = t._prepared_all.filter((a: any) => a.is_pos).length;
+    if (fnMeta && fnMeta.name === t.function_name && fnMeta.params[posCount]) {
+      nextName = fnMeta.params[posCount].name;
+    }
+    t._prepared_all = [...t._prepared_all, { key: nextName, value: "", is_pos: true, original_idx: posCount }];
+    tests = tests;
+  }
+
+  function addPreparedKwarg(t: any) {
+    ensurePrepared(t);
+    t._prepared_all = [...t._prepared_all, { key: "", value: "", is_pos: false }];
+    tests = tests;
+  }
+
+  function removePreparedArg(t: any, idx: number) {
+    // This now receives index in _prepared_all
+    ensurePrepared(t);
+    t._prepared_all = t._prepared_all.filter((_: any, i: number) => i !== idx);
+    tests = tests;
+  }
+
+  function removePreparedKwarg(t: any, idx: number) {
+    // Legacy support or same as removePreparedArg
+    removePreparedArg(t, idx);
+  }
+
   async function updateTest(t: any) {
     try {
       const mode = (t.execution_mode ??
@@ -2672,10 +2789,49 @@
           return;
         }
         testData.function_name = fn;
-        testData.function_args =
-          typeof t.function_args === "string" ? t.function_args : "";
-        testData.function_kwargs =
-          typeof t.function_kwargs === "string" ? t.function_kwargs : "";
+
+        if (t._prepared_all) {
+          const args: any[] = [];
+          const kwargs: any = {};
+          let argNames: string[] = [];
+          t._prepared_all.forEach((item: any) => {
+            const key = String(item.key || "").trim();
+            // If the key is a generic placeholder (e.g. arg1, #1) or empty, keep it positional.
+            // Otherwise, express it as a keyword argument as requested.
+            const isGeneric = isGenericArgKey(key);
+            
+            if (isGeneric) {
+              args.push(coerceArg(item.value));
+            } else {
+              kwargs[key] = coerceArg(item.value);
+            }
+            if (item.is_pos && !isGeneric) {
+              argNames.push(key);
+            }
+          });
+          testData.function_args = JSON.stringify(args);
+          testData.function_kwargs = JSON.stringify(kwargs);
+          if (!argNames.length) {
+            const metaArgNames =
+              fnMeta && fnMeta.name === fn
+                ? fnMeta.params.map((p) => p.name)
+                : [];
+            const savedArgNames = safeParseArgNames(t.function_arg_names ?? "");
+            argNames = metaArgNames.length ? metaArgNames : savedArgNames;
+          }
+          if (argNames.length) {
+            testData.function_arg_names = JSON.stringify(argNames);
+          }
+        } else {
+          testData.function_args =
+            typeof t.function_args === "string" ? t.function_args : "[]";
+          testData.function_kwargs =
+            typeof t.function_kwargs === "string" ? t.function_kwargs : "{}";
+          if (typeof t.function_arg_names === "string") {
+            testData.function_arg_names = t.function_arg_names;
+          }
+        }
+
         testData.expected_return =
           typeof t.expected_return === "string" ? t.expected_return : "";
         testData.stdin = "";
@@ -3003,66 +3159,109 @@
                   </div>
                 </div>
                 {#if mode === "function"}
-                  <div class="grid gap-2 md:grid-cols-2">
-                    <label class="form-control w-full space-y-1">
-                      <span class="label-text"
-                        >{translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_name",
-                        )}</span
+                  {@const prep = ensurePrepared(t)}
+                  <div class="space-y-4 pt-1">
+                    <div class="grid gap-3 md:grid-cols-2">
+                      <label class="form-control w-full space-y-1">
+                        <span class="label-text font-medium"
+                          >{translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_name",
+                          )}</span
+                        >
+                        <input
+                          class="input input-bordered w-full"
+                          placeholder={translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_name_example_multiply",
+                          )}
+                          bind:value={t.function_name}
+                        />
+                      </label>
+                      <label class="form-control w-full space-y-1">
+                        <span class="label-text font-medium"
+                          >{translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_json",
+                          )}</span
+                        >
+                        <textarea
+                          class="textarea textarea-bordered w-full"
+                          rows="1"
+                          placeholder={translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::example_6",
+                          )}
+                          bind:value={t.expected_return}
+                        ></textarea>
+                      </label>
+                    </div>
+
+                    <div class="space-y-3">
+                      <div class="flex items-center justify-between">
+                        <h5
+                          class="text-xs font-semibold uppercase tracking-wider opacity-60 flex items-center gap-1"
+                        >
+                          <ChevronRight size={14} />
+                          {translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::arguments",
+                          )}
+                        </h5>
+                        <div class="flex gap-2">
+                          <button
+                            class="btn btn-xs btn-ghost gap-1 font-normal opacity-70 hover:opacity-100"
+                            on:click={() => addPreparedArg(t)}
+                          >
+                            <Plus size={12} />
+                            {translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_arg",
+                            )}
+                          </button>
+                          <button
+                            class="btn btn-xs btn-ghost gap-1 font-normal opacity-70 hover:opacity-100"
+                            on:click={() => addPreparedKwarg(t)}
+                          >
+                            <Plus size={12} />
+                            {translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_keyword_arg",
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                      <div
+                        class="grid gap-x-6 gap-y-2 md:grid-cols-2 rounded-xl border border-base-300/40 bg-base-200/20 p-3"
                       >
-                      <input
-                        class="input input-bordered w-full"
-                        placeholder={translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_name_example_multiply",
-                        )}
-                        bind:value={t.function_name}
-                      />
-                    </label>
-                    <label class="form-control w-full space-y-1">
-                      <span class="label-text"
-                        >{translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_json",
-                        )}</span
-                      >
-                      <textarea
-                        class="textarea textarea-bordered w-full"
-                        rows="2"
-                        placeholder={translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::example_6",
-                        )}
-                        bind:value={t.expected_return}
-                      ></textarea>
-                    </label>
-                    <label class="form-control w-full space-y-1 md:col-span-1">
-                      <span class="label-text"
-                        >{translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::arguments_json_array",
-                        )}</span
-                      >
-                      <textarea
-                        class="textarea textarea-bordered w-full"
-                        rows="2"
-                        placeholder={translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::example_2_3",
-                        )}
-                        bind:value={t.function_args}
-                      ></textarea>
-                    </label>
-                    <label class="form-control w-full space-y-1 md:col-span-1">
-                      <span class="label-text"
-                        >{translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_args_json_object",
-                        )}</span
-                      >
-                      <textarea
-                        class="textarea textarea-bordered w-full"
-                        rows="2"
-                        placeholder={translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::example_round_2",
-                        )}
-                        bind:value={t.function_kwargs}
-                      ></textarea>
-                    </label>
+                        {#each prep as arg, ai}
+                          <div class="flex items-center gap-2">
+                            <input
+                              class="input input-bordered input-sm w-24 bg-base-100/50 font-mono text-[10px]"
+                              class:opacity-70={arg.is_pos}
+                              placeholder={arg.is_pos ? "Arg name" : translate(
+                                "frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_name",
+                              )}
+                              bind:value={arg.key}
+                            />
+                            <span class="opacity-30">=</span>
+                            <div class="flex-1 flex items-center gap-1">
+                              <input
+                                class="input input-bordered input-sm flex-1 bg-base-100/50"
+                                placeholder="Value"
+                                bind:value={arg.value}
+                              />
+                              <button
+                                class="btn btn-circle btn-ghost btn-xs text-error/60 hover:text-error"
+                                on:click={() => removePreparedArg(t, ai)}
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        {/each}
+                        {#if prep.length === 0}
+                          <p class="text-xs opacity-40 italic py-1 px-2 md:col-span-2 text-center">
+                            {translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::no_arguments",
+                            )}
+                          </p>
+                        {/if}
+                      </div>
+                    </div>
                   </div>
                 {:else if t.unittest_name}
                   {#if t.unittest_code}

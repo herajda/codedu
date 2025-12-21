@@ -95,6 +95,23 @@ func isEmptyOrJSON(s string) bool {
 	return json.Unmarshal([]byte(trimmed), &js) == nil
 }
 
+func normalizeFunctionArgNames(s string) (*string, error) {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return nil, nil
+	}
+	var names []string
+	if err := json.Unmarshal([]byte(trimmed), &names); err != nil {
+		return nil, fmt.Errorf("function_arg_names must be valid JSON array of strings")
+	}
+	for _, name := range names {
+		if strings.TrimSpace(name) == "" {
+			return nil, fmt.Errorf("function_arg_names must contain non-empty strings")
+		}
+	}
+	return &trimmed, nil
+}
+
 func detectMainFile(root string) (string, error) {
 	var mainFile, firstPy string
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
@@ -1300,20 +1317,21 @@ func createTestCase(c *gin.Context) {
 		return
 	}
 	var req struct {
-		ExecutionMode  string            `json:"execution_mode"`
-		Stdin          *string           `json:"stdin"`
-		ExpectedStdout *string           `json:"expected_stdout"`
-		Weight         *float64          `json:"weight"`
-		TimeLimitSec   *float64          `json:"time_limit_sec"`
-		UnittestCode   *string           `json:"unittest_code"`
-		UnittestName   *string           `json:"unittest_name"`
-		FunctionName   *string           `json:"function_name"`
-		FunctionArgs   *string           `json:"function_args"`
-		FunctionKwargs *string           `json:"function_kwargs"`
-		ExpectedReturn *string           `json:"expected_return"`
-		FileName       *string           `json:"file_name"`
-		FileBase64     *string           `json:"file_base64"`
-		Files          []TestFilePayload `json:"files"`
+		ExecutionMode    string            `json:"execution_mode"`
+		Stdin            *string           `json:"stdin"`
+		ExpectedStdout   *string           `json:"expected_stdout"`
+		Weight           *float64          `json:"weight"`
+		TimeLimitSec     *float64          `json:"time_limit_sec"`
+		UnittestCode     *string           `json:"unittest_code"`
+		UnittestName     *string           `json:"unittest_name"`
+		FunctionName     *string           `json:"function_name"`
+		FunctionArgs     *string           `json:"function_args"`
+		FunctionKwargs   *string           `json:"function_kwargs"`
+		FunctionArgNames *string           `json:"function_arg_names"`
+		ExpectedReturn   *string           `json:"expected_return"`
+		FileName         *string           `json:"file_name"`
+		FileBase64       *string           `json:"file_base64"`
+		Files            []TestFilePayload `json:"files"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -1373,6 +1391,14 @@ func createTestCase(c *gin.Context) {
 				tc.FunctionKwargs = &trimmed
 			}
 		}
+		if req.FunctionArgNames != nil {
+			argNames, argErr := normalizeFunctionArgNames(*req.FunctionArgNames)
+			if argErr != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": argErr.Error()})
+				return
+			}
+			tc.FunctionArgNames = argNames
+		}
 		if req.ExpectedReturn != nil {
 			if !isEmptyOrJSON(*req.ExpectedReturn) {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "expected_return must be valid JSON"})
@@ -1418,20 +1444,21 @@ func updateTestCase(c *gin.Context) {
 		return
 	}
 	var req struct {
-		ExecutionMode  string            `json:"execution_mode"`
-		Stdin          string            `json:"stdin"`
-		ExpectedStdout string            `json:"expected_stdout"`
-		Weight         float64           `json:"weight"`
-		TimeLimitSec   float64           `json:"time_limit_sec"`
-		UnittestCode   *string           `json:"unittest_code"`
-		UnittestName   *string           `json:"unittest_name"`
-		FunctionName   *string           `json:"function_name"`
-		FunctionArgs   *string           `json:"function_args"`
-		FunctionKwargs *string           `json:"function_kwargs"`
-		ExpectedReturn *string           `json:"expected_return"`
-		FileName       *string           `json:"file_name"`
-		FileBase64     *string           `json:"file_base64"`
-		Files          []TestFilePayload `json:"files"`
+		ExecutionMode    string            `json:"execution_mode"`
+		Stdin            string            `json:"stdin"`
+		ExpectedStdout   string            `json:"expected_stdout"`
+		Weight           float64           `json:"weight"`
+		TimeLimitSec     float64           `json:"time_limit_sec"`
+		UnittestCode     *string           `json:"unittest_code"`
+		UnittestName     *string           `json:"unittest_name"`
+		FunctionName     *string           `json:"function_name"`
+		FunctionArgs     *string           `json:"function_args"`
+		FunctionKwargs   *string           `json:"function_kwargs"`
+		FunctionArgNames *string           `json:"function_arg_names"`
+		ExpectedReturn   *string           `json:"expected_return"`
+		FileName         *string           `json:"file_name"`
+		FileBase64       *string           `json:"file_base64"`
+		Files            []TestFilePayload `json:"files"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -1495,6 +1522,16 @@ func updateTestCase(c *gin.Context) {
 			}
 		} else {
 			tc.FunctionKwargs = nil
+		}
+		if req.FunctionArgNames != nil {
+			argNames, argErr := normalizeFunctionArgNames(*req.FunctionArgNames)
+			if argErr != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": argErr.Error()})
+				return
+			}
+			tc.FunctionArgNames = argNames
+		} else {
+			tc.FunctionArgNames = nil
 		}
 		if req.ExpectedReturn != nil {
 			if !isEmptyOrJSON(*req.ExpectedReturn) {
