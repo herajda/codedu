@@ -143,6 +143,7 @@ ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS function_kwargs TEXT;
 ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS expected_return TEXT;
 ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS file_name TEXT;
 ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS file_base64 TEXT;
+ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS files_json TEXT;
 
 DO $$ BEGIN
     CREATE TYPE submission_status AS ENUM ('pending','running','completed','failed');

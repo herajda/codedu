@@ -1300,19 +1300,20 @@ func createTestCase(c *gin.Context) {
 		return
 	}
 	var req struct {
-		ExecutionMode  string   `json:"execution_mode"`
-		Stdin          *string  `json:"stdin"`
-		ExpectedStdout *string  `json:"expected_stdout"`
-		Weight         *float64 `json:"weight"`
-		TimeLimitSec   *float64 `json:"time_limit_sec"`
-		UnittestCode   *string  `json:"unittest_code"`
-		UnittestName   *string  `json:"unittest_name"`
-		FunctionName   *string  `json:"function_name"`
-		FunctionArgs   *string  `json:"function_args"`
-		FunctionKwargs *string  `json:"function_kwargs"`
-		ExpectedReturn *string  `json:"expected_return"`
-		FileName       *string  `json:"file_name"`
-		FileBase64     *string  `json:"file_base64"`
+		ExecutionMode  string            `json:"execution_mode"`
+		Stdin          *string           `json:"stdin"`
+		ExpectedStdout *string           `json:"expected_stdout"`
+		Weight         *float64          `json:"weight"`
+		TimeLimitSec   *float64          `json:"time_limit_sec"`
+		UnittestCode   *string           `json:"unittest_code"`
+		UnittestName   *string           `json:"unittest_name"`
+		FunctionName   *string           `json:"function_name"`
+		FunctionArgs   *string           `json:"function_args"`
+		FunctionKwargs *string           `json:"function_kwargs"`
+		ExpectedReturn *string           `json:"expected_return"`
+		FileName       *string           `json:"file_name"`
+		FileBase64     *string           `json:"file_base64"`
+		Files          []TestFilePayload `json:"files"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -1395,6 +1396,12 @@ func createTestCase(c *gin.Context) {
 		tc.FileName = name
 		tc.FileBase64 = payload
 	}
+	if filesJSON, normErr := normalizeTestFilesPayload(req.Files); normErr != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": normErr.Error()})
+		return
+	} else {
+		tc.FilesJSON = filesJSON
+	}
 	tc.ExecutionMode = mode
 	if err := CreateTestCase(tc); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
@@ -1411,19 +1418,20 @@ func updateTestCase(c *gin.Context) {
 		return
 	}
 	var req struct {
-		ExecutionMode  string  `json:"execution_mode"`
-		Stdin          string  `json:"stdin"`
-		ExpectedStdout string  `json:"expected_stdout"`
-		Weight         float64 `json:"weight"`
-		TimeLimitSec   float64 `json:"time_limit_sec"`
-		UnittestCode   *string `json:"unittest_code"`
-		UnittestName   *string `json:"unittest_name"`
-		FunctionName   *string `json:"function_name"`
-		FunctionArgs   *string `json:"function_args"`
-		FunctionKwargs *string `json:"function_kwargs"`
-		ExpectedReturn *string `json:"expected_return"`
-		FileName       *string `json:"file_name"`
-		FileBase64     *string `json:"file_base64"`
+		ExecutionMode  string            `json:"execution_mode"`
+		Stdin          string            `json:"stdin"`
+		ExpectedStdout string            `json:"expected_stdout"`
+		Weight         float64           `json:"weight"`
+		TimeLimitSec   float64           `json:"time_limit_sec"`
+		UnittestCode   *string           `json:"unittest_code"`
+		UnittestName   *string           `json:"unittest_name"`
+		FunctionName   *string           `json:"function_name"`
+		FunctionArgs   *string           `json:"function_args"`
+		FunctionKwargs *string           `json:"function_kwargs"`
+		ExpectedReturn *string           `json:"expected_return"`
+		FileName       *string           `json:"file_name"`
+		FileBase64     *string           `json:"file_base64"`
+		Files          []TestFilePayload `json:"files"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -1514,6 +1522,12 @@ func updateTestCase(c *gin.Context) {
 	} else {
 		tc.FileName = name
 		tc.FileBase64 = payload
+	}
+	if filesJSON, normErr := normalizeTestFilesPayload(req.Files); normErr != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": normErr.Error()})
+		return
+	} else {
+		tc.FilesJSON = filesJSON
 	}
 	if err := UpdateTestCase(tc); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
@@ -1691,19 +1705,20 @@ func createSubmission(c *gin.Context) {
 }
 
 type previewTestPayload struct {
-	ExecutionMode  string   `json:"execution_mode"`
-	UnittestCode   string   `json:"unittest_code"`
-	UnittestName   string   `json:"unittest_name"`
-	TimeLimitSec   *float64 `json:"time_limit_sec"`
-	Weight         *float64 `json:"weight"`
-	Stdin          string   `json:"stdin"`
-	ExpectedStdout string   `json:"expected_stdout"`
-	FunctionName   *string  `json:"function_name"`
-	FunctionArgs   *string  `json:"function_args"`
-	FunctionKwargs *string  `json:"function_kwargs"`
-	ExpectedReturn *string  `json:"expected_return"`
-	FileName       *string  `json:"file_name"`
-	FileBase64     *string  `json:"file_base64"`
+	ExecutionMode  string            `json:"execution_mode"`
+	UnittestCode   string            `json:"unittest_code"`
+	UnittestName   string            `json:"unittest_name"`
+	TimeLimitSec   *float64          `json:"time_limit_sec"`
+	Weight         *float64          `json:"weight"`
+	Stdin          string            `json:"stdin"`
+	ExpectedStdout string            `json:"expected_stdout"`
+	FunctionName   *string           `json:"function_name"`
+	FunctionArgs   *string           `json:"function_args"`
+	FunctionKwargs *string           `json:"function_kwargs"`
+	ExpectedReturn *string           `json:"expected_return"`
+	FileName       *string           `json:"file_name"`
+	FileBase64     *string           `json:"file_base64"`
+	Files          []TestFilePayload `json:"files"`
 }
 
 func (p previewTestPayload) toTestCase(aid uuid.UUID) (TestCase, error) {
@@ -1767,6 +1782,12 @@ func (p previewTestPayload) toTestCase(aid uuid.UUID) (TestCase, error) {
 		tc.FileName = name
 		tc.FileBase64 = payload
 	}
+	if filesJSON, normErr := normalizeTestFilesPayload(p.Files); normErr != nil {
+		return TestCase{}, normErr
+	} else {
+		tc.FilesJSON = filesJSON
+	}
+
 	return tc, nil
 }
 

@@ -14,6 +14,7 @@
   import CodeMirror from "$lib/components/ui/CodeMirror.svelte";
   import { python } from "@codemirror/lang-python";
   import { bannedCatalog, type CatalogFunction } from "$lib/bannedCatalog";
+  import TestFileManager from "$lib/components/TestFileManager.svelte";
   import {
     Plus,
     Save,
@@ -28,6 +29,11 @@
     Shield,
     Upload as UploadIcon,
   } from "lucide-svelte";
+  import {
+    readFileBase64,
+    readFileText,
+    textToBase64,
+  } from "$lib/utils/testFiles";
   import ConfirmModal from "$lib/components/ConfirmModal.svelte";
   import { strictnessGuidance } from "$lib/llmStrictness";
   import { t, translator } from "$lib/i18n";
@@ -60,9 +66,11 @@
   let unittestFile: File | null = null;
   let ioFileName = "";
   let ioFileText = "";
-  let ioFileBase64 = "";
-  let ioFileUpload: File | null = null;
   let showIOFile = false;
+  
+  type AttachedFile = { name: string; content: string };
+  let ioFiles: AttachedFile[] = [];
+  let ioSelectedIndex = -1;
 
 
   type ToolMode = "structured" | "advanced";
@@ -138,6 +146,8 @@
     fileName: string;
     fileText: string;
     fileBase64: string;
+    files: AttachedFile[];
+    selectedFileIndex: number;
     showFile?: boolean;
   };
 
@@ -161,6 +171,8 @@
     fileName: string;
     fileText: string;
     fileBase64: string;
+    files: AttachedFile[];
+    selectedFileIndex: number;
     showFile?: boolean;
   };
   type FnMeta = { name: string; params: FnParameter[]; returns: FnReturn[] };
@@ -209,38 +221,6 @@
     if (!isFinite(base)) base = 0;
     const out = lines.map((l) => (l.length >= base ? l.slice(base) : l));
     return { lines: out, base };
-  }
-
-  function textToBase64(text: string): string {
-    const enc = new TextEncoder();
-    const bytes = enc.encode(text ?? "");
-    let binary = "";
-    bytes.forEach((b) => {
-      binary += String.fromCharCode(b);
-    });
-    return btoa(binary);
-  }
-
-  function readFileBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const res = String(reader.result || "");
-        const parts = res.split(",");
-        resolve(parts.length > 1 ? parts[1] : res);
-      };
-      reader.onerror = () => reject(reader.error ?? new Error("read failed"));
-      reader.readAsDataURL(file);
-    });
-  }
-
-  function readFileText(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = () => reject(reader.error ?? new Error("read failed"));
-      reader.readAsText(file);
-    });
   }
 
   function buildFilePayload(
@@ -621,6 +601,11 @@
       bannedSaved = false;
       tests = (data.tests ?? []).map((t: any) => ({
         ...t,
+        files: t.files_json
+          ? JSON.parse(t.files_json)
+          : t.file_name
+          ? [{ name: t.file_name, content: t.file_base64 }]
+          : [],
         file_create_name: "",
         file_create_text: "",
         file_create_dirty: false,
@@ -681,24 +666,25 @@
 
   async function addTest() {
     try {
-      const filePayload = buildFilePayload(
-        ioFileName,
-        ioFileText,
-        ioFileBase64,
-      );
+      const filePayload =
+        ioFiles.length === 0
+          ? buildFilePayload(ioFileName, ioFileText, "")
+          : null;
       let expectedStdout = tStdout;
       if (ioOutputMode === "teacher") {
         ioOutputLoading = true;
         const timeLimit = parseFloat(tLimit);
-        const { previews } = await runTeacherPreview([
-          {
-            execution_mode: "stdin_stdout",
-            stdin: tStdin,
-            expected_stdout: "",
-            time_limit_sec: Number.isFinite(timeLimit) ? timeLimit : undefined,
-            ...(filePayload ?? {}),
-          },
-        ]);
+        const previewPayload: any = {
+          execution_mode: "stdin_stdout",
+          stdin: tStdin,
+          expected_stdout: "",
+          time_limit_sec: Number.isFinite(timeLimit) ? timeLimit : undefined,
+          ...(filePayload ?? {}),
+        };
+        if (ioFiles.length > 0) {
+          previewPayload.files = ioFiles;
+        }
+        const { previews } = await runTeacherPreview([previewPayload]);
         const previewResult = previews[0];
         if (!previewResult) {
           throw new Error(
@@ -720,6 +706,9 @@
         testData.file_name = filePayload.file_name;
         testData.file_base64 = filePayload.file_base64;
       }
+      if (ioFiles.length > 0) {
+        testData.files = ioFiles;
+      }
 
       // Only include weight for weighted assignments
       if (assignment?.grading_policy === "weighted") {
@@ -735,8 +724,7 @@
       tWeight = "1";
       ioFileName = "";
       ioFileText = "";
-      ioFileBase64 = "";
-      ioFileUpload = null;
+      ioFiles = [];
       await load();
     } catch (e: any) {
       err = e.message;
@@ -779,7 +767,10 @@
         assertions: [],
         fileName: "",
         fileText: "",
+
         fileBase64: "",
+        files: [],
+        selectedFileIndex: -1,
         showFile: false,
       },
     ];
@@ -1122,6 +1113,9 @@
       fileName: c.fileName ?? "",
       fileText: c.fileText ?? "",
       fileBase64: c.fileBase64 ?? "",
+      files: Array.isArray(c.files) ? c.files : [],
+      selectedFileIndex:
+        typeof c.selectedFileIndex === "number" ? c.selectedFileIndex : -1,
       showFile: c.showFile ?? false,
     };
   }
@@ -1171,6 +1165,8 @@
       fileName: "",
       fileText: "",
       fileBase64: "",
+      files: [],
+      selectedFileIndex: -1,
       showFile: false,
     };
   }
@@ -1295,7 +1291,9 @@
     }
     try {
       const filePayloads = fnCases.map((c) =>
-        buildFilePayload(c.fileName, c.fileText, c.fileBase64),
+        c.files && c.files.length > 0
+          ? null
+          : buildFilePayload(c.fileName, c.fileText, c.fileBase64),
       );
       let teacherExpected: string[] | null = null;
       if (fnOutputMode === "teacher") {
@@ -1305,7 +1303,7 @@
             coerceValueForType(c.args[idx] ?? "", p.type),
           );
           const timeLimit = parseFloat(c.timeLimit);
-          return {
+          const previewPayload: any = {
             execution_mode: "function",
             function_name: fnMeta.name,
             function_args: JSON.stringify(argsValues),
@@ -1314,6 +1312,10 @@
             time_limit_sec: Number.isFinite(timeLimit) ? timeLimit : undefined,
             ...(filePayloads[idx] ?? {}),
           };
+          if (c.files && c.files.length > 0) {
+            previewPayload.files = c.files;
+          }
+          return previewPayload;
         });
         const { previews } = await runTeacherPreview(previewPayloads);
         teacherExpected = [];
@@ -1366,7 +1368,9 @@
           expected_stdout: "",
           time_limit_sec: parseFloat(c.timeLimit) || undefined,
         };
-        if (filePayloads[idx]) {
+        if (c.files && c.files.length > 0) {
+          payload.files = c.files;
+        } else if (filePayloads[idx]) {
           payload.file_name = filePayloads[idx]?.file_name;
           payload.file_base64 = filePayloads[idx]?.file_base64;
         }
@@ -1533,6 +1537,9 @@
       fileName: t.fileName,
       fileText: t.fileText,
       fileBase64: t.fileBase64,
+      files: Array.isArray(t.files) ? [...t.files] : [],
+      selectedFileIndex:
+        typeof t.selectedFileIndex === "number" ? t.selectedFileIndex : -1,
       showFile: t.showFile,
     }));
   }
@@ -1778,6 +1785,9 @@
       fileName: String(t?.fileName ?? t?.file_name ?? ""),
       fileText: String(t?.fileText ?? t?.file_text ?? ""),
       fileBase64: String(t?.fileBase64 ?? t?.file_base64 ?? ""),
+      files: Array.isArray(t?.files) ? t.files : [],
+      selectedFileIndex:
+        typeof t?.selectedFileIndex === "number" ? t.selectedFileIndex : -1,
       showFile: !!t?.showFile,
     };
   }
@@ -1893,6 +1903,11 @@
       returns,
       weight,
       timeLimit,
+      fileName: "",
+      fileText: "",
+      fileBase64: "",
+      files: [],
+      selectedFileIndex: -1,
     };
     return meta ? ensureCaseShape(base, meta) : base;
   }
@@ -2237,7 +2252,7 @@
                   coerceValueForType(arg ?? "", undefined),
                 ) ?? [],
               );
-              previewPayloads.push({
+              const previewPayload: any = {
                 execution_mode: "function",
                 function_name: fn,
                 function_args: argsJSON,
@@ -2246,18 +2261,26 @@
                 time_limit_sec: Number.isFinite(timeLimit)
                   ? timeLimit
                   : undefined,
-              });
+              };
+              if (t.files && t.files.length > 0) {
+                previewPayload.files = t.files;
+              }
+              previewPayloads.push(previewPayload);
               indexMap.push({ ti, ai, mode: "function" });
             } else {
               const stdinVal = ((a as any).args ?? []).join("\n");
-              previewPayloads.push({
+              const previewPayload: any = {
                 execution_mode: "stdin_stdout",
                 stdin: stdinVal,
                 expected_stdout: "",
                 time_limit_sec: Number.isFinite(timeLimit)
                   ? timeLimit
                   : undefined,
-              });
+              };
+              if (t.files && t.files.length > 0) {
+                previewPayload.files = t.files;
+              }
+              previewPayloads.push(previewPayload);
               indexMap.push({ ti, ai, mode: "stdin" });
             }
           });
@@ -2313,6 +2336,7 @@
           fileName: t.fileName,
           fileText: t.fileText,
           fileBase64: t.fileBase64,
+          files: t.files,
         };
       });
       const configsByName = new Map(
@@ -2359,17 +2383,23 @@
           time_limit_sec: cfg.time,
         };
 
-        const filePayload = buildFilePayload(
-          cfg.fileName,
-          cfg.fileText,
-          cfg.fileBase64,
-        );
-        if (filePayload) {
-          testData.file_name = filePayload.file_name;
-          testData.file_base64 = filePayload.file_base64;
-        } else {
+        if (cfg.files && cfg.files.length > 0) {
+          testData.files = cfg.files;
           testData.file_name = "";
           testData.file_base64 = "";
+        } else {
+          const filePayload = buildFilePayload(
+            cfg.fileName,
+            cfg.fileText,
+            cfg.fileBase64,
+          );
+          if (filePayload) {
+            testData.file_name = filePayload.file_name;
+            testData.file_base64 = filePayload.file_base64;
+          } else {
+            testData.file_name = "";
+            testData.file_base64 = "";
+          }
         }
 
         // Only include weight for weighted assignments
@@ -2954,109 +2984,201 @@
                   </div>
                 {/if}
                 {#if mode === "function" || mode === "stdin_stdout"}
-                  <div
-                    class="rounded-xl border border-dashed border-base-300/70 bg-base-200/40 p-3 space-y-2"
-                  >
-                    <div class="flex items-center justify-between gap-2">
-                      <span class="text-sm font-semibold"
-                        >{translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_optional",
-                        )}</span
-                      >
-                      {#if t.file_name}
-                        <span class="badge badge-outline badge-sm"
-                          >{t.file_name}</span
-                        >
-                      {/if}
-                    </div>
-                    <div class="grid gap-2 sm:grid-cols-2">
-                      <label class="form-control w-full space-y-1">
-                        <span class="label-text"
+                  {@const hasFiles = t.files && t.files.length > 0}
+                  {#if hasFiles || t.showFileEditor}
+                    <div
+                      class="rounded-xl border border-dashed border-base-300/70 bg-base-200/40 p-3 space-y-2"
+                    >
+                      <div class="flex items-center justify-between gap-2">
+                        <span class="text-sm font-semibold"
                           >{translate(
-                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_upload",
-                          )}</span
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::attached_files",
+                          )} ({t.files ? t.files.length : 0})</span
                         >
-                        <input
-                          type="file"
-                          class="file-input file-input-bordered w-full"
-                          on:change={async (e) => {
-                            const file =
-                              (e.target as HTMLInputElement).files?.[0] || null;
-                            if (!file) return;
-                            try {
-                              t.file_base64 = await readFileBase64(file);
-                              t.file_name = file.name;
+                        <button
+                          class="btn btn-xs btn-ghost"
+                          on:click={() => {
+                            t.showFileEditor = !t.showFileEditor;
+                            tests = tests;
+                          }}
+                        >
+                          {t.showFileEditor
+                            ? translate(
+                                "frontend/src/routes/assignments/[id]/tests/+page.svelte::close_manager",
+                              )
+                            : translate(
+                                "frontend/src/routes/assignments/[id]/tests/+page.svelte::manage_files",
+                              )}
+                        </button>
+                      </div>
+
+                      {#if hasFiles}
+                        <div class="flex flex-wrap gap-2 mb-2">
+                          {#each t.files || [] as f, fi}
+                            <button
+                              class="badge gap-2 p-3 cursor-pointer hover:bg-base-300 h-auto"
+                              class:badge-primary={t.selectedFileIndex === fi}
+                              class:badge-neutral={t.selectedFileIndex !== fi}
+                              on:click={async () => {
+                                t.selectedFileIndex = fi;
+                                t.file_create_name = f.name;
+                                // Try to decode base64 to text for preview
+                                try {
+                                  t.file_create_text = atob(f.content);
+                                } catch {
+                                  t.file_create_text = "";
+                                }
+                                t.file_create_dirty = false;
+                                tests = tests;
+                              }}
+                            >
+                              <span class="truncate max-w-[150px]"
+                                >{f.name}</span
+                              >
+                              <span
+                                class="btn btn-ghost btn-xs btn-circle text-error min-h-0 h-4 w-4"
+                                on:click|stopPropagation={() => {
+                                  t.files = t.files.filter(
+                                    (_, idx) => idx !== fi,
+                                  );
+                                  if (t.selectedFileIndex === fi) {
+                                    t.selectedFileIndex = -1;
+                                    t.file_create_name = "";
+                                    t.file_create_text = "";
+                                  } else if (t.selectedFileIndex > fi) {
+                                    t.selectedFileIndex--;
+                                  }
+                                  tests = tests;
+                                }}
+                              ><Trash2 size={10} /></span
+                              >
+                            </button>
+                          {/each}
+                          <button
+                            class="badge badge-outline gap-1 p-3 cursor-pointer border-dashed"
+                            class:badge-active={t.selectedFileIndex === -1}
+                            on:click={() => {
+                              t.selectedFileIndex = -1;
                               t.file_create_name = "";
                               t.file_create_text = "";
-                              t.file_create_dirty = false;
-                              tests = [...tests];
-                            } catch (e: any) {
-                              err =
-                                e?.message ||
-                                translate(
-                                  "frontend/src/routes/assignments/[id]/tests/+page.svelte::file_read_error",
-                                );
-                            }
-                          }}
-                        />
-                      </label>
-                      <label class="form-control w-full space-y-1">
-                        <span class="label-text"
-                          >{translate(
-                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_name",
-                          )}</span
-                        >
-                        <input
-                          class="input input-bordered w-full"
-                          placeholder="data.txt"
-                          value={t.file_create_name ?? ""}
-                          on:input={(e) => {
-                            t.file_create_name = (
-                              e.target as HTMLInputElement
-                            ).value;
-                            t.file_create_dirty = true;
-                          }}
-                        />
-                      </label>
+                              tests = tests;
+                            }}
+                          >
+                            <Plus size={10} /> New
+                          </button>
+                        </div>
+                      {/if}
+
+                      {#if t.showFileEditor || t.selectedFileIndex !== undefined}
+                        <div class="grid gap-2 sm:grid-cols-2">
+                          <label class="form-control w-full space-y-1">
+                            <span class="label-text"
+                              >{translate(
+                                "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_upload",
+                              )}</span
+                            >
+                            <input
+                              type="file"
+                              multiple
+                              class="file-input file-input-bordered w-full file-input-sm"
+                              on:click={(e) =>
+                                ((e.target as HTMLInputElement).value = "")}
+                              on:change={async (e) => {
+                                const files =
+                                  (e.target as HTMLInputElement).files || [];
+                                if (!files.length) return;
+                                if (!t.files) t.files = [];
+
+                                for (let i = 0; i < files.length; i++) {
+                                  const file = files[i];
+                                  try {
+                                    const b64 = await readFileBase64(file);
+                                    t.files.push({
+                                      name: file.name,
+                                      content: b64,
+                                    });
+                                    // If last file, select it
+                                    if (i === files.length - 1) {
+                                      t.selectedFileIndex = t.files.length - 1;
+                                      t.file_create_name = file.name;
+                                      try {
+                                        t.file_create_text =
+                                          await readFileText(file);
+                                      } catch {
+                                        t.file_create_text = "";
+                                      }
+                                    }
+                                  } catch (e: any) {
+                                    console.error(e);
+                                  }
+                                }
+                                tests = tests;
+                              }}
+                            />
+                          </label>
+                          <label class="form-control w-full space-y-1">
+                            <span class="label-text"
+                              >{translate(
+                                "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_name",
+                              )}</span
+                            >
+                            <input
+                              class="input input-bordered w-full input-sm"
+                              placeholder="data.txt"
+                              value={t.file_create_name ?? ""}
+                              on:input={(e) => {
+                                t.file_create_name = (
+                                  e.target as HTMLInputElement
+                                ).value;
+                                if (t.selectedFileIndex >= 0 && t.files) {
+                                  t.files[t.selectedFileIndex].name =
+                                    t.file_create_name;
+                                  tests = tests; // update list
+                                }
+                              }}
+                            />
+                          </label>
+                        </div>
+                        <label class="form-control w-full space-y-1">
+                          <span class="label-text"
+                            >{translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_contents",
+                            )}</span
+                          >
+                          <textarea
+                            class="textarea textarea-bordered w-full font-mono text-xs leading-relaxed"
+                            rows="3"
+                            placeholder={translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_contents_hint",
+                            )}
+                            value={t.file_create_text ?? ""}
+                            on:input={(e) => {
+                              t.file_create_text = (
+                                e.target as HTMLTextAreaElement
+                              ).value;
+                              if (t.selectedFileIndex >= 0 && t.files) {
+                                t.files[t.selectedFileIndex].content =
+                                  textToBase64(t.file_create_text);
+                                tests = tests;
+                              }
+                            }}
+                          ></textarea>
+                        </label>
+                      {/if}
                     </div>
-                    <label class="form-control w-full space-y-1">
-                      <span class="label-text"
-                        >{translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_contents",
-                        )}</span
-                      >
-                      <textarea
-                        class="textarea textarea-bordered w-full"
-                        rows="3"
-                        placeholder={translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_contents_hint",
-                        )}
-                        value={t.file_create_text ?? ""}
-                        on:input={(e) => {
-                          t.file_create_text = (
-                            e.target as HTMLTextAreaElement
-                          ).value;
-                          t.file_create_dirty = true;
-                        }}
-                      ></textarea>
-                    </label>
-                    <div class="flex items-center justify-between text-xs">
-                      <span class="opacity-70"
-                        >{translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_hint",
-                        )}</span
-                      >
+                  {:else}
+                    <div class="flex justify-end">
                       <button
-                        type="button"
-                        class="btn btn-ghost btn-xs"
-                        on:click={() => clearTestFile(t)}
+                        class="btn btn-xs btn-outline gap-1"
+                        on:click={() => (t.showFileEditor = true)}
                       >
+                        <FileUp size={12} />
                         {translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_clear",
+                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::attach_files",
                         )}
                       </button>
                     </div>
-                  </div>
+                  {/if}
                 {/if}
                 <div
                   class="grid gap-2"
@@ -3560,147 +3682,15 @@
                   />
                 </label>
               {/if}
-              <div class="sm:col-span-2 space-y-2">
-                <div class="flex items-center gap-3">
-                  <button
-                    class="btn btn-sm btn-outline gap-2"
-                    on:click={() => (showIOFile = !showIOFile)}
-                  >
-                    <FileUp size={16} />
-                    {ioFileName
-                      ? translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::edit_file",
-                        )
-                      : translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_file",
-                        )}
-                  </button>
-                  {#if ioFileName}
-                    <span class="badge badge-neutral gap-2 p-3">
-                      {ioFileName}
-                      <button
-                        class="btn btn-ghost btn-xs btn-circle text-error min-h-0 h-6 w-6"
-                        on:click={() => {
-                          ioFileName = "";
-                          ioFileText = "";
-                          ioFileBase64 = "";
-                          ioFileUpload = null;
-                        }}
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </span>
-                  {/if}
-                </div>
-
-                {#if showIOFile}
-                  <div
-                    transition:slide
-                    class="rounded-xl border border-dashed border-base-300/70 bg-base-200/40 p-4 space-y-4 shadow-inner"
-                  >
-                    <div class="grid gap-4 sm:grid-cols-2">
-                      <div class="form-control w-full">
-                        <div class="label">
-                          <span class="label-text"
-                            >{translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_upload",
-                            )}</span
-                          >
-                        </div>
-                        <div
-                          class="relative flex min-h-[120px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-base-300 bg-base-100 hover:bg-base-200 hover:border-primary/50 transition-all cursor-pointer group"
-                        >
-                          <input
-                            type="file"
-                            class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                            on:change={async (e) => {
-                              const file =
-                                (e.target as HTMLInputElement).files?.[0] ||
-                                null;
-                              ioFileUpload = file;
-                              if (!file) {
-                                ioFileBase64 = "";
-                                ioFileName = "";
-                                return;
-                              }
-                              try {
-                                ioFileBase64 = await readFileBase64(file);
-                                ioFileName = file.name;
-                                try {
-                                  ioFileText = await readFileText(file);
-                                } catch {
-                                  ioFileText = "";
-                                }
-                              } catch (e: any) {
-                                err =
-                                  e?.message ||
-                                  translate(
-                                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::file_read_error",
-                                  );
-                              }
-                            }}
-                          />
-                          <div
-                            class="flex flex-col items-center gap-2 text-xs opacity-60 group-hover:opacity-100 transition-opacity pointer-events-none"
-                          >
-                            <UploadIcon size={24} class="text-primary" />
-                            <span class="font-medium">{translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_drag_drop_hint",
-                            )}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div class="flex flex-col gap-2">
-                        <label class="form-control w-full">
-                          <div class="label">
-                            <span class="label-text"
-                              >{translate(
-                                "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_name",
-                              )}</span
-                            >
-                          </div>
-                          <input
-                            class="input input-bordered w-full"
-                            placeholder="data.txt"
-                            bind:value={ioFileName}
-                          />
-                        </label>
-                         <p class="text-xs opacity-60 mt-auto">
-                            {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_hint")}
-                         </p>
-                      </div>
-                    </div>
-
-                    <label class="form-control w-full space-y-1">
-                      <span class="label-text"
-                        >{translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_contents",
-                        )}</span
-                      >
-                      <textarea
-                        class="textarea textarea-bordered w-full font-mono text-xs leading-relaxed"
-                        rows="5"
-                        placeholder={translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_contents_hint",
-                        )}
-                        bind:value={ioFileText}
-                      ></textarea>
-                    </label>
-
-                    <div class="flex items-center justify-end gap-2">
-                        <button class="btn btn-sm btn-ghost" on:click={() => {
-                          ioFileName = "";
-                          ioFileText = "";
-                          ioFileBase64 = "";
-                          ioFileUpload = null;
-                        }}>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::remove_file")}</button>
-                        <button class="btn btn-sm btn-primary" on:click={() => showIOFile = false}>
-                            {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::done")}
-                        </button>
-                    </div>
-                  </div>
-                {/if}
+              <div class="sm:col-span-2">
+                <TestFileManager
+                  bind:files={ioFiles}
+                  bind:selectedIndex={ioSelectedIndex}
+                  bind:fileName={ioFileName}
+                  bind:fileText={ioFileText}
+                  bind:open={showIOFile}
+                  onError={(message) => (err = message)}
+                />
               </div>
               <p class="hint sm:col-span-2">
                 {translate(
@@ -4062,158 +4052,15 @@
                   {/if}
                 </div>
 
-                <!-- File Upload for Unittest -->
-                <div class="sm:col-span-2 space-y-2">
-                  <div class="flex items-center gap-3">
-                    <button
-                      class="btn btn-sm btn-outline gap-2"
-                      on:click={() => (ut.showFile = !ut.showFile)}
-                    >
-                      <FileUp size={16} />
-                      {ut.fileName
-                        ? translate(
-                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::edit_file",
-                          )
-                        : translate(
-                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_file",
-                          )}
-                    </button>
-                    {#if ut.fileName}
-                      <span class="badge badge-neutral gap-2 p-3">
-                        {ut.fileName}
-                        <button
-                          class="btn btn-ghost btn-xs btn-circle text-error min-h-0 h-6 w-6"
-                          on:click={() => {
-                            ut.fileName = "";
-                            ut.fileText = "";
-                            ut.fileBase64 = "";
-                          }}
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </span>
-                    {/if}
-                  </div>
-
-                  {#if ut.showFile}
-                    <div
-                      transition:slide
-                      class="rounded-xl border border-dashed border-base-300/70 bg-base-200/40 p-4 space-y-4 shadow-inner"
-                    >
-                      <div class="grid gap-4 sm:grid-cols-2">
-                        <div class="form-control w-full">
-                          <div class="label">
-                            <span class="label-text"
-                              >{translate(
-                                "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_upload",
-                              )}</span
-                            >
-                          </div>
-                          <div
-                            class="relative flex min-h-[120px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-base-300 bg-base-100 hover:bg-base-200 hover:border-primary/50 transition-all cursor-pointer group"
-                          >
-                            <input
-                              type="file"
-                              class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                              on:change={async (e) => {
-                                const file =
-                                  (e.target as HTMLInputElement).files?.[0] ||
-                                  null;
-                                if (!file) {
-                                  ut.fileBase64 = "";
-                                  ut.fileName = "";
-                                  return;
-                                }
-                                try {
-                                  ut.fileBase64 = await readFileBase64(file);
-                                  ut.fileName = file.name;
-                                  try {
-                                    ut.fileText = await readFileText(file);
-                                  } catch {
-                                    ut.fileText = "";
-                                  }
-                                } catch (e: any) {
-                                  err =
-                                    e?.message ||
-                                    translate(
-                                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::file_read_error",
-                                    );
-                                }
-                              }}
-                            />
-                            <div
-                              class="flex flex-col items-center gap-2 text-xs opacity-60 group-hover:opacity-100 transition-opacity pointer-events-none"
-                            >
-                              <UploadIcon size={24} class="text-primary" />
-                              <span class="font-medium">{translate(
-                                "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_drag_drop_hint",
-                              )}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div class="flex flex-col gap-2">
-                          <label class="form-control w-full">
-                            <div class="label">
-                              <span class="label-text"
-                                >{translate(
-                                  "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_name",
-                                )}</span
-                              >
-                            </div>
-                            <input
-                              class="input input-bordered w-full"
-                              placeholder="data.txt"
-                              bind:value={ut.fileName}
-                            />
-                          </label>
-                          <p class="text-xs opacity-60 mt-auto">
-                            {translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_hint",
-                            )}
-                          </p>
-                        </div>
-                      </div>
-
-                      <label class="form-control w-full space-y-1">
-                        <span class="label-text"
-                          >{translate(
-                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_contents",
-                          )}</span
-                        >
-                        <textarea
-                          class="textarea textarea-bordered w-full font-mono text-xs leading-relaxed"
-                          rows="5"
-                          placeholder={translate(
-                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_contents_hint",
-                          )}
-                          bind:value={ut.fileText}
-                        ></textarea>
-                      </label>
-
-                      <div class="flex items-center justify-end gap-2">
-                        <button
-                          class="btn btn-sm btn-ghost"
-                          on:click={() => {
-                            ut.fileName = "";
-                            ut.fileText = "";
-                            ut.fileBase64 = "";
-                          }}
-                          >{translate(
-                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::remove_file",
-                          )}</button
-                        >
-                        <button
-                          class="btn btn-sm btn-primary"
-                          on:click={() => (ut.showFile = false)}
-                        >
-                          {translate(
-                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::done",
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  {/if}
+                <div class="sm:col-span-2">
+                  <TestFileManager
+                    bind:files={ut.files}
+                    bind:selectedIndex={ut.selectedFileIndex}
+                    bind:fileName={ut.fileName}
+                    bind:fileText={ut.fileText}
+                    bind:open={ut.showFile}
+                    onError={(message) => (err = message)}
+                  />
                 </div>
                 <div class="space-y-2 ut-assertions">
                   <div class="flex items-center justify-between">
@@ -5074,191 +4921,14 @@
                       </div>
                     {/if}
                   <div class="space-y-2">
-                    <div class="flex items-center gap-3">
-                      <button
-                        class="btn btn-xs btn-outline gap-2"
-                        on:click={() =>
-                          (fnCases = fnCases.map((c, idx) =>
-                            idx === fi ? { ...c, showFile: !c.showFile } : c,
-                          ))}
-                      >
-                        <FileUp size={14} />
-                        {fc.fileName
-                          ? translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::edit_file",
-                            )
-                          : translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_file",
-                            )}
-                      </button>
-                      {#if fc.fileName}
-                        <span class="badge badge-neutral gap-2">
-                          {fc.fileName}
-                          <button
-                            class="btn btn-ghost btn-xs btn-circle text-error min-h-0 h-4 w-4"
-                            on:click={() =>
-                              (fnCases = fnCases.map((c, idx) =>
-                                idx === fi
-                                  ? {
-                                      ...c,
-                                      fileName: "",
-                                      fileText: "",
-                                      fileBase64: "",
-                                    }
-                                  : c,
-                              ))}
-                          >
-                            <Trash2 size={10} />
-                          </button>
-                        </span>
-                      {/if}
-                    </div>
-
-                    {#if fc.showFile}
-                      <div
-                        transition:slide
-                        class="rounded-xl border border-dashed border-base-300/70 bg-base-200/40 p-4 space-y-4 shadow-inner"
-                      >
-                        <div class="grid gap-4 sm:grid-cols-2">
-                          <div class="form-control w-full">
-                            <div class="label">
-                              <span class="label-text"
-                                >{translate(
-                                  "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_upload",
-                                )}</span
-                              >
-                            </div>
-                            <div
-                              class="relative flex min-h-[100px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-base-300 bg-base-100 hover:bg-base-200 hover:border-primary/50 transition-all cursor-pointer group"
-                            >
-                              <input
-                                type="file"
-                                class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                on:change={async (e) => {
-                                  const file =
-                                    (e.target as HTMLInputElement).files?.[0] ||
-                                    null;
-                                  if (!file) return;
-                                  try {
-                                    const base64 = await readFileBase64(file);
-                                    let text = "";
-                                    try {
-                                      text = await readFileText(file);
-                                    } catch {}
-                                    fnCases = fnCases.map((c, idx) =>
-                                      idx === fi
-                                        ? {
-                                            ...c,
-                                            fileBase64: base64,
-                                            fileName: file.name,
-                                            fileText: text,
-                                          }
-                                        : c,
-                                    );
-                                  } catch (e: any) {
-                                    err =
-                                      e?.message ||
-                                      translate(
-                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::file_read_error",
-                                      );
-                                  }
-                                }}
-                              />
-                              <div
-                                class="flex flex-col items-center gap-2 text-xs opacity-60 group-hover:opacity-100 transition-opacity pointer-events-none"
-                              >
-                                <UploadIcon size={24} class="text-primary" />
-                                <span class="font-medium">{translate(
-                                  "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_drag_drop_hint",
-                                )}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div class="flex flex-col gap-2">
-                            <label class="form-control w-full">
-                              <div class="label">
-                                <span class="label-text"
-                                  >{translate(
-                                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_name",
-                                  )}</span
-                                >
-                              </div>
-                              <input
-                                class="input input-bordered w-full"
-                                placeholder="data.txt"
-                                value={fc.fileName}
-                                on:input={(e) =>
-                                  (fnCases = fnCases.map((c, idx) =>
-                                    idx === fi
-                                      ? {
-                                          ...c,
-                                          fileName: (
-                                            e.target as HTMLInputElement
-                                          ).value,
-                                        }
-                                      : c,
-                                  ))}
-                              />
-                            </label>
-                             <p class="text-xs opacity-60 mt-auto">
-                                {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_hint")}
-                             </p>
-                          </div>
-                        </div>
-
-                        <label class="form-control w-full space-y-1">
-                          <span class="label-text"
-                            >{translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_contents",
-                            )}</span
-                          >
-                          <textarea
-                            class="textarea textarea-bordered w-full font-mono text-xs leading-relaxed"
-                            rows="5"
-                            placeholder={translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_contents_hint",
-                            )}
-                            value={fc.fileText}
-                            on:input={(e) =>
-                              (fnCases = fnCases.map((c, idx) =>
-                                idx === fi
-                                  ? {
-                                      ...c,
-                                      fileText: (e.target as HTMLTextAreaElement)
-                                        .value,
-                                      fileBase64: "", // Clear base64 if text edited manually? Or logic is to prefer base64 if present?
-                                      // Actually existing logic in buildFilePayload prefers base64.
-                                      // If I edit text, I should probably clear base64 so it uses text.
-                                      // The previous implementation did exactly this:
-                                      // fileText: ..., fileBase64: ""
-                                    }
-                                  : c,
-                              ))}
-                          ></textarea>
-                        </label>
-
-                        <div class="flex items-center justify-end gap-2">
-                            <button class="btn btn-sm btn-ghost" on:click={() =>
-                              (fnCases = fnCases.map((c, idx) =>
-                                idx === fi
-                                  ? {
-                                      ...c,
-                                      fileName: "",
-                                      fileText: "",
-                                      fileBase64: "",
-                                    }
-                                  : c,
-                              ))}>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::remove_file")}</button>
-                            <button class="btn btn-sm btn-primary" on:click={() =>
-                              (fnCases = fnCases.map((c, idx) =>
-                                idx === fi ? { ...c, showFile: false } : c,
-                              ))}>
-                                {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::done")}
-                            </button>
-                        </div>
-                      </div>
-                    {/if}
+                    <TestFileManager
+                      bind:files={fc.files}
+                      bind:selectedIndex={fc.selectedFileIndex}
+                      bind:fileName={fc.fileName}
+                      bind:fileText={fc.fileText}
+                      bind:open={fc.showFile}
+                      onError={(message) => (err = message)}
+                    />
                   </div>
                   </div>
                 {/each}

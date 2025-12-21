@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -32,13 +33,72 @@ func normalizeTestFilePayload(fileName, fileBase64 *string) (*string, *string, e
 	return &clean, &encoded, nil
 }
 
+type TestFilePayload struct {
+	Name    string `json:"name"`
+	Content string `json:"content"` // base64 encoded content
+}
+
+func normalizeTestFilesPayload(files []TestFilePayload) (*string, error) {
+	if len(files) == 0 {
+		return nil, nil
+	}
+	validFiles := []TestFilePayload{}
+	for _, f := range files {
+		name := strings.TrimSpace(f.Name)
+		raw := strings.TrimSpace(f.Content)
+		if name == "" {
+			return nil, fmt.Errorf("file name is required")
+		}
+		clean := filepath.Base(name)
+		if clean == "." || clean == "" {
+			return nil, fmt.Errorf("invalid file name: %s", name)
+		}
+		if raw == "" {
+			return nil, fmt.Errorf("file content is empty for %s", name)
+		}
+		// Validate base64
+		if _, err := base64.StdEncoding.DecodeString(raw); err != nil {
+			return nil, fmt.Errorf("invalid base64 content for %s", name)
+		}
+		validFiles = append(validFiles, TestFilePayload{Name: clean, Content: raw})
+	}
+	if len(validFiles) == 0 {
+		return nil, nil
+	}
+	bytes, err := json.Marshal(validFiles)
+	if err != nil {
+		return nil, err
+	}
+	s := string(bytes)
+	return &s, nil
+}
+
 func stageTestFile(dir, mainFile string, tc TestCase) error {
+	if tc.FilesJSON != nil && *tc.FilesJSON != "" {
+		var files []TestFilePayload
+		if err := json.Unmarshal([]byte(*tc.FilesJSON), &files); err != nil {
+			return fmt.Errorf("invalid files_json: %w", err)
+		}
+		for _, f := range files {
+			if err := writeTestFile(dir, mainFile, f.Name, f.Content); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
 	name := strings.TrimSpace(stringOrEmpty(tc.FileName))
 	raw := strings.TrimSpace(stringOrEmpty(tc.FileBase64))
 	if name == "" && raw == "" {
-		fmt.Println("[worker] stageTestFile: skipping (empty name/raw)")
+		// No legacy file either
 		return nil
 	}
+	return writeTestFile(dir, mainFile, name, raw)
+}
+
+func writeTestFile(dir, mainFile, name, raw string) error {
+	name = strings.TrimSpace(name)
+	raw = strings.TrimSpace(raw)
 	if name == "" {
 		return fmt.Errorf("test file missing file_name")
 	}
@@ -58,7 +118,7 @@ func stageTestFile(dir, mainFile string, tc TestCase) error {
 		return fmt.Errorf("write test file: %w", err)
 	}
 	fmt.Printf("[worker] stageTestFile: wrote %s (%d bytes) to %s\n", clean, len(data), target)
-	
+
 	mainDir := strings.TrimSpace(filepath.Dir(mainFile))
 	if mainDir != "" && mainDir != "." {
 		altTarget := filepath.Join(dir, mainDir, clean)
