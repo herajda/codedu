@@ -162,9 +162,11 @@
 
   type FnParameter = { name: string; type?: string };
   type FnReturn = { name: string; type?: string };
+  type FnKwarg = { key: string; value: string };
   type FnCase = {
     name: string;
     args: string[];
+    kwargs: FnKwarg[];
     returns: string[];
     weight: string;
     timeLimit: string;
@@ -175,7 +177,12 @@
     selectedFileIndex: number;
     showFile?: boolean;
   };
-  type FnMeta = { name: string; params: FnParameter[]; returns: FnReturn[] };
+  type FnMeta = {
+    name: string;
+    params: FnParameter[];
+    returns: FnReturn[];
+    kwargs?: FnParameter | null;
+  };
 
   let builderMode: "unittest" | "function" = "unittest";
   let fnSignature = "";
@@ -1028,12 +1035,40 @@
       };
     }
     const params: FnParameter[] = [];
+    let kwargs: FnParameter | null = null;
     if (paramsRaw.trim()) {
       const pieces = splitTopLevel(paramsRaw);
       for (const piece of pieces) {
         const part = piece.trim();
         if (!part) continue;
         if (part.startsWith("*")) {
+          if (part.startsWith("**")) {
+            const kwargRaw = part.slice(2).trim();
+            if (!kwargRaw || kwargs) {
+              return {
+                meta: null,
+                error: translate(
+                  "frontend/src/routes/assignments/[id]/tests/+page.svelte::could_not_parse_function_definition",
+                ),
+              };
+            }
+            const [namePartRaw, typePartRaw] = kwargRaw
+              .split(":")
+              .map((p) => p.trim());
+            const namePart = namePartRaw.split("=")[0].trim();
+            if (!namePart || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(namePart)) {
+              return {
+                meta: null,
+                error: translate(
+                  "frontend/src/routes/assignments/[id]/tests/+page.svelte::argument_is_not_valid_positional_parameter",
+                  { namePartRaw },
+                ),
+              };
+            }
+            const typePart = typePartRaw ? typePartRaw.trim() : undefined;
+            kwargs = { name: namePart, type: typePart };
+            continue;
+          }
           return {
             meta: null,
             error: translate(
@@ -1073,7 +1108,7 @@
     } else {
       returns = [{ name: "return", type: ret }];
     }
-    return { meta: { name, params, returns }, error: "" };
+    return { meta: { name, params, returns, kwargs }, error: "" };
   }
 
   function describeTypeControl(type?: string): {
@@ -1096,6 +1131,7 @@
     const returnCount = meta ? meta.returns.length : 1;
     const adjustedArgs = [...(c.args ?? [])];
     const adjustedReturns = [...(c.returns ?? [])];
+    const adjustedKwargs = Array.isArray(c.kwargs) ? [...c.kwargs] : [];
     while (adjustedArgs.length < argCount) adjustedArgs.push("");
     if (adjustedArgs.length > argCount) adjustedArgs.length = argCount;
     const expectedReturnCount =
@@ -1107,6 +1143,7 @@
     return {
       name: c.name,
       args: adjustedArgs,
+      kwargs: meta?.kwargs ? adjustedKwargs : [],
       returns: adjustedReturns,
       weight: c.weight,
       timeLimit: c.timeLimit,
@@ -1128,10 +1165,19 @@
     return true;
   }
 
+  function kwargsEqual(a: FnKwarg[], b: FnKwarg[]): boolean {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i].key !== b[i].key || a[i].value !== b[i].value) return false;
+    }
+    return true;
+  }
+
   function casesEqual(a: FnCase, b: FnCase): boolean {
     return (
       a.name === b.name &&
       arraysEqual(a.args, b.args) &&
+      kwargsEqual(a.kwargs ?? [], b.kwargs ?? []) &&
       arraysEqual(a.returns, b.returns) &&
       a.weight === b.weight &&
       a.timeLimit === b.timeLimit &&
@@ -1159,6 +1205,7 @@
         { fi: idx + 1 },
       ),
       args,
+      kwargs: [],
       returns,
       weight: defaultWeight,
       timeLimit: "1",
@@ -1302,12 +1349,15 @@
           const argsValues = fnMeta.params.map((p, idx) =>
             coerceValueForType(c.args[idx] ?? "", p.type),
           );
+          const kwargsObject = fnMeta.kwargs
+            ? buildKwargsObject(c.kwargs)
+            : {};
           const timeLimit = parseFloat(c.timeLimit);
           const previewPayload: any = {
             execution_mode: "function",
             function_name: fnMeta.name,
             function_args: JSON.stringify(argsValues),
-            function_kwargs: "{}",
+            function_kwargs: JSON.stringify(kwargsObject),
             expected_return: "",
             time_limit_sec: Number.isFinite(timeLimit) ? timeLimit : undefined,
             ...(filePayloads[idx] ?? {}),
@@ -1336,6 +1386,7 @@
         const argsValues = fnMeta.params.map((p, idx) =>
           coerceValueForType(c.args[idx] ?? "", p.type),
         );
+        const kwargsObject = fnMeta.kwargs ? buildKwargsObject(c.kwargs) : {};
         const returnValues = fnMeta.returns.length
           ? fnMeta.returns.map((r, idx) =>
               coerceValueForType(c.returns[idx] ?? "", r.type),
@@ -1362,7 +1413,7 @@
           execution_mode: "function",
           function_name: fnMeta.name,
           function_args: JSON.stringify(argsValues),
-          function_kwargs: "{}",
+          function_kwargs: JSON.stringify(kwargsObject),
           expected_return: expectedJSON,
           stdin: "",
           expected_stdout: "",
@@ -1821,11 +1872,16 @@
       : sampleCase?.args != null
         ? [sampleCase.args]
         : [];
+    const hasKwargs =
+      sampleCase?.kwargs && typeof sampleCase.kwargs === "object";
     const expectedSample = sampleCase?.expected;
     const argNames = argsSample.map(
       (_, idx) => `arg${idx + 1}: ${guessTypeFromValue(argsSample[idx])}`,
     );
-    const argSection = argNames.join(", ");
+    const kwargsPart = hasKwargs ? "**kwargs: dict" : "";
+    const argSection = [argNames.join(", "), kwargsPart]
+      .filter((part) => part)
+      .join(", ");
     let returnType: string | null = null;
     if (Array.isArray(expectedSample)) {
       if (expectedSample.length > 1) {
@@ -1887,8 +1943,23 @@
       : rc?.args != null
         ? [rc.args]
         : [];
+    const rawKwargs = rc?.kwargs ?? rc?.keyword_args ?? rc?.kwargs_map ?? null;
     const expectedRaw = rc?.expected;
     let args: string[] = rawArgs.map((v) => formatValueForInput(v));
+    let kwargs: FnKwarg[] = [];
+    if (rawKwargs && typeof rawKwargs === "object") {
+      if (Array.isArray(rawKwargs)) {
+        kwargs = rawKwargs.map((entry: any) => ({
+          key: String(entry?.key ?? ""),
+          value: formatValueForInput(entry?.value ?? ""),
+        }));
+      } else {
+        kwargs = Object.entries(rawKwargs).map(([key, value]) => ({
+          key: String(key),
+          value: formatValueForInput(value),
+        }));
+      }
+    }
     let returns: string[] = [];
     if (Array.isArray(expectedRaw)) {
       returns = expectedRaw.map((v: any) => formatValueForInput(v));
@@ -1900,6 +1971,7 @@
     const base: FnCase = {
       name,
       args,
+      kwargs,
       returns,
       weight,
       timeLimit,
@@ -1958,6 +2030,65 @@
       nextReturns[returnIndex] = value;
       return { ...c, returns: nextReturns };
     });
+  }
+
+  function updateFnKwargKey(
+    caseIndex: number,
+    kwargIndex: number,
+    value: string,
+  ) {
+    fnCases = fnCases.map((c, idx) => {
+      if (idx !== caseIndex) return c;
+      const nextKwargs = [...(c.kwargs ?? [])];
+      nextKwargs[kwargIndex] = {
+        key: value,
+        value: nextKwargs[kwargIndex]?.value ?? "",
+      };
+      return { ...c, kwargs: nextKwargs };
+    });
+  }
+
+  function updateFnKwargValue(
+    caseIndex: number,
+    kwargIndex: number,
+    value: string,
+  ) {
+    fnCases = fnCases.map((c, idx) => {
+      if (idx !== caseIndex) return c;
+      const nextKwargs = [...(c.kwargs ?? [])];
+      nextKwargs[kwargIndex] = {
+        key: nextKwargs[kwargIndex]?.key ?? "",
+        value,
+      };
+      return { ...c, kwargs: nextKwargs };
+    });
+  }
+
+  function addFnKwarg(caseIndex: number) {
+    fnCases = fnCases.map((c, idx) => {
+      if (idx !== caseIndex) return c;
+      const nextKwargs = [...(c.kwargs ?? [])];
+      nextKwargs.push({ key: "", value: "" });
+      return { ...c, kwargs: nextKwargs };
+    });
+  }
+
+  function removeFnKwarg(caseIndex: number, kwargIndex: number) {
+    fnCases = fnCases.map((c, idx) => {
+      if (idx !== caseIndex) return c;
+      const nextKwargs = (c.kwargs ?? []).filter((_, i) => i !== kwargIndex);
+      return { ...c, kwargs: nextKwargs };
+    });
+  }
+
+  function buildKwargsObject(kwargs: FnKwarg[]): Record<string, any> {
+    const output: Record<string, any> = {};
+    for (const pair of kwargs ?? []) {
+      const key = String(pair.key ?? "").trim();
+      if (!key) continue;
+      output[key] = coerceValueForType(pair.value ?? "", undefined);
+    }
+    return output;
   }
 
   function stringToBool(value: string): boolean {
@@ -4576,11 +4707,18 @@
                         >{p.name}{p.type ? `: ${p.type}` : ""}</span
                       >
                     {/each}
-                  {:else}
+                  {:else if !fnMeta.kwargs}
                     <span class="badge badge-outline badge-sm"
                       >{translate(
                         "frontend/src/routes/assignments/[id]/tests/+page.svelte::no_arguments",
                       )}</span
+                    >
+                  {/if}
+                  {#if fnMeta.kwargs}
+                    <span class="badge badge-outline badge-sm"
+                      >**{fnMeta.kwargs.name}{fnMeta.kwargs.type
+                        ? `: ${fnMeta.kwargs.type}`
+                        : ""}</span
                     >
                   {/if}
                   {#if fnMeta.returns.length === 0}
@@ -4795,6 +4933,98 @@
                             </div>
                           {/each}
                         </div>
+                      </div>
+                    {/if}
+                    {#if fnMeta.kwargs}
+                      <div class="space-y-2">
+                        <div class="flex items-center justify-between gap-2">
+                          <h5 class="text-sm font-semibold">
+                            {translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_arguments",
+                            )}
+                          </h5>
+                          <button
+                            type="button"
+                            class="btn btn-xs btn-outline"
+                            on:click={() => addFnKwarg(fi)}
+                          >
+                            <Plus size={12} />
+                            {translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_keyword_argument",
+                            )}
+                          </button>
+                        </div>
+                        <p class="hint">
+                          {translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_args_builder_hint",
+                          )}
+                        </p>
+                        {#if fc.kwargs.length === 0}
+                          <div class="kwarg-empty">
+                            {translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::no_keyword_arguments",
+                            )}
+                          </div>
+                        {:else}
+                          <div class="grid gap-2">
+                            {#each fc.kwargs as kw, ki}
+                              <div class="kwarg-card">
+                                <div class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto] items-center">
+                                  <label class="form-control w-full">
+                                    <span class="label-text text-xs"
+                                      >{translate(
+                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_name",
+                                      )}</span
+                                    >
+                                    <input
+                                      class="input input-bordered w-full"
+                                      value={kw.key}
+                                      placeholder={translate(
+                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_name_placeholder",
+                                      )}
+                                      on:input={(e) =>
+                                        updateFnKwargKey(
+                                          fi,
+                                          ki,
+                                          (e.target as HTMLInputElement).value,
+                                        )}
+                                    />
+                                  </label>
+                                  <label class="form-control w-full">
+                                    <span class="label-text text-xs"
+                                      >{translate(
+                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_value",
+                                      )}</span
+                                    >
+                                    <input
+                                      class="input input-bordered w-full"
+                                      value={kw.value}
+                                      placeholder={translate(
+                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_value_placeholder",
+                                      )}
+                                      on:input={(e) =>
+                                        updateFnKwargValue(
+                                          fi,
+                                          ki,
+                                          (e.target as HTMLInputElement).value,
+                                        )}
+                                    />
+                                  </label>
+                                  <button
+                                    type="button"
+                                    class="btn btn-ghost btn-xs"
+                                    on:click={() => removeFnKwarg(fi, ki)}
+                                  >
+                                    <Trash2 size={14} />
+                                    {translate(
+                                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::remove",
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                            {/each}
+                          </div>
+                        {/if}
                       </div>
                     {/if}
                     {#if fnMeta.returns.length > 0}
@@ -5722,6 +5952,30 @@
   :global(.option-pill:hover) {
     transform: translateY(-2px);
     box-shadow: 0 12px 26px rgba(15, 23, 42, 0.08);
+  }
+  :global(.kwarg-card) {
+    border-radius: 0.9rem;
+    border: 1px solid color-mix(in oklab, oklch(var(--bc)) 18%, transparent);
+    background: color-mix(
+      in oklab,
+      var(--fallback-b1, oklch(var(--b1))) 85%,
+      transparent
+    );
+    padding: 0.75rem;
+    box-shadow: 0 10px 18px rgba(15, 23, 42, 0.06);
+  }
+  :global(.kwarg-empty) {
+    border-radius: 0.9rem;
+    border: 1px dashed
+      color-mix(in oklab, oklch(var(--bc)) 30%, transparent);
+    background: color-mix(
+      in oklab,
+      var(--fallback-b2, oklch(var(--b2))) 70%,
+      transparent
+    );
+    padding: 0.75rem;
+    font-size: 0.75rem;
+    color: color-mix(in oklab, oklch(var(--bc)) 68%, transparent);
   }
   :global(.option-pill:focus-visible) {
     outline: 2px solid color-mix(in oklab, oklch(var(--p)) 35%, transparent);
