@@ -377,20 +377,74 @@
   $: sid = submission?.id ?? id;
 
   let explanations: Record<string, { loading: boolean; text?: string; error?: string }> = {};
+  let explainInFlight = false;
+  let explainQueue: string[] = [];
+
+  async function fetchExplanation(sidStr: any, tcid: string) {
+    return apiJSON(`/api/submissions/${sidStr}/explain-test-failure`, {
+      method: "POST",
+      body: JSON.stringify({ test_case_id: tcid }),
+    });
+  }
 
   async function askWhyFailed(sidStr: any, tcid: string) {
+    if (explanations[tcid]?.loading || explanations[tcid]?.text) return;
+    if (explainInFlight) {
+      explanations[tcid] = { loading: true };
+      explanations = { ...explanations };
+      if (!explainQueue.includes(tcid)) explainQueue = [...explainQueue, tcid];
+      return;
+    }
+
+    explainInFlight = true;
     explanations[tcid] = { loading: true };
     explanations = { ...explanations };
     try {
-      const res = await apiJSON(`/api/submissions/${sidStr}/explain-test-failure`, {
-        method: "POST",
-        body: JSON.stringify({ test_case_id: tcid }),
-      });
-      explanations[tcid] = { loading: false, text: res.explanation };
+      const res = await fetchExplanation(sidStr, tcid);
+      let firstApplied = false;
+      while (explainQueue.length) {
+        const queued = explainQueue;
+        explainQueue = [];
+        const results = await Promise.all(
+          queued.map(async (id) => {
+            try {
+              const cached = await fetchExplanation(sidStr, id);
+              return { id, text: cached.explanation as string };
+            } catch (e: any) {
+              return { id, error: e.message as string };
+            }
+          }),
+        );
+        if (!firstApplied) {
+          explanations[tcid] = { loading: false, text: res.explanation };
+          firstApplied = true;
+        }
+        for (const r of results) {
+          if (r.error) {
+            explanations[r.id] = { loading: false, error: r.error };
+          } else {
+            explanations[r.id] = { loading: false, text: r.text };
+          }
+        }
+        explanations = { ...explanations };
+      }
+      if (!firstApplied) {
+        explanations[tcid] = { loading: false, text: res.explanation };
+        explanations = { ...explanations };
+      }
     } catch (e: any) {
-      explanations[tcid] = { loading: false, error: e.message };
+      const errMsg = e.message as string;
+      explanations[tcid] = { loading: false, error: errMsg };
+      if (explainQueue.length) {
+        for (const id of explainQueue) {
+          explanations[id] = { loading: false, error: errMsg };
+        }
+        explainQueue = [];
+      }
+      explanations = { ...explanations };
+    } finally {
+      explainInFlight = false;
     }
-    explanations = { ...explanations };
   }
 </script>
 

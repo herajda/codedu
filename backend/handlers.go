@@ -5265,38 +5265,55 @@ func explainTestFailure(c *gin.Context) {
 		return
 	}
 
-	// 4. Get Result and TestCase details
-	var data struct {
-		Stdin              string  `db:"stdin"`
-		ExpectedStdout     string  `db:"expected_stdout"`
-		ActualStdout       string  `db:"actual_stdout"`
-		Stderr             string  `db:"stderr"`
+	// 4. Check status of requested test
+	var targetResult struct {
 		Status             string  `db:"status"`
 		FailureExplanation *string `db:"failure_explanation"`
 	}
-	err = DB.Get(&data, `
-		SELECT tc.stdin, tc.expected_stdout, r.actual_stdout, r.stderr, r.status, r.failure_explanation
-		FROM results r
-		JOIN test_cases tc ON r.test_case_id = tc.id
-		WHERE r.submission_id = $1 AND r.test_case_id = $2
-	`, sid, tcid)
+	err = DB.Get(&targetResult, `SELECT status, failure_explanation FROM results WHERE submission_id=$1 AND test_case_id=$2`, sid, tcid)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "result not found"})
 		return
 	}
 
 	// Return cached explanation if available
-	if data.FailureExplanation != nil && *data.FailureExplanation != "" {
-		c.JSON(http.StatusOK, gin.H{"explanation": *data.FailureExplanation})
+	if targetResult.FailureExplanation != nil && *targetResult.FailureExplanation != "" {
+		c.JSON(http.StatusOK, gin.H{"explanation": *targetResult.FailureExplanation})
 		return
 	}
 
-	if data.Status == "passed" {
+	if targetResult.Status == "passed" {
 		c.JSON(http.StatusOK, gin.H{"explanation": "The test passed, so no explanation is needed."})
 		return
 	}
 
-	// 5. Code content (extract if zip)
+	// 5. Fetch ALL failed tests for this submission that miss explanation
+	var failedTests []struct {
+		TestCaseID     uuid.UUID `db:"test_case_id"`
+		Stdin          string    `db:"stdin"`
+		ExpectedStdout string    `db:"expected_stdout"`
+		ActualStdout   string    `db:"actual_stdout"`
+		Stderr         string    `db:"stderr"`
+		Status         string    `db:"status"`
+	}
+	err = DB.Select(&failedTests, `
+		SELECT r.test_case_id, tc.stdin, tc.expected_stdout, r.actual_stdout, r.stderr, r.status
+		FROM results r
+		JOIN test_cases tc ON r.test_case_id = tc.id
+		WHERE r.submission_id = $1 
+		  AND r.status != 'passed' 
+		  AND (r.failure_explanation IS NULL OR r.failure_explanation = '')
+	`, sid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db error"})
+		return
+	}
+	if len(failedTests) == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no failed tests found"})
+		return
+	}
+
+	// 6. Code content (extract if zip)
 	rawCode, err := base64.StdEncoding.DecodeString(sub.CodeContent)
 	if err != nil {
 		rawCode = []byte(sub.CodeContent)
@@ -5322,7 +5339,7 @@ func explainTestFailure(c *gin.Context) {
 		codeText = "(Unable to extract code)"
 	}
 
-	// 6. Call OpenAI
+	// 7. Call OpenAI
 	apiKey := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
 	if apiKey == "" {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "AI not configured"})
@@ -5347,19 +5364,19 @@ func explainTestFailure(c *gin.Context) {
 
 	// Get user language preference
 	user, err := GetUser(uid)
-	langInstruction := ""
+	lang := "English"
 	if err == nil && user.PreferredLocale != nil && *user.PreferredLocale == "cs" {
-		langInstruction = "Reply in Czech language."
+		lang = "Czech"
 	}
 
-	prompt := fmt.Sprintf(`You are a helpful coding tutor.
-The student's code failed a test case.
-Explain WHY it failed in ONE SHORT SENTENCE (max 30 words).
-%s
-Do NOT reveal the expected output values specific to this test case if they are hidden.
-Do NOT reveal the inputs if they are sensitive.
-Do NOT provide fixed code.
-Focus on the logic error or edge case missed.
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf(`You are a helpful coding tutor.
+The student's code failed multiple test cases.
+Explain WHY each test failed in ONE SHORT SENTENCE (max 30 words) per test.
+Reply in %s.
+Do NOT reveal expected outputs if hidden.
+Do NOT reveal sensitive inputs.
+Focus on logic errors.
 
 Assignment: %s
 Description: %s
@@ -5367,24 +5384,34 @@ Description: %s
 Student Code:
 %s
 
-Test Failure:
-Input: %s
-Expected Output: %s
-Actual Output: %s
-Stderr: %s
-`, langInstruction, assign.Title, stripMarkdownImages(assign.Description), codeText, data.Stdin, data.ExpectedStdout, data.ActualStdout, data.Stderr)
+Failures:
+`, lang, assign.Title, stripMarkdownImages(assign.Description), codeText))
+
+	for _, ft := range failedTests {
+		sb.WriteString(fmt.Sprintf("\nTest %s:\nInput: %s\nExpected: %s\nActual: %s\nStderr: %s\n", ft.TestCaseID, ft.Stdin, ft.ExpectedStdout, ft.ActualStdout, ft.Stderr))
+	}
 
 	schema := map[string]any{
 		"type":                 "object",
 		"additionalProperties": false,
 		"properties": map[string]any{
-			"explanation": map[string]any{"type": "string"},
+			"explanations": map[string]any{
+				"type": "array",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"test_case_id": map[string]any{"type": "string"},
+						"explanation":  map[string]any{"type": "string"},
+					},
+					"required":             []string{"test_case_id", "explanation"},
+					"additionalProperties": false,
+				},
+			},
 		},
-		"required": []string{"explanation"},
+		"required": []string{"explanations"},
 	}
 
-	// Explicitly ask for JSON in system prompt to reinforce schema
-	sysPrompt := "You are a helpful coding tutor. You must output JSON."
+	sysPrompt := "You are a helpful coding tutor. Output structured JSON."
 	params := responses.ResponseNewParams{
 		Model:        openai.ChatModel(model),
 		Instructions: openai.String(sysPrompt),
@@ -5392,17 +5419,17 @@ Stderr: %s
 			Format: responses.ResponseFormatTextConfigUnionParam{
 				OfJSONSchema: &responses.ResponseFormatTextJSONSchemaConfigParam{
 					Type:        "json_schema",
-					Name:        "failure_explanation",
+					Name:        "failure_explanations",
 					Schema:      schema,
 					Strict:      openai.Bool(true),
-					Description: openai.String("One-sentence explanation of failure"),
+					Description: openai.String("List of explanations for test failures"),
 				},
 			},
 		},
 		Input: responses.ResponseNewParamsInputUnion{
-			OfString: openai.String(prompt),
+			OfString: openai.String(sb.String()),
 		},
-		MaxOutputTokens: openai.Int(2048),
+		MaxOutputTokens: openai.Int(4096),
 	}
 
 	ctx := context.Background()
@@ -5415,18 +5442,36 @@ Stderr: %s
 
 	rawJSON := resp.OutputText()
 	if rawJSON == "" {
-		log.Printf("AI returned empty output. Refusal: %v", resp)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "AI refused to generate explanation"})
 		return
 	}
 
 	var out struct {
-		Explanation string `json:"explanation"`
+		Explanations []struct {
+			TestCaseID  string `json:"test_case_id"`
+			Explanation string `json:"explanation"`
+		} `json:"explanations"`
 	}
+
 	if uErr := json.Unmarshal([]byte(rawJSON), &out); uErr == nil {
-		// Save explanation to DB
-		_, _ = DB.Exec(`UPDATE results SET failure_explanation=$1 WHERE submission_id=$2 AND test_case_id=$3`, out.Explanation, sid, tcid)
-		c.JSON(http.StatusOK, gin.H{"explanation": out.Explanation})
+		targetExpl := ""
+		tx, _ := DB.Begin()
+		for _, item := range out.Explanations {
+			// Update DB
+			_, _ = tx.Exec(`UPDATE results SET failure_explanation=$1 WHERE submission_id=$2 AND test_case_id=$3`, item.Explanation, sid, item.TestCaseID)
+
+			// Check if this is the requested one
+			if item.TestCaseID == tcid.String() {
+				targetExpl = item.Explanation
+			}
+		}
+		tx.Commit()
+
+		if targetExpl != "" {
+			c.JSON(http.StatusOK, gin.H{"explanation": targetExpl})
+		} else {
+			c.JSON(http.StatusOK, gin.H{"explanation": "Explanation generated (please refresh)."})
+		}
 		return
 	} else {
 		log.Printf("Explain failure unmarshal error: %v, raw: %s", uErr, rawJSON)
