@@ -932,7 +932,7 @@
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_item_4": "Use `student_function('name')` to import a specific function from the student's code.",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::unnamed_test": "Unnamed test",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::upload": "Upload",
-  "frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_py": "Upload .py",
+  "frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_py": "Upload unittest file",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_teacher_solution": "Upload teacher solution",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_unittest_file": "Upload unittest file",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder": "Value",

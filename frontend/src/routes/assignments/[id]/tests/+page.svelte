@@ -5525,19 +5525,20 @@
             <p class="font-bold text-xs mt-4 uppercase opacity-50 tracking-wider">
                {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::example_label")}:
             </p>
-            <pre class="bg-base-200 p-4 rounded-xl text-xs font-mono overflow-x-auto whitespace-pre border border-base-300 shadow-inner">import unittest
+            <pre class="bg-base-300/30 p-6 rounded-2xl text-[13px] leading-relaxed font-mono overflow-x-auto whitespace-pre border border-white/5 shadow-inner">
+<span class="text-purple-400">import</span> unittest
 
-class MyTests(unittest.TestCase):
-    def test_hello(self):
-        # Run student's program with multiple inputs
-        output = student_code("John", "Doe")
-        self.assertIn("John", output)
-        self.assertIn("Doe", output)
+<span class="text-purple-400">class</span> <span class="text-blue-400">MyTests</span>(unittest.TestCase):
+    <span class="text-purple-400">def</span> <span class="text-blue-400">test_hello</span>(self):
+        <span class="opacity-40"># Run student's program with multiple inputs</span>
+        output = student_code(<span class="text-emerald-400">"John"</span>, <span class="text-emerald-400">"Doe"</span>)
+        self.assertIn(<span class="text-emerald-400">"John"</span>, output)
+        self.assertIn(<span class="text-emerald-400">"Doe"</span>, output)
 
-    def test_add(self):
-        # Import and call specific function
-        add = student_function("add")
-        self.assertEqual(add(2, 3), 5)</pre>
+    <span class="text-purple-400">def</span> <span class="text-blue-400">test_add</span>(self):
+        <span class="opacity-40"># Import and call specific function</span>
+        add = student_function(<span class="text-emerald-400">"add"</span>)
+        self.assertEqual(add(<span class="text-orange-300">2</span>, <span class="text-orange-300">3</span>), <span class="text-orange-300">5</span>)</pre>
           </div>
 
         </div>

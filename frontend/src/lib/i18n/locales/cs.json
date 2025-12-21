@@ -908,7 +908,7 @@
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_comprehensive_item_4": "Použijte `student_function('název')` pro import konkrétní funkce ze studentského kódu.",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::unnamed_test": "Nepojmenovaný test",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::upload": "Nahrát",
-  "frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_py": "Nahrát .py",
+  "frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_py": "Nahrát soubor s unittestem",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_teacher_solution": "Nahrát řešení učitele",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_unittest_file": "Nahrát soubor s unittestem",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder": "Hodnota",
