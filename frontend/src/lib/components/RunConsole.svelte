@@ -715,7 +715,7 @@
       <h4 class="font-semibold flex items-center gap-2"><CodeIcon size={18}/> {translate('frontend/src/lib/components/RunConsole.svelte::define-function-signature')}</h4>
       <p class="text-sm opacity-70">{translate('frontend/src/lib/components/RunConsole.svelte::write-python-function-header-describe-arguments')}</p>
     </div>
-    <CodeMirror bind:value={fnSignature} lang={python()} readOnly={false} placeholder={'def my_function(arr: list, target: int) -> bool'} />
+    <CodeMirror bind:value={fnSignature} lang={python()} readOnly={false} placeholder={'def my_function(arr: list, target: int) -> bool:'} />
     {#if fnSignatureError}
       <div class="alert alert-error text-sm">{fnSignatureError}</div>
     {:else if fnMeta}

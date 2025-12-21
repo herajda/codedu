@@ -818,7 +818,7 @@
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_name": "Function name",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_name_example_multiply": "e.g. multiply",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_name_is_required": "Function name is required",
-  "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_signature_placeholder": "def my_function(arr: list, target: int) -> bool",
+  "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_signature_placeholder": "def my_function(arr: list, target: int) -> bool:",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_tests_builder": "Function tests builder",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_expected_hint": "Return values can be derived automatically from the teacher solution.",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_teacher_autofill_hint": "We will run your reference implementation with the inputs above and store the returned value as expected output.",
