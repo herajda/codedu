@@ -127,6 +127,7 @@ CREATE TABLE IF NOT EXISTS test_cases (
   function_name TEXT,
   function_args TEXT,
   function_kwargs TEXT,
+  function_arg_names TEXT,
   expected_return TEXT,
   file_name TEXT,
   file_base64 TEXT,
@@ -140,6 +141,7 @@ ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS execution_mode TEXT NOT NULL DEF
 ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS function_name TEXT;
 ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS function_args TEXT;
 ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS function_kwargs TEXT;
+ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS function_arg_names TEXT;
 ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS expected_return TEXT;
 ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS file_name TEXT;
 ALTER TABLE test_cases ADD COLUMN IF NOT EXISTS file_base64 TEXT;

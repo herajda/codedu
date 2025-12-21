@@ -133,18 +133,18 @@ func TestCreateTestCaseDefaultsFunctionMode(t *testing.T) {
 	expected := "6"
 	now := time.Now()
 
-	rows := sqlmock.NewRows([]string{"id", "weight", "time_limit_sec", "memory_limit_kb", "unittest_code", "unittest_name", "execution_mode", "function_name", "function_args", "function_kwargs", "expected_return", "file_name", "file_base64", "created_at", "updated_at"}).
-		AddRow(uuid.New().String(), 1.0, 1.0, 0, nil, nil, "function", fn, args, kwargs, expected, nil, nil, now, now)
+	rows := sqlmock.NewRows([]string{"id", "weight", "time_limit_sec", "memory_limit_kb", "unittest_code", "unittest_name", "execution_mode", "function_name", "function_args", "function_kwargs", "function_arg_names", "expected_return", "file_name", "file_base64", "files_json", "created_at", "updated_at"}).
+		AddRow(uuid.New().String(), 1.0, 1.0, 0, nil, nil, "function", fn, args, kwargs, nil, expected, nil, nil, nil, now, now)
 
 	insertRE := regexp.QuoteMeta(`
          INSERT INTO test_cases (assignment_id, stdin, expected_stdout, weight, time_limit_sec, memory_limit_kb, unittest_code, unittest_name,
-                                 execution_mode, function_name, function_args, function_kwargs, expected_return, file_name, file_base64)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+                                 execution_mode, function_name, function_args, function_kwargs, function_arg_names, expected_return, file_name, file_base64, files_json)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
          RETURNING id, weight, time_limit_sec, memory_limit_kb, unittest_code, unittest_name,
-                   execution_mode, function_name, function_args, function_kwargs, expected_return, file_name, file_base64, created_at, updated_at`)
+                   execution_mode, function_name, function_args, function_kwargs, function_arg_names, expected_return, file_name, file_base64, files_json, created_at, updated_at`)
 
 	mock.ExpectQuery(insertRE).
-		WithArgs(assignmentID, "", "", 1.0, 1.0, 65536, nil, nil, "function", sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), nil, nil).
+		WithArgs(assignmentID, "", "", 1.0, 1.0, 65536, nil, nil, "function", sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), nil, nil, nil).
 		WillReturnRows(rows)
 
 	tc := &TestCase{AssignmentID: assignmentID, Weight: 1}

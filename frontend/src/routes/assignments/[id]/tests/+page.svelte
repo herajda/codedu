@@ -28,6 +28,7 @@
     Scale,
     Shield,
     Upload as UploadIcon,
+    ChevronRight,
   } from "lucide-svelte";
   import {
     readFileBase64,
@@ -162,9 +163,11 @@
 
   type FnParameter = { name: string; type?: string };
   type FnReturn = { name: string; type?: string };
+  type FnKwarg = { key: string; value: string };
   type FnCase = {
     name: string;
     args: string[];
+    kwargs: FnKwarg[];
     returns: string[];
     weight: string;
     timeLimit: string;
@@ -175,7 +178,12 @@
     selectedFileIndex: number;
     showFile?: boolean;
   };
-  type FnMeta = { name: string; params: FnParameter[]; returns: FnReturn[] };
+  type FnMeta = {
+    name: string;
+    params: FnParameter[];
+    returns: FnReturn[];
+    kwargs?: FnParameter | null;
+  };
 
   let builderMode: "unittest" | "function" = "unittest";
   let fnSignature = "";
@@ -1028,12 +1036,40 @@
       };
     }
     const params: FnParameter[] = [];
+    let kwargs: FnParameter | null = null;
     if (paramsRaw.trim()) {
       const pieces = splitTopLevel(paramsRaw);
       for (const piece of pieces) {
         const part = piece.trim();
         if (!part) continue;
         if (part.startsWith("*")) {
+          if (part.startsWith("**")) {
+            const kwargRaw = part.slice(2).trim();
+            if (!kwargRaw || kwargs) {
+              return {
+                meta: null,
+                error: translate(
+                  "frontend/src/routes/assignments/[id]/tests/+page.svelte::could_not_parse_function_definition",
+                ),
+              };
+            }
+            const [namePartRaw, typePartRaw] = kwargRaw
+              .split(":")
+              .map((p) => p.trim());
+            const namePart = namePartRaw.split("=")[0].trim();
+            if (!namePart || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(namePart)) {
+              return {
+                meta: null,
+                error: translate(
+                  "frontend/src/routes/assignments/[id]/tests/+page.svelte::argument_is_not_valid_positional_parameter",
+                  { namePartRaw },
+                ),
+              };
+            }
+            const typePart = typePartRaw ? typePartRaw.trim() : undefined;
+            kwargs = { name: namePart, type: typePart };
+            continue;
+          }
           return {
             meta: null,
             error: translate(
@@ -1073,7 +1109,7 @@
     } else {
       returns = [{ name: "return", type: ret }];
     }
-    return { meta: { name, params, returns }, error: "" };
+    return { meta: { name, params, returns, kwargs }, error: "" };
   }
 
   function describeTypeControl(type?: string): {
@@ -1096,6 +1132,7 @@
     const returnCount = meta ? meta.returns.length : 1;
     const adjustedArgs = [...(c.args ?? [])];
     const adjustedReturns = [...(c.returns ?? [])];
+    const adjustedKwargs = Array.isArray(c.kwargs) ? [...c.kwargs] : [];
     while (adjustedArgs.length < argCount) adjustedArgs.push("");
     if (adjustedArgs.length > argCount) adjustedArgs.length = argCount;
     const expectedReturnCount =
@@ -1107,6 +1144,7 @@
     return {
       name: c.name,
       args: adjustedArgs,
+      kwargs: meta?.kwargs ? adjustedKwargs : [],
       returns: adjustedReturns,
       weight: c.weight,
       timeLimit: c.timeLimit,
@@ -1128,10 +1166,19 @@
     return true;
   }
 
+  function kwargsEqual(a: FnKwarg[], b: FnKwarg[]): boolean {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i].key !== b[i].key || a[i].value !== b[i].value) return false;
+    }
+    return true;
+  }
+
   function casesEqual(a: FnCase, b: FnCase): boolean {
     return (
       a.name === b.name &&
       arraysEqual(a.args, b.args) &&
+      kwargsEqual(a.kwargs ?? [], b.kwargs ?? []) &&
       arraysEqual(a.returns, b.returns) &&
       a.weight === b.weight &&
       a.timeLimit === b.timeLimit &&
@@ -1159,6 +1206,7 @@
         { fi: idx + 1 },
       ),
       args,
+      kwargs: [],
       returns,
       weight: defaultWeight,
       timeLimit: "1",
@@ -1302,12 +1350,15 @@
           const argsValues = fnMeta.params.map((p, idx) =>
             coerceValueForType(c.args[idx] ?? "", p.type),
           );
+          const kwargsObject = fnMeta.kwargs
+            ? buildKwargsObject(c.kwargs)
+            : {};
           const timeLimit = parseFloat(c.timeLimit);
           const previewPayload: any = {
             execution_mode: "function",
             function_name: fnMeta.name,
             function_args: JSON.stringify(argsValues),
-            function_kwargs: "{}",
+            function_kwargs: JSON.stringify(kwargsObject),
             expected_return: "",
             time_limit_sec: Number.isFinite(timeLimit) ? timeLimit : undefined,
             ...(filePayloads[idx] ?? {}),
@@ -1336,6 +1387,7 @@
         const argsValues = fnMeta.params.map((p, idx) =>
           coerceValueForType(c.args[idx] ?? "", p.type),
         );
+        const kwargsObject = fnMeta.kwargs ? buildKwargsObject(c.kwargs) : {};
         const returnValues = fnMeta.returns.length
           ? fnMeta.returns.map((r, idx) =>
               coerceValueForType(c.returns[idx] ?? "", r.type),
@@ -1362,7 +1414,8 @@
           execution_mode: "function",
           function_name: fnMeta.name,
           function_args: JSON.stringify(argsValues),
-          function_kwargs: "{}",
+          function_kwargs: JSON.stringify(kwargsObject),
+          function_arg_names: JSON.stringify(fnMeta.params.map((p) => p.name)),
           expected_return: expectedJSON,
           stdin: "",
           expected_stdout: "",
@@ -1821,11 +1874,16 @@
       : sampleCase?.args != null
         ? [sampleCase.args]
         : [];
+    const hasKwargs =
+      sampleCase?.kwargs && typeof sampleCase.kwargs === "object";
     const expectedSample = sampleCase?.expected;
     const argNames = argsSample.map(
       (_, idx) => `arg${idx + 1}: ${guessTypeFromValue(argsSample[idx])}`,
     );
-    const argSection = argNames.join(", ");
+    const kwargsPart = hasKwargs ? "**kwargs: dict" : "";
+    const argSection = [argNames.join(", "), kwargsPart]
+      .filter((part) => part)
+      .join(", ");
     let returnType: string | null = null;
     if (Array.isArray(expectedSample)) {
       if (expectedSample.length > 1) {
@@ -1887,8 +1945,23 @@
       : rc?.args != null
         ? [rc.args]
         : [];
+    const rawKwargs = rc?.kwargs ?? rc?.keyword_args ?? rc?.kwargs_map ?? null;
     const expectedRaw = rc?.expected;
     let args: string[] = rawArgs.map((v) => formatValueForInput(v));
+    let kwargs: FnKwarg[] = [];
+    if (rawKwargs && typeof rawKwargs === "object") {
+      if (Array.isArray(rawKwargs)) {
+        kwargs = rawKwargs.map((entry: any) => ({
+          key: String(entry?.key ?? ""),
+          value: formatValueForInput(entry?.value ?? ""),
+        }));
+      } else {
+        kwargs = Object.entries(rawKwargs).map(([key, value]) => ({
+          key: String(key),
+          value: formatValueForInput(value),
+        }));
+      }
+    }
     let returns: string[] = [];
     if (Array.isArray(expectedRaw)) {
       returns = expectedRaw.map((v: any) => formatValueForInput(v));
@@ -1900,6 +1973,7 @@
     const base: FnCase = {
       name,
       args,
+      kwargs,
       returns,
       weight,
       timeLimit,
@@ -1958,6 +2032,65 @@
       nextReturns[returnIndex] = value;
       return { ...c, returns: nextReturns };
     });
+  }
+
+  function updateFnKwargKey(
+    caseIndex: number,
+    kwargIndex: number,
+    value: string,
+  ) {
+    fnCases = fnCases.map((c, idx) => {
+      if (idx !== caseIndex) return c;
+      const nextKwargs = [...(c.kwargs ?? [])];
+      nextKwargs[kwargIndex] = {
+        key: value,
+        value: nextKwargs[kwargIndex]?.value ?? "",
+      };
+      return { ...c, kwargs: nextKwargs };
+    });
+  }
+
+  function updateFnKwargValue(
+    caseIndex: number,
+    kwargIndex: number,
+    value: string,
+  ) {
+    fnCases = fnCases.map((c, idx) => {
+      if (idx !== caseIndex) return c;
+      const nextKwargs = [...(c.kwargs ?? [])];
+      nextKwargs[kwargIndex] = {
+        key: nextKwargs[kwargIndex]?.key ?? "",
+        value,
+      };
+      return { ...c, kwargs: nextKwargs };
+    });
+  }
+
+  function addFnKwarg(caseIndex: number) {
+    fnCases = fnCases.map((c, idx) => {
+      if (idx !== caseIndex) return c;
+      const nextKwargs = [...(c.kwargs ?? [])];
+      nextKwargs.push({ key: "", value: "" });
+      return { ...c, kwargs: nextKwargs };
+    });
+  }
+
+  function removeFnKwarg(caseIndex: number, kwargIndex: number) {
+    fnCases = fnCases.map((c, idx) => {
+      if (idx !== caseIndex) return c;
+      const nextKwargs = (c.kwargs ?? []).filter((_, i) => i !== kwargIndex);
+      return { ...c, kwargs: nextKwargs };
+    });
+  }
+
+  function buildKwargsObject(kwargs: FnKwarg[]): Record<string, any> {
+    const output: Record<string, any> = {};
+    for (const pair of kwargs ?? []) {
+      const key = String(pair.key ?? "").trim();
+      if (!key) continue;
+      output[key] = coerceValueForType(pair.value ?? "", undefined);
+    }
+    return output;
   }
 
   function stringToBool(value: string): boolean {
@@ -2500,6 +2633,121 @@
     }
   }
 
+  function safeParseJSONArray(json: string): any[] {
+    try {
+      const parsed = JSON.parse(json || "[]");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function safeParseJSONObject(json: string): Record<string, any> {
+    try {
+      const parsed = JSON.parse(json || "{}");
+      return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+        ? parsed
+        : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function safeParseArgNames(json: string): string[] {
+    return safeParseJSONArray(json)
+      .map((val) => String(val).trim())
+      .filter((val) => val.length > 0);
+  }
+
+  function isGenericArgKey(key: string): boolean {
+    const trimmed = String(key || "").trim();
+    return (
+      !trimmed ||
+      trimmed.startsWith("#") ||
+      (trimmed.startsWith("arg") && /^\d+$/.test(trimmed.substring(3)))
+    );
+  }
+
+  function coerceArg(val: any): any {
+    if (typeof val !== "string") return val;
+    const trimmed = val.trim();
+    if (!trimmed) return null;
+    if (trimmed.toLowerCase() === "true") return true;
+    if (trimmed.toLowerCase() === "false") return false;
+    if (trimmed.toLowerCase() === "none" || trimmed.toLowerCase() === "null")
+      return null;
+    if (/^-?\d+$/.test(trimmed)) return parseInt(trimmed, 10);
+    if (/^-?\d*\.\d+$/.test(trimmed)) return parseFloat(trimmed);
+    try {
+      if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+        return JSON.parse(trimmed);
+      }
+    } catch {
+      // ignore
+    }
+    return trimmed;
+  }
+
+  function ensurePrepared(t: any) {
+    if (t._prepared_all === undefined) {
+      const argsArray = safeParseJSONArray(t.function_args)
+        .map(val => typeof val === 'object' ? JSON.stringify(val) : String(val));
+      const kwargsObj = safeParseJSONObject(t.function_kwargs);
+      const savedArgNames = safeParseArgNames(t.function_arg_names ?? "");
+      const metaArgNames =
+        fnMeta && fnMeta.name === t.function_name
+          ? fnMeta.params.map((p) => p.name)
+          : [];
+      const argNames = metaArgNames.length ? metaArgNames : savedArgNames;
+      
+      const all = [];
+      // Positional args
+      argsArray.forEach((val, i) => {
+        const name = argNames[i] || `arg${i + 1}`;
+        all.push({ key: name, value: val, is_pos: true, original_idx: i });
+      });
+      // Keyword args
+      Object.entries(kwargsObj).forEach(([k, v]) => {
+        all.push({
+          key: k,
+          value: typeof v === 'object' ? JSON.stringify(v) : String(v),
+          is_pos: false
+        });
+      });
+      t._prepared_all = all;
+    }
+    return t._prepared_all;
+  }
+
+  function addPreparedArg(t: any) {
+    ensurePrepared(t);
+    let nextName = `arg${t._prepared_all.length + 1}`;
+    const posCount = t._prepared_all.filter((a: any) => a.is_pos).length;
+    if (fnMeta && fnMeta.name === t.function_name && fnMeta.params[posCount]) {
+      nextName = fnMeta.params[posCount].name;
+    }
+    t._prepared_all = [...t._prepared_all, { key: nextName, value: "", is_pos: true, original_idx: posCount }];
+    tests = tests;
+  }
+
+  function addPreparedKwarg(t: any) {
+    ensurePrepared(t);
+    t._prepared_all = [...t._prepared_all, { key: "", value: "", is_pos: false }];
+    tests = tests;
+  }
+
+  function removePreparedArg(t: any, idx: number) {
+    // This now receives index in _prepared_all
+    ensurePrepared(t);
+    t._prepared_all = t._prepared_all.filter((_: any, i: number) => i !== idx);
+    tests = tests;
+  }
+
+  function removePreparedKwarg(t: any, idx: number) {
+    // Legacy support or same as removePreparedArg
+    removePreparedArg(t, idx);
+  }
+
   async function updateTest(t: any) {
     try {
       const mode = (t.execution_mode ??
@@ -2541,10 +2789,49 @@
           return;
         }
         testData.function_name = fn;
-        testData.function_args =
-          typeof t.function_args === "string" ? t.function_args : "";
-        testData.function_kwargs =
-          typeof t.function_kwargs === "string" ? t.function_kwargs : "";
+
+        if (t._prepared_all) {
+          const args: any[] = [];
+          const kwargs: any = {};
+          let argNames: string[] = [];
+          t._prepared_all.forEach((item: any) => {
+            const key = String(item.key || "").trim();
+            // If the key is a generic placeholder (e.g. arg1, #1) or empty, keep it positional.
+            // Otherwise, express it as a keyword argument as requested.
+            const isGeneric = isGenericArgKey(key);
+            
+            if (isGeneric) {
+              args.push(coerceArg(item.value));
+            } else {
+              kwargs[key] = coerceArg(item.value);
+            }
+            if (item.is_pos && !isGeneric) {
+              argNames.push(key);
+            }
+          });
+          testData.function_args = JSON.stringify(args);
+          testData.function_kwargs = JSON.stringify(kwargs);
+          if (!argNames.length) {
+            const metaArgNames =
+              fnMeta && fnMeta.name === fn
+                ? fnMeta.params.map((p) => p.name)
+                : [];
+            const savedArgNames = safeParseArgNames(t.function_arg_names ?? "");
+            argNames = metaArgNames.length ? metaArgNames : savedArgNames;
+          }
+          if (argNames.length) {
+            testData.function_arg_names = JSON.stringify(argNames);
+          }
+        } else {
+          testData.function_args =
+            typeof t.function_args === "string" ? t.function_args : "[]";
+          testData.function_kwargs =
+            typeof t.function_kwargs === "string" ? t.function_kwargs : "{}";
+          if (typeof t.function_arg_names === "string") {
+            testData.function_arg_names = t.function_arg_names;
+          }
+        }
+
         testData.expected_return =
           typeof t.expected_return === "string" ? t.expected_return : "";
         testData.stdin = "";
@@ -2872,66 +3159,100 @@
                   </div>
                 </div>
                 {#if mode === "function"}
-                  <div class="grid gap-2 md:grid-cols-2">
-                    <label class="form-control w-full space-y-1">
-                      <span class="label-text"
-                        >{translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_name",
-                        )}</span
+                  {@const prep = ensurePrepared(t)}
+                  <div class="space-y-4 pt-1">
+                    <div class="grid gap-3 md:grid-cols-2">
+                      <label class="form-control w-full space-y-1">
+                        <span class="label-text font-medium"
+                          >{translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_name",
+                          )}</span
+                        >
+                        <input
+                          class="input input-bordered w-full"
+                          placeholder={translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_name_example_multiply",
+                          )}
+                          bind:value={t.function_name}
+                        />
+                      </label>
+                      <label class="form-control w-full space-y-1">
+                        <span class="label-text font-medium"
+                          >{translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_json",
+                          )}</span
+                        >
+                        <textarea
+                          class="textarea textarea-bordered w-full"
+                          rows="1"
+                          placeholder={translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::example_6",
+                          )}
+                          bind:value={t.expected_return}
+                        ></textarea>
+                      </label>
+                    </div>
+
+                    <div class="space-y-3">
+                      <div class="flex items-center justify-between">
+                        <h5
+                          class="text-xs font-semibold uppercase tracking-wider opacity-60 flex items-center gap-1"
+                        >
+                          <ChevronRight size={14} />
+                          {translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::arguments",
+                          )}
+                        </h5>
+                        <div class="flex gap-2">
+                          <button
+                            class="btn btn-xs btn-ghost gap-1 font-normal opacity-70 hover:opacity-100"
+                            on:click={() => addPreparedKwarg(t)}
+                          >
+                            <Plus size={12} />
+                            {translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_arg",
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                      <div
+                        class="grid gap-x-6 gap-y-2 md:grid-cols-2 rounded-xl border border-base-300/40 bg-base-200/20 p-3"
                       >
-                      <input
-                        class="input input-bordered w-full"
-                        placeholder={translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_name_example_multiply",
-                        )}
-                        bind:value={t.function_name}
-                      />
-                    </label>
-                    <label class="form-control w-full space-y-1">
-                      <span class="label-text"
-                        >{translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_return_json",
-                        )}</span
-                      >
-                      <textarea
-                        class="textarea textarea-bordered w-full"
-                        rows="2"
-                        placeholder={translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::example_6",
-                        )}
-                        bind:value={t.expected_return}
-                      ></textarea>
-                    </label>
-                    <label class="form-control w-full space-y-1 md:col-span-1">
-                      <span class="label-text"
-                        >{translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::arguments_json_array",
-                        )}</span
-                      >
-                      <textarea
-                        class="textarea textarea-bordered w-full"
-                        rows="2"
-                        placeholder={translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::example_2_3",
-                        )}
-                        bind:value={t.function_args}
-                      ></textarea>
-                    </label>
-                    <label class="form-control w-full space-y-1 md:col-span-1">
-                      <span class="label-text"
-                        >{translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_args_json_object",
-                        )}</span
-                      >
-                      <textarea
-                        class="textarea textarea-bordered w-full"
-                        rows="2"
-                        placeholder={translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::example_round_2",
-                        )}
-                        bind:value={t.function_kwargs}
-                      ></textarea>
-                    </label>
+                        {#each prep as arg, ai}
+                          <div class="flex items-center gap-2">
+                            <input
+                              class="input input-bordered input-sm w-24 bg-base-100/50 font-mono text-[10px]"
+                              class:opacity-70={arg.is_pos}
+                              placeholder={arg.is_pos ? "Arg name" : translate(
+                                "frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_name",
+                              )}
+                              bind:value={arg.key}
+                            />
+                            <span class="opacity-30">=</span>
+                            <div class="flex-1 flex items-center gap-1">
+                              <input
+                                class="input input-bordered input-sm flex-1 bg-base-100/50"
+                                placeholder="Value"
+                                bind:value={arg.value}
+                              />
+                              <button
+                                class="btn btn-circle btn-ghost btn-xs text-error/60 hover:text-error"
+                                on:click={() => removePreparedArg(t, ai)}
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        {/each}
+                        {#if prep.length === 0}
+                          <p class="text-xs opacity-40 italic py-1 px-2 md:col-span-2 text-center">
+                            {translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::no_arguments",
+                            )}
+                          </p>
+                        {/if}
+                      </div>
+                    </div>
                   </div>
                 {:else if t.unittest_name}
                   {#if t.unittest_code}
@@ -4576,11 +4897,18 @@
                         >{p.name}{p.type ? `: ${p.type}` : ""}</span
                       >
                     {/each}
-                  {:else}
+                  {:else if !fnMeta.kwargs}
                     <span class="badge badge-outline badge-sm"
                       >{translate(
                         "frontend/src/routes/assignments/[id]/tests/+page.svelte::no_arguments",
                       )}</span
+                    >
+                  {/if}
+                  {#if fnMeta.kwargs}
+                    <span class="badge badge-outline badge-sm"
+                      >**{fnMeta.kwargs.name}{fnMeta.kwargs.type
+                        ? `: ${fnMeta.kwargs.type}`
+                        : ""}</span
                     >
                   {/if}
                   {#if fnMeta.returns.length === 0}
@@ -4795,6 +5123,98 @@
                             </div>
                           {/each}
                         </div>
+                      </div>
+                    {/if}
+                    {#if fnMeta.kwargs}
+                      <div class="space-y-2">
+                        <div class="flex items-center justify-between gap-2">
+                          <h5 class="text-sm font-semibold">
+                            {translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_arguments",
+                            )}
+                          </h5>
+                          <button
+                            type="button"
+                            class="btn btn-xs btn-outline"
+                            on:click={() => addFnKwarg(fi)}
+                          >
+                            <Plus size={12} />
+                            {translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_keyword_argument",
+                            )}
+                          </button>
+                        </div>
+                        <p class="hint">
+                          {translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_args_builder_hint",
+                          )}
+                        </p>
+                        {#if fc.kwargs.length === 0}
+                          <div class="kwarg-empty">
+                            {translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::no_keyword_arguments",
+                            )}
+                          </div>
+                        {:else}
+                          <div class="grid gap-2">
+                            {#each fc.kwargs as kw, ki}
+                              <div class="kwarg-card">
+                                <div class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto] items-center">
+                                  <label class="form-control w-full">
+                                    <span class="label-text text-xs"
+                                      >{translate(
+                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_name",
+                                      )}</span
+                                    >
+                                    <input
+                                      class="input input-bordered w-full"
+                                      value={kw.key}
+                                      placeholder={translate(
+                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_name_placeholder",
+                                      )}
+                                      on:input={(e) =>
+                                        updateFnKwargKey(
+                                          fi,
+                                          ki,
+                                          (e.target as HTMLInputElement).value,
+                                        )}
+                                    />
+                                  </label>
+                                  <label class="form-control w-full">
+                                    <span class="label-text text-xs"
+                                      >{translate(
+                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_value",
+                                      )}</span
+                                    >
+                                    <input
+                                      class="input input-bordered w-full"
+                                      value={kw.value}
+                                      placeholder={translate(
+                                        "frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_value_placeholder",
+                                      )}
+                                      on:input={(e) =>
+                                        updateFnKwargValue(
+                                          fi,
+                                          ki,
+                                          (e.target as HTMLInputElement).value,
+                                        )}
+                                    />
+                                  </label>
+                                  <button
+                                    type="button"
+                                    class="btn btn-ghost btn-xs"
+                                    on:click={() => removeFnKwarg(fi, ki)}
+                                  >
+                                    <Trash2 size={14} />
+                                    {translate(
+                                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::remove",
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                            {/each}
+                          </div>
+                        {/if}
                       </div>
                     {/if}
                     {#if fnMeta.returns.length > 0}
@@ -5722,6 +6142,30 @@
   :global(.option-pill:hover) {
     transform: translateY(-2px);
     box-shadow: 0 12px 26px rgba(15, 23, 42, 0.08);
+  }
+  :global(.kwarg-card) {
+    border-radius: 0.9rem;
+    border: 1px solid color-mix(in oklab, oklch(var(--bc)) 18%, transparent);
+    background: color-mix(
+      in oklab,
+      var(--fallback-b1, oklch(var(--b1))) 85%,
+      transparent
+    );
+    padding: 0.75rem;
+    box-shadow: 0 10px 18px rgba(15, 23, 42, 0.06);
+  }
+  :global(.kwarg-empty) {
+    border-radius: 0.9rem;
+    border: 1px dashed
+      color-mix(in oklab, oklch(var(--bc)) 30%, transparent);
+    background: color-mix(
+      in oklab,
+      var(--fallback-b2, oklch(var(--b2))) 70%,
+      transparent
+    );
+    padding: 0.75rem;
+    font-size: 0.75rem;
+    color: color-mix(in oklab, oklch(var(--bc)) 68%, transparent);
   }
   :global(.option-pill:focus-visible) {
     outline: 2px solid color-mix(in oklab, oklch(var(--p)) 35%, transparent);
