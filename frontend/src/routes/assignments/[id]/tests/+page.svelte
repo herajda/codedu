@@ -3042,22 +3042,31 @@
         </div>
       </div>
 
-      <!-- Tabs -->
-      <div role="tablist" class="tabs tabs-lifted">
-        <input
-          type="radio"
-          name="tests-tab"
-          role="tab"
-          class="tab"
-          aria-label={translate(
-            "frontend/src/routes/assignments/[id]/tests/+page.svelte::existing_tests",
-          )}
-          checked
-        />
-        <div
-          role="tabpanel"
-          class="tab-content bg-base-100 border-base-300 rounded-box p-4"
+      <div class="flex justify-end mb-4">
+        <button
+          class="btn btn-neutral"
+          on:click={() => document.getElementById("existing_tests_modal").showModal()}
         >
+          <Eye size={16} />
+          {translate(
+            "frontend/src/routes/assignments/[id]/tests/+page.svelte::manage_existing_tests_button",
+          )}
+        </button>
+      </div>
+
+      <dialog id="existing_tests_modal" class="modal">
+        <div class="modal-box w-11/12 max-w-5xl">
+          <form method="dialog">
+            <button
+              class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
+              >✕</button
+            >
+          </form>
+          <h3 class="font-bold text-lg mb-4">
+            {translate(
+              "frontend/src/routes/assignments/[id]/tests/+page.svelte::existing_tests",
+            )}
+          </h3>
           <div class="flex items-center justify-between mb-2">
             <div class="text-sm opacity-70">
               {tests?.length || 0}
@@ -3560,7 +3569,13 @@
               </p>{/if}
           </div>
         </div>
+        <form method="dialog" class="modal-backdrop">
+          <button>close</button>
+        </form>
+      </dialog>
 
+      <!-- Tabs -->
+      <div role="tablist" class="tabs tabs-lifted">
         <input
           type="radio"
           name="tests-tab"
@@ -3833,6 +3848,7 @@
           aria-label={translate(
             "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_io_test",
           )}
+          checked
         />
         <div
           role="tabpanel"

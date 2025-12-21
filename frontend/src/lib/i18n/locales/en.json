@@ -670,6 +670,7 @@
   "frontend/src/routes/assignments/[id]/+page.svelte::your_submissions_heading": "Your submissions",
   "frontend/src/routes/assignments/[id]/+page.svelte::show_traceback_students": "Show traceback to students",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::add": "Add",
+  "frontend/src/routes/assignments/[id]/tests/+page.svelte::manage_existing_tests_button": "Manage existing tests",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_assertions_to_this_test": "Add assertions to this test",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_at_least_one_case": "Add at least one case",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_case": "Add case",
