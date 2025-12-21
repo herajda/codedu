@@ -33,6 +33,7 @@
       fileText = "";
       return;
     }
+    open = true;
     const target = files[index];
     if (!target) return;
     selectedIndex = index;
@@ -102,7 +103,7 @@
       class="btn btn-sm btn-outline gap-2"
       on:click={() => (open = !open)}
     >
-      <FileUp size={16} />
+      <FileUp size={14} />
       {files.length > 0
         ? translate(
             "frontend/src/routes/assignments/[id]/tests/+page.svelte::edit_files",
@@ -115,7 +116,7 @@
     <div class="flex flex-wrap gap-2">
       {#each files as f, i}
         <button
-          class="badge gap-2 p-3 cursor-pointer hover:bg-base-300 transform active:scale-95 transition-transform"
+          class="badge badge-sm gap-1.5 px-2 py-1 cursor-pointer hover:bg-base-300 transform active:scale-95 transition-transform h-auto"
           class:badge-primary={selectedIndex === i}
           class:badge-neutral={selectedIndex !== i}
           on:click={() => syncSelection(i)}
@@ -125,21 +126,22 @@
             class="btn btn-ghost btn-xs btn-circle text-error min-h-0 h-4 w-4"
             on:click|stopPropagation={() => removeFile(i)}
           >
-            <Trash2 size={12} />
+            <Trash2 size={10} />
           </span>
         </button>
       {/each}
       {#if files.length > 0}
         <button
-          class="badge badge-outline gap-1 p-3 cursor-pointer border-dashed"
+          class="badge badge-sm badge-outline gap-1 px-2 py-1 cursor-pointer border-dashed h-auto"
           class:badge-active={selectedIndex === -1}
           on:click={() => {
             selectedIndex = -1;
+            open = true;
             fileName = "";
             fileText = "";
           }}
         >
-          <Plus size={12} /> New
+          <Plus size={10} /> New
         </button>
       {/if}
     </div>

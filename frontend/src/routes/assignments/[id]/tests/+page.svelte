@@ -2513,6 +2513,7 @@
         stdin: t.stdin ?? "",
         expected_stdout: t.expected_stdout ?? "",
         time_limit_sec: parseFloat(t.time_limit_sec) || undefined,
+        files: t.files || [],
       };
 
       const filePayload = buildExistingTestFilePayload(t);
@@ -2983,7 +2984,7 @@
                     </label>
                   </div>
                 {/if}
-                {#if mode === "function" || mode === "stdin_stdout"}
+                {#if mode === "function" || mode === "stdin_stdout" || mode === "unittest"}
                   {@const hasFiles = t.files && t.files.length > 0}
                   {#if hasFiles || t.showFileEditor}
                     <div
@@ -2999,6 +3000,9 @@
                           class="btn btn-xs btn-ghost"
                           on:click={() => {
                             t.showFileEditor = !t.showFileEditor;
+                            if (!t.showFileEditor) {
+                              t.selectedFileIndex = undefined;
+                            }
                             tests = tests;
                           }}
                         >
@@ -3016,11 +3020,12 @@
                         <div class="flex flex-wrap gap-2 mb-2">
                           {#each t.files || [] as f, fi}
                             <button
-                              class="badge gap-2 p-3 cursor-pointer hover:bg-base-300 h-auto"
+                              class="badge badge-sm gap-1.5 px-2 py-1 cursor-pointer hover:bg-base-300 h-auto"
                               class:badge-primary={t.selectedFileIndex === fi}
                               class:badge-neutral={t.selectedFileIndex !== fi}
                               on:click={async () => {
                                 t.selectedFileIndex = fi;
+                                t.showFileEditor = true;
                                 t.file_create_name = f.name;
                                 // Try to decode base64 to text for preview
                                 try {
@@ -3050,15 +3055,16 @@
                                   }
                                   tests = tests;
                                 }}
-                              ><Trash2 size={10} /></span
+                              ><Trash2 size={8} /></span
                               >
                             </button>
                           {/each}
                           <button
-                            class="badge badge-outline gap-1 p-3 cursor-pointer border-dashed"
+                            class="badge badge-sm badge-outline gap-1 px-2 py-1 cursor-pointer border-dashed h-auto"
                             class:badge-active={t.selectedFileIndex === -1}
                             on:click={() => {
                               t.selectedFileIndex = -1;
+                              t.showFileEditor = true;
                               t.file_create_name = "";
                               t.file_create_text = "";
                               tests = tests;
@@ -3069,7 +3075,7 @@
                         </div>
                       {/if}
 
-                      {#if t.showFileEditor || t.selectedFileIndex !== undefined}
+                      {#if t.showFileEditor}
                         <div class="grid gap-2 sm:grid-cols-2">
                           <label class="form-control w-full space-y-1">
                             <span class="label-text"
@@ -3172,7 +3178,7 @@
                         class="btn btn-xs btn-outline gap-1"
                         on:click={() => (t.showFileEditor = true)}
                       >
-                        <FileUp size={12} />
+                        <FileUp size={10} />
                         {translate(
                           "frontend/src/routes/assignments/[id]/tests/+page.svelte::attach_files",
                         )}
