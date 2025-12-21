@@ -706,6 +706,19 @@ func runTestCase(subID uuid.UUID, tc TestCase, baseDir, mainFile string) testOut
 		}
 	}
 	defer cleanup()
+	if err := stageTestFile(workDir, mainFile, tc); err != nil {
+		return testOutcome{
+			result: &Result{
+				SubmissionID: subID,
+				TestCaseID:   tc.ID,
+				Status:       "runtime_error",
+				Stderr:       err.Error(),
+				ExitCode:     -1,
+			},
+			weight: tc.Weight,
+			passed: false,
+		}
+	}
 
 	var funcMeta *functionCallResult
 	var funcErr error
@@ -736,6 +749,10 @@ func runTestCase(subID uuid.UUID, tc TestCase, baseDir, mainFile string) testOut
 			}
 			if funcMeta.Status == "exception" && stderr == "" {
 				stderr = funcMeta.Exception
+			}
+			if funcMeta.ComparisonDebug != nil {
+				debugBytes, _ := json.MarshalIndent(funcMeta.ComparisonDebug, "", "  ")
+				stderr += "\n[Comparison Debug]\n" + string(debugBytes)
 			}
 		}
 	default:
@@ -2084,7 +2101,12 @@ if target:
 
 func executePythonUnit(dir, mainFile, testCode, testName string, timeout time.Duration) (string, string, int, bool, time.Duration) {
 	testPath := filepath.Join(dir, "run_test.py")
-	content := fmt.Sprintf(`import sys, unittest, builtins, io, types, pathlib
+	content := fmt.Sprintf(`import sys, unittest, builtins, io, types, pathlib, os
+
+# Ensure we are in the script directory (robustness)
+script_dir = os.path.dirname(os.path.abspath(__file__))
+os.chdir(script_dir)
+
 
 # prevent provided test modules from auto-running all tests (e.g., unittest.main())
 # so that we can selectively run a single test method by name below

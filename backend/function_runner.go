@@ -19,19 +19,20 @@ type functionCallConfig struct {
 }
 
 type functionCallResult struct {
-	Status       string  `json:"status"`
-	Passed       bool    `json:"passed"`
-	ReturnJSON   *string `json:"return_json"`
-	ReturnRepr   string  `json:"return_repr"`
-	Stdout       string  `json:"stdout"`
-	Exception    string  `json:"exception"`
-	Traceback    string  `json:"traceback"`
-	ExpectedJSON *string `json:"expected_json"`
-	ExpectedRepr *string `json:"expected_repr"`
+	Status          string         `json:"status"`
+	Passed          bool           `json:"passed"`
+	ReturnJSON      *string        `json:"return_json"`
+	ReturnRepr      string         `json:"return_repr"`
+	Stdout          string         `json:"stdout"`
+	Exception       string         `json:"exception"`
+	Traceback       string         `json:"traceback"`
+	ExpectedJSON    *string        `json:"expected_json"`
+	ExpectedRepr    *string        `json:"expected_repr"`
+	ComparisonDebug map[string]any `json:"comparison_debug"`
 }
 
 func writeFunctionRunnerFiles(dir, mainFile string, cfg functionCallConfig) (string, string, error) {
-	modulePath := fmt.Sprintf("%s/%s", strings.TrimRight(vmWorkspacePath(), "/"), strings.ReplaceAll(mainFile, "\\", "/"))
+	modulePath := filepath.ToSlash(mainFile)
 	payload := map[string]any{
 		"module_path":   modulePath,
 		"function_name": cfg.FunctionName,
@@ -73,6 +74,7 @@ func writeFunctionRunnerFiles(dir, mainFile string, cfg functionCallConfig) (str
 import importlib.util
 import io
 import json
+import os
 import pathlib
 import sys
 import traceback
@@ -88,6 +90,12 @@ def normalize_value(value):
     if isinstance(value, dict):
         return {k: normalize_value(v) for k, v in value.items()}
     return value
+
+
+def strip_trailing_newline(val):
+    if isinstance(val, str):
+        return val.rstrip('\r\n')
+    return val
 
 
 def load_module(path: str):
@@ -116,8 +124,19 @@ def main():
     call_stdout = io.StringIO()
 
     try:
+        module_path = cfg['module_path']
+        path = pathlib.Path(module_path)
+        if not path.is_absolute():
+            path = pathlib.Path(__file__).resolve().parent / path
+        
+        # Set CWD and sys.path to the module's directory so student code can find local files
+        script_dir = str(path.parent)
+        os.chdir(script_dir)
+        if script_dir not in sys.path:
+            sys.path.insert(0, script_dir)
+
         with contextlib.redirect_stdout(module_stdout):
-            module = load_module(cfg['module_path'])
+            module = load_module(str(path))
         func = resolve_attr(module, cfg['function_name'])
         args = cfg.get('args') or []
         kwargs = cfg.get('kwargs') or {}
@@ -131,11 +150,35 @@ def main():
         if expected is not sentinel:
             normalized_expected = normalize_value(expected)
             normalized_value = normalize_value(value)
+
+            # Strip trailing newline for comparison
+            cmp_value = strip_trailing_newline(normalized_value)
+            cmp_expected = strip_trailing_newline(normalized_expected)
+
             try:
-                equal = normalized_value == normalized_expected
+                equal = cmp_value == cmp_expected
             except Exception as cmp_exc:  # noqa: BLE001
                 equal = False
                 result['compare_exception'] = repr(cmp_exc)
+
+            if not equal:
+                try:
+                    if str(cmp_value).strip() == str(cmp_expected).strip():
+                        equal = True
+                except Exception:
+                    pass
+
+            if not equal:
+                # Add comparison debug info
+                result['comparison_debug'] = {
+                    "actual_type": type(value).__name__,
+                    "actual_repr": repr(value),
+                    "expected_type": type(expected).__name__,
+                    "expected_repr": repr(expected),
+                    "cmp_actual_repr": repr(cmp_value),
+                    "cmp_expected_repr": repr(cmp_expected)
+                }
+
             result['passed'] = bool(equal)
             result['expected_repr'] = repr(expected)
             try:
@@ -193,8 +236,6 @@ func runFunctionCall(dir, mainFile string, cfg functionCallConfig, timeout time.
 	_ = os.Chmod(runnerPath, 0644)
 	_ = ensureSandboxPerms(dir)
 
-	script := fmt.Sprintf("start=$(date +%%s%%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 %s -u '%s'; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status", pythonBinary, filepath.Base(runnerPath))
-
 	ctx, cancel := context.WithTimeout(context.Background(), timeout+vmBootTimeout+vmExtraTimeout+vmQueueTimeout)
 	defer cancel()
 
@@ -203,6 +244,9 @@ func runFunctionCall(dir, mainFile string, cfg functionCallConfig, timeout time.
 		return "", "", -1, ctx.Err() == context.DeadlineExceeded, 0, nil, fmt.Errorf("vm start failed: %w", err)
 	}
 	defer vm.Close()
+
+	remoteRunner := filepath.Join(remoteDir, filepath.Base(runnerPath))
+	script := fmt.Sprintf("start=$(date +%%s%%N); PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 %s -u '%s'; status=$?; end=$(date +%%s%%N); echo '===RUNTIME_MS===' $(((end-start)/1000000)); exit $status", pythonBinary, strings.ReplaceAll(remoteRunner, "'", "'\\''"))
 
 	var stdoutBuf, stderrBuf strings.Builder
 	start := time.Now()

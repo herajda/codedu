@@ -1,6 +1,8 @@
 <script lang="ts">
   // @ts-nocheck
   import { onMount } from "svelte";
+  import { slide } from "svelte/transition";
+
   import { page } from "$app/stores";
   import { apiFetch, apiJSON } from "$lib/api";
   import { auth } from "$lib/auth";
@@ -12,6 +14,7 @@
   import CodeMirror from "$lib/components/ui/CodeMirror.svelte";
   import { python } from "@codemirror/lang-python";
   import { bannedCatalog, type CatalogFunction } from "$lib/bannedCatalog";
+  import TestFileManager from "$lib/components/TestFileManager.svelte";
   import {
     Plus,
     Save,
@@ -26,6 +29,11 @@
     Shield,
     Upload as UploadIcon,
   } from "lucide-svelte";
+  import {
+    readFileBase64,
+    readFileText,
+    textToBase64,
+  } from "$lib/utils/testFiles";
   import ConfirmModal from "$lib/components/ConfirmModal.svelte";
   import { strictnessGuidance } from "$lib/llmStrictness";
   import { t, translator } from "$lib/i18n";
@@ -56,6 +64,14 @@
   let tLimit = "";
   let tWeight = "1";
   let unittestFile: File | null = null;
+  let ioFileName = "";
+  let ioFileText = "";
+  let showIOFile = false;
+  
+  type AttachedFile = { name: string; content: string };
+  let ioFiles: AttachedFile[] = [];
+  let ioSelectedIndex = -1;
+
 
   type ToolMode = "structured" | "advanced";
   type StructuredToolRule = { library: string; function: string; note: string };
@@ -127,6 +143,12 @@
     callMode: "stdin" | "function";
     functionName: string;
     assertions: UTAssertion[];
+    fileName: string;
+    fileText: string;
+    fileBase64: string;
+    files: AttachedFile[];
+    selectedFileIndex: number;
+    showFile?: boolean;
   };
 
   let utClassName = "TestAssignment";
@@ -146,6 +168,12 @@
     returns: string[];
     weight: string;
     timeLimit: string;
+    fileName: string;
+    fileText: string;
+    fileBase64: string;
+    files: AttachedFile[];
+    selectedFileIndex: number;
+    showFile?: boolean;
   };
   type FnMeta = { name: string; params: FnParameter[]; returns: FnReturn[] };
 
@@ -193,6 +221,61 @@
     if (!isFinite(base)) base = 0;
     const out = lines.map((l) => (l.length >= base ? l.slice(base) : l));
     return { lines: out, base };
+  }
+
+  function buildFilePayload(
+    fileName: string,
+    fileText: string,
+    fileBase64: string,
+  ): { file_name: string; file_base64: string } | null {
+    const name = String(fileName ?? "").trim();
+    const hasBase64 = typeof fileBase64 === "string" && fileBase64.trim() !== "";
+    if (hasBase64) {
+      if (!name) {
+        throw new Error(
+          translate(
+            "frontend/src/routes/assignments/[id]/tests/+page.svelte::file_name_required",
+          ),
+        );
+      }
+      return { file_name: name, file_base64: fileBase64 };
+    }
+    const text = String(fileText ?? "");
+    if (!name && !text) return null;
+    if (!name) {
+      throw new Error(
+        translate(
+          "frontend/src/routes/assignments/[id]/tests/+page.svelte::file_name_required",
+        ),
+      );
+    }
+    return { file_name: name, file_base64: textToBase64(text) };
+  }
+
+  function buildExistingTestFilePayload(
+    t: any,
+  ): { file_name: string; file_base64: string } | null {
+    if (t?.file_create_dirty) {
+      return buildFilePayload(
+        String(t?.file_create_name ?? ""),
+        String(t?.file_create_text ?? ""),
+        "",
+      );
+    }
+    return buildFilePayload(
+      String(t?.file_name ?? ""),
+      "",
+      typeof t?.file_base64 === "string" ? t.file_base64 : "",
+    );
+  }
+
+  function clearTestFile(t: any) {
+    t.file_name = "";
+    t.file_base64 = "";
+    t.file_create_name = "";
+    t.file_create_text = "";
+    t.file_create_dirty = false;
+    tests = [...tests];
   }
 
   function replaceMethodInUnittest(
@@ -516,7 +599,17 @@
       assignment = data.assignment;
       applyBannedConfig(assignment);
       bannedSaved = false;
-      tests = data.tests ?? [];
+      tests = (data.tests ?? []).map((t: any) => ({
+        ...t,
+        files: t.files_json
+          ? JSON.parse(t.files_json)
+          : t.file_name
+          ? [{ name: t.file_name, content: t.file_base64 }]
+          : [],
+        file_create_name: "",
+        file_create_text: "",
+        file_create_dirty: false,
+      }));
       // init llm state
       llmFeedback = !!assignment.llm_feedback;
       llmAutoAward = assignment.llm_auto_award ?? true;
@@ -573,18 +666,25 @@
 
   async function addTest() {
     try {
+      const filePayload =
+        ioFiles.length === 0
+          ? buildFilePayload(ioFileName, ioFileText, "")
+          : null;
       let expectedStdout = tStdout;
       if (ioOutputMode === "teacher") {
         ioOutputLoading = true;
         const timeLimit = parseFloat(tLimit);
-        const { previews } = await runTeacherPreview([
-          {
-            execution_mode: "stdin_stdout",
-            stdin: tStdin,
-            expected_stdout: "",
-            time_limit_sec: Number.isFinite(timeLimit) ? timeLimit : undefined,
-          },
-        ]);
+        const previewPayload: any = {
+          execution_mode: "stdin_stdout",
+          stdin: tStdin,
+          expected_stdout: "",
+          time_limit_sec: Number.isFinite(timeLimit) ? timeLimit : undefined,
+          ...(filePayload ?? {}),
+        };
+        if (ioFiles.length > 0) {
+          previewPayload.files = ioFiles;
+        }
+        const { previews } = await runTeacherPreview([previewPayload]);
         const previewResult = previews[0];
         if (!previewResult) {
           throw new Error(
@@ -602,6 +702,13 @@
         expected_stdout: expectedStdout,
         time_limit_sec: parseFloat(tLimit) || undefined,
       };
+      if (filePayload) {
+        testData.file_name = filePayload.file_name;
+        testData.file_base64 = filePayload.file_base64;
+      }
+      if (ioFiles.length > 0) {
+        testData.files = ioFiles;
+      }
 
       // Only include weight for weighted assignments
       if (assignment?.grading_policy === "weighted") {
@@ -615,6 +722,9 @@
       });
       tStdin = tStdout = tLimit = "";
       tWeight = "1";
+      ioFileName = "";
+      ioFileText = "";
+      ioFiles = [];
       await load();
     } catch (e: any) {
       err = e.message;
@@ -655,6 +765,13 @@
         callMode: "stdin",
         functionName: "",
         assertions: [],
+        fileName: "",
+        fileText: "",
+
+        fileBase64: "",
+        files: [],
+        selectedFileIndex: -1,
+        showFile: false,
       },
     ];
   }
@@ -993,6 +1110,13 @@
       returns: adjustedReturns,
       weight: c.weight,
       timeLimit: c.timeLimit,
+      fileName: c.fileName ?? "",
+      fileText: c.fileText ?? "",
+      fileBase64: c.fileBase64 ?? "",
+      files: Array.isArray(c.files) ? c.files : [],
+      selectedFileIndex:
+        typeof c.selectedFileIndex === "number" ? c.selectedFileIndex : -1,
+      showFile: c.showFile ?? false,
     };
   }
 
@@ -1010,7 +1134,10 @@
       arraysEqual(a.args, b.args) &&
       arraysEqual(a.returns, b.returns) &&
       a.weight === b.weight &&
-      a.timeLimit === b.timeLimit
+      a.timeLimit === b.timeLimit &&
+      a.fileName === b.fileName &&
+      a.fileText === b.fileText &&
+      a.fileBase64 === b.fileBase64
     );
   }
 
@@ -1035,6 +1162,12 @@
       returns,
       weight: defaultWeight,
       timeLimit: "1",
+      fileName: "",
+      fileText: "",
+      fileBase64: "",
+      files: [],
+      selectedFileIndex: -1,
+      showFile: false,
     };
   }
 
@@ -1157,22 +1290,32 @@
       return;
     }
     try {
+      const filePayloads = fnCases.map((c) =>
+        c.files && c.files.length > 0
+          ? null
+          : buildFilePayload(c.fileName, c.fileText, c.fileBase64),
+      );
       let teacherExpected: string[] | null = null;
       if (fnOutputMode === "teacher") {
         fnOutputLoading = true;
-        const previewPayloads = fnCases.map((c) => {
+        const previewPayloads = fnCases.map((c, idx) => {
           const argsValues = fnMeta.params.map((p, idx) =>
             coerceValueForType(c.args[idx] ?? "", p.type),
           );
           const timeLimit = parseFloat(c.timeLimit);
-          return {
+          const previewPayload: any = {
             execution_mode: "function",
             function_name: fnMeta.name,
             function_args: JSON.stringify(argsValues),
             function_kwargs: "{}",
             expected_return: "",
             time_limit_sec: Number.isFinite(timeLimit) ? timeLimit : undefined,
+            ...(filePayloads[idx] ?? {}),
           };
+          if (c.files && c.files.length > 0) {
+            previewPayload.files = c.files;
+          }
+          return previewPayload;
         });
         const { previews } = await runTeacherPreview(previewPayloads);
         teacherExpected = [];
@@ -1225,6 +1368,12 @@
           expected_stdout: "",
           time_limit_sec: parseFloat(c.timeLimit) || undefined,
         };
+        if (c.files && c.files.length > 0) {
+          payload.files = c.files;
+        } else if (filePayloads[idx]) {
+          payload.file_name = filePayloads[idx]?.file_name;
+          payload.file_base64 = filePayloads[idx]?.file_base64;
+        }
         if (assignment?.grading_policy === "weighted") {
           payload.weight = parseFloat(c.weight) || 1;
         }
@@ -1383,7 +1532,15 @@
   function cloneUTTests(list: UTTest[]): UTTest[] {
     return list.map((t) => ({
       ...t,
+      ...t,
       assertions: t.assertions.map((a) => cloneUTAssertion(a)),
+      fileName: t.fileName,
+      fileText: t.fileText,
+      fileBase64: t.fileBase64,
+      files: Array.isArray(t.files) ? [...t.files] : [],
+      selectedFileIndex:
+        typeof t.selectedFileIndex === "number" ? t.selectedFileIndex : -1,
+      showFile: t.showFile,
     }));
   }
 
@@ -1625,6 +1782,13 @@
       assertions: Array.isArray(t?.assertions)
         ? t.assertions.map(coerceUTAssertion)
         : [],
+      fileName: String(t?.fileName ?? t?.file_name ?? ""),
+      fileText: String(t?.fileText ?? t?.file_text ?? ""),
+      fileBase64: String(t?.fileBase64 ?? t?.file_base64 ?? ""),
+      files: Array.isArray(t?.files) ? t.files : [],
+      selectedFileIndex:
+        typeof t?.selectedFileIndex === "number" ? t.selectedFileIndex : -1,
+      showFile: !!t?.showFile,
     };
   }
 
@@ -1739,6 +1903,11 @@
       returns,
       weight,
       timeLimit,
+      fileName: "",
+      fileText: "",
+      fileBase64: "",
+      files: [],
+      selectedFileIndex: -1,
     };
     return meta ? ensureCaseShape(base, meta) : base;
   }
@@ -2083,7 +2252,7 @@
                   coerceValueForType(arg ?? "", undefined),
                 ) ?? [],
               );
-              previewPayloads.push({
+              const previewPayload: any = {
                 execution_mode: "function",
                 function_name: fn,
                 function_args: argsJSON,
@@ -2092,18 +2261,26 @@
                 time_limit_sec: Number.isFinite(timeLimit)
                   ? timeLimit
                   : undefined,
-              });
+              };
+              if (t.files && t.files.length > 0) {
+                previewPayload.files = t.files;
+              }
+              previewPayloads.push(previewPayload);
               indexMap.push({ ti, ai, mode: "function" });
             } else {
               const stdinVal = ((a as any).args ?? []).join("\n");
-              previewPayloads.push({
+              const previewPayload: any = {
                 execution_mode: "stdin_stdout",
                 stdin: stdinVal,
                 expected_stdout: "",
                 time_limit_sec: Number.isFinite(timeLimit)
                   ? timeLimit
                   : undefined,
-              });
+              };
+              if (t.files && t.files.length > 0) {
+                previewPayload.files = t.files;
+              }
+              previewPayloads.push(previewPayload);
               indexMap.push({ ti, ai, mode: "stdin" });
             }
           });
@@ -2156,6 +2333,10 @@
           qualified,
           weight: Number.isNaN(w) ? 1 : w,
           time: Number.isNaN(s) ? 1 : s,
+          fileName: t.fileName,
+          fileText: t.fileText,
+          fileBase64: t.fileBase64,
+          files: t.files,
         };
       });
       const configsByName = new Map(
@@ -2201,6 +2382,25 @@
           expected_stdout: "",
           time_limit_sec: cfg.time,
         };
+
+        if (cfg.files && cfg.files.length > 0) {
+          testData.files = cfg.files;
+          testData.file_name = "";
+          testData.file_base64 = "";
+        } else {
+          const filePayload = buildFilePayload(
+            cfg.fileName,
+            cfg.fileText,
+            cfg.fileBase64,
+          );
+          if (filePayload) {
+            testData.file_name = filePayload.file_name;
+            testData.file_base64 = filePayload.file_base64;
+          } else {
+            testData.file_name = "";
+            testData.file_base64 = "";
+          }
+        }
 
         // Only include weight for weighted assignments
         if (assignment?.grading_policy === "weighted") {
@@ -2314,6 +2514,15 @@
         expected_stdout: t.expected_stdout ?? "",
         time_limit_sec: parseFloat(t.time_limit_sec) || undefined,
       };
+
+      const filePayload = buildExistingTestFilePayload(t);
+      if (filePayload) {
+        testData.file_name = filePayload.file_name;
+        testData.file_base64 = filePayload.file_base64;
+      } else {
+        testData.file_name = "";
+        testData.file_base64 = "";
+      }
 
       if (assignment?.grading_policy === "weighted") {
         testData.weight = parseFloat(t.weight) || 1;
@@ -2773,6 +2982,203 @@
                       ></textarea>
                     </label>
                   </div>
+                {/if}
+                {#if mode === "function" || mode === "stdin_stdout"}
+                  {@const hasFiles = t.files && t.files.length > 0}
+                  {#if hasFiles || t.showFileEditor}
+                    <div
+                      class="rounded-xl border border-dashed border-base-300/70 bg-base-200/40 p-3 space-y-2"
+                    >
+                      <div class="flex items-center justify-between gap-2">
+                        <span class="text-sm font-semibold"
+                          >{translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::attached_files",
+                          )} ({t.files ? t.files.length : 0})</span
+                        >
+                        <button
+                          class="btn btn-xs btn-ghost"
+                          on:click={() => {
+                            t.showFileEditor = !t.showFileEditor;
+                            tests = tests;
+                          }}
+                        >
+                          {t.showFileEditor
+                            ? translate(
+                                "frontend/src/routes/assignments/[id]/tests/+page.svelte::close_manager",
+                              )
+                            : translate(
+                                "frontend/src/routes/assignments/[id]/tests/+page.svelte::manage_files",
+                              )}
+                        </button>
+                      </div>
+
+                      {#if hasFiles}
+                        <div class="flex flex-wrap gap-2 mb-2">
+                          {#each t.files || [] as f, fi}
+                            <button
+                              class="badge gap-2 p-3 cursor-pointer hover:bg-base-300 h-auto"
+                              class:badge-primary={t.selectedFileIndex === fi}
+                              class:badge-neutral={t.selectedFileIndex !== fi}
+                              on:click={async () => {
+                                t.selectedFileIndex = fi;
+                                t.file_create_name = f.name;
+                                // Try to decode base64 to text for preview
+                                try {
+                                  t.file_create_text = atob(f.content);
+                                } catch {
+                                  t.file_create_text = "";
+                                }
+                                t.file_create_dirty = false;
+                                tests = tests;
+                              }}
+                            >
+                              <span class="truncate max-w-[150px]"
+                                >{f.name}</span
+                              >
+                              <span
+                                class="btn btn-ghost btn-xs btn-circle text-error min-h-0 h-4 w-4"
+                                on:click|stopPropagation={() => {
+                                  t.files = t.files.filter(
+                                    (_, idx) => idx !== fi,
+                                  );
+                                  if (t.selectedFileIndex === fi) {
+                                    t.selectedFileIndex = -1;
+                                    t.file_create_name = "";
+                                    t.file_create_text = "";
+                                  } else if (t.selectedFileIndex > fi) {
+                                    t.selectedFileIndex--;
+                                  }
+                                  tests = tests;
+                                }}
+                              ><Trash2 size={10} /></span
+                              >
+                            </button>
+                          {/each}
+                          <button
+                            class="badge badge-outline gap-1 p-3 cursor-pointer border-dashed"
+                            class:badge-active={t.selectedFileIndex === -1}
+                            on:click={() => {
+                              t.selectedFileIndex = -1;
+                              t.file_create_name = "";
+                              t.file_create_text = "";
+                              tests = tests;
+                            }}
+                          >
+                            <Plus size={10} /> New
+                          </button>
+                        </div>
+                      {/if}
+
+                      {#if t.showFileEditor || t.selectedFileIndex !== undefined}
+                        <div class="grid gap-2 sm:grid-cols-2">
+                          <label class="form-control w-full space-y-1">
+                            <span class="label-text"
+                              >{translate(
+                                "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_upload",
+                              )}</span
+                            >
+                            <input
+                              type="file"
+                              multiple
+                              class="file-input file-input-bordered w-full file-input-sm"
+                              on:click={(e) =>
+                                ((e.target as HTMLInputElement).value = "")}
+                              on:change={async (e) => {
+                                const files =
+                                  (e.target as HTMLInputElement).files || [];
+                                if (!files.length) return;
+                                if (!t.files) t.files = [];
+
+                                for (let i = 0; i < files.length; i++) {
+                                  const file = files[i];
+                                  try {
+                                    const b64 = await readFileBase64(file);
+                                    t.files.push({
+                                      name: file.name,
+                                      content: b64,
+                                    });
+                                    // If last file, select it
+                                    if (i === files.length - 1) {
+                                      t.selectedFileIndex = t.files.length - 1;
+                                      t.file_create_name = file.name;
+                                      try {
+                                        t.file_create_text =
+                                          await readFileText(file);
+                                      } catch {
+                                        t.file_create_text = "";
+                                      }
+                                    }
+                                  } catch (e: any) {
+                                    console.error(e);
+                                  }
+                                }
+                                tests = tests;
+                              }}
+                            />
+                          </label>
+                          <label class="form-control w-full space-y-1">
+                            <span class="label-text"
+                              >{translate(
+                                "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_name",
+                              )}</span
+                            >
+                            <input
+                              class="input input-bordered w-full input-sm"
+                              placeholder="data.txt"
+                              value={t.file_create_name ?? ""}
+                              on:input={(e) => {
+                                t.file_create_name = (
+                                  e.target as HTMLInputElement
+                                ).value;
+                                if (t.selectedFileIndex >= 0 && t.files) {
+                                  t.files[t.selectedFileIndex].name =
+                                    t.file_create_name;
+                                  tests = tests; // update list
+                                }
+                              }}
+                            />
+                          </label>
+                        </div>
+                        <label class="form-control w-full space-y-1">
+                          <span class="label-text"
+                            >{translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_contents",
+                            )}</span
+                          >
+                          <textarea
+                            class="textarea textarea-bordered w-full font-mono text-xs leading-relaxed"
+                            rows="3"
+                            placeholder={translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_contents_hint",
+                            )}
+                            value={t.file_create_text ?? ""}
+                            on:input={(e) => {
+                              t.file_create_text = (
+                                e.target as HTMLTextAreaElement
+                              ).value;
+                              if (t.selectedFileIndex >= 0 && t.files) {
+                                t.files[t.selectedFileIndex].content =
+                                  textToBase64(t.file_create_text);
+                                tests = tests;
+                              }
+                            }}
+                          ></textarea>
+                        </label>
+                      {/if}
+                    </div>
+                  {:else}
+                    <div class="flex justify-end">
+                      <button
+                        class="btn btn-xs btn-outline gap-1"
+                        on:click={() => (t.showFileEditor = true)}
+                      >
+                        <FileUp size={12} />
+                        {translate(
+                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::attach_files",
+                        )}
+                      </button>
+                    </div>
+                  {/if}
                 {/if}
                 <div
                   class="grid gap-2"
@@ -3276,6 +3682,16 @@
                   />
                 </label>
               {/if}
+              <div class="sm:col-span-2">
+                <TestFileManager
+                  bind:files={ioFiles}
+                  bind:selectedIndex={ioSelectedIndex}
+                  bind:fileName={ioFileName}
+                  bind:fileText={ioFileText}
+                  bind:open={showIOFile}
+                  onError={(message) => (err = message)}
+                />
+              </div>
               <p class="hint sm:col-span-2">
                 {translate(
                   "frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin_stdout_multiline_hint",
@@ -3634,6 +4050,17 @@
                       />
                     </label>
                   {/if}
+                </div>
+
+                <div class="sm:col-span-2">
+                  <TestFileManager
+                    bind:files={ut.files}
+                    bind:selectedIndex={ut.selectedFileIndex}
+                    bind:fileName={ut.fileName}
+                    bind:fileText={ut.fileText}
+                    bind:open={ut.showFile}
+                    onError={(message) => (err = message)}
+                  />
                 </div>
                 <div class="space-y-2 ut-assertions">
                   <div class="flex items-center justify-between">
@@ -4493,6 +4920,16 @@
                         )}
                       </div>
                     {/if}
+                  <div class="space-y-2">
+                    <TestFileManager
+                      bind:files={fc.files}
+                      bind:selectedIndex={fc.selectedFileIndex}
+                      bind:fileName={fc.fileName}
+                      bind:fileText={fc.fileText}
+                      bind:open={fc.showFile}
+                      onError={(message) => (err = message)}
+                    />
+                  </div>
                   </div>
                 {/each}
                 {#if fnCases.length === 0}

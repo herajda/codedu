@@ -152,6 +152,9 @@ type TestCase struct {
 	FunctionArgs   *string   `db:"function_args" json:"function_args,omitempty"`
 	FunctionKwargs *string   `db:"function_kwargs" json:"function_kwargs,omitempty"`
 	ExpectedReturn *string   `db:"expected_return" json:"expected_return,omitempty"`
+	FileName       *string   `db:"file_name" json:"file_name,omitempty"`
+	FileBase64     *string   `db:"file_base64" json:"file_base64,omitempty"`
+	FilesJSON      *string   `db:"files_json" json:"files_json,omitempty"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
 }
@@ -595,6 +598,14 @@ func CloneAssignmentWithTests(sourceID, targetClassID, createdBy uuid.UUID) (uui
 			MemoryLimitKB:  t.MemoryLimitKB,
 			UnittestCode:   t.UnittestCode,
 			UnittestName:   t.UnittestName,
+			ExecutionMode:  t.ExecutionMode,
+			FunctionName:   t.FunctionName,
+			FunctionArgs:   t.FunctionArgs,
+			FunctionKwargs: t.FunctionKwargs,
+			ExpectedReturn: t.ExpectedReturn,
+			FileName:       t.FileName,
+			FileBase64:     t.FileBase64,
+			FilesJSON:      t.FilesJSON,
 		}
 		if err := CreateTestCase(tc); err != nil {
 			return uuid.Nil, err
@@ -1237,14 +1248,14 @@ func CreateTestCase(tc *TestCase) error {
 	}
 	const q = `
          INSERT INTO test_cases (assignment_id, stdin, expected_stdout, weight, time_limit_sec, memory_limit_kb, unittest_code, unittest_name,
-                                 execution_mode, function_name, function_args, function_kwargs, expected_return)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+                                 execution_mode, function_name, function_args, function_kwargs, expected_return, file_name, file_base64, files_json)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
          RETURNING id, weight, time_limit_sec, memory_limit_kb, unittest_code, unittest_name,
-                   execution_mode, function_name, function_args, function_kwargs, expected_return, created_at, updated_at`
+                   execution_mode, function_name, function_args, function_kwargs, expected_return, file_name, file_base64, files_json, created_at, updated_at`
 	return DB.QueryRow(q, tc.AssignmentID, tc.Stdin, tc.ExpectedStdout, tc.Weight, tc.TimeLimitSec, tc.MemoryLimitKB, tc.UnittestCode, tc.UnittestName,
-		tc.ExecutionMode, tc.FunctionName, tc.FunctionArgs, tc.FunctionKwargs, tc.ExpectedReturn).
+		tc.ExecutionMode, tc.FunctionName, tc.FunctionArgs, tc.FunctionKwargs, tc.ExpectedReturn, tc.FileName, tc.FileBase64, tc.FilesJSON).
 		Scan(&tc.ID, &tc.Weight, &tc.TimeLimitSec, &tc.MemoryLimitKB, &tc.UnittestCode, &tc.UnittestName,
-			&tc.ExecutionMode, &tc.FunctionName, &tc.FunctionArgs, &tc.FunctionKwargs, &tc.ExpectedReturn, &tc.CreatedAt, &tc.UpdatedAt)
+			&tc.ExecutionMode, &tc.FunctionName, &tc.FunctionArgs, &tc.FunctionKwargs, &tc.ExpectedReturn, &tc.FileName, &tc.FileBase64, &tc.FilesJSON, &tc.CreatedAt, &tc.UpdatedAt)
 }
 
 // UpdateTestCase modifies stdin/stdout/time limit of an existing test case.
@@ -1266,10 +1277,11 @@ func UpdateTestCase(tc *TestCase) error {
                    SET stdin=$1, expected_stdout=$2, weight=$3, time_limit_sec=$4,
                        unittest_code=$5, unittest_name=$6, execution_mode=$7,
                        function_name=$8, function_args=$9, function_kwargs=$10, expected_return=$11,
+                       file_name=$12, file_base64=$13, files_json=$14,
                        updated_at=now()
-                 WHERE id=$12`,
+                 WHERE id=$15`,
 		tc.Stdin, tc.ExpectedStdout, tc.Weight, tc.TimeLimitSec, tc.UnittestCode, tc.UnittestName, tc.ExecutionMode,
-		tc.FunctionName, tc.FunctionArgs, tc.FunctionKwargs, tc.ExpectedReturn, tc.ID)
+		tc.FunctionName, tc.FunctionArgs, tc.FunctionKwargs, tc.ExpectedReturn, tc.FileName, tc.FileBase64, tc.FilesJSON, tc.ID)
 	if err != nil {
 		return err
 	}
@@ -1284,7 +1296,7 @@ func ListTestCases(assignmentID uuid.UUID) ([]TestCase, error) {
 	err := DB.Select(&list, `
                SELECT id, assignment_id, stdin, expected_stdout, weight, time_limit_sec, memory_limit_kb,
                       unittest_code, unittest_name, execution_mode, function_name, function_args, function_kwargs,
-                      expected_return, created_at, updated_at
+                      expected_return, file_name, file_base64, files_json, created_at, updated_at
                  FROM test_cases
                  WHERE assignment_id = $1
                  ORDER BY id`, assignmentID)
@@ -1315,6 +1327,9 @@ type testFingerprint struct {
 	FunctionArgs  *string `json:"function_args,omitempty"`
 	FunctionKw    *string `json:"function_kwargs,omitempty"`
 	ExpectedRet   *string `json:"expected_return,omitempty"`
+	FileName      *string `json:"file_name,omitempty"`
+	FileBase64    *string `json:"file_base64,omitempty"`
+	FilesJSON     *string `json:"files_json,omitempty"`
 }
 
 func fingerprintTests(list []TestCase) ([]string, error) {
@@ -1333,6 +1348,9 @@ func fingerprintTests(list []TestCase) ([]string, error) {
 			FunctionArgs:  t.FunctionArgs,
 			FunctionKw:    t.FunctionKwargs,
 			ExpectedRet:   t.ExpectedReturn,
+			FileName:      t.FileName,
+			FileBase64:    t.FileBase64,
+			FilesJSON:     t.FilesJSON,
 		}
 		js, err := json.Marshal(fp)
 		if err != nil {

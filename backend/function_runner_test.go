@@ -37,7 +37,7 @@ func TestWriteFunctionRunnerFilesValid(t *testing.T) {
 	if err := json.Unmarshal(data, &payload); err != nil {
 		t.Fatalf("config is not valid JSON: %v", err)
 	}
-	expectedModule := vmWorkspacePath() + "/student/solution.py"
+	expectedModule := "student/solution.py"
 	if payload["module_path"] != expectedModule {
 		t.Fatalf("unexpected module_path: %#v", payload["module_path"])
 	}
