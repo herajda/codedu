@@ -731,6 +731,7 @@
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::assertion_helper_text": "Use `student_code(...)` in assertions to run the student's program with inputs, or `student_function('function_name', ...)` to import a function and check its return value",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::assertions": "Assertions",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::attached_files": "Attached files",
+  "frontend/src/routes/assignments/[id]/tests/+page.svelte::attach_files": "Attach files",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_expected_hint": "Let the builder capture expected values from your reference code or type them yourself.",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_teacher_autofill_hint": "Equals assertions will be auto-filled from the teacher solution. Other assertion types stay manual.",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_equals_only": "Teacher solution mode supports equals assertions only.",

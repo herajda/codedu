@@ -3206,20 +3206,11 @@
                         <div class="flex gap-2">
                           <button
                             class="btn btn-xs btn-ghost gap-1 font-normal opacity-70 hover:opacity-100"
-                            on:click={() => addPreparedArg(t)}
-                          >
-                            <Plus size={12} />
-                            {translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_arg",
-                            )}
-                          </button>
-                          <button
-                            class="btn btn-xs btn-ghost gap-1 font-normal opacity-70 hover:opacity-100"
                             on:click={() => addPreparedKwarg(t)}
                           >
                             <Plus size={12} />
                             {translate(
-                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_keyword_arg",
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_arg",
                             )}
                           </button>
                         </div>

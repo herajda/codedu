@@ -716,6 +716,7 @@
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::assertion_helper_text": "Použijte `student_code(...)` v asercích pro spuštění studentského programu s vstupy, nebo `student_function('function_name', ...)` pro import funkce a kontrolu její návratové hodnoty",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::assertions": "Aserce",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::attached_files": "Přiložené soubory",
+  "frontend/src/routes/assignments/[id]/tests/+page.svelte::attach_files": "Přiložit soubory",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::auto": "Automaticky",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::close_manager": "Zavřít správce",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::auto_award_full_points_if_all_scenarios_pass": "Automaticky udělit plný počet bodů, pokud projdou všechny scénáře",
