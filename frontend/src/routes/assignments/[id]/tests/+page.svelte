@@ -3062,33 +3062,27 @@
               >✕</button
             >
           </form>
-          <h3 class="font-bold text-lg mb-4">
-            {translate(
-              "frontend/src/routes/assignments/[id]/tests/+page.svelte::existing_tests",
-            )}
-          </h3>
-          <div class="flex items-center justify-between mb-2">
-            <div class="text-sm opacity-70">
-              {tests?.length || 0}
-              {tests?.length === 1
-                ? translate(
-                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_singular",
-                  )
-                : translate(
-                    "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_plural",
-                  )}
-            </div>
-            <button
-              class="btn btn-error btn-sm"
-              on:click={deleteAllTests}
-              disabled={!tests || tests.length === 0}
-              ><Trash2 size={14} />
+          <div class="relative flex items-center justify-between mb-4 pb-2 border-b border-base-200">
+            <h3 class="font-bold text-xl tracking-tight">
               {translate(
-                "frontend/src/routes/assignments/[id]/tests/+page.svelte::delete_all",
-              )}</button
-            >
+                "frontend/src/routes/assignments/[id]/tests/+page.svelte::existing_tests",
+              )}
+            </h3>
+            <div class="absolute left-1/2 -translate-x-1/2">
+              <div class="text-sm font-medium px-3 py-1 bg-base-200 rounded-full whitespace-nowrap">
+                {tests?.length || 0}
+                {tests?.length === 1
+                  ? translate(
+                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_singular",
+                    )
+                  : translate(
+                      "frontend/src/routes/assignments/[id]/tests/+page.svelte::test_plural",
+                    )}
+              </div>
+            </div>
+            <div class="w-10"></div> <!-- Spacer for symmetry -->
           </div>
-          <div class="grid gap-3 max-h-[32rem] overflow-y-auto">
+          <div class="grid gap-5 max-h-[32rem] overflow-y-auto p-1">
             {#each tests as t, i}
               {@const mode =
                 t.execution_mode ??
@@ -3101,44 +3095,46 @@
               {@const hasUnittestCode =
                 typeof t.unittest_code === "string" &&
                 t.unittest_code.trim().length > 0}
-              <div class="rounded-xl border border-base-300/60 p-3 space-y-2">
+              <div class="card bg-base-100 border border-base-200 shadow-sm hover:shadow-md transition-all duration-200 p-5 space-y-4">
                 <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-2 font-semibold">
-                    <span class="opacity-70">#{i + 1}</span>
-                    {#if mode === "function"}
-                      <span class="badge badge-info gap-1"
-                        >{translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::function",
-                        )}</span
-                      >
-                      {#if t.function_name}
-                        <span class="badge badge-outline ml-1"
-                          >{t.function_name}</span
-                        >
-                      {/if}
-                    {:else if mode === "unittest"}
-                      <span class="badge badge-primary gap-1"
-                        ><FlaskConical size={14} />
-                        {translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest",
-                        )}</span
-                      >
-                      {#if utName}
-                        <span class="badge badge-outline ml-1">{utName}</span>
-                      {:else}
-                        <span class="badge badge-outline ml-1 opacity-70"
+                  <div class="flex items-center gap-3 font-semibold">
+                    <span class="text-xs uppercase tracking-widest opacity-40">Test #{i + 1}</span>
+                    <div class="flex items-center gap-1.5 font-semibold">
+                      {#if mode === "function"}
+                        <span class="badge badge-info badge-sm gap-1 py-2.5 px-3"
                           >{translate(
-                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::unnamed_test",
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::function",
+                          )}</span
+                        >
+                        {#if t.function_name}
+                          <span class="font-mono text-sm opacity-80"
+                            >{t.function_name}()</span
+                          >
+                        {/if}
+                      {:else if mode === "unittest"}
+                        <span class="badge badge-primary badge-sm gap-1 py-2.5 px-3"
+                          ><FlaskConical size={12} />
+                          {translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest",
+                          )}</span
+                        >
+                        {#if utName}
+                          <code class="text-xs bg-base-200 px-1.5 py-0.5 rounded ml-1">{utName}</code>
+                        {:else}
+                          <span class="text-sm opacity-50 ml-1 italic"
+                            >{translate(
+                              "frontend/src/routes/assignments/[id]/tests/+page.svelte::unnamed_test",
+                            )}</span
+                          >
+                        {/if}
+                      {:else}
+                        <span class="badge badge-secondary badge-sm gap-1 py-2.5 px-3"
+                          >{translate(
+                            "frontend/src/routes/assignments/[id]/tests/+page.svelte::io",
                           )}</span
                         >
                       {/if}
-                    {:else}
-                      <span class="badge badge-secondary gap-1"
-                        >{translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::io",
-                        )}</span
-                      >
-                    {/if}
+                    </div>
                   </div>
                   <div class="flex gap-2">
                     {#if mode === "unittest" && hasUnittestCode}
@@ -3225,7 +3221,7 @@
                         </div>
                       </div>
                       <div
-                        class="grid gap-x-6 gap-y-2 md:grid-cols-2 rounded-xl border border-base-300/40 bg-base-200/20 p-3"
+                        class="grid gap-x-6 gap-y-3 md:grid-cols-2 rounded-xl border border-base-200 bg-base-50/50 p-4"
                       >
                         {#each prep as arg, ai}
                           <div class="flex items-center gap-2">
@@ -3289,7 +3285,7 @@
                         )}</span
                       >
                       <textarea
-                        class="textarea textarea-bordered w-full"
+                        class="textarea textarea-bordered w-full bg-base-50"
                         rows="3"
                         placeholder={translate(
                           "frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin",
@@ -3304,7 +3300,7 @@
                         )}</span
                       >
                       <textarea
-                        class="textarea textarea-bordered w-full"
+                        class="textarea textarea-bordered w-full bg-base-50"
                         rows="3"
                         placeholder={translate(
                           "frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_stdout",
@@ -3318,13 +3314,14 @@
                   {@const hasFiles = t.files && t.files.length > 0}
                   {#if hasFiles || t.showFileEditor}
                     <div
-                      class="rounded-xl border border-dashed border-base-300/70 bg-base-200/40 p-3 space-y-2"
+                      class="rounded-xl border border-dashed border-base-300 bg-base-100 p-4 space-y-3"
                     >
                       <div class="flex items-center justify-between gap-2">
-                        <span class="text-sm font-semibold"
-                          >{translate(
+                         <span class="text-sm font-bold flex items-center gap-2"
+                          ><FileCode2 size={16} class="opacity-70" />
+                          {translate(
                             "frontend/src/routes/assignments/[id]/tests/+page.svelte::attached_files",
-                          )} ({t.files ? t.files.length : 0})</span
+                          )} <span class="badge badge-sm badge-ghost">{t.files ? t.files.length : 0}</span></span
                         >
                         <button
                           class="btn btn-xs btn-ghost"
@@ -3517,21 +3514,19 @@
                   {/if}
                 {/if}
                 <div
-                  class="grid gap-2"
-                  class:sm:grid-cols-2={assignment?.grading_policy ===
-                    "weighted"}
+                  class="flex flex-wrap gap-4"
                 >
-                  <label class="form-control w-full space-y-1">
-                    <span class="label-text flex items-center gap-1"
+                  <label class="form-control w-40 space-y-1">
+                    <span class="label-text flex items-center gap-1 opacity-70"
                       ><Clock size={14} />
                       <span
                         >{translate(
-                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::time_limit_s",
+                          "frontend/src/routes/assignments/[id]/tests/+page.svelte::time_limit_s_small",
                         )}</span
                       ></span
                     >
                     <input
-                      class="input input-bordered w-full"
+                      class="input input-bordered input-sm w-full"
                       placeholder={translate(
                         "frontend/src/routes/assignments/[id]/tests/+page.svelte::seconds",
                       )}
@@ -3539,8 +3534,8 @@
                     />
                   </label>
                   {#if assignment?.grading_policy === "weighted"}
-                    <label class="form-control w-full space-y-1">
-                      <span class="label-text flex items-center gap-1"
+                    <label class="form-control w-40 space-y-1">
+                      <span class="label-text flex items-center gap-1 opacity-70"
                         ><Scale size={14} />
                         <span
                           >{translate(
@@ -3549,7 +3544,7 @@
                         ></span
                       >
                       <input
-                        class="input input-bordered w-full"
+                        class="input input-bordered input-sm w-full"
                         placeholder={translate(
                           "frontend/src/routes/assignments/[id]/tests/+page.svelte::points_placeholder",
                         )}
@@ -3567,6 +3562,19 @@
                   )}</i
                 >
               </p>{/if}
+          </div>
+
+          <div class="modal-action mt-6 pt-4 border-t border-base-200">
+            <button
+              class="btn btn-error btn-outline btn-sm"
+              on:click={deleteAllTests}
+              disabled={!tests || tests.length === 0}
+            >
+              <Trash2 size={14} />
+              {translate(
+                "frontend/src/routes/assignments/[id]/tests/+page.svelte::delete_all",
+              )}
+            </button>
           </div>
         </div>
         <form method="dialog" class="modal-backdrop">
