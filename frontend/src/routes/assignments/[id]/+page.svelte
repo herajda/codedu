@@ -97,6 +97,10 @@
   $: testsPercent = results.length
     ? Math.round((testsPassed / results.length) * 100)
     : 0;
+  $: allTestsFailed =
+    Array.isArray(results) &&
+    results.length > 0 &&
+    results.every((r: any) => r.status !== "passed" && r.status !== "running");
   let editing = false;
   let eTitle = "",
     eDesc = "",
@@ -715,11 +719,20 @@
   let explanations: Record<string, { loading: boolean; text?: string; error?: string }> = {};
   let explainInFlight = false;
   let explainQueue: string[] = [];
+  let summaryExplanation: { loading: boolean; text?: string; error?: string } = {
+    loading: false,
+  };
 
   async function fetchExplanation(sid: string, tcid: string) {
     return apiJSON(`/api/submissions/${sid}/explain-test-failure`, {
       method: "POST",
       body: JSON.stringify({ test_case_id: tcid }),
+    });
+  }
+
+  async function fetchSummaryExplanation(sid: string) {
+    return apiJSON(`/api/submissions/${sid}/explain-all-test-failures`, {
+      method: "POST",
     });
   }
 
@@ -780,6 +793,17 @@
       explanations = { ...explanations };
     } finally {
       explainInFlight = false;
+    }
+  }
+
+  async function askWhyAllFailed(sid: string) {
+    if (summaryExplanation.loading || summaryExplanation.text) return;
+    summaryExplanation = { loading: true };
+    try {
+      const res = await fetchSummaryExplanation(sid);
+      summaryExplanation = { loading: false, text: res.explanation };
+    } catch (e: any) {
+      summaryExplanation = { loading: false, error: e.message as string };
     }
   }
 
@@ -2081,6 +2105,48 @@
             </div>
 
             {#if latestSub}
+              {#if assignment.llm_help_why_failed && allTestsFailed}
+                <div class="mb-6">
+                  {#if summaryExplanation.text}
+                    <div class="p-3 bg-base-200 rounded-lg text-xs border border-base-300 shadow-sm max-w-xl text-left">
+                      <div class="flex gap-2 items-start">
+                        <Sparkles
+                          size={14}
+                          class="text-primary mt-0.5 shrink-0"
+                        />
+                        <span class="leading-relaxed"
+                          >{summaryExplanation.text}</span
+                        >
+                      </div>
+                    </div>
+                  {:else}
+                    <button
+                      class="btn btn-xs btn-ghost gap-1 text-[10px] font-bold text-primary opacity-60 hover:opacity-100"
+                      on:click={() => askWhyAllFailed(latestSub.id)}
+                      disabled={summaryExplanation.loading}
+                    >
+                      {#if summaryExplanation.loading}
+                        <span class="loading loading-spinner loading-xs"></span>
+                        {t(
+                          "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_loading",
+                        )}
+                      {:else}
+                        <Sparkles size={12} />
+                        {t(
+                          "frontend/src/routes/submissions/[id]/+page.svelte::explain_all_failures_btn",
+                        )}
+                      {/if}
+                    </button>
+                    {#if summaryExplanation.error}
+                      <div class="text-[10px] text-error mt-1">
+                        {t(
+                          "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_error",
+                        )}
+                      </div>
+                    {/if}
+                  {/if}
+                </div>
+              {/if}
               <div class="overflow-x-auto -mx-2">
                 <table class="table w-full">
                   <thead>
@@ -2100,7 +2166,7 @@
                           <div class={`badge border-none font-black text-[10px] uppercase tracking-wider py-3 ${statusColor(r.status).replace('badge-', 'bg-')}/20 ${statusColor(r.status).replace('badge-', 'text-')}`}>
                             {r.status}
                           </div>
-                          {#if assignment.llm_help_why_failed && r.status !== 'passed' && r.status !== 'running' && r.test_case_id}
+                          {#if assignment.llm_help_why_failed && !allTestsFailed && r.status !== 'passed' && r.status !== 'running' && r.test_case_id}
                              <div class="mt-2">
                                 {#if explanations[r.test_case_id]?.text}
                                    <div class="p-2 bg-base-200 rounded-lg text-xs border border-base-300 shadow-sm max-w-xs text-left">

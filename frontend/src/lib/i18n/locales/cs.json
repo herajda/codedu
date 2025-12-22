@@ -1708,6 +1708,7 @@
   "frontend/src/routes/assignments/[id]/+page.svelte::llm_help_why_failed": "Povolit AI vysvětlení chyby",
   "frontend/src/routes/assignments/[id]/+page.svelte::llm_help_why_failed_desc": "Umožní studentům zeptat se AI, proč test selhal (bez odhalení vstupů).",
   "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_btn": "Proč to selhalo?",
+  "frontend/src/routes/submissions/[id]/+page.svelte::explain_all_failures_btn": "Proč test selhal?",
   "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_loading": "Ptám se AI...",
   "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_error": "Nepodařilo se vysvětlit chybu."
 }

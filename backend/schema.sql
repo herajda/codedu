@@ -172,6 +172,7 @@ ALTER TABLE submissions ADD COLUMN IF NOT EXISTS override_points NUMERIC;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS is_teacher_run BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS late BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS manually_accepted BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS all_tests_failure_explanation TEXT;
 
 DO $$ BEGIN
     CREATE TYPE result_status AS ENUM ('passed','time_limit_exceeded','memory_limit_exceeded','wrong_output','runtime_error');

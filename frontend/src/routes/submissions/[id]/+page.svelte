@@ -34,6 +34,7 @@
   let assignmentShowTestDetails = false;
   let assignmentShowTraceback = false;
   let assignmentLLMHelpWhyFailed = false;
+  let allTestsFailed = false;
   let sid: number = 0;
   let role = "";
   $: role = $auth?.role ?? "";
@@ -375,15 +376,28 @@
     esCtrl?.close();
   });
   $: sid = submission?.id ?? id;
+  $: allTestsFailed =
+    Array.isArray(results) &&
+    results.length > 0 &&
+    results.every((r) => r.status !== "passed" && r.status !== "running");
 
   let explanations: Record<string, { loading: boolean; text?: string; error?: string }> = {};
   let explainInFlight = false;
   let explainQueue: string[] = [];
+  let summaryExplanation: { loading: boolean; text?: string; error?: string } = {
+    loading: false,
+  };
 
   async function fetchExplanation(sidStr: any, tcid: string) {
     return apiJSON(`/api/submissions/${sidStr}/explain-test-failure`, {
       method: "POST",
       body: JSON.stringify({ test_case_id: tcid }),
+    });
+  }
+
+  async function fetchSummaryExplanation(sidStr: any) {
+    return apiJSON(`/api/submissions/${sidStr}/explain-all-test-failures`, {
+      method: "POST",
     });
   }
 
@@ -444,6 +458,17 @@
       explanations = { ...explanations };
     } finally {
       explainInFlight = false;
+    }
+  }
+
+  async function askWhyAllFailed(sidStr: any) {
+    if (summaryExplanation.loading || summaryExplanation.text) return;
+    summaryExplanation = { loading: true };
+    try {
+      const res = await fetchSummaryExplanation(sidStr);
+      summaryExplanation = { loading: false, text: res.explanation };
+    } catch (e: any) {
+      summaryExplanation = { loading: false, error: e.message as string };
     }
   }
 </script>
@@ -783,6 +808,45 @@
               "frontend/src/routes/submissions/[id]/+page.svelte::results_title",
             )}
           </h3>
+          {#if assignmentLLMHelpWhyFailed && allTestsFailed}
+            <div class="mt-2">
+              {#if summaryExplanation.text}
+                <div class="p-3 bg-base-200 rounded-lg text-xs border border-base-300 shadow-sm max-w-xl text-left">
+                  <div class="flex gap-2 items-start">
+                    <Sparkles size={14} class="text-primary mt-0.5 shrink-0" />
+                    <span class="leading-relaxed">{summaryExplanation.text}</span>
+                  </div>
+                </div>
+              {:else}
+                <button
+                  class="btn btn-xs btn-ghost gap-1 text-[10px] font-bold text-primary opacity-60 hover:opacity-100"
+                  on:click|preventDefault|stopPropagation={() =>
+                    askWhyAllFailed(sid)
+                  }
+                  disabled={summaryExplanation.loading}
+                >
+                  {#if summaryExplanation.loading}
+                    <span class="loading loading-spinner loading-xs"></span>
+                    {t(
+                      "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_loading",
+                    )}
+                  {:else}
+                    <Sparkles size={12} />
+                    {t(
+                      "frontend/src/routes/submissions/[id]/+page.svelte::explain_all_failures_btn",
+                    )}
+                  {/if}
+                </button>
+                {#if summaryExplanation.error}
+                  <div class="text-[10px] text-error mt-1">
+                    {t(
+                      "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_error",
+                    )}
+                  </div>
+                {/if}
+              {/if}
+            </div>
+          {/if}
           {#if Array.isArray(results) && results.length}
             <div class="space-y-2">
               {#each results as r, i}
@@ -846,7 +910,7 @@
                           <span class={`badge ${statusColor(r.status)}`}
                             >{r.status}</span
                           >
-                          {#if assignmentLLMHelpWhyFailed && r.status !== "passed" && r.status !== "running" && r.test_case_id}
+                          {#if assignmentLLMHelpWhyFailed && !allTestsFailed && r.status !== "passed" && r.status !== "running" && r.test_case_id}
                              <div class="ml-2">
                                 {#if explanations[r.test_case_id]?.text}
                                    <div class="p-2 bg-base-300 rounded-lg text-xs border border-base-content/10 shadow-sm max-w-xs text-left">
