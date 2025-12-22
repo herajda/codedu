@@ -23,7 +23,28 @@
   let tree: FileNode[] = [];
   let selected: { name: string; content: string } | null = null;
   let highlighted = "";
-  import { Sparkles } from "lucide-svelte";
+  import {
+    Sparkles,
+    Trophy,
+    History,
+    User,
+    Calendar,
+    ArrowLeft,
+    ExternalLink,
+    FileCode,
+    CheckCircle2,
+    AlertCircle,
+    AlertTriangle,
+    Clock,
+    ArrowRight,
+    GraduationCap,
+    FlaskConical,
+    Cpu,
+    Search,
+    Shield,
+    Eye,
+    Save
+  } from "lucide-svelte";
   let manualConsoleVisible = false;
   let esCtrl: { close: () => void } | null = null;
   let assignmentTitle: string = "";
@@ -46,6 +67,7 @@
   let fileDialog: HTMLDialogElement;
 
   let llm: any = null;
+  let activeTab: "results" | "files" | "review" = "results";
   // Derived visibility flags
 
   // Inline teacher points override component
@@ -131,7 +153,6 @@
           assignmentManual = !!ad.assignment?.manual_review;
           assignmentLLMInteractive = !!ad.assignment?.llm_interactive;
           assignmentLLMFeedback = !!ad.assignment?.llm_feedback;
-          assignmentShowTestDetails = !!ad.assignment?.show_test_details;
           assignmentShowTestDetails = !!ad.assignment?.show_test_details;
           assignmentShowTraceback = !!ad.assignment?.show_traceback;
           assignmentLLMHelpWhyFailed = !!ad.assignment?.llm_help_why_failed;
@@ -474,1032 +495,668 @@
 </script>
 
 {#if !submission}
-  <div class="flex justify-center py-10">
-    <span class="loading loading-dots loading-lg"></span>
+  <div class="flex flex-col items-center justify-center py-20 gap-4">
+    <span class="loading loading-ring loading-lg text-primary"></span>
+    <p class="text-sm font-black uppercase tracking-[0.2em] opacity-40 animate-pulse">{t("frontend/src/routes/assignments/[id]/+page.svelte::loading_assignment")}</p>
   </div>
 {:else}
   <div class="space-y-6">
-    <div class="card bg-base-100 shadow">
-      <div class="card-body space-y-4">
-        <div class="flex items-start justify-between gap-6">
-          <div class="space-y-2">
-            <h1 class="card-title text-2xl">
-              {assignmentTitle ||
-                t(
-                  "frontend/src/routes/submissions/[id]/+page.svelte::assignment_fallback_title",
-                )}
-            </h1>
-            <div class="flex flex-wrap gap-2 text-xs sm:text-sm opacity-80">
-              <span
-                class="inline-flex items-center gap-2 px-3 py-1 rounded bg-base-200"
-                >{t(
-                  "frontend/src/routes/submissions/[id]/+page.svelte::attempt_prefix",
-                )}{submission.attempt_number ?? submission.id}</span
-              >
-              {#if submission.student_name}
-                <span
-                  class="inline-flex items-center gap-2 px-3 py-1 rounded bg-base-200"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    class="lucide lucide-user"
-                    ><path
-                      d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"
-                    /><circle cx="12" cy="7" r="4" /></svg
-                  >
-                  {submission.student_name}
-                </span>
+    <!-- Premium Header Section -->
+    <section class="relative overflow-hidden bg-base-100 rounded-3xl border border-base-200 shadow-xl shadow-base-300/30">
+      <!-- Decorative background elements -->
+      <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent pointer-events-none"></div>
+      <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
+      
+      <div class="relative p-6 sm:p-7 flex flex-col lg:flex-row gap-6">
+        <div class="flex-1 space-y-8">
+          <!-- Breadcrumbs / Back button -->
+          <button on:click={goBack} class="group flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] opacity-40 hover:opacity-100 transition-all hover:text-primary">
+            <ArrowLeft size={14} class="group-hover:-translate-x-1 transition-transform" />
+            {t("frontend/src/routes/submissions/[id]/+page.svelte::back_button")}
+          </button>
+
+          <div class="space-y-4">
+            <div class="flex flex-wrap items-center gap-3">
+              <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-base-content break-words max-w-2xl">
+                {assignmentTitle || t("frontend/src/routes/submissions/[id]/+page.svelte::assignment_fallback_title")}
+              </h1>
+              <div class="flex items-center gap-2">
+                <div class={`badge h-7 gap-2 px-2.5 font-black text-[9px] uppercase tracking-wider border-none shadow-sm ${statusColor(submission.status).replace('badge-', 'bg-')}/20 ${statusColor(submission.status).replace('badge-', 'text-')}`}>
+                  {submission.status}
+                </div>
+                {#if submission.manually_accepted}
+                  <div class="badge h-7 gap-2 px-2.5 font-black text-[9px] uppercase tracking-wider bg-success/20 text-success border-none shadow-sm">
+                    <CheckCircle2 size={12} />
+                    {t("frontend/src/routes/submissions/[id]/+page.svelte::manually_accepted_badge")}
+                  </div>
+                {/if}
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-y-4 gap-x-8">
+              {#if role === "teacher" || role === "admin"}
+                <div class="flex items-center gap-3 group">
+                  <div class="p-2 bg-base-200 rounded-lg group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                    <User size={16} />
+                  </div>
+                  <div>
+                    <div class="text-[9px] font-black uppercase tracking-widest opacity-40">{t("frontend/src/routes/assignments/[id]/+page.svelte::progress_table_header_student")}</div>
+                    <div class="font-black text-sm">{submission.student_name || "Unknown Student"}</div>
+                  </div>
+                </div>
               {/if}
-              <span
-                class="inline-flex items-center gap-2 px-3 py-1 rounded bg-base-200"
-                >{t(
-                  "frontend/src/routes/submissions/[id]/+page.svelte::submitted_prefix",
-                )}
-                {formatDateTime(submission.created_at)}</span
-              >
+
+              <div class="flex items-center gap-3 group">
+                <div class="p-2 bg-base-200 rounded-lg group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                  <Calendar size={16} />
+                </div>
+                <div>
+                  <div class="text-[9px] font-black uppercase tracking-widest opacity-40">{t("frontend/src/routes/submissions/[id]/+page.svelte::submitted_prefix")}</div>
+                  <div class="font-black text-sm tabular-nums">{formatDateTime(submission.created_at)}</div>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-3 group">
+                <div class="p-2 bg-base-200 rounded-lg group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                  <Trophy size={16} />
+                </div>
+                <div>
+                  <div class="text-[9px] font-black uppercase tracking-widest opacity-40">{t("frontend/src/routes/submissions/[id]/+page.svelte::attempt_prefix")}</div>
+                  <div class="font-black text-sm tabular-nums">#{submission.attempt_number ?? submission.id}</div>
+                </div>
+              </div>
+
               {#if assignmentManual}
-                <span
-                  class="inline-flex items-center gap-2 px-3 py-1 rounded bg-info/20 text-info"
-                  >{t(
-                    "frontend/src/routes/submissions/[id]/+page.svelte::manual_review_badge",
-                  )}</span
-                >
+                <div class="flex items-center gap-3 group">
+                  <div class="p-2 bg-info/10 text-info rounded-lg">
+                    <FileCode size={16} />
+                  </div>
+                  <div>
+                    <div class="text-[9px] font-black uppercase tracking-widest opacity-40">{t("frontend/src/routes/submissions/[id]/+page.svelte::manual_review_badge")}</div>
+                    <div class="font-black text-sm text-info uppercase tracking-wider">{t("frontend/src/routes/assignments/[id]/+page.svelte::manual_teacher_review_option")}</div>
+                  </div>
+                </div>
               {/if}
             </div>
           </div>
-          <div class="flex items-center gap-2">
-            <span class={`badge badge-lg ${statusColor(submission.status)}`}
-              >{submission.status}</span
-            >
-            {#if submission.manually_accepted}
-              <span
-                class="badge badge-outline badge-success"
-                title={t(
-                  "frontend/src/routes/submissions/[id]/+page.svelte::accepted_by_teacher_title",
-                )}
-                >{t(
-                  "frontend/src/routes/submissions/[id]/+page.svelte::manually_accepted_badge",
-                )}</span
-              >
-            {/if}
-            <button class="btn btn-ghost" on:click={goBack}
-              >{t(
-                "frontend/src/routes/submissions/[id]/+page.svelte::back_button",
-              )}</button
-            >
-            <button class="btn btn-primary" on:click={openFiles}
-              >{t(
-                "frontend/src/routes/submissions/[id]/+page.svelte::view_files_button",
-              )}</button
-            >
-          </div>
+
+
         </div>
 
-        <!-- Tabs removed: show only the relevant block based on assignment settings -->
+        {#if role === "teacher" || role === "admin" || (submission.points !== null || submission.override_points !== null)}
+          <div class="lg:w-72 space-y-6">
+            <!-- Points Card -->
+            <div class="relative group">
+              <div class="absolute inset-0 bg-primary/10 rounded-3xl blur-2xl opacity-50 group-hover:opacity-100 transition-opacity"></div>
+              <div class="relative bg-base-200/50 backdrop-blur-md p-6 rounded-3xl border border-white/10 flex flex-col items-center justify-center gap-4 text-center overflow-hidden">
+                <div class="absolute -top-10 -right-10 opacity-5 group-hover:scale-110 group-hover:rotate-12 transition-transform duration-700">
+                  <Trophy size={160} />
+                </div>
+                
+                <div class="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">{t("frontend/src/routes/assignments/[id]/+page.svelte::points_earned_label")}</div>
+                <div class="flex items-baseline gap-1">
+                  <span class="text-5xl font-black text-primary tabular-nums">
+                    {submission.override_points ?? submission.points ?? "—"}
+                  </span>
+                </div>
 
-        {#if role === "teacher" || role === "admin"}
-          <div class="rounded-box bg-base-200 p-4 mt-2">
-            <div class="font-medium mb-2">
-              {t(
-                "frontend/src/routes/submissions/[id]/+page.svelte::teacher_actions_title",
-              )}
-            </div>
-
-            {#if submission?.manually_accepted}
-              <!-- Show undo button for manually accepted submissions -->
-              <div class="flex items-center gap-3">
-                <button
-                  class="btn btn-warning btn-sm"
-                  on:click={async () => {
-                    try {
-                      await apiFetch(
-                        `/api/submissions/${submission.id}/undo-accept`,
-                        {
-                          method: "PUT",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({}),
-                        },
-                      );
-                      await load();
-                    } catch (e: any) {
-                      err = e.message;
-                    }
-                  }}
-                  >{t(
-                    "frontend/src/routes/submissions/[id]/+page.svelte::undo_manual_acceptance_button",
-                  )}</button
-                >
-              </div>
-              <div class="text-xs opacity-70 mt-2">
-                {t(
-                  "frontend/src/routes/submissions/[id]/+page.svelte::undo_manual_acceptance_description",
-                )}
-              </div>
-            {:else}
-              <!-- Show accept/give points options for non-manually accepted submissions -->
-              {#if submission?.status === "failed" || submission?.status === "pending"}
-                <!-- Show expandable section for failed/pending submissions -->
-                <div class="collapse collapse-arrow bg-base-100">
-                  <input type="checkbox" />
-                  <div class="collapse-title font-medium">
-                    {t(
-                      "frontend/src/routes/submissions/[id]/+page.svelte::accept_and_give_points_title",
-                    )}
-                  </div>
-                  <div class="collapse-content">
-                    <div class="flex items-center gap-3 mt-3">
+                {#if role === "teacher" || role === "admin"}
+                  <div class="w-full pt-4 space-y-3">
+                    <div class="join w-full shadow-md rounded-xl overflow-hidden border border-base-300">
                       <input
                         type="number"
                         step="1"
                         min="0"
-                        inputmode="numeric"
-                        pattern="[0-9]*"
-                        on:keydown={(e) => {
-                          if (["e", "E", "+", "-", ".", ","].includes(e.key))
-                            e.preventDefault();
-                        }}
-                        class="input input-bordered input-sm w-28 sm:w-32"
+                        class="join-item input input-bordered input-sm w-full font-black text-center focus:outline-none"
                         bind:value={overrideValue}
-                        placeholder={t(
-                          "frontend/src/routes/submissions/[id]/+page.svelte::points_optional_placeholder",
-                        )}
-                        aria-label={t(
-                          "frontend/src/routes/submissions/[id]/+page.svelte::override_points_aria_label",
-                        )}
+                        placeholder="Pts"
                       />
                       <button
-                        class={`btn btn-primary btn-sm ${savingOverride ? "loading" : ""}`}
+                        class={`join-item btn btn-primary btn-sm px-4 ${savingOverride ? "loading" : ""}`}
                         on:click={saveOverride}
                         disabled={savingOverride}
-                        >{t(
-                          "frontend/src/routes/submissions/[id]/+page.svelte::save_points_button",
-                        )}</button
                       >
+                        <Save size={16} />
+                      </button>
+                    </div>
+
+                    {#if submission.manually_accepted}
                       <button
-                        class="btn btn-success btn-sm"
+                        class="btn btn-warning btn-sm w-full rounded-xl font-black uppercase tracking-widest text-[9px]"
+                        on:click={async () => {
+                          try {
+                            await apiFetch(`/api/submissions/${submission.id}/undo-accept`, {
+                              method: "PUT",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({}),
+                            });
+                            await load();
+                          } catch (e: any) { err = e.message; }
+                        }}
+                      >
+                        {t("frontend/src/routes/submissions/[id]/+page.svelte::undo_manual_acceptance_button")}
+                      </button>
+                    {:else}
+                      <button
+                        class="btn btn-success btn-sm w-full rounded-xl font-black uppercase tracking-widest text-[9px] shadow-lg shadow-success/20"
                         on:click={async () => {
                           try {
                             const raw: any = overrideValue;
-                            const str =
-                              raw == null
-                                ? ""
-                                : typeof raw === "string"
-                                  ? raw
-                                  : String(raw);
-                            const v =
-                              str.trim() === "" ? null : parseInt(str, 10);
-                            await apiFetch(
-                              `/api/submissions/${submission.id}/accept`,
-                              {
-                                method: "PUT",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ points: v }),
-                              },
-                            );
+                            const v = raw === "" ? null : parseInt(raw, 10);
+                            await apiFetch(`/api/submissions/${submission.id}/accept`, {
+                              method: "PUT",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ points: v }),
+                            });
                             await load();
-                          } catch (e: any) {
-                            err = e.message;
-                          }
+                          } catch (e: any) { err = e.message; }
                         }}
-                        >{t(
-                          "frontend/src/routes/submissions/[id]/+page.svelte::accept_submission_button",
-                        )}</button
                       >
-                    </div>
-                    <div class="text-xs opacity-70 mt-2">
-                      {t(
-                        "frontend/src/routes/submissions/[id]/+page.svelte::accept_submission_description",
-                      )}
-                    </div>
+                        <CheckCircle2 size={14} />
+                        {t("frontend/src/routes/submissions/[id]/+page.svelte::accept_submission_button")}
+                      </button>
+                    {/if}
                   </div>
-                </div>
-              {:else}
-                <!-- Show regular accept/give points for other statuses -->
-                <div class="flex items-center gap-3">
-                  <input
-                    type="number"
-                    step="1"
-                    min="0"
-                    inputmode="numeric"
-                    pattern="[0-9]*"
-                    on:keydown={(e) => {
-                      if (["e", "E", "+", "-", ".", ","].includes(e.key))
-                        e.preventDefault();
-                    }}
-                    class="input input-bordered input-sm w-28 sm:w-32"
-                    bind:value={overrideValue}
-                    placeholder={t(
-                      "frontend/src/routes/submissions/[id]/+page.svelte::points_optional_placeholder",
-                    )}
-                    aria-label={t(
-                      "frontend/src/routes/submissions/[id]/+page.svelte::override_points_aria_label",
-                    )}
-                  />
-                  <button
-                    class={`btn btn-primary btn-sm ${savingOverride ? "loading" : ""}`}
-                    on:click={saveOverride}
-                    disabled={savingOverride}
-                    >{t(
-                      "frontend/src/routes/submissions/[id]/+page.svelte::save_points_button",
-                    )}</button
-                  >
-                  <button
-                    class="btn btn-success btn-sm"
-                    on:click={async () => {
-                      try {
-                        const raw: any = overrideValue;
-                        const str =
-                          raw == null
-                            ? ""
-                            : typeof raw === "string"
-                              ? raw
-                              : String(raw);
-                        const v = str.trim() === "" ? null : parseInt(str, 10);
-                        await apiFetch(
-                          `/api/submissions/${submission.id}/accept`,
-                          {
-                            method: "PUT",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ points: v }),
-                          },
-                        );
-                        await load();
-                      } catch (e: any) {
-                        err = e.message;
-                      }
-                    }}
-                    >{t(
-                      "frontend/src/routes/submissions/[id]/+page.svelte::accept_submission_button",
-                    )}</button
-                  >
-                </div>
-                <div class="text-xs opacity-70 mt-2">
-                  {t(
-                    "frontend/src/routes/submissions/[id]/+page.svelte::accept_submission_description",
-                  )}
-                </div>
-              {/if}
-            {/if}
+                {/if}
+              </div>
+            </div>
           </div>
         {/if}
+      </div>
+    </section>
 
+    <!-- Tab Navigation -->
+    <div class="flex flex-wrap items-center gap-1 p-1 bg-base-200/50 backdrop-blur-sm rounded-xl border border-base-300/50 mb-0 max-w-fit shadow-inner">
+      <button 
+        class={`px-3 py-1.5 rounded-[0.6rem] text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'results' ? 'bg-base-100 text-primary shadow-md' : 'hover:bg-base-300/50 opacity-50 hover:opacity-100'}`}
+        on:click={() => activeTab = 'results'}
+      >
+        <div class="flex items-center gap-2 text-[11px]">
+          <FlaskConical size={12} />
+          {t("frontend/src/routes/submissions/[id]/+page.svelte::results_title")}
+        </div>
+      </button>
+      
+      <button 
+        class={`px-3 py-1.5 rounded-[0.6rem] text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'files' ? 'bg-base-100 text-primary shadow-md' : 'hover:bg-base-300/50 opacity-50 hover:opacity-100'}`}
+        on:click={() => activeTab = 'files'}
+      >
+        <div class="flex items-center gap-2 text-[11px]">
+          <FileCode size={12} />
+          {t("frontend/src/routes/submissions/[id]/+page.svelte::files_dialog_title")}
+        </div>
+      </button>
+
+      {#if showLLM}
+        <button 
+          class={`px-3 py-1.5 rounded-[0.6rem] text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'review' ? 'bg-base-100 text-primary shadow-md' : 'hover:bg-base-300/50 opacity-50 hover:opacity-100'}`}
+          on:click={() => activeTab = 'review'}
+        >
+          <div class="flex items-center gap-2 text-[11px]">
+            <Search size={12} />
+            {t("frontend/src/routes/submissions/[id]/+page.svelte::llm_review_tab")}
+          </div>
+        </button>
+      {/if}
+    </div>
+
+    <div class="space-y-6">
+      {#if activeTab === 'results'}
         {#if showAutoUI}
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div class="stat bg-base-200 rounded-box">
-              <div class="stat-title">
-                {t(
-                  "frontend/src/routes/submissions/[id]/+page.svelte::stat_tests",
-                )}
+          <!-- Stats Summary Card -->
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-base-100 p-4 rounded-2xl border border-base-200 shadow-sm group hover:border-primary/30 transition-all">
+              <div class="text-[9px] font-black uppercase tracking-widest opacity-40 mb-1">{t("frontend/src/routes/submissions/[id]/+page.svelte::stat_tests")}</div>
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-base-200 flex items-center justify-center text-base-content group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                  <Cpu size={16} />
+                </div>
+                <div class="text-xl font-black tabular-nums">{totalTests}</div>
               </div>
-              <div class="stat-value text-base">{totalTests}</div>
             </div>
-            <div class="stat bg-base-200 rounded-box">
-              <div class="stat-title">
-                {t(
-                  "frontend/src/routes/submissions/[id]/+page.svelte::stat_passed",
-                )}
+            
+            <div class="bg-base-100 p-4 rounded-2xl border border-base-200 shadow-sm group hover:border-success/30 transition-all">
+              <div class="text-[9px] font-black uppercase tracking-widest opacity-40 mb-1">{t("frontend/src/routes/submissions/[id]/+page.svelte::stat_passed")}</div>
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-success/10 text-success flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <CheckCircle2 size={16} />
+                </div>
+                <div class="text-xl font-black text-success tabular-nums">{passedCount}</div>
               </div>
-              <div class="stat-value text-success">{passedCount}</div>
             </div>
-            <div class="stat bg-base-200 rounded-box">
-              <div class="stat-title">
-                {t(
-                  "frontend/src/routes/submissions/[id]/+page.svelte::stat_limited",
-                )}
+
+            <div class="bg-base-100 p-4 rounded-2xl border border-base-200 shadow-sm group hover:border-warning/30 transition-all">
+              <div class="text-[9px] font-black uppercase tracking-widest opacity-40 mb-1">{t("frontend/src/routes/submissions/[id]/+page.svelte::stat_limited")}</div>
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-warning/10 text-warning flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Clock size={16} />
+                </div>
+                <div class="text-xl font-black text-warning tabular-nums">{warnedCount}</div>
               </div>
-              <div class="stat-value text-warning">{warnedCount}</div>
             </div>
-            <div class="stat bg-base-200 rounded-box">
-              <div class="stat-title">
-                {t(
-                  "frontend/src/routes/submissions/[id]/+page.svelte::stat_failed",
-                )}
+
+            <div class="bg-base-100 p-4 rounded-2xl border border-base-200 shadow-sm group hover:border-error/30 transition-all">
+              <div class="text-[9px] font-black uppercase tracking-widest opacity-40 mb-1">{t("frontend/src/routes/submissions/[id]/+page.svelte::stat_failed")}</div>
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-error/10 text-error flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <AlertCircle size={16} />
+                </div>
+                <div class="text-xl font-black text-error tabular-nums">{failedCount}</div>
               </div>
-              <div class="stat-value text-error">{failedCount}</div>
             </div>
           </div>
-          <div class="h-2 w-full rounded bg-base-200 overflow-hidden flex">
+
+          <!-- Progress Visualization -->
+          <div class="h-3 w-full rounded-full bg-base-200 overflow-hidden flex shadow-inner border border-base-300/30">
             {#each results as r}
               <div
-                class={`h-full flex-1 ${bgFromBadge(resultColor(r.status))}`}
+                class={`h-full flex-1 transition-all duration-500 hover:opacity-80 cursor-help ${bgFromBadge(resultColor(r.status))}`}
+                title={`${r.status}`}
               ></div>
             {/each}
             {#if !results.length}
-              <div class="h-full w-1/3 bg-info animate-pulse"></div>
+              <div class="h-full w-full bg-gradient-to-r from-base-200 via-primary/20 to-base-200 animate-shimmer" style="background-size: 200% 100%"></div>
+            {/if}
+          </div>
+          <div class="space-y-6">
+            <!-- AI Summary (Why did everything fail?) -->
+            {#if assignmentLLMHelpWhyFailed && allTestsFailed}
+              <div class="bg-primary/5 border border-primary/20 rounded-3xl p-6 relative overflow-hidden group">
+                <div class="absolute -right-12 -bottom-12 text-primary/10 group-hover:scale-110 transition-transform duration-700">
+                  <Sparkles size={160} />
+                </div>
+                <div class="relative space-y-4 max-w-2xl">
+                  <div class="flex items-center gap-2 text-primary font-black uppercase tracking-[0.2em] text-[9px]">
+                    <Sparkles size={14} />
+                    {t("frontend/src/routes/submissions/[id]/+page.svelte::explain_all_failures_btn")}
+                  </div>
+                  {#if summaryExplanation.text}
+                    <p class="text-sm leading-relaxed font-medium opacity-80">{summaryExplanation.text}</p>
+                  {:else}
+                    <button
+                      class="btn btn-primary btn-sm rounded-xl px-5 h-8 font-black uppercase tracking-widest text-[9px] shadow-lg shadow-primary/20"
+                      on:click|preventDefault|stopPropagation={() => askWhyAllFailed(sid)}
+                      disabled={summaryExplanation.loading}
+                    >
+                      {#if summaryExplanation.loading}
+                        <span class="loading loading-spinner loading-xs"></span>
+                        {t("frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_loading")}
+                      {:else}
+                        <Sparkles size={14} />
+                        {t("frontend/src/routes/submissions/[id]/+page.svelte::explain_all_failures_btn")}
+                      {/if}
+                    </button>
+                    {#if summaryExplanation.error}
+                      <p class="text-xs text-error font-black uppercase tracking-widest opacity-60">
+                        {t("frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_error")}
+                      </p>
+                    {/if}
+                  {/if}
+                </div>
+              </div>
+            {/if}
+
+            <div class="bg-base-200/40 rounded-3xl border border-base-200 shadow-lg shadow-base-300/20 overflow-hidden">
+              <div class="px-6 py-4 border-b border-base-200 flex items-center justify-between bg-base-100/50 backdrop-blur-sm">
+                <div class="flex items-center gap-3">
+                  <div class="p-2 bg-primary/10 text-primary rounded-lg">
+                    <FlaskConical size={18} />
+                  </div>
+                  <h2 class="text-lg font-black tracking-tight">{t("frontend/src/routes/submissions/[id]/+page.svelte::results_title")}</h2>
+                </div>
+              </div>
+              
+              <div class="p-4 space-y-3">
+                {#if Array.isArray(results) && results.length}
+                  {#each results as r, i}
+                    {@const mode = r.execution_mode ?? (r.unittest_name ? "unittest" : r.function_name ? "function" : "stdin_stdout")}
+                    {@const allowLog = allowTraceback || r.status === "illegal_tool_use"}
+                    <div class="group bg-base-100 rounded-2xl border border-base-200 shadow-sm hover:shadow-md hover:border-primary/30 transition-all overflow-hidden">
+                      <details class="collapse collapse-arrow">
+                        <summary class="collapse-title !p-0">
+                          <div class="px-5 pr-12 py-4 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                            <div class="flex items-center gap-4">
+                              <div class={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shadow-sm transition-transform group-hover:scale-110 ${statusColor(r.status).includes('success') ? 'bg-success/10 text-success' : statusColor(r.status).includes('error') ? 'bg-error/10 text-error' : 'bg-warning/10 text-warning'}`}>
+                                {r.test_number ?? i + 1}
+                              </div>
+                              <div class="space-y-1">
+                                <div class="flex items-center gap-2">
+                                  <span class="font-black text-sm tracking-tight">
+                                    {t("frontend/src/routes/submissions/[id]/+page.svelte::test_prefix")}{r.test_number ?? i + 1}
+                                  </span>
+                                </div>
+                                <div class="flex items-center gap-4 text-[10px] font-black uppercase tracking-[0.1em] opacity-40">
+                                  <span class="flex items-center gap-1.5"><Clock size={12} /> {r.runtime_ms}{t("frontend/src/routes/submissions/[id]/+page.svelte::milliseconds_unit")}</span>
+                                  <span class="flex items-center gap-1.5"><Shield size={12} /> {t("frontend/src/routes/submissions/[id]/+page.svelte::exit_code_prefix")}{r.exit_code}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div class="flex items-center gap-3">
+                              {#if assignmentLLMHelpWhyFailed && !allTestsFailed && r.status !== "passed" && r.status !== "running" && r.test_case_id}
+                                <div class="relative">
+                                  {#if explanations[r.test_case_id]?.text}
+                                    <div class="p-2.5 bg-base-200 rounded-xl border border-base-300 shadow-sm max-w-sm text-xs font-medium leading-relaxed group/explain relative pr-8">
+                                      <div class="flex gap-2">
+                                        <Sparkles size={12} class="text-primary mt-0.5 shrink-0" />
+                                        <span>{explanations[r.test_case_id].text}</span>
+                                      </div>
+                                    </div>
+                                  {:else}
+                                    <button 
+                                      class="btn btn-ghost btn-xs h-8 rounded-lg px-3 gap-2 text-primary font-black uppercase tracking-widest text-[8px] hover:bg-primary/10 transition-all border border-primary/20" 
+                                      on:click|preventDefault|stopPropagation={() => askWhyFailed(sid, r.test_case_id)} 
+                                      disabled={explanations[r.test_case_id]?.loading}
+                                    >
+                                      {#if explanations[r.test_case_id]?.loading}
+                                        <span class="loading loading-spinner loading-xs"></span>
+                                      {:else}
+                                        <Sparkles size={14} />
+                                        {t("frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_btn")}
+                                      {/if}
+                                    </button>
+                                  {/if}
+                                </div>
+                              {/if}
+                              <div class={`badge badge-md h-6 px-3 font-black text-[8px] uppercase tracking-widest border-none shadow-sm ${statusColor(r.status).replace('badge-', 'bg-')}/20 ${statusColor(r.status).replace('badge-', 'text-')}`}>
+                                {r.status}
+                              </div>
+                            </div>
+                          </div>
+                        </summary>
+                        <div class="collapse-content px-5 pb-5 pt-0">
+                          <div class="border-t border-base-200/50 mb-5"></div>
+                          <div class="grid lg:grid-cols-2 gap-4">
+                            {#if allowTestDetails}
+                              <div class="space-y-4">
+                                <div class="text-[10px] font-black uppercase tracking-widest opacity-40 flex items-center gap-2">
+                                  <FileCode size={14} />
+                                  {t("frontend/src/routes/submissions/[id]/+page.svelte::test_definition_title")}
+                                </div>
+                                <div class="bg-base-200/50 rounded-2xl border border-base-300/50 p-5 space-y-4 overflow-hidden">
+                                  {#if mode === "function"}
+                                    <div class="grid grid-cols-2 gap-4">
+                                      <div class="space-y-1">
+                                        <div class="text-[9px] font-black uppercase opacity-40">{t("frontend/src/routes/submissions/[id]/+page.svelte::function_label")}</div>
+                                        <code class="text-xs font-black">{r.function_name}</code>
+                                      </div>
+                                      <div class="space-y-1">
+                                        <div class="text-[9px] font-black uppercase opacity-40">{t("frontend/src/routes/submissions/[id]/+page.svelte::expected_return_label")}</div>
+                                        <code class="text-xs font-black text-primary">{r.expected_return ?? "None"}</code>
+                                      </div>
+                                      <div class="col-span-2 space-y-1">
+                                        <div class="text-[9px] font-black uppercase opacity-40">{t("frontend/src/routes/submissions/[id]/+page.svelte::arguments_label")}</div>
+                                        <code class="text-xs opacity-80 break-words">{r.function_args ?? "[]"}</code>
+                                      </div>
+                                    </div>
+                                  {:else if r.unittest_code}
+                                    <pre class="text-xs font-mono bg-base-300/50 p-4 rounded-xl overflow-auto border border-base-300 max-h-60"><code>{viewableUnitTestSnippet(r.unittest_code, r.unittest_name)}</code></pre>
+                                  {:else if typeof r.stdin !== "undefined" || typeof r.expected_stdout !== "undefined"}
+                                    <div class="space-y-4">
+                                      {#if r.stdin}
+                                        <div class="space-y-1">
+                                          <div class="text-[9px] font-black uppercase opacity-40">{t("frontend/src/routes/submissions/[id]/+page.svelte::input_label")}</div>
+                                          <pre class="text-xs font-mono bg-base-300/50 p-3 rounded-xl overflow-auto border border-base-300 max-h-32"><code>{r.stdin}</code></pre>
+                                        </div>
+                                      {/if}
+                                      <div class="space-y-1">
+                                        <div class="text-[9px] font-black uppercase opacity-40">{t("frontend/src/routes/submissions/[id]/+page.svelte::expected_output_label")}</div>
+                                        <pre class="text-xs font-mono bg-base-300/50 p-3 rounded-xl overflow-auto border border-base-300 max-h-32"><code>{r.expected_stdout}</code></pre>
+                                      </div>
+                                    </div>
+                                  {/if}
+                                </div>
+                              </div>
+                            {/if}
+
+                            {#if allowLog}
+                              <div class="space-y-4">
+                                <div class="text-[10px] font-black uppercase tracking-widest opacity-40 flex items-center gap-2">
+                                  <History size={14} />
+                                  {t("frontend/src/routes/submissions/[id]/+page.svelte::execution_log_title")}
+                                </div>
+                                <div class="bg-base-300/30 rounded-2xl border border-base-300/50 p-5 overflow-hidden">
+                                  {#if r.stderr}
+                                    <pre class="text-xs font-mono text-error/80 whitespace-pre-wrap max-h-60 overflow-auto"><code>{r.stderr}</code></pre>
+                                  {:else}
+                                    <div class="text-xs font-black uppercase opacity-20 tracking-widest py-8 text-center">{t("frontend/src/routes/submissions/[id]/+page.svelte::no_stderr_output_message")}</div>
+                                  {/if}
+                                </div>
+                              </div>
+                            {/if}
+                          </div>
+                        </div>
+                      </details>
+                    </div>
+                  {/each}
+                {:else}
+                  <div class="bg-base-100/40 rounded-2xl border border-dashed border-base-300/60 p-20 flex flex-col items-center justify-center text-center gap-4">
+                    <div class="p-4 bg-base-200/50 rounded-full text-base-content/20">
+                      <FlaskConical size={48} />
+                    </div>
+                    <div>
+                      <p class="font-black uppercase tracking-[0.2em] text-[10px] opacity-40">{t("frontend/src/routes/submissions/[id]/+page.svelte::no_results_yet_message")}</p>
+                    </div>
+                  </div>
+                {/if}
+              </div>
+            </div>
+
+            <!-- Manual Console Section -->
+            {#if (role === "teacher" || role === "admin")}
+              <div class="bg-base-200/40 rounded-3xl border border-base-200 shadow-lg shadow-base-300/20 overflow-hidden">
+                <div class="px-6 py-4 border-b border-base-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-base-100/50 backdrop-blur-sm">
+                  <div class="flex items-center gap-3">
+                    <div class="p-2 bg-warning/10 text-warning rounded-lg">
+                      <Cpu size={18} />
+                    </div>
+                    <div>
+                      <h2 class="text-xl font-black tracking-tight">{t("frontend/src/routes/submissions/[id]/+page.svelte::manual_testing_title")}</h2>
+                      <p class="text-[10px] font-black uppercase tracking-widest opacity-40">
+                        {t("frontend/src/routes/submissions/[id]/+page.svelte::manual_testing_description")}
+                      </p>
+                    </div>
+                  </div>
+                  {#if !forceManualConsole}
+                    <button
+                      class="btn btn-ghost btn-sm rounded-lg px-4 h-8 font-black uppercase tracking-widest text-[9px] border border-base-300"
+                      on:click={() => (manualConsoleVisible = !manualConsoleVisible)}
+                    >
+                      {manualConsoleVisible ? t("frontend/src/routes/submissions/[id]/+page.svelte::hide_console_button") : t("frontend/src/routes/submissions/[id]/+page.svelte::show_console_button")}
+                    </button>
+                  {/if}
+                </div>
+
+                {#if forceManualConsole || manualConsoleVisible}
+                  <div class="p-6 bg-base-200/50 backdrop-blur-sm">
+                    <RunConsole submissionId={sid} />
+                  </div>
+                {/if}
+              </div>
             {/if}
           </div>
         {/if}
-      </div>
-    </div>
+      {/if}
 
-    {#if showAutoUI}
-      <div class="card bg-base-100 shadow">
-        <div class="card-body">
-          <h3 class="card-title">
-            {t(
-              "frontend/src/routes/submissions/[id]/+page.svelte::results_title",
-            )}
-          </h3>
-          {#if assignmentLLMHelpWhyFailed && allTestsFailed}
-            <div class="mt-2">
-              {#if summaryExplanation.text}
-                <div class="p-3 bg-base-200 rounded-lg text-xs border border-base-300 shadow-sm max-w-xl text-left">
-                  <div class="flex gap-2 items-start">
-                    <Sparkles size={14} class="text-primary mt-0.5 shrink-0" />
-                    <span class="leading-relaxed">{summaryExplanation.text}</span>
-                  </div>
+      {#if activeTab === 'files'}
+        <div class="bg-base-100 rounded-3xl border border-base-200 shadow-lg shadow-base-300/30 overflow-hidden min-h-[500px]">
+          <div class="px-6 py-4 border-b border-base-200 flex items-center justify-between bg-base-100/50 backdrop-blur-sm">
+            <div class="flex items-center gap-3">
+              <div class="p-2 bg-secondary/10 text-secondary rounded-lg">
+                <FileCode size={18} />
+              </div>
+              <h2 class="text-lg font-black tracking-tight">{t("frontend/src/routes/submissions/[id]/+page.svelte::files_dialog_title")}</h2>
+            </div>
+            <button class="btn btn-secondary btn-sm rounded-lg px-4 h-8 font-black uppercase tracking-widest text-[9px] shadow-lg shadow-secondary/20" on:click={downloadFiles}>
+              <ExternalLink size={14} />
+              {t("frontend/src/routes/submissions/[id]/+page.svelte::download_button")}
+            </button>
+          </div>
+          
+          <div class="flex flex-col md:flex-row h-[600px]">
+            <div class="md:w-60 border-r border-base-200 bg-base-50 overflow-auto p-3">
+              <FileTree nodes={tree} select={chooseFile} />
+            </div>
+            <div class="flex-1 overflow-hidden flex flex-col bg-base-200/20">
+              <div class="px-4 py-2 border-b border-base-200 bg-base-100/80 backdrop-blur-md flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="w-1.5 h-1.5 rounded-full bg-secondary"></div>
+                  <span class="font-black text-[10px] tracking-tight opacity-70">{selected?.name || "No file selected"}</span>
                 </div>
-              {:else}
-                <button
-                  class="btn btn-xs btn-ghost gap-1 text-[10px] font-bold text-primary opacity-60 hover:opacity-100"
-                  on:click|preventDefault|stopPropagation={() =>
-                    askWhyAllFailed(sid)
-                  }
-                  disabled={summaryExplanation.loading}
-                >
-                  {#if summaryExplanation.loading}
-                    <span class="loading loading-spinner loading-xs"></span>
-                    {t(
-                      "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_loading",
-                    )}
-                  {:else}
-                    <Sparkles size={12} />
-                    {t(
-                      "frontend/src/routes/submissions/[id]/+page.svelte::explain_all_failures_btn",
-                    )}
-                  {/if}
-                </button>
-                {#if summaryExplanation.error}
-                  <div class="text-[10px] text-error mt-1">
-                    {t(
-                      "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_error",
-                    )}
-                  </div>
-                {/if}
-              {/if}
+              </div>
+              <div class="flex-1 overflow-auto p-0">
+                <pre class="text-xs font-mono p-4 min-h-full bg-transparent"><code class="hljs">{@html highlighted || "Empty file"}</code></pre>
+              </div>
             </div>
-          {/if}
-          {#if Array.isArray(results) && results.length}
-            <div class="space-y-2">
-              {#each results as r, i}
-                {@const mode =
-                  r.execution_mode ??
-                  (r.unittest_name
-                    ? "unittest"
-                    : r.function_name
-                      ? "function"
-                      : "stdin_stdout")}
-                {@const allowLog =
-                  allowTraceback || r.status === "illegal_tool_use"}
-                {#if allowTestDetails || allowLog}
-                  <details
-                    class="collapse collapse-arrow rounded-box bg-base-200"
-                  >
-                    <summary class="collapse-title">
-                      <div
-                        class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
-                      >
-                        <div
-                          class="flex flex-wrap items-center gap-2 text-sm sm:text-base font-medium"
-                        >
-                          <span
-                            class="rounded-full bg-base-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-base-content/70"
-                          >
-                            {t(
-                              "frontend/src/routes/submissions/[id]/+page.svelte::test_prefix",
-                            )}{r.test_number ?? i + 1}
-                          </span>
-                          {#if allowTestDetails && mode === "function"}
-                            <span
-                              class="badge badge-outline badge-info text-xs font-semibold tracking-wide uppercase"
-                              >{t(
-                                "frontend/src/routes/submissions/[id]/+page.svelte::function_badge",
-                              )}</span
-                            >
-                            {#if r.function_name}
-                              <span
-                                class="badge badge-outline text-xs font-semibold tracking-wide"
-                                >{r.function_name}</span
-                              >
-                            {/if}
-                          {:else if allowTestDetails && r.unittest_name}
-                            <span
-                              class="badge badge-outline badge-primary text-xs font-semibold tracking-wide uppercase"
-                              >{r.unittest_name}</span
-                            >
-                          {:else if allowTestDetails && (typeof r.stdin !== "undefined" || typeof r.expected_stdout !== "undefined")}
-                            <span
-                              class="badge badge-outline text-xs font-semibold tracking-wide uppercase"
-                              >{t(
-                                "frontend/src/routes/submissions/[id]/+page.svelte::io_test_badge",
-                              )}</span
-                            >
-                          {/if}
-                        </div>
-                        <div
-                          class="flex items-center flex-wrap gap-3 text-xs sm:text-sm"
-                        >
-                          <span class={`badge ${statusColor(r.status)}`}
-                            >{r.status}</span
-                          >
-                          {#if assignmentLLMHelpWhyFailed && !allTestsFailed && r.status !== "passed" && r.status !== "running" && r.test_case_id}
-                             <div class="ml-2">
-                                {#if explanations[r.test_case_id]?.text}
-                                   <div class="p-2 bg-base-300 rounded-lg text-xs border border-base-content/10 shadow-sm max-w-xs text-left">
-                                      <div class="flex gap-2 items-start">
-                                         <Sparkles size={14} class="text-primary mt-0.5 shrink-0" />
-                                         <span class="leading-relaxed">{explanations[r.test_case_id].text}</span>
-                                      </div>
-                                   </div>
-                                {:else}
-                                   <button class="btn btn-xs btn-ghost gap-1 text-[10px] font-bold text-primary opacity-60 hover:opacity-100" on:click|preventDefault|stopPropagation={() => askWhyFailed(sid, r.test_case_id)} disabled={explanations[r.test_case_id]?.loading}>
-                                       {#if explanations[r.test_case_id]?.loading}
-                                           <span class="loading loading-spinner loading-xs"></span>
-                                           {t("frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_loading")}
-                                       {:else}
-                                           <Sparkles size={12}/>
-                                           {t("frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_btn")}
-                                       {/if}
-                                   </button>
-                                   {#if explanations[r.test_case_id]?.error}
-                                       <div class="text-[10px] text-error mt-1">{t("frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_error")}</div>
-                                   {/if}
-                                {/if}
-                             </div>
-                          {/if}
-                          <span
-                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-base-300"
-                          >
-                            <svg
-                              class="w-3 h-3"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              stroke-width="2"
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              aria-hidden="true"
-                            >
-                              <circle cx="12" cy="12" r="9" />
-                              <path d="M12 7v5l3 2" />
-                            </svg>
-                            {r.runtime_ms}
-                            {t(
-                              "frontend/src/routes/submissions/[id]/+page.svelte::milliseconds_unit",
-                            )}
-                          </span>
-                          <span
-                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-base-300"
-                          >
-                            <svg
-                              class="w-3 h-3"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              stroke-width="2"
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              aria-hidden="true"
-                            >
-                              <rect
-                                x="3"
-                                y="5"
-                                width="18"
-                                height="14"
-                                rx="2"
-                                ry="2"
-                              />
-                              <path d="M7 9l3 3-3 3" />
-                              <path d="M13 15h4" />
-                            </svg>
-                            {t(
-                              "frontend/src/routes/submissions/[id]/+page.svelte::exit_code_prefix",
-                            )}{r.exit_code}
-                          </span>
-                        </div>
-                      </div>
-                    </summary>
-                    <div class="collapse-content space-y-4">
-                      {#if allowTestDetails}
-                        <section
-                          class="rounded-2xl border border-base-300/70 bg-base-100 p-4 shadow-sm"
-                        >
-                          <header
-                            class="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-base-content/70"
-                          >
-                            <svg
-                              class="h-3.5 w-3.5"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              stroke-width="2"
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              aria-hidden="true"
-                            >
-                              <rect
-                                x="3"
-                                y="4"
-                                width="18"
-                                height="16"
-                                rx="2"
-                                ry="2"
-                              />
-                              <path d="M7 8h10" />
-                            </svg>
-                            {t(
-                              "frontend/src/routes/submissions/[id]/+page.svelte::test_definition_title",
-                            )}
-                          </header>
-                          {#if mode === "function"}
-                            <div class="grid gap-3 md:grid-cols-2">
-                              <div
-                                class="rounded-xl border border-base-300/60 bg-base-200/70 p-3"
-                              >
-                                <div
-                                  class="text-xs font-semibold uppercase tracking-wide text-base-content/70"
-                                >
-                                  {t(
-                                    "frontend/src/routes/submissions/[id]/+page.svelte::function_label",
-                                  )}
-                                </div>
-                                <div class="mt-2 font-mono text-sm">
-                                  {r.function_name}
-                                </div>
-                              </div>
-                              <div
-                                class="rounded-xl border border-base-300/60 bg-base-200/70 p-3"
-                              >
-                                <div
-                                  class="text-xs font-semibold uppercase tracking-wide text-base-content/70"
-                                >
-                                  {t(
-                                    "frontend/src/routes/submissions/[id]/+page.svelte::expected_return_label",
-                                  )}
-                                </div>
-                                <pre
-                                  class="mt-2 whitespace-pre-wrap font-mono text-sm leading-relaxed">{r.expected_return ??
-                                    t(
-                                      "frontend/src/routes/submissions/[id]/+page.svelte::empty_symbol",
-                                    )}</pre>
-                              </div>
-                              <div
-                                class="rounded-xl border border-base-300/60 bg-base-200/70 p-3"
-                              >
-                                <div
-                                  class="text-xs font-semibold uppercase tracking-wide text-base-content/70"
-                                >
-                                  {t(
-                                    "frontend/src/routes/submissions/[id]/+page.svelte::arguments_label",
-                                  )}
-                                </div>
-                                <pre
-                                  class="mt-2 whitespace-pre-wrap font-mono text-sm leading-relaxed">{r.function_args ??
-                                    t(
-                                      "frontend/src/routes/submissions/[id]/+page.svelte::empty_array",
-                                    )}</pre>
-                              </div>
-                              <div
-                                class="rounded-xl border border-base-300/60 bg-base-200/70 p-3"
-                              >
-                                <div
-                                  class="text-xs font-semibold uppercase tracking-wide text-base-content/70"
-                                >
-                                  {t(
-                                    "frontend/src/routes/submissions/[id]/+page.svelte::keyword_args_label",
-                                  )}
-                                </div>
-                                <pre
-                                  class="mt-2 whitespace-pre-wrap font-mono text-sm leading-relaxed">{r.function_kwargs ??
-                                    t(
-                                      "frontend/src/routes/submissions/[id]/+page.svelte::empty_object",
-                                    )}</pre>
-                              </div>
-                              {#if r.actual_return}
-                                <div
-                                  class="rounded-xl border border-base-300/60 bg-base-200/70 p-3 md:col-span-2"
-                                >
-                                  <div
-                                    class="text-xs font-semibold uppercase tracking-wide text-base-content/70"
-                                  >
-                                    {t(
-                                      "frontend/src/routes/submissions/[id]/+page.svelte::actual_return_label",
-                                    )}
-                                  </div>
-                                  <pre
-                                    class="mt-2 whitespace-pre-wrap font-mono text-sm leading-relaxed">{r.actual_return}</pre>
-                                </div>
-                              {/if}
-                            </div>
-                          {:else if r.unittest_code}
-                            {#if r.unittest_name}
-                              <div
-                                class="badge badge-outline badge-primary mb-3"
-                              >
-                                {r.unittest_name}
-                              </div>
-                            {/if}
-                            <pre
-                              class="max-h-80 overflow-auto rounded-xl bg-base-200/80 p-4 text-sm leading-relaxed"><code
-                                class="font-mono whitespace-pre-wrap"
-                                >{viewableUnitTestSnippet(
-                                  r.unittest_code,
-                                  r.unittest_name,
-                                )}</code
-                              ></pre>
-                          {:else if typeof r.stdin !== "undefined" || typeof r.expected_stdout !== "undefined"}
-                            <div class="grid gap-3 md:grid-cols-2">
-                              <div
-                                class="rounded-xl border border-base-300/60 bg-base-200/70 p-3"
-                              >
-                                <div
-                                  class="text-xs font-semibold uppercase tracking-wide text-base-content/70"
-                                >
-                                  {t(
-                                    "frontend/src/routes/submissions/[id]/+page.svelte::input_label",
-                                  )}
-                                </div>
-                                {#if typeof r.stdin !== "undefined"}
-                                  {#if r.stdin?.length}
-                                    <pre
-                                      class="mt-2 whitespace-pre-wrap font-mono text-sm leading-relaxed">{r.stdin}</pre>
-                                  {:else}
-                                    <div class="mt-2 text-sm italic opacity-60">
-                                      {t(
-                                        "frontend/src/routes/submissions/[id]/+page.svelte::empty_input_message",
-                                      )}
-                                    </div>
-                                  {/if}
-                                {:else}
-                                  <div class="mt-2 text-sm italic opacity-60">
-                                    {t(
-                                      "frontend/src/routes/submissions/[id]/+page.svelte::input_not_provided_message",
-                                    )}
-                                  </div>
-                                {/if}
-                              </div>
-                              <div
-                                class="rounded-xl border border-base-300/60 bg-base-200/70 p-3"
-                              >
-                                <div
-                                  class="text-xs font-semibold uppercase tracking-wide text-base-content/70"
-                                >
-                                  {t(
-                                    "frontend/src/routes/submissions/[id]/+page.svelte::expected_output_label",
-                                  )}
-                                </div>
-                                {#if typeof r.expected_stdout !== "undefined"}
-                                  {#if r.expected_stdout?.length}
-                                    <pre
-                                      class="mt-2 whitespace-pre-wrap font-mono text-sm leading-relaxed">{r.expected_stdout}</pre>
-                                  {:else}
-                                    <div class="mt-2 text-sm italic opacity-60">
-                                      {t(
-                                        "frontend/src/routes/submissions/[id]/+page.svelte::empty_output_message",
-                                      )}
-                                    </div>
-                                  {/if}
-                                {:else}
-                                  <div class="mt-2 text-sm italic opacity-60">
-                                    {t(
-                                      "frontend/src/routes/submissions/[id]/+page.svelte::output_not_provided_message",
-                                    )}
-                                  </div>
-                                {/if}
-                              </div>
-                            </div>
-                          {:else}
-                            <div class="text-sm opacity-70">
-                              {t(
-                                "frontend/src/routes/submissions/[id]/+page.svelte::no_test_metadata_message",
-                              )}
-                            </div>
-                          {/if}
-                        </section>
-                      {/if}
-                      {#if allowLog}
-                        <section
-                          class="rounded-2xl border border-base-300/70 bg-base-100 p-4 shadow-sm"
-                        >
-                          <header
-                            class="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-base-content/70"
-                          >
-                            <svg
-                              class="h-3.5 w-3.5"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              stroke-width="2"
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              aria-hidden="true"
-                            >
-                              <path d="M4 17l6-6 4 4 6-6" />
-                              <path d="M2 19h20" />
-                            </svg>
-                            {t(
-                              "frontend/src/routes/submissions/[id]/+page.svelte::execution_log_title",
-                            )}
-                          </header>
-                          {#if r.stderr}
-                            <pre
-                              class="max-h-80 overflow-auto whitespace-pre-wrap rounded-xl bg-base-200/80 p-4 text-sm leading-relaxed">{r.stderr}</pre>
-                          {:else}
-                            <div class="text-sm italic opacity-60">
-                              {t(
-                                "frontend/src/routes/submissions/[id]/+page.svelte::no_stderr_output_message",
-                              )}
-                            </div>
-                          {/if}
-                        </section>
-                      {/if}
-                    </div>
-                  </details>
-                {:else}
-                  <div class="collapse rounded-box bg-base-200">
-                    <div class="collapse-title">
-                      <div
-                        class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
-                      >
-                        <div
-                          class="flex flex-wrap items-center gap-2 text-sm sm:text-base font-medium"
-                        >
-                          <span
-                            class="rounded-full bg-base-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-base-content/70"
-                          >
-                            {t(
-                              "frontend/src/routes/submissions/[id]/+page.svelte::test_prefix",
-                            )}{r.test_number ?? i + 1}
-                          </span>
-                        </div>
-                        <div
-                          class="flex items-center flex-wrap gap-3 text-xs sm:text-sm"
-                        >
-                          <span class={`badge ${statusColor(r.status)}`}
-                            >{r.status}</span
-                          >
-                          <span
-                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-base-300"
-                          >
-                            <svg
-                              class="w-3 h-3"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              stroke-width="2"
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              aria-hidden="true"
-                            >
-                              <circle cx="12" cy="12" r="9" />
-                              <path d="M12 7v5l3 2" />
-                            </svg>
-                            {r.runtime_ms}
-                            {t(
-                              "frontend/src/routes/submissions/[id]/+page.svelte::milliseconds_unit",
-                            )}
-                          </span>
-                          <span
-                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-base-300"
-                          >
-                            <svg
-                              class="w-3 h-3"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              stroke-width="2"
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              aria-hidden="true"
-                            >
-                              <rect
-                                x="3"
-                                y="5"
-                                width="18"
-                                height="14"
-                                rx="2"
-                                ry="2"
-                              />
-                              <path d="M7 9l3 3-3 3" />
-                              <path d="M13 15h4" />
-                            </svg>
-                            {t(
-                              "frontend/src/routes/submissions/[id]/+page.svelte::exit_code_prefix",
-                            )}{r.exit_code}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                {/if}
-              {/each}
-            </div>
-          {:else}
-            <div class="text-sm opacity-70 italic">
-              {t(
-                "frontend/src/routes/submissions/[id]/+page.svelte::no_results_yet_message",
-              )}
-            </div>
-          {/if}
+          </div>
         </div>
-      </div>
-    {/if}
+      {/if}
 
-    {#if showLLM}
-      <div class="card bg-base-100 shadow">
-        <div class="card-body space-y-4">
-          <h3 class="card-title">
-            {t(
-              "frontend/src/routes/submissions/[id]/+page.svelte::llm_interactive_title",
-            )}
-          </h3>
+      {#if activeTab === 'review'}
+        <div class="space-y-6">
           {#if llm}
-            <div class="grid md:grid-cols-3 gap-3">
-              <div class="rounded-box bg-base-200 p-3">
-                <div class="font-medium">
-                  {t(
-                    "frontend/src/routes/submissions/[id]/+page.svelte::smoke_test_label",
-                  )}
-                </div>
-                <div class="text-sm">
-                  {llm.smoke_ok
-                    ? t(
-                        "frontend/src/routes/submissions/[id]/+page.svelte::smoke_test_ok",
-                      )
-                    : t(
-                        "frontend/src/routes/submissions/[id]/+page.svelte::smoke_test_failed",
-                      )}
+            <div class="grid md:grid-cols-3 gap-4">
+              <div class="bg-base-100 p-6 rounded-3xl border border-base-200 shadow-sm relative overflow-hidden group">
+                <div class="text-[9px] font-black uppercase tracking-widest opacity-40 mb-3">{t("frontend/src/routes/submissions/[id]/+page.svelte::smoke_test_label")}</div>
+                <div class="flex items-center gap-4">
+                  <div class={`w-12 h-12 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110 ${llm.smoke_ok ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}`}>
+                    {#if llm.smoke_ok}<CheckCircle2 size={24} />{:else}<AlertCircle size={24} />{/if}
+                  </div>
+                  <div class="text-lg font-black tracking-tight">
+                    {llm.smoke_ok ? t("frontend/src/routes/submissions/[id]/+page.svelte::smoke_test_ok") : t("frontend/src/routes/submissions/[id]/+page.svelte::smoke_test_failed")}
+                  </div>
                 </div>
               </div>
-              <div class="rounded-box bg-base-200 p-3">
-                <div class="font-medium">
-                  {t(
-                    "frontend/src/routes/submissions/[id]/+page.svelte::verdict_label",
-                  )}
-                </div>
-                <div class="text-sm">
-                  {llm.verdict ??
-                    t(
-                      "frontend/src/routes/submissions/[id]/+page.svelte::dash_placeholder",
-                    )}
+ 
+              <div class="bg-base-100 p-6 rounded-3xl border border-base-200 shadow-sm relative overflow-hidden group">
+                <div class="text-[9px] font-black uppercase tracking-widest opacity-40 mb-3">{t("frontend/src/routes/submissions/[id]/+page.svelte::verdict_label")}</div>
+                <div class="flex items-center gap-4">
+                  <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center transition-transform group-hover:scale-110">
+                    <GraduationCap size={24} />
+                  </div>
+                  <div class="text-lg font-black tracking-tight uppercase">
+                    {llm.verdict ?? t("frontend/src/routes/submissions/[id]/+page.svelte::dash_placeholder")}
+                  </div>
                 </div>
               </div>
-              <div class="rounded-box bg-base-200 p-3">
-                <div class="font-medium">
-                  {t(
-                    "frontend/src/routes/submissions/[id]/+page.svelte::reason_label",
-                  )}
-                </div>
-                <div class="text-sm break-words">
-                  {llm.reason ??
-                    t(
-                      "frontend/src/routes/submissions/[id]/+page.svelte::dash_placeholder",
-                    )}
-                </div>
+ 
+              <div class="md:col-span-1 bg-base-100 p-6 rounded-3xl border border-base-200 shadow-sm group">
+                <div class="text-[9px] font-black uppercase tracking-widest opacity-40 mb-3">{t("frontend/src/routes/submissions/[id]/+page.svelte::reason_label")}</div>
+                <p class="text-xs font-medium leading-relaxed opacity-70">
+                  {llm.reason ?? t("frontend/src/routes/submissions/[id]/+page.svelte::dash_placeholder")}
+                </p>
               </div>
             </div>
-
+ 
             {#if review && allowLLMDetails}
-              <div class="rounded-box bg-base-200 p-4 space-y-3">
-                <div class="font-semibold flex items-center gap-2">
-                  {t(
-                    "frontend/src/routes/submissions/[id]/+page.svelte::llm_review_title",
-                  )}
+              <div class="bg-base-100 rounded-3xl border border-base-200 shadow-lg shadow-base-300/30 overflow-hidden">
+                <div class="px-6 py-4 border-b border-base-200 bg-base-100/50 backdrop-blur-sm flex items-center gap-3">
+                  <div class="p-2 bg-primary/10 text-primary rounded-lg">
+                    <Search size={18} />
+                  </div>
+                  <h2 class="text-lg font-black tracking-tight">{t("frontend/src/routes/submissions/[id]/+page.svelte::llm_review_title")}</h2>
                 </div>
-                {#if review.summary}
-                  <p class="text-sm leading-relaxed">{review.summary}</p>
-                {/if}
-
-                {#if Array.isArray(review.issues) && review.issues.length}
-                  <div class="space-y-2">
-                    <div class="font-medium">
-                      {t(
-                        "frontend/src/routes/submissions/[id]/+page.svelte::issues_title",
-                      )}
-                    </div>
+                
+                <div class="p-6 space-y-6">
+                  {#if review.summary}
                     <div class="space-y-2">
-                      {#each review.issues as issue}
-                        <div class="rounded bg-base-300 p-3 space-y-1">
-                          <div class="flex items-center justify-between">
-                            <div class="font-medium">{issue.title}</div>
-                            <span
-                              class={`badge ${issue.severity === "critical" ? "badge-error" : issue.severity === "high" ? "badge-warning" : "badge-info"}`}
-                              >{issue.severity}</span
-                            >
-                          </div>
-                          {#if issue.rationale}
-                            <div class="text-sm opacity-80">
-                              {issue.rationale}
-                            </div>
-                          {/if}
-                          {#if issue.reproduction}
-                            <div class="text-sm">
-                              <div class="opacity-70">
-                                {t(
-                                  "frontend/src/routes/submissions/[id]/+page.svelte::reproduction_label",
-                                )}
+                      <div class="text-[9px] font-black uppercase tracking-widest opacity-40">{t("frontend/src/routes/assignments/[id]/+page.svelte::assignment_description_label")}</div>
+                      <p class="text-base leading-relaxed font-medium">{review.summary}</p>
+                    </div>
+                  {/if}
+ 
+                  {#if Array.isArray(review.issues) && review.issues.length}
+                    <div class="space-y-4">
+                      <div class="text-[9px] font-black uppercase tracking-widest opacity-40">{t("frontend/src/routes/submissions/[id]/+page.svelte::issues_title")}</div>
+                      <div class="grid gap-3">
+                        {#each review.issues as issue}
+                          <div class="bg-base-200/50 rounded-2xl p-5 border border-base-300/50 space-y-3 group">
+                            <div class="flex flex-wrap items-center justify-between gap-4">
+                              <div class="flex items-center gap-3">
+                                <div class={`w-1.5 h-1.5 rounded-full ${issue.severity === 'critical' ? 'bg-error animate-pulse' : issue.severity === 'high' ? 'bg-warning' : 'bg-info'}`}></div>
+                                <div class="text-base font-black tracking-tight">{issue.title}</div>
                               </div>
-                              {#if Array.isArray(issue.reproduction.inputs) && issue.reproduction.inputs.length}
-                                <ul class="list-disc list-inside">
-                                  {#each issue.reproduction.inputs as inp}
-                                    <li class="font-mono">{inp}</li>
-                                  {/each}
-                                </ul>
-                              {/if}
-                              {#if issue.reproduction.expect_regex}
-                                <div class="mt-1">
-                                  {t(
-                                    "frontend/src/routes/submissions/[id]/+page.svelte::expect_label",
-                                  )}:
-                                  <span class="font-mono"
-                                    >/{issue.reproduction.expect_regex}/</span
-                                  >
-                                </div>
-                              {/if}
-                              {#if issue.reproduction.notes}
-                                <div class="mt-1 opacity-80">
-                                  {issue.reproduction.notes}
-                                </div>
-                              {/if}
+                              <span class={`badge font-black text-[8px] uppercase tracking-widest px-2 h-5 border-none ${issue.severity === 'critical' ? 'bg-error/20 text-error' : issue.severity === 'high' ? 'bg-warning/20 text-warning' : 'bg-info/20 text-info'}`}>
+                                {issue.severity}
+                              </span>
                             </div>
+                            
+                            {#if issue.rationale}
+                              <p class="text-xs font-medium opacity-70 leading-relaxed">{issue.rationale}</p>
+                            {/if}
+ 
+                            {#if issue.reproduction}
+                              <div class="bg-base-300/50 rounded-xl p-3.5 space-y-2 border border-base-300/30">
+                                <div class="text-[8px] font-black uppercase opacity-40">{t("frontend/src/routes/submissions/[id]/+page.svelte::reproduction_label")}</div>
+                                {#if Array.isArray(issue.reproduction.inputs) && issue.reproduction.inputs.length}
+                                  <div class="flex flex-wrap gap-1.5">
+                                    {#each issue.reproduction.inputs as inp}
+                                      <code class="bg-base-100 px-2 py-1 rounded-md text-[11px] font-black shadow-sm">{inp}</code>
+                                    {/each}
+                                  </div>
+                                {/if}
+                                {#if issue.reproduction.expect_regex}
+                                  <div class="flex items-center gap-2">
+                                    <span class="text-[9px] font-black uppercase tracking-widest opacity-40">{t("frontend/src/routes/submissions/[id]/+page.svelte::expect_label")}:</span>
+                                    <code class="text-[11px] font-black text-primary bg-primary/10 px-2 py-1 rounded-md">/{issue.reproduction.expect_regex}/</code>
+                                  </div>
+                                {/if}
+                              </div>
+                            {/if}
+                          </div>
+                        {/each}
+                      </div>
+                    </div>
+                  {/if}
+ 
+                  {#if Array.isArray(review.suggestions) && review.suggestions.length}
+                    <div class="space-y-3">
+                      <div class="text-[9px] font-black uppercase tracking-widest opacity-40">{t("frontend/src/routes/submissions/[id]/+page.svelte::suggestions_title")}</div>
+                      <div class="flex flex-wrap gap-2">
+                        {#each review.suggestions as s}
+                          <div class="bg-secondary/5 text-secondary border border-secondary/20 px-4 py-2 rounded-xl text-xs font-black tracking-tight flex items-center gap-2">
+                            <Sparkles size={14} />
+                            {s}
+                          </div>
+                        {/each}
+                      </div>
+                    </div>
+                  {/if}
+ 
+                  {#if review.acceptance}
+                    <div class="pt-5 border-t border-base-200">
+                      <div class="bg-base-200/50 rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div class="space-y-1.5">
+                          <div class="text-[9px] font-black uppercase tracking-widest opacity-40">{t("frontend/src/routes/submissions/[id]/+page.svelte::acceptance_title")}</div>
+                          <div class="text-xl font-black tracking-tight">{review.acceptance.ok ? t("frontend/src/routes/submissions/[id]/+page.svelte::accepted_status") : t("frontend/src/routes/submissions/[id]/+page.svelte::rejected_status")}</div>
+                          {#if review.acceptance.reason}
+                            <p class="text-xs font-medium opacity-70">{review.acceptance.reason}</p>
                           {/if}
                         </div>
-                      {/each}
+                        <div class={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-xl ${review.acceptance.ok ? 'bg-success text-success-content shadow-success/40' : 'bg-error text-error-content shadow-error/40'}`}>
+                          {#if review.acceptance.ok}<CheckCircle2 size={32} />{:else}<AlertTriangle size={32} />{/if}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                {/if}
-
-                {#if Array.isArray(review.suggestions) && review.suggestions.length}
-                  <div class="space-y-1">
-                    <div class="font-medium">
-                      {t(
-                        "frontend/src/routes/submissions/[id]/+page.svelte::suggestions_title",
-                      )}
-                    </div>
-                    <ul class="list-disc list-inside">
-                      {#each review.suggestions as s}
-                        <li>{s}</li>
-                      {/each}
-                    </ul>
-                  </div>
-                {/if}
-
-                <!-- Risk-based tests plan removed per requirements -->
-
-                {#if review.acceptance}
-                  <div class="pt-1">
-                    <div class="font-medium">
-                      {t(
-                        "frontend/src/routes/submissions/[id]/+page.svelte::acceptance_title",
-                      )}
-                    </div>
-                    <div class="flex items-center gap-2 text-sm">
-                      <span
-                        class={`badge ${review.acceptance.ok ? "badge-success" : "badge-error"}`}
-                        >{review.acceptance.ok
-                          ? t(
-                              "frontend/src/routes/submissions/[id]/+page.svelte::accepted_status",
-                            )
-                          : t(
-                              "frontend/src/routes/submissions/[id]/+page.svelte::rejected_status",
-                            )}</span
-                      >
-                      {#if review.acceptance.reason}
-                        <span class="opacity-80"
-                          >{review.acceptance.reason}</span
-                        >
-                      {/if}
-                    </div>
-                  </div>
-                {/if}
+                  {/if}
+                </div>
               </div>
             {/if}
-
+ 
             {#if transcriptMsgs.length && allowLLMDetails}
-              <div class="rounded-box bg-base-200 p-4 space-y-2">
-                <div class="font-semibold">
-                  {t(
-                    "frontend/src/routes/submissions/[id]/+page.svelte::interactive_transcript_title",
-                  )}
+              <div class="bg-base-100 rounded-3xl border border-base-200 shadow-lg shadow-base-300/30 overflow-hidden">
+                <div class="px-6 py-4 border-b border-base-200 bg-base-100/50 backdrop-blur-sm flex items-center gap-3">
+                  <div class="p-2 bg-base-300 text-base-content/70 rounded-lg">
+                    <History size={18} />
+                  </div>
+                  <h2 class="text-lg font-black tracking-tight">{t("frontend/src/routes/submissions/[id]/+page.svelte::interactive_transcript_title")}</h2>
                 </div>
-                <div class="space-y-2">
+                <div class="p-6 space-y-4 bg-base-200/20">
                   {#each transcriptMsgs as m}
-                    <div
-                      class={`chat ${m.role === "AI" ? "chat-end" : "chat-start"}`}
-                    >
-                      <div class="chat-header opacity-70">{m.role}</div>
-                      <div
-                        class={`chat-bubble ${m.role === "AI" ? "chat-bubble-primary" : "chat-bubble-neutral"}`}
-                      >
-                        {m.text}
+                    <div class={`flex ${m.role === 'AI' ? 'justify-end' : 'justify-start'}`}>
+                      <div class={`max-w-[85%] p-4.5 rounded-2xl shadow-sm relative group ${m.role === 'AI' ? 'bg-primary text-primary-content rounded-tr-none' : 'bg-base-100 text-base-content rounded-tl-none border border-base-200'}`}>
+                        <div class={`text-[8px] font-black uppercase tracking-widest mb-1.5 opacity-50 ${m.role === 'AI' ? 'text-primary-content' : 'text-base-content/60'}`}>{m.role}</div>
+                        <p class="text-xs font-medium leading-relaxed">{m.text}</p>
                       </div>
                     </div>
                   {/each}
@@ -1507,62 +1164,14 @@
               </div>
             {/if}
           {:else}
-            <div class="text-sm opacity-70">
-              {t(
-                "frontend/src/routes/submissions/[id]/+page.svelte::no_llm_data_yet_message",
-              )}
+            <div class="bg-base-100 p-12 rounded-3xl border border-base-200 text-center opacity-40">
+              <Search size={48} class="mx-auto mb-4" />
+              <p class="text-xs font-black uppercase tracking-widest">{t("frontend/src/routes/submissions/[id]/+page.svelte::no_llm_data_yet_message")}</p>
             </div>
           {/if}
         </div>
-      </div>
-    {/if}
-
-    {#if role === "teacher" || role === "admin"}
-      <div class="card bg-base-100 shadow">
-        <div class="card-body space-y-3">
-          <div
-            class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div>
-              <h3 class="card-title">
-                {t(
-                  "frontend/src/routes/submissions/[id]/+page.svelte::manual_testing_title",
-                )}
-              </h3>
-              <p class="text-sm opacity-70">
-                {t(
-                  "frontend/src/routes/submissions/[id]/+page.svelte::manual_testing_description",
-                )}
-              </p>
-            </div>
-            {#if !forceManualConsole}
-              <button
-                class="btn btn-sm btn-outline"
-                on:click={() => (manualConsoleVisible = !manualConsoleVisible)}
-              >
-                {manualConsoleVisible
-                  ? t(
-                      "frontend/src/routes/submissions/[id]/+page.svelte::hide_console_button",
-                    )
-                  : t(
-                      "frontend/src/routes/submissions/[id]/+page.svelte::show_console_button",
-                    )}
-              </button>
-            {/if}
-          </div>
-
-          {#if forceManualConsole || manualConsoleVisible}
-            <RunConsole submissionId={sid} />
-          {:else}
-            <div class="text-sm opacity-70 italic">
-              {t(
-                "frontend/src/routes/submissions/[id]/+page.svelte::open_manual_console_message",
-              )}
-            </div>
-          {/if}
-        </div>
-      </div>
-    {/if}
+      {/if}
+    </div>
   </div>
 {/if}
 

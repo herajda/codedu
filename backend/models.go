@@ -121,21 +121,22 @@ type Class struct {
 }
 
 type Submission struct {
-	ID               uuid.UUID `db:"id" json:"id"`
-	AssignmentID     uuid.UUID `db:"assignment_id" json:"assignment_id"`
-	StudentID        uuid.UUID `db:"student_id" json:"student_id"`
-	CodePath         string    `db:"code_path" json:"code_path"`
-	CodeContent      string    `db:"code_content" json:"code_content"`
-	Status           string    `db:"status" json:"status"`
-	Points           *float64  `db:"points" json:"points"`
-	OverridePts      *float64  `db:"override_points" json:"override_points"`
-	IsTeacherRun     bool      `db:"is_teacher_run" json:"is_teacher_run"`
-	ManuallyAccepted bool      `db:"manually_accepted" json:"manually_accepted"`
-	Late             bool      `db:"late" json:"late"`
-	CreatedAt        time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
-	AttemptNumber    *int      `db:"attempt_number" json:"attempt_number,omitempty"`
-	StudentName      *string   `db:"student_name" json:"student_name,omitempty"`
+	ID                         uuid.UUID `db:"id" json:"id"`
+	AssignmentID               uuid.UUID `db:"assignment_id" json:"assignment_id"`
+	StudentID                  uuid.UUID `db:"student_id" json:"student_id"`
+	CodePath                   string    `db:"code_path" json:"code_path"`
+	CodeContent                string    `db:"code_content" json:"code_content"`
+	Status                     string    `db:"status" json:"status"`
+	Points                     *float64  `db:"points" json:"points"`
+	OverridePts                *float64  `db:"override_points" json:"override_points"`
+	IsTeacherRun               bool      `db:"is_teacher_run" json:"is_teacher_run"`
+	ManuallyAccepted           bool      `db:"manually_accepted" json:"manually_accepted"`
+	Late                       bool      `db:"late" json:"late"`
+	CreatedAt                  time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt                  time.Time `db:"updated_at" json:"updated_at"`
+	AttemptNumber              *int      `db:"attempt_number" json:"attempt_number,omitempty"`
+	StudentName                *string   `db:"student_name" json:"student_name,omitempty"`
+	AllTestsFailureExplanation *string   `db:"all_tests_failure_explanation" json:"all_tests_failure_explanation,omitempty"`
 }
 
 type TestCase struct {
