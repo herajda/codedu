@@ -1209,7 +1209,6 @@
   "frontend/src/routes/dashboard/+page.svelte::dashboard_points": "Body",
   "frontend/src/routes/dashboard/+page.svelte::dashboard_progress": "Pokrok",
   "frontend/src/routes/dashboard/+page.svelte::dashboard_students_label": "studenti",
-  "frontend/src/routes/dashboard/+page.svelte::dashboard_teachers": "Učitelé",
   "frontend/src/routes/dashboard/+page.svelte::dashboard_upcoming": "Nadcházejicí",
   "frontend/src/routes/dashboard/+page.svelte::dashboard_upcoming_deadlines": "Nadcházejicí termíny",
   "frontend/src/routes/dashboard/+page.svelte::dashboard_student_subtitle": "Zde je přehled vašeho postupu a nadcházejících úkolů.",
