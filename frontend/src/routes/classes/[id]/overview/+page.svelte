@@ -4,7 +4,7 @@ import { onMount } from 'svelte';
 import { apiJSON } from '$lib/api';
 import { page } from '$app/stores';
 import { formatDateTime } from "$lib/date";
-import { Trophy, CalendarClock, ListChecks, Target, PlayCircle, FolderOpen, MessageSquare, MessageCircle } from 'lucide-svelte';
+import { Trophy, CalendarClock, ListChecks, Target, PlayCircle, FolderOpen, MessageSquare, MessageCircle, ChevronRight } from 'lucide-svelte';
 import { t, translator } from '$lib/i18n';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
@@ -127,55 +127,88 @@ function badgeFor(a: any) {
 </script>
 
 {#if loading}
-  <p>{t('frontend/src/routes/classes/[id]/overview/+page.svelte::loading')}</p>
-{:else if err}
-  <p class="text-error">{err}</p>
-{:else}
-  <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
-    <div class="space-y-1">
-      <h1 class="text-2xl font-semibold">{cls.name} · {t('frontend/src/routes/classes/[id]/overview/+page.svelte::overview_suffix')}</h1>
-      <p class="text-sm text-base-content/60">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::overview_description')}</p>
-    </div>
-    <div class="hidden sm:flex gap-2">
-        <a href={`/classes/${id}/files`} class="btn btn-outline"><FolderOpen class="w-4 h-4" aria-hidden="true" /> {t('frontend/src/routes/classes/[id]/overview/+page.svelte::files_button')}</a>
-        <a href={`/classes/${id}/forum`} class="btn btn-outline"><MessageSquare class="w-4 h-4" aria-hidden="true" /> {t('frontend/src/routes/classes/[id]/overview/+page.svelte::forum_button')}</a>
-    </div>
+  <div class="flex justify-center mt-12">
+    <span class="loading loading-dots loading-lg text-primary"></span>
   </div>
+{:else if err}
+  <div class="p-8 text-center">
+    <p class="text-error font-black uppercase tracking-widest text-xs mb-2">Error</p>
+    <p class="text-base-content/60">{err}</p>
+  </div>
+{:else}
+  <!-- Premium Header -->
+  <section class="relative overflow-hidden bg-base-100 rounded-3xl border border-base-200 shadow-xl shadow-base-300/30 mb-8 p-6 sm:p-10">
+    <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent pointer-events-none"></div>
+    <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="relative flex flex-col md:flex-row items-center gap-6">
+      <div class="flex-1 text-center md:text-left">
+        <h1 class="text-3xl sm:text-4xl font-black tracking-tight mb-2">
+          {cls.name} <span class="text-primary/40">/</span> {t('frontend/src/routes/classes/[id]/overview/+page.svelte::overview_suffix')}
+        </h1>
+        <p class="text-base-content/60 font-medium max-w-xl mx-auto md:mx-0">
+          {t('frontend/src/routes/classes/[id]/overview/+page.svelte::overview_description')}
+        </p>
+      </div>
+      <div class="flex items-center gap-3">
+          <a href={`/classes/${id}/files`} class="btn btn-ghost bg-base-200/50 hover:bg-base-200 rounded-2xl gap-2 font-black uppercase tracking-widest text-[10px]">
+            <FolderOpen class="w-4 h-4" aria-hidden="true" /> {t('frontend/src/routes/classes/[id]/overview/+page.svelte::files_button')}
+          </a>
+          <a href={`/classes/${id}/forum`} class="btn btn-ghost bg-base-200/50 hover:bg-base-200 rounded-2xl gap-2 font-black uppercase tracking-widest text-[10px]">
+            <MessageSquare class="w-4 h-4" aria-hidden="true" /> {t('frontend/src/routes/classes/[id]/overview/+page.svelte::forum_button')}
+          </a>
+      </div>
+    </div>
+  </section>
 
-  <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
-    <div class="card-elevated p-4 flex items-center gap-3">
-      <Trophy class="w-5 h-5 opacity-70" aria-hidden="true" />
-      <div>
-        <div class="text-xs uppercase opacity-70">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::progress_card_title')}</div>
-        <div class="text-xl font-semibold">{progressPercent}%</div>
-        <div class="text-xs opacity-70">{translate('frontend/src/routes/classes/[id]/overview/+page.svelte::x_of_y_assignments', {completed: completedAssignments, total: totalAssignments})}</div>
+  <!-- Stats Section -->
+  <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+    <div class="bg-base-100 p-5 rounded-3xl border border-base-200 shadow-sm group hover:border-primary/30 transition-all">
+      <div class="text-[10px] font-black uppercase tracking-widest opacity-40 mb-3">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::progress_card_title')}</div>
+      <div class="flex items-center gap-4">
+        <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-primary-content transition-all duration-300">
+          <Trophy size={20} />
+        </div>
+        <div>
+          <div class="text-2xl font-black tabular-nums">{progressPercent}%</div>
+          <div class="text-[10px] font-black opacity-40 uppercase tracking-tight">{translate('frontend/src/routes/classes/[id]/overview/+page.svelte::x_of_y_assignments', {completed: completedAssignments, total: totalAssignments})}</div>
+        </div>
       </div>
     </div>
-    <div class="card-elevated p-4 flex items-center gap-3">
-      <Target class="w-5 h-5 opacity-70" aria-hidden="true" />
-      <div>
-        <div class="text-xs uppercase opacity-70">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::points_card_title')}</div>
-        <div class="text-xl font-semibold">{pointsEarned}/{pointsTotal}</div>
+
+    <div class="bg-base-100 p-5 rounded-3xl border border-base-200 shadow-sm group hover:border-success/30 transition-all">
+      <div class="text-[10px] font-black uppercase tracking-widest opacity-40 mb-3">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::points_card_title')}</div>
+      <div class="flex items-center gap-4">
+        <div class="w-10 h-10 rounded-xl bg-success/10 text-success flex items-center justify-center group-hover:bg-success group-hover:text-success-content transition-all duration-300">
+          <Target size={20} />
+        </div>
+        <div class="text-2xl font-black tabular-nums">{pointsEarned} <span class="text-sm opacity-40 font-normal">/ {pointsTotal}</span></div>
       </div>
     </div>
-    <div class="card-elevated p-4 flex items-center gap-3">
-      <ListChecks class="w-5 h-5 opacity-70" aria-hidden="true" />
-      <div>
-        <div class="text-xs uppercase opacity-70">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::total_assignments_card_title')}</div>
-        <div class="text-xl font-semibold">{totalAssignments}</div>
+
+    <div class="bg-base-100 p-5 rounded-3xl border border-base-200 shadow-sm group hover:border-warning/30 transition-all">
+      <div class="text-[10px] font-black uppercase tracking-widest opacity-40 mb-3">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::total_assignments_card_title')}</div>
+      <div class="flex items-center gap-4">
+        <div class="w-10 h-10 rounded-xl bg-warning/10 text-warning flex items-center justify-center group-hover:bg-warning group-hover:text-warning-content transition-all duration-300">
+          <ListChecks size={20} />
+        </div>
+        <div class="text-2xl font-black tabular-nums">{totalAssignments}</div>
       </div>
     </div>
-    <div class="card-elevated p-4 flex items-center gap-3">
-      <CalendarClock class="w-5 h-5 opacity-70" aria-hidden="true" />
-      <div>
-        <div class="text-xs uppercase opacity-70">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::upcoming_card_title')}</div>
-        <div class="text-xl font-semibold">{upcomingCount}</div>
+
+    <div class="bg-base-100 p-5 rounded-3xl border border-base-200 shadow-sm group hover:border-info/30 transition-all">
+      <div class="text-[10px] font-black uppercase tracking-widest opacity-40 mb-3">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::upcoming_card_title')}</div>
+      <div class="flex items-center gap-4">
+        <div class="w-10 h-10 rounded-xl bg-info/10 text-info flex items-center justify-center group-hover:bg-info group-hover:text-info-content transition-all duration-300">
+          <CalendarClock size={20} />
+        </div>
+        <div class="text-2xl font-black tabular-nums">{upcomingCount}</div>
       </div>
     </div>
   </section>
 
   {#if safeClassDescription}
-    <div class="card-elevated px-5 py-5 mb-6">
+    <div class="bg-base-100 p-8 rounded-[2rem] border border-base-200 shadow-sm mb-8 relative overflow-hidden group">
+      <div class="absolute top-0 left-0 w-2 h-full bg-primary/20 group-hover:bg-primary transition-colors"></div>
       <div class="prose max-w-none assignment-description text-base-content/90">
         {@html safeClassDescription}
       </div>
@@ -183,127 +216,165 @@ function badgeFor(a: any) {
   {/if}
 
   {#if teacherId}
-    <div class="card-elevated flex flex-wrap items-center gap-4 px-5 py-4 mb-6">
-      <div class="avatar">
-        <div class="w-14 h-14 rounded-full overflow-hidden ring-2 ring-base-300/60">
+    <div class="bg-base-100 flex flex-wrap items-center gap-6 p-6 rounded-[2.5rem] border border-base-200 shadow-sm mb-8 relative overflow-hidden group">
+      <div class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
+      
+      <div class="relative shrink-0">
+        <div class="w-16 h-16 rounded-2xl overflow-hidden ring-4 ring-base-200 shadow-lg">
           {#if teacherAvatar}
             <img src={teacherAvatar} alt={`Avatar of ${teacherName}`} class="w-full h-full object-cover" loading="lazy" />
           {:else}
-            <div class="w-full h-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-xl font-semibold text-primary">
+            <div class="w-full h-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-2xl font-black text-primary">
               {teacherInitial}
             </div>
           {/if}
         </div>
+        <div class="absolute -bottom-1 -right-1 w-5 h-5 bg-success rounded-full border-4 border-base-100"></div>
       </div>
-      <div class="min-w-0 flex-1">
-        <div class="text-xs uppercase tracking-wide text-base-content/60">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::teacher_label')}</div>
-        <div class="font-semibold leading-tight truncate">{teacherName}</div>
+
+      <div class="min-w-0 flex-1 relative">
+        <div class="text-[10px] font-black uppercase tracking-widest text-base-content/40 mb-1">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::teacher_label')}</div>
+        <div class="text-xl font-black tracking-tight truncate">{teacherName}</div>
         {#if teacherEmail && teacherEmail !== teacherName}
-          <a class="text-sm text-primary truncate hover:underline" href={`mailto:${teacherEmail}`}>{teacherEmail}</a>
+          <div class="text-sm font-medium opacity-50 flex items-center gap-2 mt-0.5">
+             <div class="w-1 h-1 rounded-full bg-base-content/30 italic"></div>
+             {teacherEmail}
+          </div>
         {/if}
       </div>
+
       {#if teacherMessageUrl}
-        <a href={teacherMessageUrl} class="btn btn-primary gap-2">
-          <MessageCircle class="w-4 h-4" aria-hidden="true" />
-          {t('frontend/src/routes/classes/[id]/overview/+page.svelte::message_teacher_button')}
+        <a href={teacherMessageUrl} class="btn btn-primary rounded-2xl px-6 gap-2 shadow-lg shadow-primary/20 relative">
+          <MessageCircle size={18} />
+          <span class="font-black uppercase tracking-widest text-[10px]">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::message_teacher_button')}</span>
         </a>
       {/if}
     </div>
   {/if}
 
-  <div class="grid gap-6 lg:grid-cols-3">
-    <section class="lg:col-span-2 space-y-6">
+  <div class="grid gap-8 lg:grid-cols-12">
+    <section class="lg:col-span-8 space-y-6">
       {#if nextAssignment}
-        <div class="card-elevated p-5 flex items-center justify-between gap-4">
-          <div class="min-w-0">
-            <div class="text-sm opacity-70">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::continue_where_you_left_off')}</div>
-            <div class="text-lg font-semibold truncate">{nextAssignment.title}</div>
-            <div class="text-sm opacity-70">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::due_prefix')} {formatDateTime(nextAssignment.deadline)}</div>
+        <div class="bg-primary/5 rounded-[2rem] border border-primary/10 p-6 flex flex-col sm:flex-row items-center justify-between gap-6 group hover:bg-primary/10 transition-colors">
+          <div class="flex items-center gap-5 min-w-0">
+            <div class="w-14 h-14 rounded-2xl bg-primary/20 text-primary flex items-center justify-center shrink-0">
+               <PlayCircle size={28} />
+            </div>
+            <div class="min-w-0 text-center sm:text-left">
+              <div class="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-1">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::continue_where_you_left_off')}</div>
+              <div class="text-xl font-black tracking-tight truncate group-hover:text-primary transition-colors">{nextAssignment.title}</div>
+              <div class="text-xs font-bold opacity-40 mt-1">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::due_prefix')} {formatDateTime(nextAssignment.deadline)}</div>
+            </div>
           </div>
-          <a href={`/assignments/${nextAssignment.id}`} class="btn"><PlayCircle class="w-4 h-4" aria-hidden="true" /> {t('frontend/src/routes/classes/[id]/overview/+page.svelte::continue_button')}</a>
+          <a href={`/assignments/${nextAssignment.id}`} class="btn btn-primary rounded-2xl px-8 shadow-lg shadow-primary/20 font-black uppercase tracking-widest text-[10px]">
+             {t('frontend/src/routes/classes/[id]/overview/+page.svelte::continue_button')}
+          </a>
         </div>
       {/if}
 
-      <div class="card-elevated p-5">
-        <div class="flex items-center justify-between mb-3">
-          <h2 class="font-semibold">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::your_assignments_title')}</h2>
+      <div class="space-y-6">
+        <div class="flex items-center justify-between px-2">
+          <h2 class="text-sm font-black uppercase tracking-[0.2em] opacity-40">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::your_assignments_title')}</h2>
         </div>
-        <ul class="space-y-3">
+        
+        <div class="grid gap-4">
           {#each assignmentProgress as a}
-            <li>
-              <a href={`/assignments/${a.id}`} class="block no-underline text-current">
-                <div class="card-elevated p-4 hover:shadow-md transition">
-                  <div class="flex items-center justify-between gap-4">
-                    <div class="min-w-0">
-                      <div class="font-medium truncate">{a.title}</div>
-                      <div class="text-sm opacity-70 truncate">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::due_prefix')} {formatDateTime(a.deadline)}</div>
-                    </div>
-                  <div class="flex items-center gap-3 shrink-0">
-                      <div class="flex items-center gap-2">
-                      <progress class="progress progress-primary w-20 sm:w-24" value={a.best} max={a.max_points}></progress>
-                        <span class="text-sm whitespace-nowrap">{a.best}/{a.max_points}</span>
-                      </div>
-                      {#key a.id}
-                        {#if badgeFor(a)}<span class={`badge ${badgeFor(a).cls}`}>{badgeFor(a).text}</span>{/if}
-                      {/key}
-                    </div>
-                  </div>
+            <a href={`/assignments/${a.id}`} class="group block no-underline text-current">
+              <div class="bg-base-100 p-5 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all flex flex-col sm:flex-row items-center gap-6">
+                <div class="min-w-0 flex-1">
+                  <div class="font-black text-lg tracking-tight truncate group-hover:text-primary transition-colors mb-1">{a.title}</div>
+                  <div class="text-xs font-bold opacity-40 italic">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::due_prefix')} {formatDateTime(a.deadline)}</div>
                 </div>
-              </a>
-            </li>
+
+                <div class="flex items-center gap-6 shrink-0 w-full sm:w-auto">
+                  <div class="flex-1 sm:w-32 space-y-2">
+                     <div class="flex items-center justify-between text-[10px] font-black opacity-40 uppercase">
+                        <span>{percent(a.best, a.max_points)}%</span>
+                        <span>{a.best}/{a.max_points}</span>
+                     </div>
+                     <div class="w-full h-1.5 rounded-full bg-base-200 overflow-hidden">
+                        <div class="h-full bg-primary transition-all duration-500" style={`width: ${percent(a.best, a.max_points)}%`}></div>
+                     </div>
+                  </div>
+                  
+                  {#key a.id}
+                    {#if badgeFor(a)}
+                      <span class={`badge badge-ghost border-none font-black text-[9px] uppercase tracking-widest px-3 h-6 ${badgeFor(a).cls.replace('badge-', 'text-')}`}>
+                        {badgeFor(a).text}
+                      </span>
+                    {/if}
+                  {/key}
+                </div>
+              </div>
+            </a>
+          {:else}
+            <div class="bg-base-100 p-12 rounded-[2rem] border border-base-200 border-dashed text-center">
+               <p class="text-sm font-bold opacity-30 uppercase tracking-[0.2em]">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::no_assignments_message')}</p>
+            </div>
           {/each}
-          {#if !assignmentProgress.length}
-            <li class="text-sm opacity-70">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::no_assignments_message')}</li>
-          {/if}
-        </ul>
+        </div>
       </div>
     </section>
 
-    <aside class="space-y-6">
-      <div class="card-elevated p-5">
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="font-semibold">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::upcoming_deadlines_title')}</h3>
+    <aside class="lg:col-span-4 space-y-8">
+      <div class="space-y-6">
+        <div class="flex items-center justify-between px-2">
+          <h3 class="text-sm font-black uppercase tracking-[0.2em] opacity-40">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::upcoming_deadlines_title')}</h3>
         </div>
-        <ul class="divide-y divide-base-300/60">
-          {#each upcomingAssignments as a}
-            <li>
-              <a href={`/assignments/${a.id}`} class="flex items-center justify-between py-3 hover:opacity-90">
-                <div class="min-w-0">
-                  <div class="font-medium truncate">{a.title}</div>
-                  <div class="text-sm opacity-70 truncate">{formatDateTime(a.deadline)}</div>
+        
+        <div class="bg-base-100 rounded-[2.5rem] border border-base-200 shadow-sm overflow-hidden p-3">
+          <div class="space-y-1">
+            {#each upcomingAssignments as a}
+              <a href={`/assignments/${a.id}`} class="flex items-center gap-4 p-4 rounded-[1.5rem] hover:bg-base-200 transition-colors group">
+                <div class="w-12 h-12 rounded-2xl bg-warning/10 text-warning flex flex-col items-center justify-center shrink-0">
+                  <span class="text-[9px] font-black uppercase tracking-tighter">{new Date(a.deadline).toLocaleString('default', { month: 'short' })}</span>
+                  <span class="text-lg font-black leading-none">{new Date(a.deadline).getDate()}</span>
                 </div>
-                <span class={`badge ${badgeFor(a).cls}`}>{badgeFor(a).text}</span>
+                <div class="min-w-0 flex-1">
+                  <div class="font-black text-sm truncate group-hover:text-primary transition-colors">{a.title}</div>
+                  <div class={`text-[10px] font-black uppercase tracking-widest mt-0.5 ${badgeFor(a).cls.replace('badge-', 'text-')}`}>{badgeFor(a).text}</div>
+                </div>
+                <ChevronRight size={16} class="opacity-0 group-hover:opacity-30 group-hover:translate-x-1 transition-all" />
               </a>
-            </li>
-          {/each}
-          {#if !upcomingAssignments.length}
-            <li class="py-3 text-sm opacity-70">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::no_upcoming_deadlines_message')}</li>
-          {/if}
-        </ul>
+            {:else}
+               <div class="py-10 text-center space-y-3">
+                 <div class="w-12 h-12 rounded-full bg-base-200 flex items-center justify-center mx-auto opacity-30">
+                    <CalendarClock size={20} />
+                 </div>
+                 <p class="text-[10px] font-black opacity-30 uppercase tracking-widest">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::no_upcoming_deadlines_message')}</p>
+               </div>
+            {/each}
+          </div>
+        </div>
       </div>
 
-      <div class="card-elevated p-5">
-        <h3 class="font-semibold mb-3">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::recent_submissions_title')}</h3>
-        <ul class="space-y-2">
-          {#each recentSubmissions as s}
-            <li>
-              <a
-                href={`/submissions/${s.id}`}
-                class="flex items-center justify-between text-sm hover:opacity-90"
-              >
-                <span class="truncate"
-                  >{cls.assignments.find((a:any) => a.id === s.assignment_id)?.title}</span
-                >
-                <span class="opacity-70 whitespace-nowrap"
-                  >{formatDateTime(s.created_at)}</span
-                >
+      <div class="space-y-6">
+        <div class="flex items-center justify-between px-2">
+          <h3 class="text-sm font-black uppercase tracking-[0.2em] opacity-40">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::recent_submissions_title')}</h3>
+        </div>
+        
+        <div class="bg-base-100 rounded-[2.5rem] border border-base-200 shadow-sm overflow-hidden p-3">
+          <div class="space-y-1">
+            {#each recentSubmissions as s}
+              <a href={`/submissions/${s.id}`} class="flex items-center gap-4 p-4 rounded-[1.5rem] hover:bg-base-200 transition-colors group">
+                <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                   <Target size={18} />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <div class="font-black text-sm truncate group-hover:text-primary transition-colors">{cls.assignments.find((a:any) => a.id === s.assignment_id)?.title}</div>
+                  <div class="text-[10px] font-black opacity-40 uppercase tracking-widest mt-0.5">{formatDateTime(s.created_at)}</div>
+                </div>
               </a>
-            </li>
-          {/each}
-          {#if !recentSubmissions.length}
-            <li class="text-sm opacity-70">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::no_submissions_yet_message')}</li>
-          {/if}
-        </ul>
+            {:else}
+              <div class="py-10 text-center space-y-3">
+                <div class="w-10 h-10 rounded-full bg-base-200 flex items-center justify-center mx-auto opacity-30">
+                   <Target size={18} />
+                </div>
+                <p class="text-[10px] font-black opacity-30 uppercase tracking-widest">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::no_submissions_yet_message')}</p>
+              </div>
+            {/each}
+          </div>
+        </div>
       </div>
     </aside>
   </div>
