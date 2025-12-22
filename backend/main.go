@@ -242,6 +242,8 @@ func main() {
 		api.PUT("/assignments/:id/extensions/:student_id", RoleGuard("teacher", "admin"), upsertAssignmentExtension)
 		api.DELETE("/assignments/:id/extensions/:student_id", RoleGuard("teacher", "admin"), deleteAssignmentExtension)
 		api.GET("/submissions/:id", RoleGuard("student", "teacher", "admin"), getSubmission)
+		api.POST("/submissions/:id/explain-test-failure", RoleGuard("student", "teacher", "admin"), explainTestFailure)
+		api.POST("/submissions/:id/explain-all-test-failures", RoleGuard("student", "teacher", "admin"), explainAllTestsFailed)
 		api.PUT("/submissions/:id/points", RoleGuard("teacher", "admin"), overrideSubmissionPoints)
 		api.PUT("/submissions/:id/accept", RoleGuard("teacher", "admin"), acceptSubmission)
 		api.PUT("/submissions/:id/undo-accept", RoleGuard("teacher", "admin"), undoManualAccept)

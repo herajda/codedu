@@ -419,6 +419,7 @@ func updateAssignment(c *gin.Context) {
 		LLMStrictness      *int     `json:"llm_strictness"`
 		LLMRubric          *string  `json:"llm_rubric"`
 		LLMTeacherBaseline *string  `json:"llm_teacher_baseline_json"`
+		LLMHelpWhyFailed   bool     `json:"llm_help_why_failed"`
 		SecondDeadline     *string  `json:"second_deadline"`
 		LatePenaltyRatio   *float64 `json:"late_penalty_ratio"`
 	}
@@ -450,6 +451,7 @@ func updateAssignment(c *gin.Context) {
 	a.LLMFeedback = req.LLMFeedback
 	a.LLMAutoAward = req.LLMAutoAward
 	a.LLMScenariosRaw = req.LLMScenariosRaw
+	a.LLMHelpWhyFailed = req.LLMHelpWhyFailed
 
 	if req.LLMStrictness != nil {
 		a.LLMStrictness = *req.LLMStrictness
@@ -5206,4 +5208,517 @@ func handleRemoveWhitelist(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "removed"})
+}
+
+// explainTestFailure: POST /api/submissions/:id/explain-test-failure
+// Calls OpenAI to explain why a test case failed without revealing test details.
+func explainTestFailure(c *gin.Context) {
+	sid, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	var req struct {
+		TestCaseID string `json:"test_case_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid json"})
+		return
+	}
+	tcid, err := uuid.Parse(req.TestCaseID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_case_id"})
+		return
+	}
+
+	// 1. Get Submission
+	sub, err := GetSubmission(sid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "submission not found"})
+		return
+	}
+
+	// 2. Auth check
+	role := c.GetString("role")
+	uid := getUserID(c)
+	if role == "student" && sub.StudentID != uid {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+
+	assign, err := GetAssignmentForSubmission(sid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "assignment fetch error"})
+		return
+	}
+	if role == "teacher" {
+		if ok, err := IsTeacherOfAssignment(assign.ID, uid); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+
+	// 3. Feature flag check
+	if role == "student" && !assign.LLMHelpWhyFailed {
+		c.JSON(http.StatusForbidden, gin.H{"error": "feature disabled"})
+		return
+	}
+
+	// 4. Check status of requested test
+	var targetResult struct {
+		Status             string  `db:"status"`
+		FailureExplanation *string `db:"failure_explanation"`
+	}
+	err = DB.Get(&targetResult, `SELECT status, failure_explanation FROM results WHERE submission_id=$1 AND test_case_id=$2`, sid, tcid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "result not found"})
+		return
+	}
+
+	// Return cached explanation if available
+	if targetResult.FailureExplanation != nil && *targetResult.FailureExplanation != "" {
+		c.JSON(http.StatusOK, gin.H{"explanation": *targetResult.FailureExplanation})
+		return
+	}
+
+	if targetResult.Status == "passed" {
+		c.JSON(http.StatusOK, gin.H{"explanation": "The test passed, so no explanation is needed."})
+		return
+	}
+
+	// 5. Fetch ALL failed tests for this submission that miss explanation
+	var failedTests []struct {
+		TestCaseID     uuid.UUID `db:"test_case_id"`
+		Stdin          string    `db:"stdin"`
+		ExpectedStdout string    `db:"expected_stdout"`
+		ActualStdout   string    `db:"actual_stdout"`
+		Stderr         string    `db:"stderr"`
+		Status         string    `db:"status"`
+	}
+	err = DB.Select(&failedTests, `
+		SELECT r.test_case_id, tc.stdin, tc.expected_stdout, r.actual_stdout, r.stderr, r.status
+		FROM results r
+		JOIN test_cases tc ON r.test_case_id = tc.id
+		WHERE r.submission_id = $1 
+		  AND r.status != 'passed' 
+		  AND (r.failure_explanation IS NULL OR r.failure_explanation = '')
+	`, sid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db error"})
+		return
+	}
+	if len(failedTests) == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no failed tests found"})
+		return
+	}
+
+	// 6. Code content (extract if zip)
+	rawCode, err := base64.StdEncoding.DecodeString(sub.CodeContent)
+	if err != nil {
+		rawCode = []byte(sub.CodeContent)
+	}
+	codeText := ""
+	if len(rawCode) > 4 && string(rawCode[:2]) == "PK" {
+		zr, err := zip.NewReader(bytes.NewReader(rawCode), int64(len(rawCode)))
+		if err == nil {
+			for _, f := range zr.File {
+				if strings.HasSuffix(f.Name, ".py") {
+					rc, _ := f.Open()
+					b, _ := io.ReadAll(rc)
+					codeText = string(b)
+					rc.Close()
+					break
+				}
+			}
+		}
+	} else {
+		codeText = string(rawCode)
+	}
+	if codeText == "" {
+		codeText = "(Unable to extract code)"
+	}
+
+	// 7. Call OpenAI
+	apiKey := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
+	if apiKey == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "AI not configured"})
+		return
+	}
+	defaultModel := strings.TrimSpace(os.Getenv("OPENAI_MODEL"))
+	if defaultModel == "" {
+		defaultModel = "gpt-5"
+	}
+	simpleModel := strings.TrimSpace(os.Getenv("OPENAI_MODEL_SIMPLE"))
+	if simpleModel == "" {
+		simpleModel = "gpt-5-mini"
+	}
+	model := simpleModel
+
+	base := strings.TrimSpace(os.Getenv("OPENAI_API_BASE"))
+	opts := []option.RequestOption{option.WithAPIKey(apiKey)}
+	if base != "" {
+		opts = append(opts, option.WithBaseURL(strings.TrimRight(base, "/")))
+	}
+	client := openai.NewClient(opts...)
+
+	// Get user language preference
+	user, err := GetUser(uid)
+	lang := "English"
+	if err == nil && user.PreferredLocale != nil && *user.PreferredLocale == "cs" {
+		lang = "Czech"
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf(`You are a helpful coding tutor.
+The student's code failed multiple test cases.
+Explain WHY each test failed in ONE SHORT SENTENCE (max 30 words) per test.
+Reply in %s.
+Do NOT reveal expected outputs if hidden.
+Do NOT reveal sensitive inputs.
+Focus on logic errors.
+
+Assignment: %s
+Description: %s
+
+Student Code:
+%s
+
+Failures:
+`, lang, assign.Title, stripMarkdownImages(assign.Description), codeText))
+
+	for _, ft := range failedTests {
+		sb.WriteString(fmt.Sprintf("\nTest %s:\nInput: %s\nExpected: %s\nActual: %s\nStderr: %s\n", ft.TestCaseID, ft.Stdin, ft.ExpectedStdout, ft.ActualStdout, ft.Stderr))
+	}
+
+	schema := map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"explanations": map[string]any{
+				"type": "array",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"test_case_id": map[string]any{"type": "string"},
+						"explanation":  map[string]any{"type": "string"},
+					},
+					"required":             []string{"test_case_id", "explanation"},
+					"additionalProperties": false,
+				},
+			},
+		},
+		"required": []string{"explanations"},
+	}
+
+	sysPrompt := "You are a helpful coding tutor. Output structured JSON."
+	params := responses.ResponseNewParams{
+		Model:        openai.ChatModel(model),
+		Instructions: openai.String(sysPrompt),
+		Text: responses.ResponseTextConfigParam{
+			Format: responses.ResponseFormatTextConfigUnionParam{
+				OfJSONSchema: &responses.ResponseFormatTextJSONSchemaConfigParam{
+					Type:        "json_schema",
+					Name:        "failure_explanations",
+					Schema:      schema,
+					Strict:      openai.Bool(true),
+					Description: openai.String("List of explanations for test failures"),
+				},
+			},
+		},
+		Input: responses.ResponseNewParamsInputUnion{
+			OfString: openai.String(sb.String()),
+		},
+		MaxOutputTokens: openai.Int(4096),
+	}
+
+	ctx := context.Background()
+	resp, err := client.Responses.New(ctx, params)
+	if err != nil {
+		log.Printf("AI explanation error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "AI generation failed", "detail": err.Error()})
+		return
+	}
+
+	rawJSON := resp.OutputText()
+	if rawJSON == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "AI refused to generate explanation"})
+		return
+	}
+
+	var out struct {
+		Explanations []struct {
+			TestCaseID  string `json:"test_case_id"`
+			Explanation string `json:"explanation"`
+		} `json:"explanations"`
+	}
+
+	if uErr := json.Unmarshal([]byte(rawJSON), &out); uErr == nil {
+		targetExpl := ""
+		tx, _ := DB.Begin()
+		for _, item := range out.Explanations {
+			// Update DB
+			_, _ = tx.Exec(`UPDATE results SET failure_explanation=$1 WHERE submission_id=$2 AND test_case_id=$3`, item.Explanation, sid, item.TestCaseID)
+
+			// Check if this is the requested one
+			if item.TestCaseID == tcid.String() {
+				targetExpl = item.Explanation
+			}
+		}
+		tx.Commit()
+
+		if targetExpl != "" {
+			c.JSON(http.StatusOK, gin.H{"explanation": targetExpl})
+		} else {
+			c.JSON(http.StatusOK, gin.H{"explanation": "Explanation generated (please refresh)."})
+		}
+		return
+	} else {
+		log.Printf("Explain failure unmarshal error: %v, raw: %s", uErr, rawJSON)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid AI response", "detail": uErr.Error(), "raw": rawJSON})
+		return
+	}
+}
+
+// explainAllTestsFailed: POST /api/submissions/:id/explain-all-test-failures
+// Calls OpenAI to summarize why all tests failed without revealing test details.
+func explainAllTestsFailed(c *gin.Context) {
+	sid, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	// 1. Get Submission
+	sub, err := GetSubmission(sid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "submission not found"})
+		return
+	}
+
+	// 2. Auth check
+	role := c.GetString("role")
+	uid := getUserID(c)
+	if role == "student" && sub.StudentID != uid {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+
+	assign, err := GetAssignmentForSubmission(sid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "assignment fetch error"})
+		return
+	}
+	if role == "teacher" {
+		if ok, err := IsTeacherOfAssignment(assign.ID, uid); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+
+	// 3. Feature flag check
+	if role == "student" && !assign.LLMHelpWhyFailed {
+		c.JSON(http.StatusForbidden, gin.H{"error": "feature disabled"})
+		return
+	}
+
+	// 4. Ensure all tests failed
+	var counts struct {
+		Total  int `db:"total"`
+		Passed int `db:"passed"`
+	}
+	err = DB.Get(&counts, `
+		SELECT COUNT(*) AS total,
+		       COALESCE(SUM(CASE WHEN status='passed' THEN 1 ELSE 0 END), 0) AS passed
+		FROM results
+		WHERE submission_id=$1
+	`, sid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db error"})
+		return
+	}
+	if counts.Total == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no results found"})
+		return
+	}
+	if counts.Passed > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "not all tests failed"})
+		return
+	}
+
+	// Return cached explanation if available
+	var cached sql.NullString
+	err = DB.Get(&cached, `SELECT all_tests_failure_explanation FROM submissions WHERE id=$1`, sid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db error"})
+		return
+	}
+	if cached.Valid && strings.TrimSpace(cached.String) != "" {
+		c.JSON(http.StatusOK, gin.H{"explanation": cached.String})
+		return
+	}
+
+	// 5. Fetch ALL failed tests for this submission
+	var failedTests []struct {
+		TestCaseID     uuid.UUID `db:"test_case_id"`
+		Stdin          string    `db:"stdin"`
+		ExpectedStdout string    `db:"expected_stdout"`
+		ActualStdout   string    `db:"actual_stdout"`
+		Stderr         string    `db:"stderr"`
+		Status         string    `db:"status"`
+	}
+	err = DB.Select(&failedTests, `
+		SELECT r.test_case_id, tc.stdin, tc.expected_stdout, r.actual_stdout, r.stderr, r.status
+		FROM results r
+		JOIN test_cases tc ON r.test_case_id = tc.id
+		WHERE r.submission_id = $1
+		  AND r.status != 'passed'
+	`, sid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db error"})
+		return
+	}
+	if len(failedTests) == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no failed tests found"})
+		return
+	}
+
+	// 6. Code content (extract if zip)
+	rawCode, err := base64.StdEncoding.DecodeString(sub.CodeContent)
+	if err != nil {
+		rawCode = []byte(sub.CodeContent)
+	}
+	codeText := ""
+	if len(rawCode) > 4 && string(rawCode[:2]) == "PK" {
+		zr, err := zip.NewReader(bytes.NewReader(rawCode), int64(len(rawCode)))
+		if err == nil {
+			for _, f := range zr.File {
+				if strings.HasSuffix(f.Name, ".py") {
+					rc, _ := f.Open()
+					b, _ := io.ReadAll(rc)
+					codeText = string(b)
+					rc.Close()
+					break
+				}
+			}
+		}
+	} else {
+		codeText = string(rawCode)
+	}
+	if codeText == "" {
+		codeText = "(Unable to extract code)"
+	}
+
+	// 7. Call OpenAI
+	apiKey := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
+	if apiKey == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "AI not configured"})
+		return
+	}
+	defaultModel := strings.TrimSpace(os.Getenv("OPENAI_MODEL"))
+	if defaultModel == "" {
+		defaultModel = "gpt-5"
+	}
+	simpleModel := strings.TrimSpace(os.Getenv("OPENAI_MODEL_SIMPLE"))
+	if simpleModel == "" {
+		simpleModel = "gpt-5-mini"
+	}
+	model := simpleModel
+
+	base := strings.TrimSpace(os.Getenv("OPENAI_API_BASE"))
+	opts := []option.RequestOption{option.WithAPIKey(apiKey)}
+	if base != "" {
+		opts = append(opts, option.WithBaseURL(strings.TrimRight(base, "/")))
+	}
+	client := openai.NewClient(opts...)
+
+	// Get user language preference
+	user, err := GetUser(uid)
+	lang := "English"
+	if err == nil && user.PreferredLocale != nil && *user.PreferredLocale == "cs" {
+		lang = "Czech"
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf(`You are a helpful coding tutor.
+The student's submission failed every test case.
+Summarize the most likely root cause(s) in 2-3 short sentences (max 60 words).
+Reply in %s.
+Do NOT reveal expected outputs if hidden.
+Do NOT reveal sensitive inputs.
+Focus on logic errors and patterns across failures.
+
+Assignment: %s
+Description: %s
+
+Student Code:
+%s
+
+Failures:
+`, lang, assign.Title, stripMarkdownImages(assign.Description), codeText))
+
+	for _, ft := range failedTests {
+		sb.WriteString(fmt.Sprintf("\nTest %s:\nStatus: %s\nInput: %s\nExpected: %s\nActual: %s\nStderr: %s\n", ft.TestCaseID, ft.Status, ft.Stdin, ft.ExpectedStdout, ft.ActualStdout, ft.Stderr))
+	}
+
+	schema := map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"explanation": map[string]any{"type": "string"},
+		},
+		"required": []string{"explanation"},
+	}
+
+	sysPrompt := "You are a helpful coding tutor. Output structured JSON."
+	params := responses.ResponseNewParams{
+		Model:        openai.ChatModel(model),
+		Instructions: openai.String(sysPrompt),
+		Text: responses.ResponseTextConfigParam{
+			Format: responses.ResponseFormatTextConfigUnionParam{
+				OfJSONSchema: &responses.ResponseFormatTextJSONSchemaConfigParam{
+					Type:        "json_schema",
+					Name:        "failure_summary",
+					Schema:      schema,
+					Strict:      openai.Bool(true),
+					Description: openai.String("Summary explanation for all failed tests"),
+				},
+			},
+		},
+		Input: responses.ResponseNewParamsInputUnion{
+			OfString: openai.String(sb.String()),
+		},
+		MaxOutputTokens: openai.Int(1024),
+	}
+
+	ctx := context.Background()
+	resp, err := client.Responses.New(ctx, params)
+	if err != nil {
+		log.Printf("AI summary error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "AI generation failed", "detail": err.Error()})
+		return
+	}
+
+	rawJSON := resp.OutputText()
+	if rawJSON == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "AI refused to generate explanation"})
+		return
+	}
+
+	var out struct {
+		Explanation string `json:"explanation"`
+	}
+	if uErr := json.Unmarshal([]byte(rawJSON), &out); uErr != nil {
+		log.Printf("Explain summary unmarshal error: %v, raw: %s", uErr, rawJSON)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid AI response", "detail": uErr.Error(), "raw": rawJSON})
+		return
+	}
+
+	_, err = DB.Exec(`UPDATE submissions SET all_tests_failure_explanation=$1 WHERE id=$2`, out.Explanation, sid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"explanation": out.Explanation})
 }

@@ -97,6 +97,10 @@
   $: testsPercent = results.length
     ? Math.round((testsPassed / results.length) * 100)
     : 0;
+  $: allTestsFailed =
+    Array.isArray(results) &&
+    results.length > 0 &&
+    results.every((r: any) => r.status !== "passed" && r.status !== "running");
   let editing = false;
   let eTitle = "",
     eDesc = "",
@@ -108,6 +112,7 @@
   let eManualReview = false;
   let eLLMInteractive = false;
   let eLLMFeedback = false;
+  let eLLMHelpWhyFailed = false;
   let eLLMAutoAward = true;
   let eLLMScenarios = "";
   let eLLMStrictness: number = 50;
@@ -349,6 +354,12 @@
         if (latestSub) {
           const subData = await apiJSON(`/api/submissions/${latestSub.id}`);
           results = subData.results ?? [];
+          results.forEach((r: any) => {
+            if (r.failure_explanation) {
+              explanations[r.test_case_id] = { loading: false, text: r.failure_explanation };
+            }
+          });
+          explanations = { ...explanations };
         }
         const best = submissions.reduce((m: number, s: any) => {
           const p = s.override_points ?? s.points ?? 0;
@@ -529,6 +540,7 @@
     eManualReview = assignment.manual_review;
     eLLMInteractive = !!assignment.llm_interactive;
     eLLMFeedback = !!assignment.llm_feedback;
+    eLLMHelpWhyFailed = !!assignment.llm_help_why_failed;
     eLLMAutoAward = assignment.llm_auto_award ?? true;
     eLLMScenarios = assignment.llm_scenarios_json ?? "";
     eLLMStrictness =
@@ -625,6 +637,7 @@
           manual_review: eManualReview,
           llm_interactive: eLLMInteractive,
           llm_feedback: eLLMFeedback,
+          llm_help_why_failed: eLLMHelpWhyFailed,
           llm_auto_award: eLLMAutoAward,
           llm_scenarios_json: eLLMScenarios.trim() ? eLLMScenarios : null,
           llm_strictness: Number.isFinite(eLLMStrictness)
@@ -701,6 +714,97 @@
     if (s === "time_limit_exceeded" || s === "memory_limit_exceeded")
       return "badge-warning";
     return "";
+  }
+
+  let explanations: Record<string, { loading: boolean; text?: string; error?: string }> = {};
+  let explainInFlight = false;
+  let explainQueue: string[] = [];
+  let summaryExplanation: { loading: boolean; text?: string; error?: string } = {
+    loading: false,
+  };
+
+  async function fetchExplanation(sid: string, tcid: string) {
+    return apiJSON(`/api/submissions/${sid}/explain-test-failure`, {
+      method: "POST",
+      body: JSON.stringify({ test_case_id: tcid }),
+    });
+  }
+
+  async function fetchSummaryExplanation(sid: string) {
+    return apiJSON(`/api/submissions/${sid}/explain-all-test-failures`, {
+      method: "POST",
+    });
+  }
+
+  async function askWhyFailed(sid: string, tcid: string) {
+    if (explanations[tcid]?.loading || explanations[tcid]?.text) return;
+    if (explainInFlight) {
+      explanations[tcid] = { loading: true };
+      explanations = { ...explanations };
+      if (!explainQueue.includes(tcid)) explainQueue = [...explainQueue, tcid];
+      return;
+    }
+
+    explainInFlight = true;
+    explanations[tcid] = { loading: true };
+    explanations = { ...explanations };
+    try {
+      const res = await fetchExplanation(sid, tcid);
+      let firstApplied = false;
+      while (explainQueue.length) {
+        const queued = explainQueue;
+        explainQueue = [];
+        const results = await Promise.all(
+          queued.map(async (id) => {
+            try {
+              const cached = await fetchExplanation(sid, id);
+              return { id, text: cached.explanation as string };
+            } catch (e: any) {
+              return { id, error: e.message as string };
+            }
+          }),
+        );
+        if (!firstApplied) {
+          explanations[tcid] = { loading: false, text: res.explanation };
+          firstApplied = true;
+        }
+        for (const r of results) {
+          if (r.error) {
+            explanations[r.id] = { loading: false, error: r.error };
+          } else {
+            explanations[r.id] = { loading: false, text: r.text };
+          }
+        }
+        explanations = { ...explanations };
+      }
+      if (!firstApplied) {
+        explanations[tcid] = { loading: false, text: res.explanation };
+        explanations = { ...explanations };
+      }
+    } catch (e: any) {
+      const errMsg = e.message as string;
+      explanations[tcid] = { loading: false, error: errMsg };
+      if (explainQueue.length) {
+        for (const id of explainQueue) {
+          explanations[id] = { loading: false, error: errMsg };
+        }
+        explainQueue = [];
+      }
+      explanations = { ...explanations };
+    } finally {
+      explainInFlight = false;
+    }
+  }
+
+  async function askWhyAllFailed(sid: string) {
+    if (summaryExplanation.loading || summaryExplanation.text) return;
+    summaryExplanation = { loading: true };
+    try {
+      const res = await fetchSummaryExplanation(sid);
+      summaryExplanation = { loading: false, text: res.explanation };
+    } catch (e: any) {
+      summaryExplanation = { loading: false, error: e.message as string };
+    }
   }
 
   function openTeacherRunModal() {
@@ -1244,6 +1348,25 @@
                           "frontend/src/routes/assignments/[id]/+page.svelte::reveal_test_details_teacher_review",
                         )}</span
                       >
+                    </label>
+                    <label class="flex items-start gap-2 pt-2">
+                      <input
+                        type="checkbox"
+                        class="checkbox checkbox-sm mt-0.5"
+                        bind:checked={eLLMHelpWhyFailed}
+                      />
+                      <div class="flex flex-col">
+                        <span class="label-text font-medium"
+                          >{t(
+                            "frontend/src/routes/assignments/[id]/+page.svelte::llm_help_why_failed",
+                          )}</span
+                        >
+                        <span class="text-xs opacity-60 leading-tight mt-0.5"
+                          >{t(
+                            "frontend/src/routes/assignments/[id]/+page.svelte::llm_help_why_failed_desc",
+                          )}</span
+                        >
+                      </div>
                     </label>
                   </div>
                 {/if}
@@ -1982,6 +2105,48 @@
             </div>
 
             {#if latestSub}
+              {#if assignment.llm_help_why_failed && allTestsFailed}
+                <div class="mb-6">
+                  {#if summaryExplanation.text}
+                    <div class="p-3 bg-base-200 rounded-lg text-xs border border-base-300 shadow-sm max-w-xl text-left">
+                      <div class="flex gap-2 items-start">
+                        <Sparkles
+                          size={14}
+                          class="text-primary mt-0.5 shrink-0"
+                        />
+                        <span class="leading-relaxed"
+                          >{summaryExplanation.text}</span
+                        >
+                      </div>
+                    </div>
+                  {:else}
+                    <button
+                      class="btn btn-xs btn-ghost gap-1 text-[10px] font-bold text-primary opacity-60 hover:opacity-100"
+                      on:click={() => askWhyAllFailed(latestSub.id)}
+                      disabled={summaryExplanation.loading}
+                    >
+                      {#if summaryExplanation.loading}
+                        <span class="loading loading-spinner loading-xs"></span>
+                        {t(
+                          "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_loading",
+                        )}
+                      {:else}
+                        <Sparkles size={12} />
+                        {t(
+                          "frontend/src/routes/submissions/[id]/+page.svelte::explain_all_failures_btn",
+                        )}
+                      {/if}
+                    </button>
+                    {#if summaryExplanation.error}
+                      <div class="text-[10px] text-error mt-1">
+                        {t(
+                          "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_error",
+                        )}
+                      </div>
+                    {/if}
+                  {/if}
+                </div>
+              {/if}
               <div class="overflow-x-auto -mx-2">
                 <table class="table w-full">
                   <thead>
@@ -2001,6 +2166,31 @@
                           <div class={`badge border-none font-black text-[10px] uppercase tracking-wider py-3 ${statusColor(r.status).replace('badge-', 'bg-')}/20 ${statusColor(r.status).replace('badge-', 'text-')}`}>
                             {r.status}
                           </div>
+                          {#if assignment.llm_help_why_failed && !allTestsFailed && r.status !== 'passed' && r.status !== 'running' && r.test_case_id}
+                             <div class="mt-2">
+                                {#if explanations[r.test_case_id]?.text}
+                                   <div class="p-2 bg-base-200 rounded-lg text-xs border border-base-300 shadow-sm max-w-xs text-left">
+                                      <div class="flex gap-2 items-start">
+                                         <Sparkles size={14} class="text-primary mt-0.5 shrink-0" />
+                                         <span class="leading-relaxed">{explanations[r.test_case_id].text}</span>
+                                      </div>
+                                   </div>
+                                {:else}
+                                   <button class="btn btn-xs btn-ghost gap-1 text-[10px] font-bold text-primary opacity-60 hover:opacity-100" on:click={() => askWhyFailed(latestSub.id, r.test_case_id)} disabled={explanations[r.test_case_id]?.loading}>
+                                       {#if explanations[r.test_case_id]?.loading}
+                                           <span class="loading loading-spinner loading-xs"></span>
+                                           {t("frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_loading")}
+                                       {:else}
+                                           <Sparkles size={12}/>
+                                           {t("frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_btn")}
+                                       {/if}
+                                   </button>
+                                   {#if explanations[r.test_case_id]?.error}
+                                       <div class="text-[10px] text-error mt-1">{t("frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_error")}</div>
+                                   {/if}
+                                {/if}
+                             </div>
+                          {/if}
                         </td>
                         <td class="tabular-nums font-bold opacity-60">{r.runtime_ms}ms</td>
                         <td>
@@ -2787,4 +2977,3 @@
     scroll-behavior: smooth;
   }
 </style>
-

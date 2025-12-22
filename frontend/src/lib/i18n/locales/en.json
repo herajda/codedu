@@ -1728,5 +1728,11 @@
   "frontend/src/routes/teachers/files/+page.svelte::drop_error_failed_to_upload": "Failed to upload dropped file",
   "frontend/src/routes/teachers/files/+page.svelte::upload_error_size_limit": "File size exceeds limit",
   "frontend/src/routes/verify-email/+page.svelte::verify_error_expired": "Verification link has expired",
-  "frontend/src/routes/verify-email/+page.svelte::verify_error_temporary": "Temporary verification error"
+  "frontend/src/routes/verify-email/+page.svelte::verify_error_temporary": "Temporary verification error",
+  "frontend/src/routes/assignments/[id]/+page.svelte::llm_help_why_failed": "Enable AI explain failure",
+  "frontend/src/routes/assignments/[id]/+page.svelte::llm_help_why_failed_desc": "Allows students to ask AI why a test failed (without revealing inputs).",
+  "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_btn": "Why did this fail?",
+  "frontend/src/routes/submissions/[id]/+page.svelte::explain_all_failures_btn": "Why did the test fail?",
+  "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_loading": "Asking AI...",
+  "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_error": "Could not explain failure."
 }

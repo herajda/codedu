@@ -67,6 +67,7 @@ type Assignment struct {
 	LLMStrictness      int     `db:"llm_strictness" json:"llm_strictness"`
 	LLMRubric          *string `db:"llm_rubric" json:"llm_rubric"`
 	LLMTeacherBaseline *string `db:"llm_teacher_baseline_json" json:"llm_teacher_baseline_json"`
+	LLMHelpWhyFailed   bool    `db:"llm_help_why_failed" json:"llm_help_why_failed"`
 
 	// Second deadline feature
 	SecondDeadline   *time.Time `db:"second_deadline" json:"second_deadline"`
@@ -265,8 +266,8 @@ func ListAllClasses() ([]Class, error) {
 // ──────────────────────────────────────────────────────────────────────────────
 func CreateAssignment(a *Assignment) error {
 	const q = `
-          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, show_test_details, manual_review, banned_functions, banned_modules, banned_tool_rules, template_path, class_id, second_deadline, late_penalty_ratio)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, show_test_details, manual_review, banned_functions, banned_modules, banned_tool_rules, template_path, class_id, second_deadline, late_penalty_ratio, llm_help_why_failed)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
           RETURNING id, created_at, updated_at`
 	return DB.QueryRow(q,
 		a.Title, a.Description, a.CreatedBy, a.Deadline,
@@ -274,7 +275,7 @@ func CreateAssignment(a *Assignment) error {
 		pq.Array(copyStringArray(a.BannedFunctions)), pq.Array(copyStringArray(a.BannedModules)),
 		a.BannedToolRules,
 		a.TemplatePath, a.ClassID,
-		a.SecondDeadline, a.LatePenaltyRatio,
+		a.SecondDeadline, a.LatePenaltyRatio, a.LLMHelpWhyFailed,
 	).Scan(&a.ID, &a.CreatedAt, &a.UpdatedAt)
 }
 
@@ -322,6 +323,7 @@ func ListAssignments(role string, userID uuid.UUID) ([]Assignment, error) {
            COALESCE(a.llm_strictness,50) AS llm_strictness,
            a.llm_rubric,
            a.llm_teacher_baseline_json,
+           COALESCE(a.llm_help_why_failed,false) AS llm_help_why_failed,
            a.second_deadline,
            COALESCE(a.late_penalty_ratio,0.5) AS late_penalty_ratio
       FROM assignments a`
@@ -439,6 +441,7 @@ func GetAssignment(id uuid.UUID) (*Assignment, error) {
            COALESCE(llm_strictness,50) AS llm_strictness,
            llm_rubric,
            llm_teacher_baseline_json,
+           COALESCE(llm_help_why_failed,false) AS llm_help_why_failed,
            second_deadline,
            COALESCE(late_penalty_ratio,0.5) AS late_penalty_ratio
       FROM assignments
@@ -466,7 +469,9 @@ func GetAssignmentForSubmission(subID uuid.UUID) (*Assignment, error) {
                a.llm_scenarios_json,
                COALESCE(a.llm_strictness,50) AS llm_strictness,
                a.llm_rubric,
+               a.llm_rubric,
                a.llm_teacher_baseline_json,
+               COALESCE(a.llm_help_why_failed,false) AS llm_help_why_failed,
                a.second_deadline,
                COALESCE(a.late_penalty_ratio,0.5) AS late_penalty_ratio
           FROM assignments a
@@ -487,15 +492,15 @@ func UpdateAssignment(a *Assignment) error {
            banned_functions=$9, banned_modules=$10, banned_tool_rules=$11,
            llm_interactive=$12, llm_feedback=$13, llm_auto_award=$14, llm_scenarios_json=$15,
            llm_strictness=$16, llm_rubric=$17, llm_teacher_baseline_json=$18,
-           second_deadline=$19, late_penalty_ratio=$20,
+           second_deadline=$19, late_penalty_ratio=$20, llm_help_why_failed=$21,
            updated_at=now()
-     WHERE id=$21`,
+     WHERE id=$22`,
 		a.Title, a.Description, a.Deadline,
 		a.MaxPoints, a.GradingPolicy, a.ShowTraceback, a.ShowTestDetails, a.ManualReview,
 		pq.Array(copyStringArray(a.BannedFunctions)), pq.Array(copyStringArray(a.BannedModules)), a.BannedToolRules,
 		a.LLMInteractive, a.LLMFeedback, a.LLMAutoAward, a.LLMScenariosRaw,
 		a.LLMStrictness, a.LLMRubric, a.LLMTeacherBaseline,
-		a.SecondDeadline, a.LatePenaltyRatio,
+		a.SecondDeadline, a.LatePenaltyRatio, a.LLMHelpWhyFailed,
 		a.ID)
 	if err != nil {
 		return err
@@ -572,6 +577,7 @@ func CloneAssignmentWithTests(sourceID, targetClassID, createdBy uuid.UUID) (uui
 		LLMStrictness:      src.LLMStrictness,
 		LLMRubric:          src.LLMRubric,
 		LLMTeacherBaseline: src.LLMTeacherBaseline,
+		LLMHelpWhyFailed:   src.LLMHelpWhyFailed,
 	}
 	if src.BannedToolRules != nil {
 		clone := *src.BannedToolRules
@@ -1453,26 +1459,27 @@ func NeedsTeacherGroupSync(sourceID uuid.UUID) (bool, []AssignmentClone, error) 
 
 // Result represents outcome of one test case execution.
 type Result struct {
-	ID             uuid.UUID `db:"id" json:"id"`
-	SubmissionID   uuid.UUID `db:"submission_id" json:"submission_id"`
-	TestCaseID     uuid.UUID `db:"test_case_id" json:"test_case_id"`
-	Status         string    `db:"status" json:"status"`
-	ActualStdout   string    `db:"actual_stdout" json:"actual_stdout"`
-	Stderr         string    `db:"stderr" json:"stderr"`
-	ExitCode       int       `db:"exit_code" json:"exit_code"`
-	RuntimeMS      int       `db:"runtime_ms" json:"runtime_ms"`
-	Stdin          *string   `db:"stdin" json:"stdin,omitempty"`
-	ExpectedStdout *string   `db:"expected_stdout" json:"expected_stdout,omitempty"`
-	UnittestCode   *string   `db:"unittest_code" json:"unittest_code,omitempty"`
-	UnittestName   *string   `db:"unittest_name" json:"unittest_name,omitempty"`
-	ExecutionMode  *string   `db:"execution_mode" json:"execution_mode,omitempty"`
-	FunctionName   *string   `db:"function_name" json:"function_name,omitempty"`
-	FunctionArgs   *string   `db:"function_args" json:"function_args,omitempty"`
-	FunctionKwargs *string   `db:"function_kwargs" json:"function_kwargs,omitempty"`
-	ExpectedReturn *string   `db:"expected_return" json:"expected_return,omitempty"`
-	ActualReturn   *string   `db:"actual_return" json:"actual_return,omitempty"`
-	TestNumber     *int      `db:"test_number" json:"test_number,omitempty"`
-	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	ID                 uuid.UUID `db:"id" json:"id"`
+	SubmissionID       uuid.UUID `db:"submission_id" json:"submission_id"`
+	TestCaseID         uuid.UUID `db:"test_case_id" json:"test_case_id"`
+	Status             string    `db:"status" json:"status"`
+	ActualStdout       string    `db:"actual_stdout" json:"actual_stdout"`
+	Stderr             string    `db:"stderr" json:"stderr"`
+	ExitCode           int       `db:"exit_code" json:"exit_code"`
+	RuntimeMS          int       `db:"runtime_ms" json:"runtime_ms"`
+	Stdin              *string   `db:"stdin" json:"stdin,omitempty"`
+	ExpectedStdout     *string   `db:"expected_stdout" json:"expected_stdout,omitempty"`
+	UnittestCode       *string   `db:"unittest_code" json:"unittest_code,omitempty"`
+	UnittestName       *string   `db:"unittest_name" json:"unittest_name,omitempty"`
+	ExecutionMode      *string   `db:"execution_mode" json:"execution_mode,omitempty"`
+	FunctionName       *string   `db:"function_name" json:"function_name,omitempty"`
+	FunctionArgs       *string   `db:"function_args" json:"function_args,omitempty"`
+	FunctionKwargs     *string   `db:"function_kwargs" json:"function_kwargs,omitempty"`
+	ExpectedReturn     *string   `db:"expected_return" json:"expected_return,omitempty"`
+	ActualReturn       *string   `db:"actual_return" json:"actual_return,omitempty"`
+	TestNumber         *int      `db:"test_number" json:"test_number,omitempty"`
+	FailureExplanation *string   `db:"failure_explanation" json:"failure_explanation,omitempty"`
+	CreatedAt          time.Time `db:"created_at" json:"created_at"`
 }
 
 // LLMRun stores artifacts from an LLM-interactive testing run for a submission.
@@ -1605,7 +1612,7 @@ func ListResultsForSubmission(subID uuid.UUID) ([]Result, error) {
                r.exit_code, r.runtime_ms, r.created_at,
                ot.stdin, ot.expected_stdout, ot.unittest_code, ot.unittest_name,
                ot.execution_mode, ot.function_name, ot.function_args, ot.function_kwargs, ot.expected_return,
-               r.actual_return,
+               r.actual_return, r.failure_explanation,
                ot.test_number
           FROM results r
           LEFT JOIN ordered_tests ot ON r.test_case_id = ot.id

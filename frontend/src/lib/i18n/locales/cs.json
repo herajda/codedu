@@ -1704,5 +1704,11 @@
   "frontend/src/routes/teachers/files/+page.svelte::drop_error_failed_to_upload": "Nepodařilo se nahrát přetažený soubor",
   "frontend/src/routes/teachers/files/+page.svelte::upload_error_size_limit": "Velikost souboru překračuje limit",
   "frontend/src/routes/verify-email/+page.svelte::verify_error_expired": "Ověřovací odkaz vypršel",
-  "frontend/src/routes/verify-email/+page.svelte::verify_error_temporary": "Dočasná chyba ověření"
+  "frontend/src/routes/verify-email/+page.svelte::verify_error_temporary": "Dočasná chyba ověření",
+  "frontend/src/routes/assignments/[id]/+page.svelte::llm_help_why_failed": "Povolit AI vysvětlení chyby",
+  "frontend/src/routes/assignments/[id]/+page.svelte::llm_help_why_failed_desc": "Umožní studentům zeptat se AI, proč test selhal (bez odhalení vstupů).",
+  "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_btn": "Proč to selhalo?",
+  "frontend/src/routes/submissions/[id]/+page.svelte::explain_all_failures_btn": "Proč test selhal?",
+  "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_loading": "Ptám se AI...",
+  "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_error": "Nepodařilo se vysvětlit chybu."
 }
