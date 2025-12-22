@@ -534,15 +534,17 @@
             </div>
 
             <div class="flex flex-wrap items-center gap-y-4 gap-x-8">
-              <div class="flex items-center gap-3 group">
-                <div class="p-2 bg-base-200 rounded-lg group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-                  <User size={16} />
+              {#if role === "teacher" || role === "admin"}
+                <div class="flex items-center gap-3 group">
+                  <div class="p-2 bg-base-200 rounded-lg group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                    <User size={16} />
+                  </div>
+                  <div>
+                    <div class="text-[9px] font-black uppercase tracking-widest opacity-40">{t("frontend/src/routes/assignments/[id]/+page.svelte::progress_table_header_student")}</div>
+                    <div class="font-black text-sm">{submission.student_name || "Unknown Student"}</div>
+                  </div>
                 </div>
-                <div>
-                  <div class="text-[9px] font-black uppercase tracking-widest opacity-40">{t("frontend/src/routes/assignments/[id]/+page.svelte::progress_table_header_student")}</div>
-                  <div class="font-black text-sm">{submission.student_name || "Unknown Student"}</div>
-                </div>
-              </div>
+              {/if}
 
               <div class="flex items-center gap-3 group">
                 <div class="p-2 bg-base-200 rounded-lg group-hover:bg-primary/10 group-hover:text-primary transition-colors">
@@ -578,16 +580,7 @@
             </div>
           </div>
 
-          <div class="flex flex-wrap items-center gap-3 pt-4 border-t border-base-200/50">
-            <button class="btn btn-primary shadow-lg shadow-primary/20 rounded-xl px-5 h-9 font-black uppercase tracking-widest text-[10px]" on:click={openFiles}>
-              <Eye size={16} />
-              {t("frontend/src/routes/submissions/[id]/+page.svelte::view_files_button")}
-            </button>
-            <button class="btn bg-base-100 hover:bg-base-200 border-base-300 rounded-xl px-5 h-9 font-black uppercase tracking-widest text-[10px] shadow-sm transform transition-all active:scale-95" on:click={downloadFiles}>
-              <ExternalLink size={16} />
-              {t("frontend/src/routes/submissions/[id]/+page.svelte::download_button")}
-            </button>
-          </div>
+
         </div>
 
         {#if role === "teacher" || role === "admin" || (submission.points !== null || submission.override_points !== null)}
@@ -803,7 +796,7 @@
               </div>
             {/if}
 
-            <div class="bg-base-100 rounded-3xl border border-base-200 shadow-lg shadow-base-300/30 overflow-hidden">
+            <div class="bg-base-200/40 rounded-3xl border border-base-200 shadow-lg shadow-base-300/20 overflow-hidden">
               <div class="px-6 py-4 border-b border-base-200 flex items-center justify-between bg-base-100/50 backdrop-blur-sm">
                 <div class="flex items-center gap-3">
                   <div class="p-2 bg-primary/10 text-primary rounded-lg">
@@ -813,29 +806,24 @@
                 </div>
               </div>
               
-              <div class="divide-y divide-base-200/50">
+              <div class="p-4 space-y-3">
                 {#if Array.isArray(results) && results.length}
                   {#each results as r, i}
                     {@const mode = r.execution_mode ?? (r.unittest_name ? "unittest" : r.function_name ? "function" : "stdin_stdout")}
                     {@const allowLog = allowTraceback || r.status === "illegal_tool_use"}
-                    <div class="group hover:bg-base-200/30 transition-colors">
-                      <details class="collapse collapse-arrow rounded-none">
+                    <div class="group bg-base-100 rounded-2xl border border-base-200 shadow-sm hover:shadow-md hover:border-primary/30 transition-all overflow-hidden">
+                      <details class="collapse collapse-arrow">
                         <summary class="collapse-title !p-0">
-                          <div class="px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                            <div class="flex items-center gap-5">
+                          <div class="px-5 pr-12 py-4 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                            <div class="flex items-center gap-4">
                               <div class={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shadow-sm transition-transform group-hover:scale-110 ${statusColor(r.status).includes('success') ? 'bg-success/10 text-success' : statusColor(r.status).includes('error') ? 'bg-error/10 text-error' : 'bg-warning/10 text-warning'}`}>
                                 {r.test_number ?? i + 1}
                               </div>
                               <div class="space-y-1">
                                 <div class="flex items-center gap-2">
                                   <span class="font-black text-sm tracking-tight">
-                                    {#if mode === "unittest"}{r.unittest_name || "Unittest"}
-                                    {:else if mode === "function"}{r.function_name || "Function"}
-                                    {:else}{t("frontend/src/routes/submissions/[id]/+page.svelte::test_prefix")}{r.test_number ?? i + 1}{/if}
+                                    {t("frontend/src/routes/submissions/[id]/+page.svelte::test_prefix")}{r.test_number ?? i + 1}
                                   </span>
-                                  <div class={`badge badge-sm font-black text-[9px] uppercase tracking-widest border-none ${statusColor(r.status).replace('badge-', 'bg-')}/20 ${statusColor(r.status).replace('badge-', 'text-')}`}>
-                                    {r.status}
-                                  </div>
                                 </div>
                                 <div class="flex items-center gap-4 text-[10px] font-black uppercase tracking-[0.1em] opacity-40">
                                   <span class="flex items-center gap-1.5"><Clock size={12} /> {r.runtime_ms}{t("frontend/src/routes/submissions/[id]/+page.svelte::milliseconds_unit")}</span>
@@ -870,10 +858,14 @@
                                   {/if}
                                 </div>
                               {/if}
+                              <div class={`badge badge-md h-6 px-3 font-black text-[8px] uppercase tracking-widest border-none shadow-sm ${statusColor(r.status).replace('badge-', 'bg-')}/20 ${statusColor(r.status).replace('badge-', 'text-')}`}>
+                                {r.status}
+                              </div>
                             </div>
                           </div>
                         </summary>
-                        <div class="collapse-content px-6 pb-6 pt-1">
+                        <div class="collapse-content px-5 pb-5 pt-0">
+                          <div class="border-t border-base-200/50 mb-5"></div>
                           <div class="grid lg:grid-cols-2 gap-4">
                             {#if allowTestDetails}
                               <div class="space-y-4">
@@ -938,9 +930,13 @@
                     </div>
                   {/each}
                 {:else}
-                  <div class="p-20 flex flex-col items-center justify-center text-center opacity-40">
-                    <FlaskConical size={64} class="mb-4" />
-                    <p class="font-black uppercase tracking-widest">{t("frontend/src/routes/submissions/[id]/+page.svelte::no_results_yet_message")}</p>
+                  <div class="bg-base-100/40 rounded-2xl border border-dashed border-base-300/60 p-20 flex flex-col items-center justify-center text-center gap-4">
+                    <div class="p-4 bg-base-200/50 rounded-full text-base-content/20">
+                      <FlaskConical size={48} />
+                    </div>
+                    <div>
+                      <p class="font-black uppercase tracking-[0.2em] text-[10px] opacity-40">{t("frontend/src/routes/submissions/[id]/+page.svelte::no_results_yet_message")}</p>
+                    </div>
                   </div>
                 {/if}
               </div>
@@ -948,7 +944,7 @@
 
             <!-- Manual Console Section -->
             {#if (role === "teacher" || role === "admin")}
-              <div class="bg-base-100 rounded-3xl border border-base-200 shadow-lg shadow-base-300/30 overflow-hidden">
+              <div class="bg-base-200/40 rounded-3xl border border-base-200 shadow-lg shadow-base-300/20 overflow-hidden">
                 <div class="px-6 py-4 border-b border-base-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-base-100/50 backdrop-blur-sm">
                   <div class="flex items-center gap-3">
                     <div class="p-2 bg-warning/10 text-warning rounded-lg">
