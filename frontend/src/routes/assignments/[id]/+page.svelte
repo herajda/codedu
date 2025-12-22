@@ -46,7 +46,14 @@
     ShieldCheck,
     Briefcase,
     Globe,
-    ExternalLink
+    ExternalLink,
+    Save,
+    X,
+    Cpu,
+    FileUp,
+    Check,
+    FileText,
+    AlertCircle
   } from "lucide-svelte";
 
 
@@ -525,15 +532,26 @@
     // The input expects "YYYY-MM-DDTHH:mm", but simply slicing toISOString() gives UTC time.
     // We need to shift the time by the timezone offset before slicing.
     const toLocalISO = (dateStr: string) => {
+      if (!dateStr) return "";
       const d = new Date(dateStr);
       const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
       return local.toISOString().slice(0, 16);
     };
 
     eDeadline = toLocalISO(assignment.deadline);
-    eSecondDeadline = assignment.second_deadline
-      ? toLocalISO(assignment.second_deadline)
-      : "";
+    if (eDeadline) {
+      eDeadlineDate = eDeadline.slice(0, 10);
+      eDeadlineTime = eDeadline.slice(11, 16);
+    }
+    if (assignment.second_deadline) {
+      eSecondDeadline = toLocalISO(assignment.second_deadline);
+      eSecondDeadlineDate = eSecondDeadline.slice(0, 10);
+      eSecondDeadlineTime = eSecondDeadline.slice(11, 16);
+    } else {
+      eSecondDeadline = "";
+      eSecondDeadlineDate = "";
+      eSecondDeadlineTime = "";
+    }
     eLatePenaltyRatio = assignment.late_penalty_ratio ?? 0.5;
     eShowTraceback = assignment.show_traceback;
     eShowTestDetails = !!assignment.show_test_details;
@@ -963,7 +981,18 @@
     const day = d.slice(8, 10);
     const mon = d.slice(5, 7);
     const y = d.slice(0, 4);
-    return `${day}/${mon}/${y} ${t}`;
+    return `${day}. ${mon}. ${y} ${t}`;
+  }
+
+  function formatDeadlineDisplay(isoStr: string): string {
+    if (!isoStr) return "-";
+    // Expects YYYY-MM-DDTHH:mm
+    const [d, t] = isoStr.split("T");
+    if (!d || !t) return isoStr;
+    const day = d.slice(8, 10);
+    const mon = d.slice(5, 7);
+    const y = d.slice(0, 4);
+    return `${day}. ${mon}. ${y} ${t}`;
   }
   async function pickMainDeadline() {
     const initial =
@@ -1026,580 +1055,543 @@
   </div>
 {:else}
   {#if editing}
-    <div class="card-elevated mb-6">
-      <div class="card-body p-6">
-        <div class="flex items-center justify-between mb-2">
-          <h1 class="card-title text-2xl">
-            {t(
-              "frontend/src/routes/assignments/[id]/+page.svelte::edit_assignment_title",
-            )}
-          </h1>
-          <div class="badge badge-outline">
-            {t(
-              "frontend/src/routes/assignments/[id]/+page.svelte::assignment_id",
-              { id: assignment.id },
-            )}
+    <div class="card-elevated mb-8 overflow-hidden border-none shadow-2xl">
+      <div class="card-body p-0">
+        <!-- Modern Header with Gradient -->
+        <div class="bg-gradient-to-r from-primary/10 via-base-200 to-secondary/10 p-6 border-b border-base-300/50">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-4">
+              <div class="p-3 rounded-2xl bg-primary text-primary-content shadow-lg shadow-primary/20">
+                <Edit3 size={24} />
+              </div>
+              <div>
+                <h1 class="text-2xl font-black tracking-tight">
+                  {t("frontend/src/routes/assignments/[id]/+page.svelte::edit_assignment_title")}
+                </h1>
+                <div class="flex items-center gap-2 mt-1">
+                  {#if !assignment.published}
+                    <span class="badge badge-sm badge-warning font-black text-[9px] uppercase tracking-wider">Draft</span>
+                  {:else}
+                    <span class="badge badge-sm badge-success font-black text-[9px] uppercase tracking-wider">Published</span>
+                  {/if}
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button class="btn btn-sm btn-ghost hover:bg-base-300/50 gap-2" on:click={() => (editing = false)}>
+                <X size={16} />
+                <span class="hidden sm:inline">{t("frontend/src/routes/assignments/[id]/+page.svelte::cancel_button")}</span>
+              </button>
+              <button class="btn btn-sm btn-primary shadow-lg shadow-primary/20 gap-2" on:click={saveEdit}>
+                <Save size={16} />
+                <span>{t("frontend/src/routes/assignments/[id]/+page.svelte::save_changes_button")}</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        <div class="grid lg:grid-cols-3 gap-6">
-          <div class="lg:col-span-2 space-y-4">
+        <div class="grid lg:grid-cols-12 gap-0">
+          <!-- Main Content Area -->
+          <div class="lg:col-span-8 p-6 space-y-6 border-r border-base-300/30">
+            
             <!-- Basic info -->
-            <section
-              class="rounded-xl border border-base-300/60 bg-base-100 p-5 space-y-3"
-            >
-              <h3 class="font-semibold">
-                {t(
-                  "frontend/src/routes/assignments/[id]/+page.svelte::basic_info_heading",
-                )}
-              </h3>
-              <input
-                class="input input-bordered w-full"
-                bind:value={eTitle}
-                placeholder={t(
-                  "frontend/src/routes/assignments/[id]/+page.svelte::title_placeholder",
-                )}
-                required
-              />
-              <MarkdownEditor
-                bind:value={eDesc}
-                placeholder={t(
-                  "frontend/src/routes/assignments/[id]/+page.svelte::description_placeholder",
-                )}
-              />
-              <div
-                class="grid gap-3"
-                class:sm:grid-cols-2={ePolicy === "all_or_nothing"}
-              >
+            <section class="space-y-4">
+              <div class="flex items-center gap-2 px-1">
+                <div class="p-1.5 rounded-lg bg-primary/10 text-primary">
+                  <Info size={16} />
+                </div>
+                <h3 class="font-black text-[11px] uppercase tracking-widest opacity-60">
+                  {t("frontend/src/routes/assignments/[id]/+page.svelte::basic_info_heading")}
+                </h3>
+              </div>
+              
+              <div class="space-y-3 p-1">
                 <div class="form-control">
-                  <label class="label" for="grading-policy-select"
-                    ><span class="label-text"
-                      >{t(
-                        "frontend/src/routes/assignments/[id]/+page.svelte::grading_policy_label",
-                      )}</span
-                    ></label
-                  >
+                  <input
+                    class="input input-bordered w-full bg-base-100/50 focus:bg-base-100 transition-all font-bold"
+                    bind:value={eTitle}
+                    placeholder={t("frontend/src/routes/assignments/[id]/+page.svelte::title_placeholder")}
+                    required
+                  />
+                </div>
+                
+                <div class="form-control">
+                  <MarkdownEditor
+                    bind:value={eDesc}
+                    placeholder={t("frontend/src/routes/assignments/[id]/+page.svelte::description_placeholder")}
+                  />
+                </div>
+              </div>
+            </section>
+
+            <!-- Scoring & Policy -->
+            <section class="space-y-4">
+              <div class="flex items-center gap-2 px-1">
+                <div class="p-1.5 rounded-lg bg-secondary/10 text-secondary">
+                  <Trophy size={16} />
+                </div>
+                <h3 class="font-black text-[11px] uppercase tracking-widest opacity-60">
+                  Grading & Scoring
+                </h3>
+              </div>
+
+              <div class="bg-base-200/40 rounded-2xl p-4 border border-base-300/30 space-y-4">
+                <div class="form-control">
+                  <label class="label pt-0" for="grading-policy-select">
+                    <span class="label-text font-bold text-xs">{t("frontend/src/routes/assignments/[id]/+page.svelte::grading_policy_label")}</span>
+                  </label>
                   <select
                     id="grading-policy-select"
-                    class="select select-bordered w-full"
+                    class="select select-bordered select-sm w-full bg-base-100"
                     bind:value={ePolicy}
                   >
-                    <option value="all_or_nothing"
-                      >{t(
-                        "frontend/src/routes/assignments/[id]/+page.svelte::policyLabel_allOrNothing",
-                      )}</option
-                    >
+                    <option value="all_or_nothing">
+                      {t("frontend/src/routes/assignments/[id]/+page.svelte::policyLabel_allOrNothing")}
+                    </option>
                     <option
                       value="weighted"
                       disabled={testMode === "manual" || testMode === "ai"}
-                      >{t(
-                        "frontend/src/routes/assignments/[id]/+page.svelte::policyLabel_weighted",
-                      )}</option
                     >
+                      {t("frontend/src/routes/assignments/[id]/+page.svelte::policyLabel_weighted")}
+                    </option>
                   </select>
                   {#if testMode === "manual" || testMode === "ai"}
-                    <div class="label-text-alt text-warning">
-                      {t(
-                        "frontend/src/routes/assignments/[id]/+page.svelte::weighted_grading_warning",
-                      )}
+                    <div class="label-text-alt text-warning mt-1.5 flex gap-1.5 items-start">
+                      <AlertTriangle size={12} class="shrink-0 mt-0.5" />
+                      <span>{t("frontend/src/routes/assignments/[id]/+page.svelte::weighted_grading_warning")}</span>
                     </div>
                   {/if}
                 </div>
+
                 {#if ePolicy === "all_or_nothing"}
                   <div class="form-control">
-                    <label class="label" for="max-points-input"
-                      ><span class="label-text"
-                        >{t(
-                          "frontend/src/routes/assignments/[id]/+page.svelte::max_points_label",
-                        )}</span
-                      ></label
-                    >
-                    <input
-                      id="max-points-input"
-                      type="number"
-                      min="1"
-                      class="input input-bordered w-full"
-                      bind:value={ePoints}
-                      placeholder={t(
-                        "frontend/src/routes/assignments/[id]/+page.svelte::max_points_placeholder",
-                      )}
-                      required
-                    />
+                    <label class="label" for="max-points-input">
+                      <span class="label-text font-bold text-xs">{t("frontend/src/routes/assignments/[id]/+page.svelte::max_points_label")}</span>
+                    </label>
+                    <div class="relative">
+                      <input
+                        id="max-points-input"
+                        type="number"
+                        min="1"
+                        class="input input-bordered input-sm w-full bg-base-100 pr-12 font-mono"
+                        bind:value={ePoints}
+                        placeholder={t("frontend/src/routes/assignments/[id]/+page.svelte::max_points_placeholder")}
+                        required
+                      />
+                      <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase opacity-40">pts</span>
+                    </div>
+                  </div>
+                {:else}
+                  <div class="p-3 bg-primary/5 rounded-xl border border-primary/10">
+                    <div class="text-[10px] font-black uppercase tracking-wider text-primary mb-1">Max Points</div>
+                    <div class="text-sm font-medium italic opacity-60">
+                      {t("frontend/src/routes/assignments/[id]/+page.svelte::from_test_weights_label")}
+                    </div>
                   </div>
                 {/if}
-              </div>
-              <div class="text-xs opacity-70 mt-2">
-                <strong
-                  >{t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::policyLabel_allOrNothing",
-                  )}:</strong
-                >
-                {t(
-                  "frontend/src/routes/assignments/[id]/+page.svelte::all_or_nothing_desc",
-                )}
-                <strong
-                  >{t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::policyLabel_weighted",
-                  )}:</strong
-                >
-                {t(
-                  "frontend/src/routes/assignments/[id]/+page.svelte::weighted_desc",
-                )}
+                
+                <div class="divider opacity-10 my-1"></div>
+                
+                <div class="text-[10px] space-y-2 leading-relaxed">
+                  <div class="opacity-70">
+                    <span class="font-black text-primary">{t("frontend/src/routes/assignments/[id]/+page.svelte::policyLabel_allOrNothing")}:</span>
+                    {t("frontend/src/routes/assignments/[id]/+page.svelte::all_or_nothing_desc")}
+                  </div>
+                  <div class="opacity-70">
+                    <span class="font-black text-secondary">{t("frontend/src/routes/assignments/[id]/+page.svelte::policyLabel_weighted")}:</span>
+                    {t("frontend/src/routes/assignments/[id]/+page.svelte::weighted_desc")}
+                  </div>
+                </div>
               </div>
             </section>
 
             <!-- Deadlines -->
-            <section
-              class="rounded-xl border border-base-300/60 bg-base-100 p-5 space-y-3"
-            >
-              <div class="flex items-center justify-between">
-                <h3 class="font-semibold">
-                  {t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::deadlines_heading",
-                  )}
-                </h3>
-                <label class="flex items-center gap-2">
+            <section class="space-y-4">
+              <div class="flex items-center justify-between px-1">
+                <div class="flex items-center gap-2">
+                  <div class="p-1.5 rounded-lg bg-accent/10 text-accent">
+                    <Calendar size={16} />
+                  </div>
+                  <h3 class="font-black text-[11px] uppercase tracking-widest opacity-60">
+                    {t("frontend/src/routes/assignments/[id]/+page.svelte::deadlines_heading")}
+                  </h3>
+                </div>
+                
+                <label class="flex items-center gap-2 cursor-pointer group">
                   <input
                     type="checkbox"
-                    class="toggle"
+                    class="checkbox checkbox-xs checkbox-primary"
                     bind:checked={showAdvancedOptions}
                   />
-                  <span class="text-sm"
-                    >{t(
-                      "frontend/src/routes/assignments/[id]/+page.svelte::enable_second_deadline",
-                    )}</span
-                  >
+                  <span class="text-[11px] font-bold opacity-60 group-hover:opacity-100 transition-opacity">
+                    {t("frontend/src/routes/assignments/[id]/+page.svelte::enable_second_deadline")}
+                  </span>
                 </label>
               </div>
-              <div class="grid sm:grid-cols-2 gap-3">
-                <!-- Main deadline: open picker modal -->
-                <div class="form-control">
-                  <div class="label"
-                    ><span class="label-text"
-                      >{t(
-                        "frontend/src/routes/assignments/[id]/+page.svelte::main_deadline_label",
-                      )}</span
-                    ></div
-                  >
+
+              <div class="grid sm:grid-cols-2 gap-4">
+                <div class="bg-base-200/40 rounded-2xl p-4 border border-base-300/30">
+                  <div class="label pt-0">
+                    <span class="label-text font-bold text-xs">{t("frontend/src/routes/assignments/[id]/+page.svelte::main_deadline_label")}</span>
+                  </div>
                   <div class="flex items-center gap-2">
-                    <input
-                      class="input input-bordered w-full"
-                      readonly
-                      placeholder="dd/mm/yyyy hh:mm"
-                      value={euLabelFromParts(eDeadlineDate, eDeadlineTime)}
-                    />
-                    <button
-                      type="button"
-                      class="btn"
-                      on:click={pickMainDeadline}
-                      >{t(
-                        "frontend/src/routes/assignments/[id]/+page.svelte::pick_button",
-                      )}</button
-                    >
+                    <div class="relative flex-1">
+                      <input
+                        class="input input-bordered input-sm w-full bg-base-100 pl-3 font-mono text-xs text-left"
+                        readonly
+                        placeholder="dd/mm/yyyy hh:mm"
+                        value={euLabelFromParts(eDeadlineDate, eDeadlineTime)}
+                      />
+                    </div>
+                    <button type="button" class="btn btn-sm" on:click={pickMainDeadline}>
+                      {t("frontend/src/routes/assignments/[id]/+page.svelte::pick_button")}
+                    </button>
                     {#if eDeadlineDate}
-                      <button
-                        type="button"
-                        class="btn btn-ghost"
-                        title={t(
-                          "frontend/src/routes/assignments/[id]/+page.svelte::clear_button_title",
-                        )}
-                        on:click={() => {
-                          eDeadlineDate = "";
-                          eDeadlineTime = "";
-                        }}
-                        >{t(
-                          "frontend/src/routes/assignments/[id]/+page.svelte::clear_button_label",
-                        )}</button
-                      >
+                      <button type="button" class="btn btn-sm btn-ghost btn-square" on:click={() => { eDeadlineDate = ""; eDeadlineTime = ""; }}>
+                        <X size={14} />
+                      </button>
                     {/if}
                   </div>
                 </div>
+
                 {#if showAdvancedOptions}
-                  <div class="form-control">
-                    <div class="label"
-                      ><span class="label-text"
-                        >{t(
-                          "frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_label",
-                        )}</span
-                      ></div
-                    >
+                  <div class="bg-base-200/40 rounded-2xl p-4 border border-base-300/30 animate-in fade-in slide-in-from-left-2 duration-300">
+                    <div class="label pt-0">
+                      <span class="label-text font-bold text-xs">{t("frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_label")}</span>
+                    </div>
                     <div class="flex items-center gap-2">
-                      <input
-                        class="input input-bordered w-full"
-                        readonly
-                        placeholder="dd/mm/yyyy hh:mm"
-                        value={euLabelFromParts(
-                          eSecondDeadlineDate,
-                          eSecondDeadlineTime,
-                        )}
-                      />
-                      <button
-                        type="button"
-                        class="btn"
-                        on:click={pickSecondDeadline}
-                        >{t(
-                          "frontend/src/routes/assignments/[id]/+page.svelte::pick_button",
-                        )}</button
-                      >
+                      <div class="relative flex-1">
+                        <input
+                          class="input input-bordered input-sm w-full bg-base-100 pl-3 font-mono text-xs text-left"
+                          readonly
+                          placeholder="dd/mm/yyyy hh:mm"
+                          value={euLabelFromParts(eSecondDeadlineDate, eSecondDeadlineTime)}
+                        />
+                      </div>
+                      <button type="button" class="btn btn-sm" on:click={pickSecondDeadline}>
+                        {t("frontend/src/routes/assignments/[id]/+page.svelte::pick_button")}
+                      </button>
                       {#if eSecondDeadlineDate}
-                        <button
-                          type="button"
-                          class="btn btn-ghost"
-                          title={t(
-                            "frontend/src/routes/assignments/[id]/+page.svelte::clear_button_title",
-                          )}
-                          on:click={() => {
-                            eSecondDeadlineDate = "";
-                            eSecondDeadlineTime = "";
-                          }}
-                          >{t(
-                            "frontend/src/routes/assignments/[id]/+page.svelte::clear_button_label",
-                          )}</button
-                        >
+                        <button type="button" class="btn btn-sm btn-ghost btn-square" on:click={() => { eSecondDeadlineDate = ""; eSecondDeadlineTime = ""; }}>
+                          <X size={14} />
+                        </button>
                       {/if}
                     </div>
                   </div>
                 {/if}
               </div>
+
               {#if showAdvancedOptions}
-                <div class="form-control">
-                  <label class="label" for="late-penalty-range">
-                    <span class="label-text"
-                      >{t(
-                        "frontend/src/routes/assignments/[id]/+page.svelte::late_penalty_ratio_label",
-                      )}</span
-                    >
-                    <span class="label-text-alt"
-                      >{Math.round(eLatePenaltyRatio * 100)}%</span
-                    >
-                  </label>
-                  <input
-                    id="late-penalty-range"
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.1"
-                    class="range range-primary"
-                    bind:value={eLatePenaltyRatio}
-                  />
-                  <div class="w-full flex justify-between text-xs px-2 mt-1">
-                    <span>0%</span>
-                    <span>100%</span>
+                <div class="bg-warning/5 rounded-2xl p-4 border border-warning/10 space-y-3 animate-in fade-in duration-500">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold opacity-70">
+                      {t("frontend/src/routes/assignments/[id]/+page.svelte::late_penalty_ratio_label")}
+                    </span>
+                    <span class="badge badge-sm badge-warning font-black font-mono">
+                      {Math.round(eLatePenaltyRatio * 100)}%
+                    </span>
+                  </div>
+                  <div class="flex flex-col gap-1.5">
+                    <input
+                      id="late-penalty-range"
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      class="range range-warning range-xs w-full"
+                      value={Math.round(eLatePenaltyRatio * 100)}
+                      on:input={(e) => (eLatePenaltyRatio = parseInt(e.currentTarget.value) / 100)}
+                    />
+                    <div class="grid grid-cols-3 text-[10px] font-black opacity-40 uppercase tracking-tighter px-0.5">
+                      <span class="text-left">0%</span>
+                      <span class="text-center text-warning/80">50%</span>
+                      <span class="text-right">100%</span>
+                    </div>
                   </div>
                 </div>
               {/if}
             </section>
 
             <!-- Testing and grading -->
-            <section
-              class="rounded-xl border border-base-300/60 bg-base-100 p-5 space-y-3"
-            >
-              <h3 class="font-semibold">
-                {t(
-                  "frontend/src/routes/assignments/[id]/+page.svelte::testing_grading_heading",
-                )}
-              </h3>
-              <div class="flex flex-wrap items-center gap-3">
-                <label class="form-control w-full max-w-xs">
-                  <select
-                    class="select select-bordered select-sm"
-                    bind:value={testMode}
-                    disabled={ePolicy === "weighted"}
-                  >
-                    <option value="automatic"
-                      >{t(
-                        "frontend/src/routes/assignments/[id]/+page.svelte::automatic_tests_option",
-                      )}</option
+            <section class="space-y-4">
+              <div class="flex items-center gap-2 px-1">
+                <div class="p-1.5 rounded-lg bg-info/10 text-info">
+                  <FlaskConical size={16} />
+                </div>
+                <h3 class="font-black text-[11px] uppercase tracking-widest opacity-60">
+                  {t("frontend/src/routes/assignments/[id]/+page.svelte::testing_grading_heading")}
+                </h3>
+              </div>
+
+              <div class="bg-base-200/40 rounded-2xl p-5 border border-base-300/30 space-y-5">
+                <div class="flex flex-wrap items-center gap-4">
+                  <div class="form-control min-w-[200px]">
+                    <span class="label-text font-bold text-[10px] uppercase opacity-40 mb-1.5 ml-1">Mode</span>
+                    <select
+                      class="select select-bordered select-sm bg-base-100"
+                      bind:value={testMode}
+                      disabled={ePolicy === "weighted"}
                     >
-                    <option value="manual" disabled={ePolicy === "weighted"}
-                      >{t(
-                        "frontend/src/routes/assignments/[id]/+page.svelte::manual_teacher_review_option",
-                      )}</option
+                      <option value="automatic">
+                        {t("frontend/src/routes/assignments/[id]/+page.svelte::automatic_tests_option")}
+                      </option>
+                      <option value="manual" disabled={ePolicy === "weighted"}>
+                        {t("frontend/src/routes/assignments/[id]/+page.svelte::manual_teacher_review_option")}
+                      </option>
+                      <option value="ai" disabled={ePolicy === "weighted"}>
+                        {t("frontend/src/routes/assignments/[id]/+page.svelte::ai_testing_option")}
+                      </option>
+                    </select>
+                  </div>
+
+                  {#if testMode === "automatic"}
+                    <div class="flex flex-wrap items-center gap-x-6 gap-y-2 pt-4 sm:pt-0">
+                      <label class="flex items-center gap-2 cursor-pointer group">
+                        <input type="checkbox" class="checkbox checkbox-xs" bind:checked={eShowTraceback} />
+                        <span class="text-xs font-medium opacity-70 group-hover:opacity-100 transition-opacity">
+                          {t("frontend/src/routes/assignments/[id]/+page.svelte::show_traceback_students")}
+                        </span>
+                      </label>
+                      <label class="flex items-center gap-2 cursor-pointer group">
+                        <input type="checkbox" class="checkbox checkbox-xs" bind:checked={eShowTestDetails} />
+                        <span class="text-xs font-medium opacity-70 group-hover:opacity-100 transition-opacity">
+                          {t("frontend/src/routes/assignments/[id]/+page.svelte::reveal_test_details_teacher_review")}
+                        </span>
+                      </label>
+                      <label class="flex items-center gap-2 cursor-pointer group">
+                        <input type="checkbox" class="checkbox checkbox-xs" bind:checked={eLLMHelpWhyFailed} />
+                        <div class="flex flex-col">
+                          <span class="text-xs font-medium opacity-70 group-hover:opacity-100 transition-opacity">
+                            {t("frontend/src/routes/assignments/[id]/+page.svelte::llm_help_why_failed")}
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+                  {/if}
+                </div>
+
+                <div class="p-3 bg-base-100 rounded-xl border border-base-300/40 text-[11px] leading-relaxed opacity-70 italic">
+                  {#if ePolicy === "weighted"}
+                    {t("frontend/src/routes/assignments/[id]/+page.svelte::weighted_assignments_desc")}
+                  {:else if testMode === "automatic"}
+                    {t("frontend/src/routes/assignments/[id]/+page.svelte::automatic_tests_desc")}
+                  {:else if testMode === "manual"}
+                    {t("frontend/src/routes/assignments/[id]/+page.svelte::manual_review_desc")}
+                  {:else}
+                    {t("frontend/src/routes/assignments/[id]/+page.svelte::ai_grading_desc")}
+                  {/if}
+                </div>
+
+                {#if testMode === "ai"}
+                  <div class="pt-2 animate-in slide-in-from-top-2 duration-300">
+                    <button
+                      type="button"
+                      class="btn btn-xs btn-outline gap-2 mb-4"
+                      on:click={() => (showAiOptions = !showAiOptions)}
                     >
-                    <option value="ai" disabled={ePolicy === "weighted"}
-                      >{t(
-                        "frontend/src/routes/assignments/[id]/+page.svelte::ai_testing_option",
-                      )}</option
-                    >
-                  </select>
-                </label>
-                {#if testMode === "automatic"}
-                  <div class="flex flex-col gap-2">
-                    <label class="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        class="checkbox"
-                        bind:checked={eShowTraceback}
-                      />
-                      <span class="label-text"
-                        >{t(
-                          "frontend/src/routes/assignments/[id]/+page.svelte::show_traceback_students",
-                        )}</span
-                      >
-                    </label>
-                    <label class="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        class="checkbox"
-                        bind:checked={eShowTestDetails}
-                      />
-                      <span class="label-text"
-                        >{t(
-                          "frontend/src/routes/assignments/[id]/+page.svelte::reveal_test_details_teacher_review",
-                        )}</span
-                      >
-                    </label>
-                    <label class="flex items-start gap-2 pt-2">
-                      <input
-                        type="checkbox"
-                        class="checkbox checkbox-sm mt-0.5"
-                        bind:checked={eLLMHelpWhyFailed}
-                      />
-                      <div class="flex flex-col">
-                        <span class="label-text font-medium"
-                          >{t(
-                            "frontend/src/routes/assignments/[id]/+page.svelte::llm_help_why_failed",
-                          )}</span
-                        >
-                        <span class="text-xs opacity-60 leading-tight mt-0.5"
-                          >{t(
-                            "frontend/src/routes/assignments/[id]/+page.svelte::llm_help_why_failed_desc",
-                          )}</span
-                        >
+                      <Sparkles size={12} />
+                      {showAiOptions
+                        ? t("frontend/src/routes/assignments/[id]/+page.svelte::hide_ai_options_button")
+                        : t("frontend/src/routes/assignments/[id]/+page.svelte::show_ai_options_button")}
+                    </button>
+                    
+                    {#if showAiOptions}
+                      <div class="p-4 bg-primary/5 rounded-2xl border border-primary/10 space-y-5">
+                        <div class="grid sm:grid-cols-2 gap-4">
+                          <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" class="checkbox checkbox-sm checkbox-primary" bind:checked={eLLMFeedback} />
+                            <span class="text-xs font-bold opacity-70 group-hover:opacity-100 transition-opacity">
+                              {t("frontend/src/routes/assignments/[id]/+page.svelte::give_ai_feedback_students")}
+                            </span>
+                          </label>
+                          <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" class="checkbox checkbox-sm checkbox-primary" bind:checked={eLLMAutoAward} />
+                            <span class="text-xs font-bold opacity-70 group-hover:opacity-100 transition-opacity">
+                              {t("frontend/src/routes/assignments/[id]/+page.svelte::auto_award_points_ai")}
+                            </span>
+                          </label>
+                        </div>
+                        
+                        <div class="form-control">
+                          <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-bold opacity-70">
+                              {t("frontend/src/routes/assignments/[id]/+page.svelte::strictness_label")}
+                            </span>
+                            <span class="badge badge-sm badge-primary font-black font-mono">{eLLMStrictness}%</span>
+                          </div>
+                          <input
+                            id="ai-strictness-range"
+                            type="range"
+                            min="0"
+                            max="100"
+                            step="5"
+                            class="range range-primary range-xs"
+                            bind:value={eLLMStrictness}
+                          />
+                          <p class="text-[10px] italic opacity-60 mt-2 px-1">
+                            {eLLMStrictnessMessage}
+                          </p>
+                        </div>
+
+                        <div class="form-control">
+                          <button
+                            type="button"
+                            class="btn btn-sm btn-ghost gap-2 w-fit px-2 -ml-2 hover:bg-primary/10"
+                            on:click={() => (showRubric = !showRubric)}
+                          >
+                            <List size={14} />
+                            <span class="text-xs font-bold">
+                              {showRubric
+                                ? t("frontend/src/routes/assignments/[id]/+page.svelte::hide_rubric_button")
+                                : t("frontend/src/routes/assignments/[id]/+page.svelte::add_rubric_button")}
+                            </span>
+                          </button>
+                          {#if showRubric}
+                            <textarea
+                              class="textarea textarea-bordered min-h-[5rem] text-xs bg-base-100 mt-2"
+                              bind:value={eLLMRubric}
+                              placeholder={t("frontend/src/routes/assignments/[id]/+page.svelte::rubric_placeholder")}
+                            ></textarea>
+                          {/if}
+                        </div>
                       </div>
-                    </label>
+                    {/if}
                   </div>
                 {/if}
               </div>
-              <p class="text-xs opacity-70">
-                {#if ePolicy === "weighted"}
-                  {t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::weighted_assignments_desc",
-                  )}
-                {:else if testMode === "automatic"}
-                  {t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::automatic_tests_desc",
-                  )}
-                {:else if testMode === "manual"}
-                  {t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::manual_review_desc",
-                  )}
-                {:else}
-                  {t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::ai_grading_desc",
-                  )}
-                {/if}
-              </p>
-
-              {#if testMode === "ai"}
-                <div class="divider my-2"></div>
-                <button
-                  type="button"
-                  class="btn btn-ghost btn-sm"
-                  on:click={() => (showAiOptions = !showAiOptions)}
-                >
-                  {showAiOptions
-                    ? t(
-                        "frontend/src/routes/assignments/[id]/+page.svelte::hide_ai_options_button",
-                      )
-                    : t(
-                        "frontend/src/routes/assignments/[id]/+page.svelte::show_ai_options_button",
-                      )}
-                </button>
-                {#if showAiOptions}
-                  <div class="mt-2 space-y-3">
-                    <div class="grid sm:grid-cols-2 gap-3">
-                      <label class="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          class="checkbox checkbox-sm"
-                          bind:checked={eLLMFeedback}
-                        />
-                        <span class="label-text"
-                          >{t(
-                            "frontend/src/routes/assignments/[id]/+page.svelte::give_ai_feedback_students",
-                          )}</span
-                        >
-                      </label>
-                      <label class="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          class="checkbox checkbox-sm"
-                          bind:checked={eLLMAutoAward}
-                        />
-                        <span class="label-text"
-                          >{t(
-                            "frontend/src/routes/assignments/[id]/+page.svelte::auto_award_points_ai",
-                          )}</span
-                        >
-                      </label>
-                    </div>
-                    <div class="form-control">
-                      <label class="label" for="ai-strictness-range">
-                        <span class="label-text"
-                          >{t(
-                            "frontend/src/routes/assignments/[id]/+page.svelte::strictness_label",
-                          )}</span
-                        >
-                        <span class="label-text-alt">{eLLMStrictness}%</span>
-                      </label>
-                      <input
-                        id="ai-strictness-range"
-                        type="range"
-                        min="0"
-                        max="100"
-                        step="5"
-                        class="range range-primary"
-                        bind:value={eLLMStrictness}
-                      />
-                      <p class="text-xs opacity-70 mt-2">
-                        {eLLMStrictnessMessage}
-                      </p>
-                    </div>
-
-                    <div class="form-control">
-                      <button
-                        type="button"
-                        class="btn btn-ghost btn-sm w-fit"
-                        on:click={() => (showRubric = !showRubric)}
-                      >
-                        {showRubric
-                          ? t(
-                              "frontend/src/routes/assignments/[id]/+page.svelte::hide_rubric_button",
-                            )
-                          : t(
-                              "frontend/src/routes/assignments/[id]/+page.svelte::add_rubric_button",
-                            )}
-                      </button>
-                      {#if showRubric}
-                        <textarea
-                          class="textarea textarea-bordered min-h-[6rem]"
-                          bind:value={eLLMRubric}
-                          placeholder={t(
-                            "frontend/src/routes/assignments/[id]/+page.svelte::rubric_placeholder",
-                          )}
-                        ></textarea>
-                      {/if}
-                    </div>
-                  </div>
-                {/if}
-              {/if}
             </section>
 
             <!-- Template (collapsible) -->
-            <details
-              class="collapse collapse-arrow bg-base-100 border border-base-300/60 rounded-xl"
-            >
-              <summary class="collapse-title text-base font-medium"
-                >{t(
-                  "frontend/src/routes/assignments/[id]/+page.svelte::assignment_template_heading",
-                )}</summary
-              >
-              <div class="collapse-content">
-                <div class="flex flex-wrap items-center gap-2">
-                  <input
-                    type="file"
-                    class="file-input file-input-bordered"
-                    on:change={(e) =>
-                      (templateFile =
-                        (e.target as HTMLInputElement).files?.[0] || null)}
-                  />
-                  <button
-                    class="btn"
-                    on:click={uploadTemplate}
-                    disabled={!templateFile}
-                    >{t(
-                      "frontend/src/routes/assignments/[id]/+page.svelte::upload_template_button",
-                    )}</button
-                  >
-                  {#if assignment.template_path}
+            <section class="animate-in fade-in duration-700">
+              <details class="group bg-base-200/30 border border-base-300/40 rounded-2xl overflow-hidden transition-all duration-300">
+                <summary class="flex items-center justify-between p-4 cursor-pointer hover:bg-base-300/20 list-none">
+                  <div class="flex items-center gap-3">
+                    <div class="p-1.5 rounded-lg bg-base-300/50 text-base-content/70">
+                      <FileCode size={16} />
+                    </div>
+                    <span class="text-xs font-black uppercase tracking-widest opacity-60">
+                      {t("frontend/src/routes/assignments/[id]/+page.svelte::assignment_template_heading")}
+                    </span>
+                  </div>
+                  <ChevronDown size={16} class="opacity-40 group-open:rotate-180 transition-transform duration-300" />
+                </summary>
+                <div class="p-5 pt-1 space-y-4">
+                  <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                    <div class="relative flex-1 group/file">
+                      <input
+                        type="file"
+                        class="file-input file-input-bordered file-input-sm w-full bg-base-100"
+                        on:change={(e) =>
+                          (templateFile =
+                            (e.target as HTMLInputElement).files?.[0] || null)}
+                      />
+                    </div>
                     <button
-                      class="btn btn-ghost"
-                      on:click|preventDefault={downloadTemplate}
-                      >{t(
-                        "frontend/src/routes/assignments/[id]/+page.svelte::download_current_template_button",
-                      )}</button
+                      class="btn btn-sm btn-outline gap-2"
+                      on:click={uploadTemplate}
+                      disabled={!templateFile}
                     >
+                      <Upload size={14} />
+                      {t("frontend/src/routes/assignments/[id]/+page.svelte::upload_template_button")}
+                    </button>
+                  </div>
+                  
+                  {#if assignment.template_path}
+                    <div class="flex items-center justify-between p-3 bg-base-100 rounded-xl border border-base-300/40">
+                      <div class="flex items-center gap-2 truncate">
+                        <Check size={14} class="text-success shrink-0" />
+                        <span class="text-xs font-mono opacity-60 truncate">{assignment.template_path.split("/").pop()}</span>
+                      </div>
+                      <button
+                        class="btn btn-ghost btn-xs gap-1.5"
+                        on:click|preventDefault={downloadTemplate}
+                      >
+                        <Download size={14} />
+                        {t("frontend/src/routes/assignments/[id]/+page.svelte::download_current_template_button")}
+                      </button>
+                    </div>
                   {/if}
                 </div>
-              </div>
-            </details>
+              </details>
+            </section>
           </div>
 
           <!-- Sticky actions / summary -->
-          <aside class="lg:col-span-1">
-            <div
-              class="rounded-xl border border-base-300/60 bg-base-100 p-5 lg:sticky lg:top-24 space-y-4"
-            >
-              <h3 class="font-semibold">
-                {t(
-                  "frontend/src/routes/assignments/[id]/+page.svelte::actions_heading",
-                )}
-              </h3>
-              <div class="space-y-2 text-sm opacity-70">
-                <div>
-                  {t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::policy_label",
-                  )} <span class="font-semibold">{policyLabel(ePolicy)}</span>
+          <aside class="lg:col-span-4 bg-base-200/20 p-6 space-y-6">
+            <div class="lg:sticky lg:top-8 space-y-6">
+              <div class="flex items-center gap-2 px-1">
+                <div class="p-1.5 rounded-lg bg-primary/10 text-primary">
+                  <Activity size={16} />
                 </div>
-                {#if ePolicy === "all_or_nothing"}
-                  <div>
-                    {t(
-                      "frontend/src/routes/assignments/[id]/+page.svelte::max_points_sidebar_label",
-                    )} <span class="font-semibold">{ePoints}</span>
-                  </div>
-                {:else}
-                  <div>
-                    {t(
-                      "frontend/src/routes/assignments/[id]/+page.svelte::max_points_sidebar_label",
-                    )}
-                    <span class="font-semibold text-base-content/50"
-                      >{t(
-                        "frontend/src/routes/assignments/[id]/+page.svelte::from_test_weights_label",
-                      )}</span
-                    >
-                  </div>
-                {/if}
-                <div>
-                  {t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::deadline_sidebar_label",
-                  )} <span class="font-semibold">{eDeadline || "-"}</span>
-                </div>
-                {#if showAdvancedOptions}
-                  <div>
-                    {t(
-                      "frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_sidebar_label",
-                    )}
-                    <span class="font-semibold">{eSecondDeadline || "-"}</span>
-                  </div>
-                  <div>
-                    {t(
-                      "frontend/src/routes/assignments/[id]/+page.svelte::late_penalty_sidebar_label",
-                    )}
-                    <span class="font-semibold"
-                      >{Math.round(eLatePenaltyRatio * 100)}%</span
-                    >
-                  </div>
-                {/if}
-                {#if testMode === "ai"}
-                  <div>
-                    {t(
-                      "frontend/src/routes/assignments/[id]/+page.svelte::ai_strictness_sidebar_label",
-                    )} <span class="font-semibold">{eLLMStrictness}%</span>
-                  </div>
-                {/if}
+                <h3 class="font-black text-[11px] uppercase tracking-widest opacity-60">
+                  {t("frontend/src/routes/assignments/[id]/+page.svelte::actions_heading")}
+                </h3>
               </div>
-              <div class="card-actions">
-                <button class="btn w-full" on:click={() => (editing = false)}
-                  >{t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::cancel_button",
-                  )}</button
+
+              <div class="bg-base-100 rounded-2xl p-5 border border-base-300/50 shadow-sm space-y-4">
+                <div class="space-y-4">
+                  <div class="flex justify-between items-start">
+                    <span class="text-[10px] font-black uppercase tracking-wider opacity-40 mt-1">{t("frontend/src/routes/assignments/[id]/+page.svelte::policy_label")}</span>
+                    <span class="badge badge-sm badge-ghost font-bold py-2 px-3">{policyLabel(ePolicy)}</span>
+                  </div>
+                  
+                  <div class="flex justify-between items-start">
+                    <span class="text-[10px] font-black uppercase tracking-wider opacity-40 mt-1">{t("frontend/src/routes/assignments/[id]/+page.svelte::max_points_sidebar_label")}</span>
+                    {#if ePolicy === "all_or_nothing"}
+                      <span class="text-lg font-black text-primary">{ePoints}<span class="text-[10px] opacity-40 ml-1 uppercase">pts</span></span>
+                    {:else}
+                      <span class="text-[10px] font-bold opacity-60 italic text-right max-w-[120px]">{t("frontend/src/routes/assignments/[id]/+page.svelte::from_test_weights_label")}</span>
+                    {/if}
+                  </div>
+
+                  <div class="divider opacity-5 my-0"></div>
+
+                  <div class="space-y-3 pt-1">
+                    <div class="flex items-center gap-3">
+                      <div class="p-1.5 rounded-lg bg-base-200 text-base-content/50">
+                        <Calendar size={14} />
+                      </div>
+                      <div class="flex flex-col min-w-0">
+                        <span class="text-[9px] font-black uppercase tracking-wider opacity-40 leading-none mb-1">Main Deadline</span>
+                        <span class="text-xs font-mono font-medium truncate">{formatDeadlineDisplay(eDeadline)}</span>
+                      </div>
+                    </div>
+
+                    {#if showAdvancedOptions}
+                      <div class="flex items-center gap-3">
+                        <div class="p-1.5 rounded-lg bg-warning/10 text-warning">
+                          <Calendar size={14} />
+                        </div>
+                        <div class="flex flex-col min-w-0">
+                          <span class="text-[9px] font-black uppercase tracking-wider text-warning leading-none mb-1">Late Deadline</span>
+                          <span class="text-xs font-mono font-medium truncate">{formatDeadlineDisplay(eSecondDeadline)}</span>
+                        </div>
+                      </div>
+                    {/if}
+                  </div>
+                </div>
+
+                <div class="pt-4 space-y-2">
+                  <button class="btn btn-primary btn-md w-full shadow-lg shadow-primary/20 gap-2 h-12" on:click={saveEdit}>
+                    <Check size={18} />
+                    <span class="font-black uppercase tracking-widest text-[11px]">{t("frontend/src/routes/assignments/[id]/+page.svelte::save_changes_button")}</span>
+                  </button>
+                  <button class="btn btn-ghost btn-sm w-full opacity-60 hover:opacity-100 h-10" on:click={() => (editing = false)}>
+                    <X size={16} />
+                    <span class="font-bold uppercase tracking-wider text-[10px]">{t("frontend/src/routes/assignments/[id]/+page.svelte::cancel_button")}</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Danger Zone Section -->
+              <div class="pt-6 border-t border-base-300/30">
+                <button
+                  class="btn btn-sm btn-ghost text-error hover:bg-error/10 w-full gap-2 group transition-all"
+                  on:click={delAssignment}
                 >
-                <button class="btn btn-primary w-full" on:click={saveEdit}
-                  >{t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::save_changes_button",
-                  )}</button
-                >
+                  <Trash2 size={16} class="opacity-60 group-hover:opacity-100" />
+                  <span class="font-bold uppercase tracking-wider text-[10px]">{t("frontend/src/routes/assignments/[id]/+page.svelte::delete_button")}</span>
+                </button>
               </div>
             </div>
           </aside>
@@ -2199,7 +2191,7 @@
                         <td class="pr-6">
                            {#if r.stderr}
                              <div class="group relative">
-                                <pre class="max-w-md max-h-32 text-[11px] overflow-hidden group-hover:overflow-auto transition-all bg-base-200/50 p-3 rounded-xl border border-base-300/50 font-mono leading-relaxed">{r.stderr}</pre>
+                                <pre class="max-w-md max-h-32 text-[11px] overflow-hidden group-hover:overflow-auto transition-all bg-[var(--assignment-code-bg)] p-3 rounded-xl border border-[var(--assignment-code-border)] font-mono leading-relaxed">{r.stderr}</pre>
                                 <div class="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                    <button class="btn btn-circle btn-xs btn-ghost" on:click={() => {navigator.clipboard.writeText(r.stderr); alert(t("frontend/src/routes/assignments/[id]/tests/+page.svelte::copied"))}}>
                                       <Search size={12} />

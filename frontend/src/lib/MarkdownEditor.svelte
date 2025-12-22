@@ -355,18 +355,18 @@
   }
 
   :global(.ProseMirror code) {
-    background-color: oklch(var(--b2) / 0.7);
+    background-color: var(--assignment-inline-code-bg);
     padding: 0.15rem 0.4rem;
     border-radius: 0.5rem;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-family: "JetBrains Mono", "Fira Code", "Source Code Pro", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     font-size: 0.9em;
   }
 
   :global(.ProseMirror pre) {
-    background-color: oklch(var(--b2));
+    background-color: var(--assignment-code-bg);
     padding: 0.85rem 1rem;
     border-radius: 0.75rem;
-    border: 1px solid oklch(var(--b3) / 0.3);
+    border: 1px solid var(--assignment-code-border);
     margin: 1rem 0;
   }
 
@@ -374,5 +374,6 @@
     background-color: transparent;
     padding: 0;
     font-size: 0.9em;
+    border: none;
   }
 </style>

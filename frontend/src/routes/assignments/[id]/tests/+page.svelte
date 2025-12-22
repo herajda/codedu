@@ -3523,7 +3523,7 @@ class MyTests(unittest.TestCase):
                           {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::view_test_method_code")}
                           <ChevronRight size={12} class="group-open/details:rotate-90 transition-transform" />
                         </summary>
-                        <div class="mt-2 p-3 rounded-xl bg-base-900 text-base-content border border-base-200 overflow-x-auto">
+                        <div class="mt-2 p-3 rounded-xl bg-[var(--assignment-code-bg)] text-base-content border border-[var(--assignment-code-border)] overflow-x-auto">
                           <pre class="text-[10px] leading-relaxed font-mono">{extractMethodFromUnittest(t.unittest_code, t.unittest_name)}</pre>
                         </div>
                       </details>
@@ -5325,7 +5325,7 @@ class MyTests(unittest.TestCase):
                    
                    <div class="relative group/code">
                       <div class="absolute -inset-1 bg-gradient-to-r from-accent/20 to-purple-500/20 rounded-xl blur opacity-20 group-hover/code:opacity-40 transition duration-500"></div>
-                      <pre class="relative bg-base-300/50 p-4 rounded-xl text-xs leading-relaxed font-mono overflow-x-auto whitespace-pre border border-white/5 shadow-2xl custom-scrollbar">
+                      <pre class="relative bg-[var(--assignment-code-bg)] p-4 rounded-xl text-xs leading-relaxed font-mono overflow-x-auto whitespace-pre border border-[var(--assignment-code-border)] shadow-2xl custom-scrollbar">
 <span class="text-purple-400">import</span> unittest
 
 <span class="text-purple-400">class</span> <span class="text-blue-400">MyTests</span>(unittest.TestCase):

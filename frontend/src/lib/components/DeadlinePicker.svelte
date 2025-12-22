@@ -1,7 +1,30 @@
+<script context="module" lang="ts">
+  export type Offset = { label: string; minutes?: number; hours?: number; days?: number; weeks?: number };
+  
+  export type DeadlinePickerOptions = {
+    title?: string;
+    initial?: string | number | Date | null;
+    min?: string | number | Date | null;
+    // Show quick relative shortcuts like +1 day, +1 week, etc.
+    shortcuts?: Offset[];
+  };
+</script>
+
 <script lang="ts">
   import { tick, onMount } from 'svelte';
   import { browser } from '$app/environment';
   import { t, translator } from '$lib/i18n';
+  import { 
+    Calendar, 
+    Clock, 
+    Zap, 
+    Keyboard, 
+    Check, 
+    X,
+    ChevronLeft,
+    ChevronRight,
+    ArrowRight
+  } from "lucide-svelte";
 
   let translate;
   $: translate = $translator;
@@ -11,15 +34,6 @@
     await import('cally');
   });
 
-  type Offset = { label: string; minutes?: number; hours?: number; days?: number; weeks?: number };
-  
-  export type DeadlinePickerOptions = {
-    title?: string;
-    initial?: string | number | Date | null;
-    min?: string | number | Date | null;
-    // Show quick relative shortcuts like +1 day, +1 week, etc.
-    shortcuts?: Offset[];
-  };
 
   let dialog: HTMLDialogElement | undefined;
   let resolver: ((value: string | null) => void) | null = null;
@@ -94,7 +108,7 @@
     const day = formatTwo(d.getDate());
     const mon = formatTwo(d.getMonth() + 1);
     const y = d.getFullYear();
-    return `${day}/${mon}/${y}`;
+    return `${day}. ${mon}. ${y}`;
   }
 
   function currentLabel(): string {
@@ -173,12 +187,18 @@
   }
 
   function parseManualInput(value: string) {
-    // Accept dd/mm/yyyy hh:mm (24h)
-    const m = value.trim().match(/^([0-9]{1,2})\/[0-9]{1,2}\/[0-9]{2,4}\s+[0-9]{1,2}:[0-9]{2}$/);
-    if (!m) return; // do nothing
-    const [dateStr, timeStr] = value.trim().split(/\s+/);
-    const [dd, mm, yyyy] = dateStr.split('/').map((x) => parseInt(x, 10));
-    const [hh, min] = timeStr.split(':').map((x) => parseInt(x, 10));
+    // Flexible regex for European dates with dots or slashes
+    // Supports dd.mm.yyyy, dd. mm. yyyy, dd/mm/yyyy
+    const trimmed = value.trim();
+    const m = trimmed.match(/^([0-9]{1,2})[\.\/]\s*([0-9]{1,2})[\.\/]\s*([0-9]{2,4})\s+([0-9]{1,2}):([0-9]{2})$/);
+    if (!m) return;
+    
+    const dd = parseInt(m[1], 10);
+    const mm = parseInt(m[2], 10);
+    let yyyy = parseInt(m[3], 10);
+    const hh = parseInt(m[4], 10);
+    const min = parseInt(m[5], 10);
+    
     const y = yyyy < 100 ? 2000 + yyyy : yyyy;
     const d = new Date(y, (mm - 1), dd, hh, min, 0, 0);
     if (!Number.isNaN(d.getTime())) {
@@ -203,105 +223,228 @@
 </script>
 
 <dialog bind:this={dialog} class="modal" on:close={handleClose} on:cancel|preventDefault={() => settle(null)}>
-  <div class="modal-box max-w-3xl">
-    <div class="flex items-start justify-between gap-3 mb-2">
-      <div>
-        <h3 class="font-semibold text-lg">{title}</h3>
-        <div class="text-sm opacity-70">{manual}</div>
-      </div>
-      <form method="dialog"><button class="btn btn-sm btn-ghost" aria-label={t('frontend/src/lib/components/DeadlinePicker.svelte::close_button_label')}>✕</button></form>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <!-- Calendar -->
-      <div>
-        <calendar-date
-          class="cally bg-base-100 border border-base-300 shadow-lg rounded-box"
-          value={calendarValue}
-          min={minDate ? toCalendarValue(minDate) : undefined}
-          today={todayValue}
-          firstDayOfWeek={1}
-          showOutsideDays={true}
-          on:change={handleCalendarChange}
-        >
-          <svg
-            aria-label={t('frontend/src/lib/components/DeadlinePicker.svelte::previous_month_label')}
-            class="fill-current size-4"
-            slot="previous"
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-          >
-            <path fill="currentColor" d="M15.75 19.5 8.25 12l7.5-7.5"></path>
-          </svg>
-          <svg
-            aria-label={t('frontend/src/lib/components/DeadlinePicker.svelte::next_month_label')}
-            class="fill-current size-4"
-            slot="next"
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-          >
-            <path fill="currentColor" d="m8.25 4.5 7.5 7.5-7.5 7.5"></path>
-          </svg>
-          <calendar-month></calendar-month>
-        </calendar-date>
-      </div>
-
-      <!-- Time & shortcuts -->
-      <div class="space-y-4">
-        <div>
-          <div class="label mb-1 py-0">
-            <span class="label-text">{translate('frontend/src/lib/components/DeadlinePicker.svelte::time_24h_label')}</span>
+  <div class="modal-box max-w-2xl p-0 overflow-hidden border-none shadow-2xl rounded-2xl">
+    <!-- Header with Gradient -->
+    <div class="bg-gradient-to-r from-primary/10 via-base-200 to-secondary/10 p-5 border-b border-base-300/50">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="p-2.5 rounded-xl bg-primary text-primary-content shadow-lg shadow-primary/20">
+            <Calendar size={20} />
           </div>
-          <div class="flex items-center gap-2">
-            <div class="join">
-              <button class="btn btn-sm join-item" type="button" on:click={() => hour = clamp0_23(hour - 1)}>-</button>
-              <input class="input input-bordered input-sm w-16 text-center join-item" value={formatTwo(hour)} on:input={onHourInput} aria-label={t('frontend/src/lib/components/DeadlinePicker.svelte::hours_input_label')} />
-              <button class="btn btn-sm join-item" type="button" on:click={() => hour = clamp0_23(hour + 1)}>+</button>
-            </div>
-            <span class="opacity-70">:</span>
-            <div class="join">
-              <button class="btn btn-sm join-item" type="button" on:click={() => minute = clamp0_59(minute - 5)}>-</button>
-              <input class="input input-bordered input-sm w-16 text-center join-item" value={formatTwo(minute)} on:input={onMinuteInput} aria-label={t('frontend/src/lib/components/DeadlinePicker.svelte::minutes_input_label')} />
-              <button class="btn btn-sm join-item" type="button" on:click={() => minute = clamp0_59(minute + 5)}>+</button>
-            </div>
-          </div>
-          <div class="flex flex-wrap gap-2 mt-2">
-            <div class="join">
-              <button type="button" class="btn btn-xs join-item" on:click={() => applyPresetTime(8,0)}>08:00</button>
-              <button type="button" class="btn btn-xs join-item" on:click={() => applyPresetTime(12,0)}>12:00</button>
-              <button type="button" class="btn btn-xs join-item" on:click={() => applyPresetTime(17,0)}>17:00</button>
-              <button type="button" class="btn btn-xs join-item" on:click={() => applyPresetTime(23,59)}>23:59</button>
+          <div>
+            <h3 class="font-black text-lg tracking-tight leading-tight">{title}</h3>
+            <div class="flex items-center gap-1.5 mt-0.5 whitespace-nowrap overflow-hidden">
+               <span class="text-[10px] font-black uppercase tracking-widest opacity-40">{t('frontend/src/lib/components/DeadlinePicker.svelte::currently_selected')}</span>
+               <span class="text-xs font-bold font-mono text-primary truncate">{manual}</span>
             </div>
           </div>
         </div>
-
-        <div>
-          <div class="label mb-1 py-0">
-            <span class="label-text">{translate('frontend/src/lib/components/DeadlinePicker.svelte::shortcuts_label')}</span>
-          </div>
-          <div class="flex flex-wrap gap-2">
-            {#each shortcuts as s}
-              <button type="button" class="btn btn-ghost btn-sm" on:click={() => applyShortcut(s)}>{s.label}</button>
-            {/each}
-            <button type="button" class="btn btn-ghost btn-sm" on:click={() => { const d=new Date(); selected=d; hour=d.getHours(); minute=d.getMinutes(); syncManual(); }}>{translate('frontend/src/lib/components/DeadlinePicker.svelte::now_button')}</button>
-            <button type="button" class="btn btn-ghost btn-sm" on:click={() => { const d=new Date(); d.setHours(23,59,0,0); selected=d; hour=23; minute=59; syncManual(); }}>{translate('frontend/src/lib/components/DeadlinePicker.svelte::today_23_59_button')}</button>
-          </div>
-        </div>
-
-        <div>
-          <div class="label mb-1 py-0">
-            <span class="label-text">{translate('frontend/src/lib/components/DeadlinePicker.svelte::manual_entry_label')}</span>
-            <span class="label-text-alt">{translate('frontend/src/lib/components/DeadlinePicker.svelte::date_format_hint')}</span>
-          </div>
-          <input class="input input-bordered w-full" placeholder={t('frontend/src/lib/components/DeadlinePicker.svelte::manual_entry_placeholder')} bind:value={manual} on:input={() => parseManualInput(manual)} on:blur={() => manual = currentLabel()} />
-        </div>
+        <form method="dialog">
+          <button class="btn btn-sm btn-ghost btn-circle hover:bg-base-300/50" aria-label={t('frontend/src/lib/components/DeadlinePicker.svelte::close_button_label')}>
+            <X size={18} />
+          </button>
+        </form>
       </div>
     </div>
 
-    <div class="modal-action">
-      <button class="btn" type="button" on:click={handleCancel}>{translate('frontend/src/lib/components/DeadlinePicker.svelte::cancel_button')}</button>
-      <button class="btn btn-primary" type="button" on:click={confirm}>{translate('frontend/src/lib/components/DeadlinePicker.svelte::set_deadline_button')}</button>
+    <div class="p-5">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Calendar Section -->
+        <div class="space-y-3">
+          <div class="flex items-center gap-2 px-1">
+            <div class="p-1.5 rounded-lg bg-primary/10 text-primary">
+              <Calendar size={14} />
+            </div>
+            <h4 class="font-black text-[10px] uppercase tracking-widest opacity-60">
+              {t('frontend/src/lib/components/DeadlinePicker.svelte::date_section')}
+            </h4>
+          </div>
+
+          <div class="bg-base-200/40 rounded-xl p-3 border border-base-300/30">
+            <calendar-date
+              class="cally w-full"
+              value={calendarValue}
+              min={minDate ? toCalendarValue(minDate) : undefined}
+              today={todayValue}
+              firstDayOfWeek={1}
+              showOutsideDays={true}
+              on:change={handleCalendarChange}
+            >
+              <div slot="previous">
+                <ChevronLeft size={16} />
+              </div>
+              <div slot="next">
+                <ChevronRight size={16} />
+              </div>
+              <calendar-month class="w-full"></calendar-month>
+            </calendar-date>
+          </div>
+        </div>
+
+        <!-- Time & shortcuts Section -->
+        <div class="space-y-5">
+          <!-- Time Picker -->
+          <div class="space-y-3">
+            <div class="flex items-center gap-2 px-1">
+              <div class="p-1.5 rounded-lg bg-secondary/10 text-secondary">
+                <Clock size={14} />
+              </div>
+              <h4 class="font-black text-[10px] uppercase tracking-widest opacity-60">
+                {translate('frontend/src/lib/components/DeadlinePicker.svelte::time_24h_label')}
+              </h4>
+            </div>
+            
+            <div class="bg-base-200/40 rounded-xl p-3 border border-base-300/30">
+              <div class="flex items-center justify-center gap-3">
+                <div class="join shadow-sm border border-base-300/20">
+                  <button class="btn btn-sm join-item bg-base-100 hover:bg-base-200 border-none px-2" type="button" on:click={() => hour = clamp0_23(hour - 1)}>-</button>
+                  <input class="input input-sm w-12 text-center join-item bg-base-100 border-x border-base-300/20 font-bold font-mono p-0" value={formatTwo(hour)} on:input={onHourInput} />
+                  <button class="btn btn-sm join-item bg-base-100 hover:bg-base-200 border-none px-2" type="button" on:click={() => hour = clamp0_23(hour + 1)}>+</button>
+                </div>
+                <span class="font-black opacity-30 animate-pulse">:</span>
+                <div class="join shadow-sm border border-base-300/20">
+                  <button class="btn btn-sm join-item bg-base-100 hover:bg-base-200 border-none px-2" type="button" on:click={() => minute = clamp0_59(minute - 5)}>-</button>
+                  <input class="input input-sm w-12 text-center join-item bg-base-100 border-x border-base-300/20 font-bold font-mono p-0" value={formatTwo(minute)} on:input={onMinuteInput} />
+                  <button class="btn btn-sm join-item bg-base-100 hover:bg-base-200 border-none px-2" type="button" on:click={() => minute = clamp0_59(minute + 5)}>+</button>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-4 gap-1.5 mt-3">
+                {#each ["08:00", "12:00", "17:00", "23:59"] as time}
+                  <button 
+                    type="button" 
+                    class="btn btn-xs btn-ghost bg-base-100/50 hover:bg-primary/10 hover:text-primary border border-base-300/30 font-bold" 
+                    on:click={() => applyPresetTime(parseInt(time.split(':')[0]), parseInt(time.split(':')[1]))}
+                  >
+                    {time}
+                  </button>
+                {/each}
+              </div>
+            </div>
+          </div>
+
+          <!-- Shortcuts -->
+          <div class="space-y-3">
+            <div class="flex items-center gap-2 px-1">
+              <div class="p-1.5 rounded-lg bg-accent/10 text-accent">
+                <Zap size={14} />
+              </div>
+              <h4 class="font-black text-[10px] uppercase tracking-widest opacity-60">
+                {translate('frontend/src/lib/components/DeadlinePicker.svelte::shortcuts_label')}
+              </h4>
+            </div>
+
+            <div class="flex flex-wrap gap-1.5">
+              {#each shortcuts as s}
+                <button type="button" class="btn btn-xs bg-base-200/50 border-base-300/30 hover:bg-accent/10 hover:text-accent font-medium rounded-lg" on:click={() => applyShortcut(s)}>{s.label}</button>
+              {/each}
+              <button type="button" class="btn btn-xs bg-base-200/50 border-base-300/30 hover:bg-accent/10 hover:text-accent font-medium rounded-lg px-2" on:click={() => { const d=new Date(); selected=d; hour=d.getHours(); minute=d.getMinutes(); syncManual(); }}>{translate('frontend/src/lib/components/DeadlinePicker.svelte::now_button')}</button>
+            </div>
+          </div>
+
+          <!-- Manual Entry -->
+          <div class="space-y-3">
+            <div class="flex items-center gap-2 px-1">
+              <div class="p-1.5 rounded-lg bg-info/10 text-info">
+                <Keyboard size={14} />
+              </div>
+              <h4 class="font-black text-[10px] uppercase tracking-widest opacity-60">
+                {translate('frontend/src/lib/components/DeadlinePicker.svelte::manual_entry_label')}
+              </h4>
+              <span class="text-[9px] font-bold opacity-30 ml-auto uppercase tracking-tighter">{translate('frontend/src/lib/components/DeadlinePicker.svelte::date_format_hint')}</span>
+            </div>
+            <div class="relative group">
+              <input 
+                class="input input-bordered input-sm w-full bg-base-100/50 focus:bg-base-100 transition-all font-mono text-xs pr-8" 
+                placeholder={t('frontend/src/lib/components/DeadlinePicker.svelte::manual_entry_placeholder')} 
+                bind:value={manual} 
+                on:input={() => parseManualInput(manual)} 
+                on:blur={() => manual = currentLabel()} 
+              />
+              <ArrowRight size={12} class="absolute right-3 top-1/2 -translate-y-1/2 opacity-20 group-focus-within:opacity-100 transition-opacity" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="modal-action bg-base-200/50 p-4 mt-0 border-t border-base-300/30 flex items-center justify-end gap-3">
+      <button class="btn btn-sm btn-ghost hover:bg-base-300/50 gap-2 font-bold" type="button" on:click={handleCancel}>
+        <X size={16} />
+        {translate('frontend/src/lib/components/DeadlinePicker.svelte::cancel_button')}
+      </button>
+      <button class="btn btn-sm btn-primary shadow-lg shadow-primary/20 gap-2 font-bold" type="button" on:click={confirm}>
+        <Check size={16} />
+        {translate('frontend/src/lib/components/DeadlinePicker.svelte::set_deadline_button')}
+      </button>
     </div>
   </div>
   <form method="dialog" class="modal-backdrop"><button aria-label={t('frontend/src/lib/components/DeadlinePicker.svelte::close_modal_label')}>close</button></form>
 </dialog>
+
+<style>
+  calendar-date.cally {
+    --color-accent: oklch(var(--p));
+    --color-text-on-accent: oklch(var(--pc));
+    --color-text-muted: oklch(var(--bc) / 0.4);
+    --color-bg: transparent;
+    font-family: inherit;
+    border: none;
+  }
+
+  calendar-month {
+    --c-bg: transparent;
+    padding: 0;
+  }
+
+  :global(calendar-month::part(day)) {
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 0.5rem;
+    transition: all 0.2s;
+  }
+  
+  :global(calendar-month::part(day):hover:not([aria-disabled="true"])) {
+    background-color: oklch(var(--p) / 0.1);
+    color: oklch(var(--p));
+    cursor: pointer;
+  }
+
+  :global(calendar-month::part(day-today)) {
+    color: oklch(var(--p));
+    font-weight: 800;
+    box-shadow: inset 0 0 0 1px oklch(var(--p) / 0.2);
+  }
+
+  :global(calendar-month::part(day-selected)) {
+    background-color: oklch(var(--p)) !important;
+    color: oklch(var(--pc)) !important;
+    box-shadow: 0 4px 12px oklch(var(--p) / 0.3) !important;
+  }
+
+  :global(calendar-month::part(button)) {
+    border-radius: 0.5rem;
+    transition: all 0.2s;
+  }
+  
+  /* Target navigation buttons specifically instead of generic button part */
+  :global(calendar-month::part(previous):hover),
+  :global(calendar-month::part(next):hover) {
+    background-color: oklch(var(--p) / 0.1);
+    color: oklch(var(--p));
+  }
+
+  :global(calendar-month::part(day-selected):hover) {
+    background-color: oklch(var(--p)) !important;
+    color: oklch(var(--pc)) !important;
+    box-shadow: 0 4px 12px oklch(var(--p) / 0.3) !important;
+  }
+
+  :global(calendar-month::part(day-today):hover) {
+    background-color: transparent !important;
+    color: oklch(var(--p)) !important;
+    box-shadow: inset 0 0 0 1px oklch(var(--p) / 0.2) !important;
+  }
+</style>
+
