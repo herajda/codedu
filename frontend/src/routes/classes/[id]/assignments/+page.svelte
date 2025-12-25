@@ -230,12 +230,7 @@
         
         <div class="flex flex-col gap-1">
           <h2 class="text-xl sm:text-3xl font-black tracking-tight text-base-content leading-tight">{cls.name}</h2>
-          {#if role === 'student'}
-            <div class="flex items-center gap-2 text-base-content/50 font-bold uppercase tracking-[0.15em] text-[10px] ml-0.5">
-              <div class="w-1 h-1 rounded-full bg-primary/30"></div>
-              <span>{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::teacher_prefix')} {cls.teacher.name ?? cls.teacher.email}</span>
-            </div>
-          {/if}
+
         </div>
       </div>
       
@@ -361,10 +356,7 @@
               </div>
             </div>
 
-            <div class="mt-4 pt-4 border-t border-base-300/30 flex items-center justify-between">
-              <span class="text-[9px] font-black uppercase tracking-widest opacity-30">
-                ID: {a.id.slice(0, 8)}
-              </span>
+            <div class="mt-4 pt-4 border-t border-base-300/30 flex items-center justify-end">
               <div class="text-primary opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all">
                 <ArrowRight size={16} />
               </div>
