@@ -5,7 +5,7 @@
   import { formatDateTime } from '$lib/date';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { Filter, Search, AlertTriangle, Clock, CheckCircle2, Copy } from 'lucide-svelte';
+  import { Filter, Search, AlertTriangle, Clock, CheckCircle2, Copy, GraduationCap, Users, Plus, FileText, Activity, ArrowRight } from 'lucide-svelte';
   import { TEACHER_GROUP_ID } from '$lib/teacherGroup';
   import { t, translator } from '$lib/i18n';
   
@@ -33,6 +33,10 @@
   let filterMode: FilterMode = 'all';
   type SortMode = 'deadline_asc' | 'deadline_desc' | 'title_asc'
   let sortMode: SortMode = 'deadline_asc';
+
+  function percent(done: number, total: number) {
+    return total ? Math.round((done / total) * 100) : 0;
+  }
 
   onMount(() => {
     const t = setInterval(() => (now = Date.now()), 60000);
@@ -200,97 +204,186 @@
   }
 </script>
 
-{#if loading}
-  <p>{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::loading')}</p>
-{:else if err}
-  <p class="text-error">{err}</p>
-{:else}
-  <div class="mb-4">
-    <h1 class="text-2xl font-semibold">{cls.name}</h1>
-    {#if role === 'student'}
-      <p class="opacity-70 text-sm">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::teacher_prefix')} {cls.teacher.name ?? cls.teacher.email}</p>
-    {/if}
-  </div>
+<svelte:head>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap" rel="stylesheet">
+  <title>{cls?.name ? `${cls.name} | CodEdu` : 'Assignments | CodEdu'}</title>
+</svelte:head>
 
-  <div>
-    <div class="card-elevated p-5">
-      <div class="flex items-center justify-between mb-3 gap-2 flex-wrap">
-        <h2 class="font-semibold">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::assignments_heading')}</h2>
-        <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
-          <div class="join hidden sm:flex">
-            <button class={`btn btn-sm join-item ${filterMode==='all' ? 'btn-active' : 'btn-ghost'}`} type="button" on:click={() => filterMode='all'}><Filter class="w-4 h-4" aria-hidden="true" /> {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::filter_all')}</button>
-            <button class={`btn btn-sm join-item ${filterMode==='upcoming' ? 'btn-active' : 'btn-ghost'}`} type="button" on:click={() => filterMode='upcoming'}><Clock class="w-4 h-4" aria-hidden="true" /> {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::filter_upcoming')}</button>
-            <button class={`btn btn-sm join-item ${filterMode==='late' ? 'btn-active' : 'btn-ghost'}`} type="button" on:click={() => filterMode='late'}><AlertTriangle class="w-4 h-4" aria-hidden="true" /> {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::filter_overdue')}</button>
-          </div>
-          <label class="input input-bordered input-sm flex items-center gap-2">
-            <Search class="w-4 h-4" aria-hidden="true" />
-            <input type="text" class="grow" placeholder={translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::search_placeholder')} bind:value={search} />
-          </label>
-          <select class="select select-sm select-bordered" bind:value={sortMode} aria-label={translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::sort_assignments_aria_label')}>
-            <option value="deadline_asc">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::sort_deadline_asc')}</option>
-            <option value="deadline_desc">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::sort_deadline_desc')}</option>
-            <option value="title_asc">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::sort_title_asc')}</option>
-          </select>
-          {#if role === 'teacher' || role === 'admin'}
-            <button class="btn btn-sm" type="button" on:click={quickCreateAssignment}>{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::new_assignment_button')}</button>
-            <button class="btn btn-sm btn-outline" type="button" on:click={openCopyFromTeachers}>
-              <Copy class="w-4 h-4 mr-2" aria-hidden="true" />
-              {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::copy_from_teachers_group_button')}
-            </button>
-          {/if}
+{#if loading}
+  <div class="flex justify-center mt-8"><span class="loading loading-dots loading-lg"></span></div>
+{:else if err}
+  <div class="alert alert-error">
+    <AlertTriangle size={20} />
+    <span>{err}</span>
+  </div>
+{:else}
+  <!-- Premium Class Header -->
+  <section class="class-assignments-header relative bg-base-100 rounded-3xl border border-base-200 shadow-xl shadow-base-300/10 mb-8 p-6 sm:p-8">
+    <!-- Background Decor (using a separate container for overflow control) -->
+    <div class="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none">
+      <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent"></div>
+      <div class="absolute -top-12 -right-12 w-64 h-64 bg-primary/10 rounded-full blur-3xl"></div>
+    </div>
+
+    <div class="relative flex flex-col md:flex-row items-center justify-between gap-6">
+      <div class="relative flex flex-col items-start gap-2">
+        <div class="relative flex items-center pr-12 sm:pr-20 py-8 -my-8 overflow-visible">
+          <h1 class="text-3xl sm:text-5xl lg:text-7xl font-black uppercase tracking-tight leading-[1.4] bg-gradient-to-br from-primary via-primary/90 to-accent bg-clip-text text-transparent select-none italic w-max px-4" style="font-family: 'Outfit', sans-serif; filter: drop-shadow(0 20px 30px oklch(var(--p) / 0.15));">
+            {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::assignments_heading')}
+          </h1>
+          <div class="absolute bottom-2 left-2 w-16 h-1 bg-gradient-to-r from-primary to-transparent rounded-full opacity-50"></div>
+        </div>
+        
+        <div class="flex items-center gap-3 mt-1 ml-2">
+          <div class="w-2 h-2 rounded-full bg-primary/40 animate-pulse"></div>
+          <h2 class="text-xl sm:text-2xl font-bold tracking-tight text-base-content/40 leading-tight uppercase italic opacity-80">{cls.name}</h2>
         </div>
       </div>
-      <ul class="space-y-3">
-        {#each visibleAssignments as a}
-          <li>
-            <a href={`/assignments/${a.id}`} class="block no-underline text-current">
-              <div class="card-elevated p-4 hover:shadow-md transition">
-                <div class="flex items-center justify-between gap-4">
-                  <div class="min-w-0">
-                    <div class="font-medium truncate">{a.title}</div>
-                    <div class="text-sm opacity-70 flex items-center gap-2">
-                      <span class={new Date(a.deadline) < new Date() && !a.completed ? 'text-error' : ''}>{formatDateTime(a.deadline)}</span>
-                      <span>·</span>
-                      <span>{countdown(a.deadline, a.completed)}</span>
-                      {#if a.second_deadline}
-                        <span>·</span>
-                        <span class="text-warning">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::second_deadline_prefix')} {formatDateTime(a.second_deadline)} ({Math.round(a.late_penalty_ratio * 100)}%)</span>
-                      {/if}
-                    </div>
-                  </div>
-                  <div class="flex items-center gap-3 shrink-0">
-                    {#if role==='student'}
-                      <div class="flex items-center gap-2">
-                        <progress class="progress progress-primary w-20 sm:w-24" value={a.best || 0} max={a.max_points}></progress>
-                        <span class="text-sm whitespace-nowrap">{a.best ?? 0}/{a.max_points}</span>
-                      </div>
-                    {/if}
-                    {#if role==='teacher' || role==='admin'}
-                      {#if a.published}
-                        <div class="flex items-center gap-2">
-                          <progress class="progress progress-primary w-20 sm:w-24" value={progressCounts[a.id] || 0} max={students.length}></progress>
-                          <span class="text-sm whitespace-nowrap">{progressCounts[a.id] || 0}/{students.length}</span>
-                        </div>
-                      {/if}
-                    {/if}
-                    {#if a.completed}
-                      <span class="badge badge-success"><CheckCircle2 class="w-3 h-3" aria-hidden="true" /> {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::status_done_badge')}</span>
-                    {/if}
-                    {#if !a.published}
-                      <span class="badge badge-warning">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::status_unpublished_badge')}</span>
-                    {/if}
+      
+      <div class="flex flex-wrap items-center gap-3">
+        {#if role === 'teacher' || role === 'admin'}
+          <button class="btn btn-primary btn-sm rounded-xl gap-2 font-black uppercase tracking-widest text-[10px] h-10 px-4" type="button" on:click={quickCreateAssignment}>
+            <Plus size={16} />
+            {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::new_assignment_button')}
+          </button>
+          <button class="btn btn-ghost btn-sm rounded-xl gap-2 font-black uppercase tracking-widest text-[10px] h-10 border border-base-300 hover:bg-base-200" type="button" on:click={openCopyFromTeachers}>
+            <Copy size={16} />
+            {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::copy_from_teachers_group_button')}
+          </button>
+        {/if}
+      </div>
+    </div>
+  </section>
+
+  <!-- Assignments Section -->
+  <div>
+    <div class="flex flex-col sm:flex-row sm:items-center justify-end gap-4 mb-6 px-2">
+      <div class="flex flex-wrap items-center gap-2 justify-end">
+        <div class="join hidden lg:flex bg-base-200/50 p-1 rounded-xl">
+          <button class={`btn btn-xs join-item border-none ${filterMode==='all' ? 'bg-base-100 shadow-sm text-primary' : 'bg-transparent opacity-60'}`} type="button" on:click={() => filterMode='all'}>
+            {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::filter_all')}
+          </button>
+          <button class={`btn btn-xs join-item border-none ${filterMode==='upcoming' ? 'bg-base-100 shadow-sm text-primary' : 'bg-transparent opacity-60'}`} type="button" on:click={() => filterMode='upcoming'}>
+            {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::filter_upcoming')}
+          </button>
+          <button class={`btn btn-xs join-item border-none ${filterMode==='late' ? 'bg-base-100 shadow-sm text-primary' : 'bg-transparent opacity-60'}`} type="button" on:click={() => filterMode='late'}>
+            {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::filter_overdue')}
+          </button>
+        </div>
+
+        <div class="relative flex items-center">
+          <Search size={14} class="absolute left-3 opacity-40" />
+          <input 
+            type="text" 
+            class="input input-sm bg-base-100 border-base-200 focus:border-primary/30 w-full sm:w-48 pl-9 rounded-xl font-medium text-xs h-9" 
+            placeholder={translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::search_placeholder')} 
+            bind:value={search} 
+          />
+        </div>
+
+        <select class="select select-sm bg-base-100 border-base-200 focus:border-primary/30 rounded-xl font-medium text-xs h-9" bind:value={sortMode}>
+          <option value="deadline_asc">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::sort_deadline_asc')}</option>
+          <option value="deadline_desc">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::sort_deadline_desc')}</option>
+          <option value="title_asc">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::sort_title_asc')}</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+      {#each visibleAssignments as a}
+        <a href={`/assignments/${a.id}`} class="group block no-underline text-current">
+          <div class="bg-base-100 p-5 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all h-full flex flex-col relative overflow-hidden">
+            <div class="absolute top-0 right-0 w-1/4 h-1/4 bg-primary/5 rounded-bl-full pointer-events-none group-hover:scale-150 transition-transform duration-700"></div>
+            
+            <div class="flex items-start justify-between mb-4 relative">
+              <div class="flex items-center gap-3 min-w-0">
+                <div class={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${a.completed ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary'} group-hover:bg-primary group-hover:text-primary-content transition-all`}>
+                  <FileText size={20} />
+                </div>
+                <div class="min-w-0">
+                  <h3 class="font-black text-base tracking-tight truncate group-hover:text-primary transition-colors">{a.title}</h3>
+                  <div class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider opacity-40">
+                    <Clock size={10} />
+                    <span class={new Date(a.deadline) < new Date() && !a.completed ? 'text-error opacity-100' : ''}>
+                      {formatDateTime(a.deadline)}
+                    </span>
                   </div>
                 </div>
               </div>
-            </a>
-          </li>
-        {/each}
-        {#if !visibleAssignments.length}
-          <li class="text-sm opacity-70">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::no_assignments_yet')}</li>
-        {/if}
-      </ul>
+            </div>
+
+            <div class="space-y-4 flex-1">
+              {#if role === 'student'}
+                <div class="space-y-2">
+                  <div class="flex items-center justify-between text-[10px] font-black uppercase tracking-widest opacity-40">
+                    <span>{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::dashboard_progress')}</span>
+                    <span class="tabular-nums font-black text-base-content">{a.best ?? 0}/{a.max_points}</span>
+                  </div>
+                  <div class="w-full h-1.5 rounded-full bg-base-200 overflow-hidden">
+                    <div class={`h-full transition-all duration-500 rounded-full ${a.completed ? 'bg-success' : 'bg-primary'}`} style={`width: ${percent(a.best || 0, a.max_points)}%`}></div>
+                  </div>
+                </div>
+              {:else if role === 'teacher' || role === 'admin'}
+                {#if a.published}
+                  <div class="space-y-2">
+                    <div class="flex items-center justify-between text-[10px] font-black uppercase tracking-widest opacity-40">
+                      <span>{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::dashboard_progress')}</span>
+                      <span class="tabular-nums font-black text-base-content">{progressCounts[a.id] || 0}/{students.length}</span>
+                    </div>
+                    <div class="w-full h-1.5 rounded-full bg-base-200 overflow-hidden">
+                      <div class="h-full bg-primary transition-all duration-500 rounded-full" style={`width: ${percent(progressCounts[a.id] || 0, students.length)}%`}></div>
+                    </div>
+                  </div>
+                {:else}
+                  <div class="flex items-center gap-2 py-1">
+                    <div class="w-1.5 h-1.5 rounded-full bg-warning animate-pulse"></div>
+                    <span class="text-[10px] font-bold text-warning uppercase tracking-widest">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::status_unpublished_badge')}</span>
+                  </div>
+                {/if}
+              {/if}
+
+              <div class="flex flex-wrap gap-1.5 mt-2">
+                 <div class="badge badge-sm bg-base-200 border-none font-black text-[9px] uppercase tracking-wider h-6 gap-1 opacity-70">
+                   <Activity size={10} />
+                   {countdown(a.deadline, a.completed)}
+                 </div>
+                 {#if a.completed}
+                   <div class="badge badge-sm badge-success border-none font-black text-[9px] uppercase tracking-wider h-6 gap-1 text-success-content">
+                     <CheckCircle2 size={10} />
+                     {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::status_done_badge')}
+                   </div>
+                 {/if}
+                 {#if a.second_deadline}
+                    <div class="badge badge-sm bg-warning/20 text-warning-content border-none font-black text-[9px] uppercase tracking-wider h-6 gap-1">
+                      <Clock size={10} />
+                      {formatDateTime(a.second_deadline)} ({Math.round(a.late_penalty_ratio * 100)}%)
+                    </div>
+                 {/if}
+              </div>
+            </div>
+
+            <div class="mt-4 pt-4 border-t border-base-300/30 flex items-center justify-end">
+              <div class="text-primary opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all">
+                <ArrowRight size={16} />
+              </div>
+            </div>
+          </div>
+        </a>
+      {:else}
+        <div class="col-span-full py-12 text-center bg-base-100/50 rounded-[2.5rem] border-2 border-dashed border-base-200">
+           <div class="w-12 h-12 rounded-full bg-base-200 flex items-center justify-center mx-auto mb-4 opacity-30">
+              <FileText size={20} />
+           </div>
+           <p class="text-sm font-bold opacity-30 uppercase tracking-widest">
+             {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::no_assignments_yet')}
+           </p>
+        </div>
+      {/each}
     </div>
   </div>
+
 
   <!-- Copy from Teachers' group modal -->
   <dialog bind:this={copyDialog} class="modal">

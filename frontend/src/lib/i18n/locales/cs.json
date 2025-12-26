@@ -948,6 +948,7 @@
   "frontend/src/routes/classes/[id]/assignments/+page.svelte::filter_upcoming": "Nadcházející",
   "frontend/src/routes/classes/[id]/assignments/+page.svelte::loading": "Načítám…",
   "frontend/src/routes/classes/[id]/assignments/+page.svelte::new_assignment_button": "Nové zadání",
+  "frontend/src/routes/classes/[id]/assignments/+page.svelte::dashboard_progress": "Pokrok",
   "frontend/src/routes/classes/[id]/assignments/+page.svelte::no_assignments_yet": "Zatím žádná zadání",
   "frontend/src/routes/classes/[id]/assignments/+page.svelte::no_items_in_folder": "V této složce nejsou žádné položky",
   "frontend/src/routes/classes/[id]/assignments/+page.svelte::open_crumb_label": "Otevřít",
