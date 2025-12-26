@@ -205,6 +205,9 @@
 </script>
 
 <svelte:head>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap" rel="stylesheet">
   <title>{cls?.name ? `${cls.name} | CodEdu` : 'Assignments | CodEdu'}</title>
 </svelte:head>
 
@@ -217,20 +220,25 @@
   </div>
 {:else}
   <!-- Premium Class Header -->
-  <section class="class-assignments-header relative overflow-hidden bg-base-100 rounded-2xl border border-base-200 shadow-lg shadow-base-300/20 mb-6 p-5 sm:p-6">
-    <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent pointer-events-none"></div>
-    <div class="absolute -top-12 -right-12 w-48 h-48 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
-    <div class="relative flex flex-col md:flex-row items-center justify-between gap-4">
-      <div class="relative flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-8">
-        <div class="relative shrink-0">
-          <h1 class="text-sm sm:text-base font-black uppercase tracking-[0.5em] leading-none text-base-content/20">
+  <section class="class-assignments-header relative bg-base-100 rounded-3xl border border-base-200 shadow-xl shadow-base-300/10 mb-8 p-6 sm:p-8">
+    <!-- Background Decor (using a separate container for overflow control) -->
+    <div class="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none">
+      <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent"></div>
+      <div class="absolute -top-12 -right-12 w-64 h-64 bg-primary/10 rounded-full blur-3xl"></div>
+    </div>
+
+    <div class="relative flex flex-col md:flex-row items-center justify-between gap-6">
+      <div class="relative flex flex-col items-start gap-2">
+        <div class="relative flex items-center pr-12 sm:pr-20 py-8 -my-8 overflow-visible">
+          <h1 class="text-3xl sm:text-5xl lg:text-7xl font-black uppercase tracking-tight leading-[1.4] bg-gradient-to-br from-primary via-primary/90 to-accent bg-clip-text text-transparent select-none italic w-max px-4" style="font-family: 'Outfit', sans-serif; filter: drop-shadow(0 20px 30px oklch(var(--p) / 0.15));">
             {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::assignments_heading')}
           </h1>
+          <div class="absolute bottom-2 left-2 w-16 h-1 bg-gradient-to-r from-primary to-transparent rounded-full opacity-50"></div>
         </div>
         
-        <div class="flex flex-col gap-1">
-          <h2 class="text-xl sm:text-3xl font-black tracking-tight text-base-content leading-tight">{cls.name}</h2>
-
+        <div class="flex items-center gap-3 mt-1 ml-2">
+          <div class="w-2 h-2 rounded-full bg-primary/40 animate-pulse"></div>
+          <h2 class="text-xl sm:text-2xl font-bold tracking-tight text-base-content/40 leading-tight uppercase italic opacity-80">{cls.name}</h2>
         </div>
       </div>
       
