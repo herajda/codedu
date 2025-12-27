@@ -205,7 +205,7 @@
                       </span>
                    {/if}
                 </h1>
-                <p class="text-xs font-bold uppercase tracking-widest opacity-40 ml-[3.25rem] bg-gradient-to-r from-base-content/60 to-base-content/30 bg-clip-text text-transparent">
+                <p class="text-xs font-bold uppercase tracking-widest ml-[3.25rem] text-secondary/70">
                    {#if isImage}
                      {t('frontend/src/routes/files/[id]/+page.svelte::preview_label') || 'Preview'}
                    {:else}
