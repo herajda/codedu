@@ -184,6 +184,10 @@
     target.value = '';
   }
 
+  export function focus() {
+    editor?.chain().focus().run();
+  }
+
 </script>
 
 <div class={`markdown-editor-container bg-base-100 border border-base-300 rounded-xl overflow-hidden shadow-sm transition-all duration-200 ${isFullscreen ? 'fixed inset-0 z-50 rounded-none' : ''}`}>

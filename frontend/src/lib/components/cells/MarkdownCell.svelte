@@ -10,6 +10,7 @@
     deleteCell
   } from "$lib/stores/notebookStore";
   import { t } from '$lib/i18n';
+  import { FileText, Edit, ArrowUp, ArrowDown, Trash2, Plus, Code as CodeIcon, Eye } from 'lucide-svelte';
 
   export let cell: import("$lib/notebook").NotebookCell;
   export let index: number;
@@ -19,6 +20,8 @@
   let editing = !cell.source;
 
   let editorRef: any;
+  let containerRef: HTMLDivElement;
+
 
   // keep a local string bound to the editor
   let sourceStr = Array.isArray(cell.source) ? cell.source.join("") : (cell.source ?? "");
@@ -30,10 +33,6 @@
   }
 
   async function toggle() {
-    if (editing) {
-      // clean up the EasyMDE instance before the component unmounts
-      editorRef?.destroyEditor?.();
-    }
     editing = !editing;
     if (editing) {
       sourceStr = Array.isArray(cell.source)
@@ -44,6 +43,16 @@
     }
   }
 
+  function handleFocusOut() {
+    // Small timeout to allow focus to settle (e.g. when clicking toolbar buttons)
+    setTimeout(() => {
+      if (editing && containerRef && !containerRef.contains(document.activeElement)) {
+        toggle();
+      }
+    }, 150);
+  }
+
+
   function onInput() {
     cell.source = sourceStr;
     // trigger store update so parent re-renders
@@ -52,189 +61,218 @@
 </script>
 
 <div
-  class="border rounded-lg p-2 bg-white shadow-inner group relative hover:z-20"
+  bind:this={containerRef}
+  class="bg-base-100/50 backdrop-blur-sm rounded-[2rem] border-2 border-secondary/10 p-5 shadow-xl shadow-secondary/5 hover:shadow-2xl hover:shadow-secondary/10 transition-all duration-300 group relative hover:border-secondary/30 mx-1 {showInsert ? 'z-50' : 'z-auto'}"
   on:dblclick={() => { if (!editing) toggle(); }}
+  on:focusout={handleFocusOut}
 >
+  <!-- Cell Type Indicator -->
+  <div class="absolute -top-3 left-8 flex items-center gap-2">
+    {#if editing}
+      <div class="bg-primary text-primary-content px-3 py-1 rounded-full text-[10px] font-black tracking-widest flex items-center gap-1.5 shadow-lg shadow-primary/20">
+        <Edit size={12} />
+        EDITING
+      </div>
+    {/if}
+  </div>
+
   {#if !editing}
-  <div class="absolute right-2 top-2 z-10 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-    <button
-      aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_up')}
-      title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_up')}
-      on:click={() => moveCellUp(index)}
-      class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
-    >
-      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        <path d="M12 4l-6 6h4v6h4v-6h4l-6-6z" />
-      </svg>
-    </button>
-    <button
-      aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_down')}
-      title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_down')}
-      on:click={() => moveCellDown(index)}
-      class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
-    >
-      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        <path d="M12 20l6-6h-4v-6h-4v6H6l6 6z" />
-      </svg>
-    </button>
+  <div class="absolute right-4 top-4 z-10 flex gap-1 items-center transition-all duration-300 bg-base-100/80 backdrop-blur-md p-1.5 rounded-2xl border border-base-200 shadow-xl {showInsert ? 'opacity-100 translate-x-0' : 'opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0'}">
+    <div class="flex items-center gap-1 bg-base-200/50 p-1 rounded-xl border border-base-content/5 shadow-sm mr-1">
+      <button
+        aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_up')}
+        title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_up')}
+        on:click={() => moveCellUp(index)}
+        class="btn btn-xs btn-circle btn-ghost hover:bg-base-300"
+      >
+        <ArrowUp size={14} />
+      </button>
+      <button
+        aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_down')}
+        title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_down')}
+        on:click={() => moveCellDown(index)}
+        class="btn btn-xs btn-circle btn-ghost hover:bg-base-300"
+      >
+        <ArrowDown size={14} />
+      </button>
+    </div>
     <button
       aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::delete_cell')}
       title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::delete_cell')}
       on:click={() => deleteCell(index)}
-      class="p-1 rounded text-gray-600 hover:text-white hover:bg-red-600 hover:scale-110 transition-transform"
+      class="btn btn-sm btn-circle btn-ghost text-error hover:bg-error/10 hover:text-error mx-1"
     >
-      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        <path d="M6 7h12M9 7v10m6-10v10M4 7h16l-1 12a2 2 0 01-2 2H7a2 2 0 01-2-2L4 7zM10 4h4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-      </svg>
+      <Trash2 size={16} />
     </button>
-    {#if !editing}
-      <button
-        aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::edit_cell')}
-        title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::edit_cell')}
-        on:click={toggle}
-        class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
-      >
-        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path d="M4 17.25V21h3.75L17.81 10.94l-3.75-3.75L4 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
-        </svg>
-      </button>
-    {/if}
-    <div class="relative">
+    
+    <button
+      aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::edit_cell')}
+      title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::edit_cell')}
+      on:click={toggle}
+      class="btn btn-sm btn-circle btn-ghost text-primary bg-primary/10 hover:bg-primary/20 mx-1"
+    >
+      <Edit size={16} />
+    </button>
+    
+    <div class="relative dropdown dropdown-end dropdown-bottom {showInsert ? 'dropdown-open' : ''}">
       <button
         aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_cell')}
         title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_cell')}
         on:click={() => { showInsert = !showInsert; if (!showInsert) insertPos = null; }}
-        class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
+        class="btn btn-sm btn-circle btn-ghost bg-secondary/10 text-secondary hover:bg-secondary/20 ml-1"
       >
-        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" />
-        </svg>
+        <Plus size={18} />
       </button>
       {#if showInsert}
-        <div class="absolute right-0 mt-1 z-10 bg-white border rounded shadow flex flex-col text-sm">
+        <ul class="dropdown-content z-50 menu p-2 shadow-2xl bg-base-100 rounded-2xl w-52 border border-base-200 mt-2 ring-1 ring-black/5 animate-in fade-in zoom-in duration-200">
           {#if !insertPos}
-            <button class="p-1 hover:bg-gray-100" aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_above')}
-              title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_above')} on:click={() => (insertPos = 'above')}>
-              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M12 4l-6 6h4v6h4v-6h4l-6-6z" />
-              </svg>
-            </button>
-            <button class="p-1 hover:bg-gray-100" aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_below')}
-              title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_below')} on:click={() => (insertPos = 'below')}>
-              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M12 20l6-6h-4v-6h-4v6H6l6 6z" />
-              </svg>
-            </button>
+            <li class="menu-title text-[10px] font-black tracking-widest uppercase opacity-50 px-4 py-2">{t('frontend/src/lib/components/cells/MarkdownCell.svelte::position')}</li>
+            <li>
+                <button class="rounded-xl py-3" on:click={() => (insertPos = 'above')}>
+                  <ArrowUp size={14} class="text-primary" /> 
+                  {t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_above')}
+                </button>
+            </li>
+            <li>
+                <button class="rounded-xl py-3" on:click={() => (insertPos = 'below')}>
+                  <ArrowDown size={14} class="text-primary" /> 
+                  {t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_below')}
+                </button>
+            </li>
           {:else}
-            <button class="p-1 hover:bg-gray-100" aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_code')}
-              title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_code')} on:click={() => {insertCell(index, 'code', insertPos); showInsert = false; insertPos = null;}}>
-              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M16 18l6-6-6-6M8 6L2 12l6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-            </button>
-            <button class="p-1 hover:bg-gray-100" aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_markdown')}
-              title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_markdown')} on:click={() => {insertCell(index, 'markdown', insertPos); showInsert = false; insertPos = null;}}>
-              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M6 2a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6H6z" />
-              </svg>
-            </button>
+            <li class="menu-title text-[10px] font-black tracking-widest uppercase opacity-50 px-4 py-2">Type ({insertPos})</li>
+            <li>
+                <button class="rounded-xl py-3" on:click={() => {insertCell(index, 'code', insertPos); showInsert = false; insertPos = null;}}>
+                  <CodeIcon size={14} class="text-primary" /> 
+                  {t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_code')}
+                </button>
+            </li>
+            <li>
+                <button class="rounded-xl py-3" on:click={() => {insertCell(index, 'markdown', insertPos); showInsert = false; insertPos = null;}}>
+                  <FileText size={14} class="text-secondary" /> 
+                  {t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_markdown')}
+                </button>
+            </li>
           {/if}
-        </div>
+        </ul>
       {/if}
     </div>
   </div>
   {/if}
+  
   {#if editing}
-    <MarkdownEditor
-      bind:this={editorRef}
-      bind:value={sourceStr}
-      className="w-full bg-gray-100 p-2 rounded"
-      on:input={onInput}
-    />
-    <div class="flex items-center mt-2">
-      <button
-        class="text-blue-600 p-1 rounded hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
-        on:click={toggle}
-      >{t('frontend/src/lib/components/cells/MarkdownCell.svelte::preview')}</button>
-      <div class="flex gap-2 items-center ml-auto">
+    <div class="space-y-4 pt-2">
+      <div class="bg-base-300/30 rounded-2xl p-2 border border-base-200 shadow-inner focus-within:border-secondary/40 focus-within:ring-4 focus-within:ring-secondary/5 focus-within:bg-base-300/50 transition-all duration-300 group/editor relative">
+        <MarkdownEditor
+          bind:this={editorRef}
+          bind:value={sourceStr}
+          className="w-full bg-base-100/50 p-4 rounded-xl min-h-[150px] border-none focus:outline-none text-base leading-relaxed"
+          on:input={onInput}
+        />
+        <div class="absolute right-5 top-16 opacity-20 pointer-events-none group-focus-within/editor:opacity-100 transition-opacity">
+          <FileText size={14} class="text-secondary" />
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
         <button
-          aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_up')}
-          title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_up')}
-          on:click={() => moveCellUp(index)}
-          class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
+          class="btn btn-primary rounded-xl px-6 font-bold shadow-lg shadow-primary/20"
+          on:click={toggle}
         >
-          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M12 4l-6 6h4v6h4v-6h4l-6-6z" />
-          </svg>
+          <Eye size={18} />
+          {t('frontend/src/lib/components/cells/MarkdownCell.svelte::preview')}
         </button>
-        <button
-          aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_down')}
-          title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_down')}
-          on:click={() => moveCellDown(index)}
-          class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
-        >
-          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M12 20l6-6h-4v-6h-4v6H6l6 6z" />
-          </svg>
-        </button>
-        <button
-          aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::delete_cell')}
-          title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::delete_cell')}
-          on:click={() => deleteCell(index)}
-          class="p-1 rounded text-gray-600 hover:text-white hover:bg-red-600 hover:scale-110 transition-transform"
-        >
-          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M6 7h12M9 7v10m6-10v10M4 7h16l-1 12a2 2 0 01-2 2H7a2 2 0 01-2-2L4 7zM10 4h4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-          </svg>
-        </button>
-        <div class="relative">
+        
+        <div class="flex gap-2 items-center ml-auto">
+          <div class="flex items-center gap-1 bg-base-200/50 p-1 rounded-xl border border-base-content/5 shadow-sm">
+            <button
+              aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_up')}
+              title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_up')}
+              on:click={() => moveCellUp(index)}
+              class="btn btn-xs btn-circle btn-ghost hover:bg-base-300"
+            >
+              <ArrowUp size={14} />
+            </button>
+            <button
+              aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_down')}
+              title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_down')}
+              on:click={() => moveCellDown(index)}
+              class="btn btn-xs btn-circle btn-ghost hover:bg-base-300"
+            >
+              <ArrowDown size={14} />
+            </button>
+          </div>
           <button
-            aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_cell')}
-            title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_cell')}
-            on:click={() => { showInsert = !showInsert; if (!showInsert) insertPos = null; }}
-            class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
+            aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::delete_cell')}
+            title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::delete_cell')}
+            on:click={() => deleteCell(index)}
+            class="btn btn-sm btn-circle btn-ghost text-error hover:bg-error/10 hover:text-error mx-1"
           >
-            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" />
-            </svg>
+            <Trash2 size={16} />
           </button>
-          {#if showInsert}
-            <div class="absolute right-0 mt-1 z-10 bg-white border rounded shadow flex flex-col text-sm">
-              {#if !insertPos}
-                <button class="p-1 hover:bg-gray-100" aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_above')}
-                  title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_above')} on:click={() => (insertPos = 'above')}>
-                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path d="M12 4l-6 6h4v6h4v-6h4l-6-6z" />
-                  </svg>
-                </button>
-                <button class="p-1 hover:bg-gray-100" aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_below')}
-                  title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_below')} on:click={() => (insertPos = 'below')}>
-                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path d="M12 20l6-6h-4v-6h-4v6H6l6 6z" />
-                  </svg>
-                </button>
-              {:else}
-                <button class="p-1 hover:bg-gray-100" aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_code')}
-                  title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_code')} on:click={() => {insertCell(index, 'code', insertPos); showInsert = false; insertPos = null;}}>
-                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path d="M16 18l6-6-6-6M8 6L2 12l6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-                  </svg>
-                </button>
-                <button class="p-1 hover:bg-gray-100" aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_markdown')}
-                  title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_markdown')} on:click={() => {insertCell(index, 'markdown', insertPos); showInsert = false; insertPos = null;}}>
-                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path d="M6 2a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6H6z" />
-                  </svg>
-                </button>
-              {/if}
-            </div>
-          {/if}
+          
+          <div class="relative dropdown dropdown-end dropdown-top {showInsert ? 'dropdown-open' : ''}">
+            <button
+              aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_cell')}
+              title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_cell')}
+              on:click={() => { showInsert = !showInsert; if (!showInsert) insertPos = null; }}
+              class="btn btn-sm btn-circle btn-ghost bg-secondary/10 text-secondary hover:bg-secondary/20"
+            >
+              <Plus size={18} />
+            </button>
+            {#if showInsert}
+              <ul class="dropdown-content z-50 menu p-2 shadow-2xl bg-base-100 rounded-2xl w-52 border border-base-200 mb-2 ring-1 ring-black/5 animate-in fade-in zoom-in duration-200">
+                {#if !insertPos}
+                  <li class="menu-title text-[10px] font-black tracking-widest uppercase opacity-50 px-4 py-2">{t('frontend/src/lib/components/cells/MarkdownCell.svelte::position')}</li>
+                  <li><button class="rounded-xl py-3" on:click={() => (insertPos = 'above')}><ArrowUp size={14} class="text-primary" /> {t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_above')}</button></li>
+                  <li><button class="rounded-xl py-3" on:click={() => (insertPos = 'below')}><ArrowDown size={14} class="text-primary" /> {t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_below')}</button></li>
+                {:else}
+                  <li class="menu-title text-[10px] font-black tracking-widest uppercase opacity-50 px-4 py-2">Type ({insertPos})</li>
+                  <li><button class="rounded-xl py-3" on:click={() => {insertCell(index, 'code', insertPos); showInsert = false; insertPos = null;}}><CodeIcon size={14} class="text-primary" /> {t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_code')}</button></li>
+                  <li><button class="rounded-xl py-3" on:click={() => {insertCell(index, 'markdown', insertPos); showInsert = false; insertPos = null;}}><FileText size={14} class="text-secondary" /> {t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_markdown')}</button></li>
+                {/if}
+              </ul>
+            {/if}
+          </div>
         </div>
       </div>
     </div>
   {:else}
-  <div class="markdown">
-    {@html renderMarkdown(sourceStr)}
+    <div class="prose prose-md max-w-none px-4 py-2 prose-headings:font-black prose-headings:tracking-tight prose-headings:text-base-content prose-p:text-base-content/80 prose-li:marker:text-secondary group-hover:prose-headings:text-secondary transition-colors duration-300">
+      {@html renderMarkdown(sourceStr)}
     </div>
   {/if}
 </div>
+
+<style>
+  :global(.prose ul) {
+    list-style-type: disc;
+    padding-left: 1.5em;
+  }
+
+  :global(.prose ol) {
+    list-style-type: decimal;
+    padding-left: 1.5em;
+  }
+
+  :global(.prose h1) {
+    font-size: 2.25rem;
+    font-weight: 900;
+    margin-top: 1.5rem;
+    margin-bottom: 1.5rem;
+    line-height: 1.2;
+  }
+
+  :global(.prose h2) {
+    font-size: 1.75rem;
+    font-weight: 800;
+    margin-top: 1.25rem;
+    margin-bottom: 1rem;
+    line-height: 1.3;
+  }
+
+  :global(.prose p) {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    line-height: 1.7;
+  }
+</style>

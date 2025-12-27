@@ -10,6 +10,7 @@
   import '@fortawesome/fontawesome-free/css/all.min.css';
   import { beforeNavigate, goto } from '$app/navigation';
   import { t } from '$lib/i18n';
+  import { ArrowLeft, Image as ImageIcon, FileCode, BookOpen } from 'lucide-svelte';
 
   let notebookEditor: InstanceType<typeof NotebookEditor> | undefined;
   let unsavedModal: InstanceType<typeof UnsavedChangesModal> | undefined;
@@ -50,6 +51,7 @@
 
   let isImage = false;
   let imgUrl: string | null = null;
+  let fileName: string | undefined = undefined;
 
   async function load() {
     if (imgUrl) {
@@ -69,6 +71,13 @@
     } else {
       const text = await res.text();
       const nb = loadNotebook(text);
+      
+      const cd = res.headers.get('Content-Disposition');
+      if (cd) {
+        const match = cd.match(/filename="?([^"]+)"?/);
+        if (match) fileName = match[1];
+      }
+      
       originalNotebookSerialized = serializeNotebook(nb);
       notebookStore.set(nb);
       isImage = false;
@@ -164,15 +173,62 @@
   });
 </script>
 
-<button class="btn btn-sm btn-circle mb-4" on:click={goBack} aria-label={t('frontend/src/routes/files/[id]/+page.svelte::Back to files')}>
-  <i class="fa-solid fa-arrow-left"></i>
-</button>
-{#if isImage}
-  {#if imgUrl}
-    <img src={imgUrl} alt={t('frontend/src/routes/files/[id]/+page.svelte::image')} class="max-w-full" />
-  {/if}
-{:else}
-  <NotebookEditor bind:this={notebookEditor} fileId={id} on:saved={handleSaved} />
-{/if}
+<div class="min-h-screen p-2 sm:p-4 lg:p-6">
+  <div class="w-full max-w-[1920px] mx-auto space-y-6">
+    <!-- Header -->
+    <header class="relative bg-base-100 rounded-3xl border border-base-200 shadow-xl shadow-secondary/5 p-4 sm:p-6 flex items-center justify-between gap-4 overflow-hidden group">
+        <div class="absolute inset-0 pointer-events-none overflow-hidden rounded-3xl">
+             <div class="absolute top-0 right-0 w-2/3 h-full bg-gradient-to-l from-secondary/10 via-secondary/5 to-transparent opacity-60"></div>
+             <div class="absolute -top-10 -right-10 w-64 h-64 bg-secondary/10 rounded-full blur-3xl opacity-40 group-hover:opacity-60 transition-opacity duration-700"></div>
+             <div class="absolute bottom-0 right-20 w-48 h-48 bg-secondary/10 rounded-full blur-2xl opacity-30 group-hover:opacity-50 transition-opacity duration-700"></div>
+        </div>
+        
+        <div class="relative z-10 flex items-center gap-4">
+             <button class="btn btn-circle btn-ghost hover:bg-base-200/50 hover:text-secondary transition-colors" on:click={goBack} aria-label={t('frontend/src/routes/files/[id]/+page.svelte::Back to files')}>
+                <ArrowLeft size={22} />
+             </button>
+             <div class="flex items-center gap-4">
+                <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-secondary/20 to-primary/20 flex items-center justify-center text-secondary shadow-lg shadow-secondary/5 shrink-0">
+                   {#if isImage}
+                      <ImageIcon size={28} />
+                   {:else}
+                      <BookOpen size={28} />
+                   {/if}
+                </div>
+                <div class="flex flex-col justify-center">
+                   <h1 class="text-xl sm:text-2xl font-black tracking-tight text-base-content leading-tight">
+                      {#if isImage}
+                        {t('frontend/src/routes/files/[id]/+page.svelte::image_viewer') || 'Image Viewer'}
+                      {:else}
+                        {(fileName?.replace(/\.ipynb$/, '')) || $notebookStore?.metadata?.name || $notebookStore?.metadata?.title || 'Notebook'}
+                      {/if}
+                   </h1>
+                   <p class="text-[10px] font-black uppercase tracking-[0.2em] text-secondary/70 leading-tight mt-1">
+                      {#if isImage}
+                        {t('frontend/src/routes/files/[id]/+page.svelte::preview_label') || 'Preview'}
+                      {:else}
+                        {t('frontend/src/routes/files/[id]/+page.svelte::notebook_label') || 'Jupyter Notebook'}
+                      {/if}
+                   </p>
+                </div>
+             </div>
+        </div>
+    </header>
+
+    <!-- Content -->
+    <div class="relative min-h-[600px]">
+       {#if isImage}
+          <div class="p-8 flex items-center justify-center bg-base-100/30 rounded-[2rem] border border-base-200/50 min-h-[600px]">
+             {#if imgUrl}
+               <img src={imgUrl} alt={t('frontend/src/routes/files/[id]/+page.svelte::image')} class="max-w-full max-h-[85vh] rounded-xl shadow-lg border border-base-content/5" />
+             {/if}
+          </div>
+       {:else}
+          <!-- No extra container for notebook to let it blend -->
+          <NotebookEditor bind:this={notebookEditor} fileId={id} fileName={fileName} on:saved={handleSaved} />
+       {/if}
+    </div>
+  </div>
+</div>
 
 <UnsavedChangesModal bind:this={unsavedModal} />

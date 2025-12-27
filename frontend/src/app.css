@@ -482,3 +482,9 @@ body.hide-navbar .navbar {
 .logo-text {
   color: hsl(var(--bc));
 }
+
+/* Delayed tooltips for a smoother experience */
+.tooltip-delayed:hover::before,
+.tooltip-delayed:hover::after {
+  transition-delay: 500ms !important;
+}
