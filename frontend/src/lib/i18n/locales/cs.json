@@ -935,6 +935,7 @@
   "frontend/src/routes/classes/+page.svelte::select_a_class_from_the_sidebar": "Vyberte třídu z postranního panelu",
   "frontend/src/routes/classes/[id]/+page.svelte::redirecting": "Přesměrovávám..",
   "frontend/src/routes/classes/[id]/assignments/+page.svelte::assignment_selected_for_copying": "Zadání vybráno ke kopírování",
+  "frontend/src/routes/classes/[id]/assignments/+page.svelte::assignments_description": "Sledujte své úkoly a termíny odevzdání",
   "frontend/src/routes/classes/[id]/assignments/+page.svelte::assignments_heading": "Zadání",
   "frontend/src/routes/classes/[id]/assignments/+page.svelte::button_cancel": "Zrušit",
   "frontend/src/routes/classes/[id]/assignments/+page.svelte::button_close": "zavřít",

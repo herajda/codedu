@@ -959,6 +959,7 @@
   "frontend/src/routes/classes/+page.svelte::select_a_class_from_the_sidebar": "Select a class from the sidebar",
   "frontend/src/routes/classes/[id]/+page.svelte::redirecting": "Redirecting..",
   "frontend/src/routes/classes/[id]/assignments/+page.svelte::assignment_selected_for_copying": "Assignment selected for copying",
+  "frontend/src/routes/classes/[id]/assignments/+page.svelte::assignments_description": "Keep track of your coursework and deadlines",
   "frontend/src/routes/classes/[id]/assignments/+page.svelte::assignments_heading": "Assignments",
   "frontend/src/routes/classes/[id]/assignments/+page.svelte::dashboard_progress": "Progress",
   "frontend/src/routes/classes/[id]/assignments/+page.svelte::button_cancel": "Cancel",

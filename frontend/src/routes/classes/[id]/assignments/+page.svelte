@@ -59,9 +59,11 @@
     cls = null;
     try {
       const data = await apiJSON(`/api/classes/${id}`);
-      cls = data;
-      students = data.students ?? [];
-      assignments = [...(data.assignments ?? [])];
+      const detail = data ?? null;
+      const baseClass = detail?.class ?? detail ?? null;
+      cls = baseClass;
+      students = detail.students ?? baseClass?.students ?? [];
+      assignments = [...(detail.assignments ?? baseClass?.assignments ?? [])];
       if (role === 'student') {
         mySubs = await apiJSON('/api/my-submissions');
         assignments = assignments.map((a) => {
@@ -220,26 +222,17 @@
   </div>
 {:else}
   <!-- Premium Class Header -->
-  <section class="class-assignments-header relative bg-base-100 rounded-3xl border border-base-200 shadow-xl shadow-base-300/10 mb-8 p-6 sm:p-8">
-    <!-- Background Decor (using a separate container for overflow control) -->
-    <div class="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none">
-      <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent"></div>
-      <div class="absolute -top-12 -right-12 w-64 h-64 bg-primary/10 rounded-full blur-3xl"></div>
-    </div>
-
+  <section class="relative overflow-hidden bg-base-100 rounded-3xl border border-base-200 shadow-xl shadow-base-300/30 mb-8 p-6 sm:p-10">
+    <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent pointer-events-none"></div>
+    <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
     <div class="relative flex flex-col md:flex-row items-center justify-between gap-6">
-      <div class="relative flex flex-col items-start gap-2">
-        <div class="relative flex items-center pr-12 sm:pr-20 py-8 -my-8 overflow-visible">
-          <h1 class="text-3xl sm:text-5xl lg:text-7xl font-black uppercase tracking-tight leading-[1.4] bg-gradient-to-br from-primary via-primary/90 to-accent bg-clip-text text-transparent select-none italic w-max px-4" style="font-family: 'Outfit', sans-serif; filter: drop-shadow(0 20px 30px oklch(var(--p) / 0.15));">
-            {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::assignments_heading')}
-          </h1>
-          <div class="absolute bottom-2 left-2 w-16 h-1 bg-gradient-to-r from-primary to-transparent rounded-full opacity-50"></div>
-        </div>
-        
-        <div class="flex items-center gap-3 mt-1 ml-2">
-          <div class="w-2 h-2 rounded-full bg-primary/40 animate-pulse"></div>
-          <h2 class="text-xl sm:text-2xl font-bold tracking-tight text-base-content/40 leading-tight uppercase italic opacity-80">{cls.name}</h2>
-        </div>
+      <div class="flex-1 text-center md:text-left">
+        <h1 class="text-3xl sm:text-4xl font-black tracking-tight mb-2">
+          {cls.name} <span class="text-primary/40">/</span> {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::assignments_heading')}
+        </h1>
+        <p class="text-base-content/60 font-medium max-w-xl mx-auto md:mx-0">
+          {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::assignments_description')}
+        </p>
       </div>
       
       <div class="flex flex-wrap items-center gap-3">
