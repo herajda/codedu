@@ -27,14 +27,22 @@ $: role = $auth?.role ?? '';
 let cls: any = null;
 let items:any[] = [];
 let search = '';
-let searchOpen = false;
 let searchResults:any[] = [];
-$: if (searchOpen && search.trim() !== '') {
-  fetchSearch(search.trim());
-} else {
-  searchResults = [];
+let searchTimeout: any;
+
+$: {
+  if (search.trim() !== '') {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      fetchSearch(search.trim());
+    }, 300);
+  } else {
+    searchResults = [];
+    clearTimeout(searchTimeout);
+  }
 }
-  $: displayed = searchOpen && search.trim() !== '' ? searchResults : items;
+
+$: displayed = search.trim() !== '' ? searchResults : items;
   // Enhanced UI state
   type FileFilter = 'all' | 'folders' | 'images' | 'notebooks' | 'documents' | 'code';
   let filter: FileFilter = 'all';
@@ -67,10 +75,7 @@ let copyParent: string | null = null;
 let copyName = '';
 let copying = false;
 
-function toggleSearch() {
-  searchOpen = !searchOpen;
-  if (!searchOpen) search = '';
-}
+
 
 function isImage(name: string) {
   const ext = name.split('.').pop()?.toLowerCase();
@@ -132,6 +137,7 @@ async function openDir(item:any){
     sessionStorage.setItem(`files_breadcrumbs_${id}`, JSON.stringify(breadcrumbs));
     sessionStorage.setItem(`files_parent_${id}`, String(item.id));
   }
+  search = '';
   await load(item.id);
 }
 
@@ -142,6 +148,7 @@ function crumbTo(i:number){
     sessionStorage.setItem(`files_breadcrumbs_${id}`, JSON.stringify(breadcrumbs));
     sessionStorage.setItem(`files_parent_${id}`, b.id === null ? '' : String(b.id));
   }
+  search = '';
   load(b.id);
 }
 
@@ -684,8 +691,7 @@ onMount(() => {
               </div>
             {/if}
 
-            <!-- path shown when searching -->
-            {#if searchOpen && search.trim() !== ''}
+            {#if search.trim() !== ''}
               <div class="text-[8px] opacity-30 truncate w-full text-center mt-1">{it.path}</div>
             {/if}
           </div>
@@ -723,7 +729,7 @@ onMount(() => {
                     </div>
                     <div class="min-w-0">
                        <div class="font-black text-sm tracking-tight truncate group-hover:text-primary transition-colors">{it.name}</div>
-                       {#if searchOpen && search.trim() !== ''}
+                       {#if search.trim() !== ''}
                         <div class="text-[10px] opacity-30 truncate">{it.path}</div>
                        {/if}
                     </div>
