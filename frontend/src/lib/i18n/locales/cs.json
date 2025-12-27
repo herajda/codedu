@@ -1730,6 +1730,9 @@
   "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_error": "Nepodařilo se vysvětlit chybu.",
   "frontend/src/routes/classes/[id]/files/+page.svelte::files_heading": "Soubory",
   "frontend/src/routes/classes/[id]/files/+page.svelte::files_description": "Správa a sdílení materiálů pro tuto třídu.",
+  "frontend/src/routes/files/+page.svelte::page_title": "Moje soubory | CodEdu",
+  "frontend/src/routes/files/+page.svelte::files_heading": "Moje soubory",
+  "frontend/src/routes/files/+page.svelte::files_description": "Ukládejte a spravujte své osobní výukové materiály.",
   "frontend/src/routes/files/[id]/+page.svelte::image_viewer": "Prohlížeč obrázků",
   "frontend/src/routes/files/[id]/+page.svelte::preview_label": "Náhled",
   "frontend/src/routes/files/[id]/+page.svelte::notebook_label": "Jupyter Notebook"
