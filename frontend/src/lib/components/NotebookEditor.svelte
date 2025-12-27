@@ -148,7 +148,7 @@ import { Play, Download, Save, Plus, FileText, Code as CodeIcon } from 'lucide-s
     <!-- Cells Container -->
     <div class="space-y-6">
       {#each nb.cells as cell, i (cell.id)}
-        <div class="relative group">
+        <div class="relative group hover:z-30">
            {#if cell.cell_type === "code"}
              <CodeCell
                {cell}

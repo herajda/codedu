@@ -315,8 +315,6 @@
 
       <div class="relative dropdown dropdown-end dropdown-bottom {showInsert ? 'dropdown-open' : ''}">
         <button
-          tabindex="0"
-          role="button"
           aria-label={t(
             "frontend/src/lib/components/cells/CodeCell.svelte::insert_cell",
           )}
