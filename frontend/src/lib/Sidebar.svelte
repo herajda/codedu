@@ -159,7 +159,7 @@
                       class:is-active={isActive(`/classes/${c.id}/assignments`)} 
                       href={`/classes/${c.id}/assignments`} 
                     >
-                      <span class="nav-emoji">📝</span>
+                      <span class="nav-emoji">📋</span>
                       <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::class_assignments_link')}</span>
                     </a>
                     <a 
@@ -167,7 +167,7 @@
                       class:is-active={isActive(`/classes/${c.id}/files`)} 
                       href={`/classes/${c.id}/files`} 
                     >
-                      <span class="nav-emoji">📂</span>
+                      <span class="nav-emoji">📁</span>
                       <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::class_files_link')}</span>
                     </a>
                     <a 
@@ -175,7 +175,7 @@
                       class:is-active={isActive(`/classes/${c.id}/notes`)} 
                       href={`/classes/${c.id}/notes`} 
                     >
-                      <span class="nav-emoji">📓</span>
+                      <span class="nav-emoji">📒</span>
                       <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::class_notes_link')}</span>
                     </a>
                     <a 
@@ -192,7 +192,7 @@
                         class:is-active={isActive(`/classes/${c.id}/progress`)} 
                         href={`/classes/${c.id}/progress`} 
                       >
-                        <span class="nav-emoji">📈</span>
+                        <span class="nav-emoji">📊</span>
                         <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::class_progress_link')}</span>
                       </a>
                       <a 
@@ -200,7 +200,7 @@
                         class:is-active={isActive(`/classes/${c.id}/settings`)} 
                         href={`/classes/${c.id}/settings`} 
                       >
-                        <span class="nav-emoji">⚙️</span>
+                        <span class="nav-emoji">🛠️</span>
                         <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::class_settings_link')}</span>
                       </a>
                     {/if}
@@ -253,7 +253,7 @@
                       class:is-active={isActive('/teachers/assignments')} 
                       href="/teachers/assignments" 
                     >
-                      <span class="nav-emoji">📑</span>
+                      <span class="nav-emoji">📋</span>
                       <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::teachers_assignments_link')}</span>
                     </a>
                   </div>
@@ -449,25 +449,25 @@
   }
 
   .nav-emoji {
-    font-size: 0.9rem;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    font-size: 0.95rem;
+    transition: all 0.25s cubic-bezier(0.23, 1, 0.32, 1);
     flex-shrink: 0;
-    filter: saturate(0.7) opacity(0.7);
+    filter: saturate(0.8) opacity(0.85);
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 14px;
+    width: 16px;
   }
 
   .nav-sublink:hover .nav-emoji {
-    filter: saturate(1) opacity(1);
-    transform: scale(1.1);
+    filter: saturate(1.1) opacity(1);
+    transform: scale(1.1) translateY(-1px);
   }
 
   .nav-sublink.is-active .nav-emoji {
-    filter: saturate(1.2) opacity(1);
-    transform: scale(1.25);
-    text-shadow: 0 0 10px rgba(var(--glow), 0.3);
+    filter: saturate(1.3) opacity(1);
+    transform: scale(1.2);
+    filter: drop-shadow(0 0 8px oklch(var(--p) / 0.3));
   }
 
   /* Glow effects */
