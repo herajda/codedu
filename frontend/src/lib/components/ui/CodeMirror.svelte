@@ -83,4 +83,4 @@ import { oneDark } from '@codemirror/theme-one-dark';
   }
 </script>
 
-<div bind:this={host} class="rounded-lg" style="overflow: hidden"></div>
+<div bind:this={host} class="rounded-lg"></div>

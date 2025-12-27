@@ -235,7 +235,7 @@
 <div
   class="bg-base-100 rounded-2xl border-y border-r border-l-4 border-l-primary/60 border-base-200 p-4 shadow-sm hover:shadow-lg transition-all group relative hover:border-l-primary"
 >
-  <div class="relative rounded-xl overflow-hidden border border-base-200">
+  <div class="relative rounded-xl overflow-visible border border-base-200">
      <CodeMirror
        class="w-full text-sm"
        bind:value={sourceStr}
