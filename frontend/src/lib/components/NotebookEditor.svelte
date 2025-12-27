@@ -118,14 +118,14 @@ import { Play, Download, Save, Plus, FileText, Code as CodeIcon, Check } from 'l
           <div class="tooltip tooltip-bottom tooltip-delayed px-1" data-tip={translate('frontend/src/lib/components/NotebookEditor.svelte::add_code_cell')}>
              <button class="btn btn-sm btn-ghost hover:bg-primary/[0.08] hover:text-primary rounded-[14px] gap-2.5 text-[11px] font-black tracking-wider transition-all h-9 min-h-0 px-4 group/btn" on:click={() => addCell("code")}>
                 <CodeIcon size={15} strokeWidth={2.5} class="transition-transform group-hover/btn:scale-110" />
-                CODE
+                {translate('frontend/src/lib/components/NotebookEditor.svelte::code_label')}
              </button>
           </div>
           <div class="w-[1px] h-4 bg-base-content/10 mx-0.5"></div>
           <div class="tooltip tooltip-bottom tooltip-delayed px-1" data-tip={translate('frontend/src/lib/components/NotebookEditor.svelte::add_markdown_cell')}>
              <button class="btn btn-sm btn-ghost hover:bg-secondary/[0.08] hover:text-secondary rounded-[14px] gap-2.5 text-[11px] font-black tracking-wider transition-all h-9 min-h-0 px-4 group/btn" on:click={() => addCell("markdown")}>
                 <FileText size={15} strokeWidth={2.5} class="transition-transform group-hover/btn:scale-110" />
-                TEXT
+                {translate('frontend/src/lib/components/NotebookEditor.svelte::text_label')}
              </button>
           </div>
        </div>
@@ -178,12 +178,12 @@ import { Play, Download, Save, Plus, FileText, Code as CodeIcon, Check } from 'l
                 <div class="flex gap-1 relative bg-base-100/90 backdrop-blur-md p-1 rounded-[18px] border border-base-200 shadow-2xl opacity-0 scale-95 group-hover/divider:opacity-100 group-hover/divider:scale-100 pointer-events-none group-hover/divider:pointer-events-auto transition-all duration-300 z-10 hover:border-primary/30">
                   <button class="btn btn-xs btn-ghost hover:bg-primary/[0.08] text-primary gap-2 px-3 h-8 min-h-0 rounded-xl font-black text-[10px] tracking-wider transition-all" on:click={() => insertCell(i, 'code', 'below')}>
                     <CodeIcon size={13} strokeWidth={2.5} />
-                    {translate('frontend/src/lib/components/NotebookEditor.svelte::add_code_cell').split(' ').pop()?.toUpperCase() || 'CODE'}
+                    {translate('frontend/src/lib/components/NotebookEditor.svelte::code_label')}
                   </button>
                   <div class="w-[1px] h-3.5 bg-base-content/10 my-auto mx-0.5"></div>
                   <button class="btn btn-xs btn-ghost hover:bg-secondary/[0.08] text-secondary gap-2 px-3 h-8 min-h-0 rounded-xl font-black text-[10px] tracking-wider transition-all" on:click={() => insertCell(i, 'markdown', 'below')}>
                     <FileText size={13} strokeWidth={2.5} />
-                    {translate('frontend/src/lib/components/NotebookEditor.svelte::add_markdown_cell').split(' ').pop()?.toUpperCase() || 'TEXT'}
+                    {translate('frontend/src/lib/components/NotebookEditor.svelte::text_label')}
                   </button>
                 </div>
             </div>
@@ -199,8 +199,8 @@ import { Play, Download, Save, Plus, FileText, Code as CodeIcon, Check } from 'l
                 <Plus size={24} />
              </div>
              <div class="text-center">
-                <h3 class="font-black text-lg tracking-tight">Need more space?</h3>
-                <p class="text-sm opacity-50 font-medium">Add a new cell to continue your work</p>
+                <h3 class="font-black text-lg tracking-tight">{translate('frontend/src/lib/components/NotebookEditor.svelte::need_more_space')}</h3>
+                <p class="text-sm opacity-50 font-medium">{translate('frontend/src/lib/components/NotebookEditor.svelte::add_cell_to_continue')}</p>
              </div>
         </div>
         <div class="flex items-center gap-3">
@@ -225,7 +225,7 @@ import { Play, Download, Save, Plus, FileText, Code as CodeIcon, Check } from 'l
        <p class="font-black opacity-50 tracking-[0.2em] uppercase text-sm">
          {translate('frontend/src/lib/components/NotebookEditor.svelte::loading')}
        </p>
-       <p class="text-xs opacity-40 mt-1">Preparing your workspace...</p>
+       <p class="text-xs opacity-40 mt-1">{translate('frontend/src/lib/components/NotebookEditor.svelte::preparing_workspace')}</p>
      </div>
   </div>
 {/if}

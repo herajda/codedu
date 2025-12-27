@@ -126,7 +126,7 @@
       {#if showInsert}
         <ul class="dropdown-content z-50 menu p-2 shadow-2xl bg-base-100 rounded-2xl w-52 border border-base-200 mt-2 ring-1 ring-black/5 animate-in fade-in zoom-in duration-200">
           {#if !insertPos}
-            <li class="menu-title text-[10px] font-black tracking-widest uppercase opacity-50 px-4 py-2">Position</li>
+            <li class="menu-title text-[10px] font-black tracking-widest uppercase opacity-50 px-4 py-2">{t('frontend/src/lib/components/cells/MarkdownCell.svelte::position')}</li>
             <li>
                 <button class="rounded-xl py-3" on:click={() => (insertPos = 'above')}>
                   <ArrowUp size={14} class="text-primary" /> 
@@ -222,7 +222,7 @@
             {#if showInsert}
               <ul class="dropdown-content z-50 menu p-2 shadow-2xl bg-base-100 rounded-2xl w-52 border border-base-200 mb-2 ring-1 ring-black/5 animate-in fade-in zoom-in duration-200">
                 {#if !insertPos}
-                  <li class="menu-title text-[10px] font-black tracking-widest uppercase opacity-50 px-4 py-2">Position</li>
+                  <li class="menu-title text-[10px] font-black tracking-widest uppercase opacity-50 px-4 py-2">{t('frontend/src/lib/components/cells/MarkdownCell.svelte::position')}</li>
                   <li><button class="rounded-xl py-3" on:click={() => (insertPos = 'above')}><ArrowUp size={14} class="text-primary" /> {t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_above')}</button></li>
                   <li><button class="rounded-xl py-3" on:click={() => (insertPos = 'below')}><ArrowDown size={14} class="text-primary" /> {t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_below')}</button></li>
                 {:else}
