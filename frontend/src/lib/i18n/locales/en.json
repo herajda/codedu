@@ -1741,5 +1741,7 @@
   "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_btn": "Why did this fail?",
   "frontend/src/routes/submissions/[id]/+page.svelte::explain_all_failures_btn": "Why did the tests fail?",
   "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_loading": "Asking AI...",
-  "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_error": "Could not explain failure."
+  "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_error": "Could not explain failure.",
+  "frontend/src/routes/classes/[id]/files/+page.svelte::files_heading": "Files",
+  "frontend/src/routes/classes/[id]/files/+page.svelte::files_description": "Manage and share resources for this class."
 }

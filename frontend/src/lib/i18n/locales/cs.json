@@ -1717,5 +1717,7 @@
   "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_btn": "Proč to selhalo?",
   "frontend/src/routes/submissions/[id]/+page.svelte::explain_all_failures_btn": "Proč testy selhaly?",
   "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_loading": "Ptám se AI...",
-  "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_error": "Nepodařilo se vysvětlit chybu."
+  "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_error": "Nepodařilo se vysvětlit chybu.",
+  "frontend/src/routes/classes/[id]/files/+page.svelte::files_heading": "Soubory",
+  "frontend/src/routes/classes/[id]/files/+page.svelte::files_description": "Správa a sdílení materiálů pro tuto třídu."
 }
