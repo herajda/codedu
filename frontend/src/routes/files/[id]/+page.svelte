@@ -173,7 +173,7 @@
   });
 </script>
 
-<div class="min-h-screen bg-base-100 p-2 sm:p-4 lg:p-6">
+<div class="min-h-screen p-2 sm:p-4 lg:p-6">
   <div class="w-full max-w-[1920px] mx-auto space-y-6">
     <!-- Header -->
     <header class="relative bg-base-100 rounded-3xl border border-base-200 shadow-xl shadow-secondary/5 p-4 sm:p-6 flex items-center justify-between gap-4 overflow-hidden group">
