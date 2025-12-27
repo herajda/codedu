@@ -173,6 +173,7 @@
   "frontend/src/lib/Sidebar.svelte::class_progress_link": "Pokrok",
   "frontend/src/lib/Sidebar.svelte::class_settings_link": "Nastavení",
   "frontend/src/lib/Sidebar.svelte::classes_title": "Třídy",
+  "frontend/src/lib/Sidebar.svelte::dashboard_link": "Dashboard",
   "frontend/src/lib/Sidebar.svelte::loading_classes_message": "Načítám třídy..",
   "frontend/src/lib/Sidebar.svelte::messages_link": "Zprávy",
   "frontend/src/lib/Sidebar.svelte::no_classes_message": "Žádné třídy",

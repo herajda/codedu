@@ -769,7 +769,6 @@
 </script>
 
 <svelte:head>
-  <html lang={$localeStore}></html>
   <title>CodEdu</title>
 </svelte:head>
 

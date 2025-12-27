@@ -5,4 +5,4 @@ else
     DOCKER_COMPOSE="docker compose"
 fi
 
-sudo $DOCKER_COMPOSE down -v && sudo $DOCKER_COMPOSE up -d --build
+$DOCKER_COMPOSE down -v && $DOCKER_COMPOSE up -d --build

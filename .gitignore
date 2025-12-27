@@ -70,3 +70,6 @@ vm/
 *.state
 
 .cache/
+
+GEMINI.md
+AGENTS.md

@@ -1,12 +1,27 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import '@fortawesome/fontawesome-free/css/all.min.css';
   import { sidebarOpen, sidebarCollapsed } from '$lib/sidebar';
   import { auth } from '$lib/auth';
   import { unreadMessages } from '$lib/stores/messages';
   import { classesStore } from '$lib/stores/classes';
   import { translator } from '$lib/i18n';
   import type { Translator } from '$lib/i18n';
+  import { 
+    MessageSquare, 
+    BookOpen, 
+    Compass, 
+    ListChecks, 
+    FolderOpen, 
+    StickyNote, 
+    MessagesSquare, 
+    LineChart, 
+    Sliders,
+    Users,
+    ChevronDown,
+    ChevronRight,
+    X,
+    LayoutGrid
+  } from 'lucide-svelte';
 
   let translate: Translator;
   $: translate = $translator;
@@ -18,131 +33,224 @@
     });
   }
 
+  $: currentPath = $page.url.pathname;
+
   function isActive(path: string): boolean {
-    return $page.url.pathname === path;
+    const normPath = path.replace(/\/$/, '');
+    const normCurrent = currentPath.replace(/\/$/, '');
+    return normCurrent === normPath;
   }
 
   function isSection(pathStartsWith: string): boolean {
-    return $page.url.pathname.startsWith(pathStartsWith);
+    const normPath = pathStartsWith.replace(/\/$/, '');
+    const normCurrent = currentPath.replace(/\/$/, '');
+    return normCurrent === normPath || normCurrent.startsWith(normPath + '/');
+  }
+
+  // Persistent state for accordions to prevent unwanted collapses
+  let openedSections: Record<string | number, boolean> = {};
+  
+  $: {
+    // Aggressively ensure the current section is open based on the URL
+    if (currentPath) {
+      $classesStore.classes.forEach(c => {
+        if (isSection(`/classes/${c.id}`)) {
+          openedSections[c.id] = true;
+        }
+      });
+      if (isSection('/teachers')) {
+        openedSections['teachers'] = true;
+      }
+      // Re-assign to trigger reactivity
+      openedSections = openedSections;
+    }
   }
 </script>
 
 <div class={`fixed left-0 z-40 pointer-events-none sm:top-0 sm:h-screen top-16 h-[calc(100dvh-4rem)] ${$sidebarOpen ? 'block' : 'hidden sm:block'}`}>
   <aside class={`relative w-64 h-full overflow-visible transition-transform pointer-events-auto ${$sidebarCollapsed ? '-translate-x-full' : 'translate-x-0'} p-3`}>
-    <div class="sidebar-shell h-full overflow-hidden">
+    <div class="sidebar-shell h-full overflow-hidden flex flex-col">
       <div class="sidebar-accent"></div>
 
       <!-- Mobile close -->
       <button
-        class="btn btn-square btn-ghost absolute right-2 top-2 sm:hidden"
+        class="btn btn-square btn-ghost absolute right-2 top-2 sm:hidden z-50 rounded-xl"
         on:click={() => sidebarOpen.set(false)}
         aria-label="Close sidebar"
         type="button"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="w-5 h-5">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
+        <X size={20} />
       </button>
 
-      <div class="sidebar-content h-full overflow-y-auto pr-2">
+      <div class="sidebar-content h-full overflow-y-auto pr-2 pt-2 pb-6 custom-scrollbar">
 
-        <nav class="nav-section">
+        <nav class="nav-section mb-6">
           <a
-            href="/messages"
-            class={`nav-link ${isSection('/messages') ? 'is-active' : ''}`}
+            href="/dashboard"
+            class="nav-link"
+            class:is-active={isActive('/dashboard')}
             on:click={() => sidebarOpen.set(false)}
           >
-            <i class="fa-solid fa-message nav-icon" aria-hidden="true"></i>
-            <span class="truncate">{translate('frontend/src/lib/Sidebar.svelte::messages_link')}</span>
-            {#if $unreadMessages > 0 && !isSection('/messages')}
-              <span class="badge badge-primary badge-sm ml-auto">{$unreadMessages}</span>
+            <div class="icon-box text-primary bg-primary/10">
+              <LayoutGrid size={18} />
+            </div>
+            <span class="truncate font-bold text-sm tracking-tight">{translate('frontend/src/lib/Sidebar.svelte::dashboard_link')}</span>
+          </a>
+          <a
+            href="/messages"
+            class="nav-link"
+            class:is-active={isActive('/messages')}
+            on:click={() => sidebarOpen.set(false)}
+          >
+            <div class="icon-box text-blue-500 bg-blue-500/10">
+              <MessageSquare size={18} />
+            </div>
+            <span class="truncate font-bold text-sm tracking-tight">{translate('frontend/src/lib/Sidebar.svelte::messages_link')}</span>
+            {#if $unreadMessages > 0 && !isActive('/messages')}
+              <span class="badge badge-primary badge-sm ml-auto font-black shadow-sm">{$unreadMessages}</span>
             {/if}
           </a>
         </nav>
 
-        <div class="divider-glow my-3"></div>
+        <div class="divider-glow mx-2 mb-6"></div>
 
-        <div class="section-title">{translate('frontend/src/lib/Sidebar.svelte::classes_title')}</div>
-        <ul class="space-y-2">
-          {#each $classesStore.classes as c}
-            <li class="nav-collapsible" data-open={isSection(`/classes/${c.id}`)}>
-              <details open={isSection(`/classes/${c.id}`)}>
-                <summary class="nav-summary">
-                  <i class="fa-solid fa-book nav-icon" aria-hidden="true"></i>
-                  <span class="truncate">{c.name}</span>
-                </summary>
-                <div class="nav-group">
-                  {#if $auth?.role === 'student'}
-                    <a class={`nav-sublink ${isActive(`/classes/${c.id}/overview`) ? 'is-active' : ''}`} href={`/classes/${c.id}/overview`} on:click={() => sidebarOpen.set(false)}>
-                      <i class="fa-regular fa-compass sub-icon" aria-hidden="true"></i>
-                      <span>{translate('frontend/src/lib/Sidebar.svelte::class_overview_link')}</span>
+        <div class="section-container">
+          <div class="section-title">{translate('frontend/src/lib/Sidebar.svelte::classes_title')}</div>
+          <ul class="space-y-3 pb-4">
+            {#each $classesStore.classes as c (c.id)}
+              <li class="nav-collapsible" data-open={!!openedSections[c.id]}>
+                <details bind:open={openedSections[c.id]} class="group/details">
+                  <summary class="nav-summary">
+                    <div class="icon-box text-primary bg-primary/10">
+                      <BookOpen size={18} />
+                    </div>
+                    <span class="truncate font-bold text-sm tracking-tight flex-1">{c.name}</span>
+                    <ChevronDown size={14} class="opacity-30 group-open/details:rotate-180 transition-transform duration-300" />
+                  </summary>
+                  <div class="nav-group mt-1">
+                    {#if $auth?.role === 'student'}
+                      <a 
+                        class="nav-sublink" 
+                        class:is-active={isActive(`/classes/${c.id}/overview`)} 
+                        href={`/classes/${c.id}/overview`} 
+                      >
+                        <div class="dot"></div>
+                        <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::class_overview_link')}</span>
+                      </a>
+                    {/if}
+                    <a 
+                      class="nav-sublink" 
+                      class:is-active={isActive(`/classes/${c.id}/assignments`)} 
+                      href={`/classes/${c.id}/assignments`} 
+                    >
+                      <div class="dot"></div>
+                      <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::class_assignments_link')}</span>
                     </a>
-                  {/if}
-                  <a class={`nav-sublink ${isActive(`/classes/${c.id}/assignments`) ? 'is-active' : ''}`} href={`/classes/${c.id}/assignments`} on:click={() => sidebarOpen.set(false)}>
-                    <i class="fa-solid fa-list-check sub-icon" aria-hidden="true"></i>
-                    <span>{translate('frontend/src/lib/Sidebar.svelte::class_assignments_link')}</span>
-                  </a>
-                  <a class={`nav-sublink ${isActive(`/classes/${c.id}/files`) ? 'is-active' : ''}`} href={`/classes/${c.id}/files`} on:click={() => sidebarOpen.set(false)}>
-                    <i class="fa-regular fa-folder-open sub-icon" aria-hidden="true"></i>
-                    <span>{translate('frontend/src/lib/Sidebar.svelte::class_files_link')}</span>
-                  </a>
-                  <a class={`nav-sublink ${isActive(`/classes/${c.id}/notes`) ? 'is-active' : ''}`} href={`/classes/${c.id}/notes`} on:click={() => sidebarOpen.set(false)}>
-                    <i class="fa-regular fa-note-sticky sub-icon" aria-hidden="true"></i>
-                    <span>{translate('frontend/src/lib/Sidebar.svelte::class_notes_link')}</span>
-                  </a>
-                  <a class={`nav-sublink ${isActive(`/classes/${c.id}/forum`) ? 'is-active' : ''}`} href={`/classes/${c.id}/forum`} on:click={() => sidebarOpen.set(false)}>
-                    <i class="fa-regular fa-comments sub-icon" aria-hidden="true"></i>
-                    <span>{translate('frontend/src/lib/Sidebar.svelte::class_forum_link')}</span>
-                  </a>
-                  {#if $auth?.role !== 'student'}
-                    <a class={`nav-sublink ${isActive(`/classes/${c.id}/progress`) ? 'is-active' : ''}`} href={`/classes/${c.id}/progress`} on:click={() => sidebarOpen.set(false)}>
-                      <i class="fa-solid fa-chart-line sub-icon" aria-hidden="true"></i>
-                      <span>{translate('frontend/src/lib/Sidebar.svelte::class_progress_link')}</span>
+                    <a 
+                      class="nav-sublink" 
+                      class:is-active={isActive(`/classes/${c.id}/files`)} 
+                      href={`/classes/${c.id}/files`} 
+                    >
+                      <div class="dot"></div>
+                      <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::class_files_link')}</span>
                     </a>
-                    <a class={`nav-sublink ${isActive(`/classes/${c.id}/settings`) ? 'is-active' : ''}`} href={`/classes/${c.id}/settings`} on:click={() => sidebarOpen.set(false)}>
-                      <i class="fa-solid fa-sliders sub-icon" aria-hidden="true"></i>
-                      <span>{translate('frontend/src/lib/Sidebar.svelte::class_settings_link')}</span>
+                    <a 
+                      class="nav-sublink" 
+                      class:is-active={isActive(`/classes/${c.id}/notes`)} 
+                      href={`/classes/${c.id}/notes`} 
+                    >
+                      <div class="dot"></div>
+                      <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::class_notes_link')}</span>
                     </a>
-                  {/if}
-                </div>
-              </details>
-            </li>
-          {/each}
-          {#if !$classesStore.classes.length && !$classesStore.loading && !$classesStore.error}
-            <li class="text-sm opacity-60">{translate('frontend/src/lib/Sidebar.svelte::no_classes_message')}</li>
-          {/if}
-          {#if $classesStore.loading}
-            <li class="text-sm opacity-60">{translate('frontend/src/lib/Sidebar.svelte::loading_classes_message')}</li>
-          {/if}
+                    <a 
+                      class="nav-sublink" 
+                      class:is-active={isActive(`/classes/${c.id}/forum`)} 
+                      href={`/classes/${c.id}/forum`} 
+                    >
+                      <div class="dot"></div>
+                      <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::class_forum_link')}</span>
+                    </a>
+                    {#if $auth?.role !== 'student'}
+                      <a 
+                        class="nav-sublink" 
+                        class:is-active={isActive(`/classes/${c.id}/progress`)} 
+                        href={`/classes/${c.id}/progress`} 
+                      >
+                        <div class="dot"></div>
+                        <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::class_progress_link')}</span>
+                      </a>
+                      <a 
+                        class="nav-sublink" 
+                        class:is-active={isActive(`/classes/${c.id}/settings`)} 
+                        href={`/classes/${c.id}/settings`} 
+                      >
+                        <div class="dot"></div>
+                        <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::class_settings_link')}</span>
+                      </a>
+                    {/if}
+                  </div>
+                </details>
+              </li>
+            {/each}
+            {#if !$classesStore.classes.length && !$classesStore.loading && !$classesStore.error}
+              <li class="px-4 py-2 text-xs font-bold opacity-30 italic">{translate('frontend/src/lib/Sidebar.svelte::no_classes_message')}</li>
+            {/if}
+            {#if $classesStore.loading}
+              <li class="px-4 py-2 text-xs font-bold opacity-30 animate-pulse">{translate('frontend/src/lib/Sidebar.svelte::loading_classes_message')}</li>
+            {/if}
+          </ul>
+        </div>
 
-          {#if $auth?.role === 'teacher' || $auth?.role === 'admin'}
-            <li class="nav-collapsible" data-open={isSection('/teachers')}>
-              <details open={isSection('/teachers')}>
-                <summary class="nav-summary">
-                  <i class="fa-solid fa-people-group nav-icon" aria-hidden="true"></i>
-                  <span class="truncate">{translate('frontend/src/lib/Sidebar.svelte::teachers_title')}</span>
-                </summary>
-                <div class="nav-group">
-                  <a class={`nav-sublink ${isActive('/teachers/forum') ? 'is-active' : ''}`} href="/teachers/forum" on:click={() => sidebarOpen.set(false)}>
-                    <i class="fa-regular fa-comments sub-icon" aria-hidden="true"></i>
-                    <span>{translate('frontend/src/lib/Sidebar.svelte::teachers_forum_link')}</span>
-                  </a>
-                  <a class={`nav-sublink ${isActive('/teachers/files') ? 'is-active' : ''}`} href="/teachers/files" on:click={() => sidebarOpen.set(false)}>
-                    <i class="fa-regular fa-folder-open sub-icon" aria-hidden="true"></i>
-                    <span>{translate('frontend/src/lib/Sidebar.svelte::teachers_files_link')}</span>
-                  </a>
-                  <a class={`nav-sublink ${isActive('/teachers/assignments') ? 'is-active' : ''}`} href="/teachers/assignments" on:click={() => sidebarOpen.set(false)}>
-                    <i class="fa-solid fa-list-check sub-icon" aria-hidden="true"></i>
-                    <span>{translate('frontend/src/lib/Sidebar.svelte::teachers_assignments_link')}</span>
-                  </a>
-                </div>
-              </details>
-            </li>
-          {/if}
-        </ul>
+        {#if $auth?.role === 'teacher' || $auth?.role === 'admin'}
+          <div class="divider-glow mx-2 my-4"></div>
+          <div class="section-container">
+            <div class="section-title text-indigo-500 opacity-100">{translate('frontend/src/lib/Sidebar.svelte::teachers_title')}</div>
+            <ul class="space-y-1">
+              <li class="nav-collapsible" data-open={!!openedSections['teachers']}>
+                <details bind:open={openedSections['teachers']} class="group/details">
+                  <summary class="nav-summary">
+                    <div class="icon-box text-indigo-500 bg-indigo-500/10">
+                      <Users size={18} />
+                    </div>
+                    <span class="truncate font-bold text-sm tracking-tight flex-1">{translate('frontend/src/lib/Sidebar.svelte::teachers_title')}</span>
+                    <ChevronDown size={14} class="opacity-30 group-open/details:rotate-180 transition-transform duration-300" />
+                  </summary>
+                  <div class="nav-group mt-1">
+                    <a 
+                      class="nav-sublink" 
+                      class:is-active={isActive('/teachers/forum')} 
+                      href="/teachers/forum" 
+                    >
+                      <div class="dot dot-indigo"></div>
+                      <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::teachers_forum_link')}</span>
+                    </a>
+                    <a 
+                      class="nav-sublink" 
+                      class:is-active={isActive('/teachers/files')} 
+                      href="/teachers/files" 
+                    >
+                      <div class="dot dot-indigo"></div>
+                      <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::teachers_files_link')}</span>
+                    </a>
+                    <a 
+                      class="nav-sublink" 
+                      class:is-active={isActive('/teachers/assignments')} 
+                      href="/teachers/assignments" 
+                    >
+                      <div class="dot dot-indigo"></div>
+                      <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::teachers_assignments_link')}</span>
+                    </a>
+                  </div>
+                </details>
+              </li>
+            </ul>
+          </div>
+        {/if}
 
         {#if $classesStore.error}
-          <p class="text-error mt-3 text-sm">{$classesStore.error}</p>
+          <div class="p-4 mt-4 bg-error/10 border border-error/20 rounded-2xl mx-1">
+            <p class="text-error text-[10px] font-black uppercase tracking-wider">{$classesStore.error}</p>
+          </div>
         {/if}
       </div>
     </div>
@@ -152,205 +260,201 @@
 <style>
   .sidebar-shell {
     position: relative;
-    border-radius: 1rem;
-    /* Clear glass plate base */
-    background: rgba(255, 255, 255, 0.58);
-    border: 1px solid rgba(255, 255, 255, 0.28);
-    backdrop-filter: blur(16px) saturate(160%);
-    -webkit-backdrop-filter: blur(16px) saturate(160%);
-    /* Stronger, layered drop shadows to increase protrusion */
+    border-radius: 1.5rem;
+    /* Premium Glassmorphism */
+    background: rgba(255, 255, 255, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
     box-shadow:
-      0 10px 10px rgba(0, 0, 0, 0.10),
-      0 10px 10px rgba(0, 0, 0, 0.14),
-      inset 0 1px 0 rgba(255, 255, 255, 0.521);
-    /* Extra perceived depth via drop-shadow filter */
-    filter: drop-shadow(0 1px 10px rgba(0,0,0,0.10)) drop-shadow(0 28px 40px rgba(0,0,0,0.10));
-    padding: 0.75rem;
+      0 4px 6px -1px rgba(0, 0, 0, 0.05),
+      0 10px 15px -3px rgba(0, 0, 0, 0.05),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    padding: 0.5rem;
+    transition: all 0.3s ease;
   }
 
-  /* Dark theme glass plate adjustments */
   :global([data-theme='dark']) .sidebar-shell {
-    background: rgba(16, 22, 28, 0.62);
-    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(15, 23, 42, 0.45);
+    border-color: rgba(255, 255, 255, 0.05);
     box-shadow:
-      0 10px 22px rgba(0, 0, 0, 0.35),
-      0 34px 70px rgba(0, 0, 0, 0.45),
-      inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    filter: drop-shadow(0 8px 16px rgba(0,0,0,0.15)) drop-shadow(0 36px 56px rgba(0,0,0,0.35));
-  }
-
-  /* Light theme: make glass extra glossy/shiny */
-  :global([data-theme='light']) .sidebar-shell {
-    background: rgba(255, 255, 255, 0.32);
-    border-color: rgba(255, 255, 255, 0.34);
-    box-shadow:
-      0 12px 24px rgba(0, 0, 0, 0.02),
-      0 40px 80px rgba(0, 0, 0, 0.06),
-      inset 0 1px 0 rgba(255, 255, 255, 0.02),
-      inset 0 18px 40px rgba(255, 255, 255, 0.01);
-    filter: drop-shadow(0 10px 16px rgba(0,0,0,0.02)) drop-shadow(0 48px 64px rgba(0,0,0,0.04));
-  }
-
-  .sidebar-shell::before {
-    content: "";
-    position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-    background:
-      linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.06) 24%, rgba(255,255,255,0.02) 52%, transparent 72%),
-      radial-gradient(120% 60% at 50% -10%, rgba(255,255,255,0.16), transparent 60%);
-    mix-blend-mode: screen;
-  }
-
-  /* Light theme: stronger specular highlights and diagonal sheen */
-  :global([data-theme='light']) .sidebar-shell::before {
-    background:
-      /* top-to-bottom glossy curve */
-      linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0.10) 26%, rgba(255,255,255,0.04) 54%, transparent 76%),
-      /* diagonal sheen */
-      linear-gradient(115deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.10) 22%, rgba(255,255,255,0.04) 38%, transparent 50%),
-      /* soft crown highlight */
-      radial-gradient(120% 60% at 50% -10%, rgba(255,255,255,0.20), transparent 60%),
-      /* small sparkle near top-left */
-      radial-gradient(40% 24% at 16% 2%, rgba(255,255,255,0.24), transparent 70%);
-  }
-
-  .sidebar-shell::after {
-    content: "";
-    position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-    border: 1px solid rgba(0, 0, 0, 0.06);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-  }
-
-  /* Light theme: subtle polished edge */
-  :global([data-theme='light']) .sidebar-shell::after {
-    border-color: rgba(0, 0, 0, 0.04);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+      0 20px 25px -5px rgba(0, 0, 0, 0.3),
+      0 10px 10px -5px rgba(0, 0, 0, 0.2),
+      inset 0 1px 1px rgba(255, 255, 255, 0.05);
   }
 
   .sidebar-accent {
     position: absolute;
     left: 0.4rem;
-    top: 0.75rem;
-    bottom: 0.75rem;
+    top: 2rem;
+    bottom: 2rem;
     width: 2px;
     border-radius: 2px;
-    background: linear-gradient(180deg, rgba(var(--glow),0.08), rgba(var(--glow),0.28), rgba(var(--glow),0.08));
-    box-shadow: 0 0 12px rgba(var(--glow), 0.15);
+    background: linear-gradient(180deg, transparent, rgba(var(--glow), 0.2), transparent);
     pointer-events: none;
+    opacity: 0.5;
   }
 
-  .sidebar-content { scrollbar-width: thin; padding-right: 0.25rem; }
-  .sidebar-content::-webkit-scrollbar { width: 8px; }
-  .sidebar-content::-webkit-scrollbar-thumb { background: color-mix(in oklab, hsl(var(--b3)) 40%, transparent); border-radius: 9999px; }
+  .sidebar-content {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .sidebar-content::-webkit-scrollbar {
+    display: none;
+  }
+
+  .section-container {
+    padding: 0 0.5rem;
+  }
 
   .section-title {
-    font-weight: 600;
-    font-size: 0.8rem;
+    font-weight: 800;
+    font-size: 0.65rem;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    opacity: 0.7;
-    padding: 0.5rem 0.75rem;
+    letter-spacing: 0.15em;
+    opacity: 0.35;
+    padding: 0.75rem 0.5rem;
+    font-family: 'Outfit', sans-serif;
   }
 
-  .nav-section {
-    display: grid;
-    gap: 0.25rem;
-    padding: 0.25rem 0.25rem 0.25rem 0.5rem;
+  .icon-box {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
   }
 
   .nav-link {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
-    padding: 0.5rem 0.625rem;
-    border-radius: 0.7rem;
+    gap: 0.75rem;
+    padding: 0.625rem 0.75rem;
+    margin: 0 0.25rem;
+    border-radius: 1rem;
     color: currentColor;
     text-decoration: none;
-    position: relative;
-    transition: background 150ms ease, color 150ms ease, transform 120ms ease, box-shadow 150ms ease;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
   }
-  /* Gate hover effects so they only trigger when the sidebar itself is hovered.
-     This prevents underlying hover artifacts when elements overlay the sidebar (e.g., topbar). */
-  .sidebar-content:hover .nav-link:hover { background: hsl(var(--b3) / 0.08); transform: translateX(2px); box-shadow: 0 1px 0 hsl(var(--b3) / 0.08) inset; }
-  .nav-link:focus-visible { outline: none; background: hsl(var(--b3) / 0.10); transform: translateX(2px); }
-  .nav-link::after {
-    content: "›";
-    position: absolute;
-    right: 8px;
-    top: 50%;
-    transform: translateY(-50%) translateX(-4px);
-    opacity: 0;
-    transition: transform 150ms ease, opacity 150ms ease, color 150ms ease;
-    font-size: 0.9rem;
-    color: color-mix(in oklab, hsl(var(--b3)) 60%, transparent);
-    pointer-events: none;
+
+  .nav-link:hover {
+    background: rgba(128, 128, 128, 0.05);
+    border-color: rgba(128, 128, 128, 0.1);
+    transform: translateX(2px);
   }
-  .sidebar-content:hover .nav-link:hover::after, .nav-link:focus-visible::after { opacity: 0.9; transform: translateY(-50%) translateX(0); color: color-mix(in oklab, hsl(var(--p)) 70%, hsl(var(--pc)) 30%); }
+
   .nav-link.is-active {
-    background: linear-gradient(90deg, hsl(var(--p) / 0.18), transparent 70%);
-    color: color-mix(in oklab, hsl(var(--p)) 85%, hsl(var(--pc)) 15%);
-  }
-  .nav-link.is-active::before {
-    content: "";
-    position: absolute;
-    left: -6px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 6px; height: 6px; border-radius: 9999px;
-    background: radial-gradient(circle at 30% 30%, #00e1ff, #00b3ff 60%, transparent 61%);
-    box-shadow: 0 0 10px rgba(0, 200, 255, 0.5);
+    background: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    border-color: rgba(0, 0, 0, 0.04);
   }
 
-  .nav-icon { width: 1rem; text-align: center; opacity: 0.9; transition: transform 120ms ease, opacity 120ms ease, filter 200ms ease, color 150ms ease; }
-  .sidebar-content:hover .nav-link:hover .nav-icon, .nav-link:focus-visible .nav-icon { transform: translateX(2px) scale(1.05); opacity: 1; color: color-mix(in oklab, hsl(var(--p)) 65%, currentColor 35%); filter: drop-shadow(0 0 6px rgba(var(--glow), 0.15)); }
+  :global([data-theme='dark']) .nav-link.is-active {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
 
-  .nav-collapsible details { border-radius: 0.8rem; }
+  .nav-link.is-active .icon-box {
+    background: oklch(var(--p));
+    color: oklch(var(--pc));
+    box-shadow: 0 0 15px oklch(var(--p) / 0.3);
+  }
+
   .nav-summary {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
-    padding: 0.55rem 0.625rem;
-    margin-left: 0.25rem;
-    border-radius: 0.7rem;
+    gap: 0.75rem;
+    padding: 0.625rem 0.75rem;
+    margin: 0 0.25rem;
+    border-radius: 1rem;
     cursor: pointer;
-    transition: background 150ms ease, transform 120ms ease, color 150ms ease;
+    transition: all 0.2s ease;
     list-style: none;
+    border: 1px solid transparent;
   }
-  .sidebar-content:hover .nav-summary:hover { background: hsl(var(--b3) / 0.06); transform: translateX(2px); }
-  .nav-summary:focus-visible { outline: none; background: hsl(var(--b3) / 0.10); transform: translateX(2px); }
-  .sidebar-content:hover .nav-summary:hover .nav-icon, .nav-summary:focus-visible .nav-icon { transform: translateX(2px) scale(1.04); opacity: 1; color: color-mix(in oklab, hsl(var(--p)) 60%, currentColor 40%); }
-  .nav-collapsible[data-open="true"] .nav-summary { background: hsl(var(--b3) / 0.08); }
 
-  .nav-group { display: grid; gap: 0.15rem; padding: 0.25rem 0.25rem 0.25rem 1.7rem; }
+  .nav-summary:hover {
+    background: rgba(128, 128, 128, 0.05);
+    border-color: rgba(128, 128, 128, 0.1);
+    transform: translateX(2px);
+  }
+
+  .nav-summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .nav-group {
+    padding-left: 2.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    position: relative;
+  }
+
+  .nav-group::before {
+    content: '';
+    position: absolute;
+    left: 1.15rem;
+    top: 0;
+    bottom: 1rem;
+    width: 1px;
+    background: linear-gradient(180deg, rgba(128, 128, 128, 0.1), transparent);
+  }
 
   .nav-sublink {
     display: flex;
     align-items: center;
-    gap: 0.55rem;
-    padding: 0.45rem 0.55rem;
-    border-radius: 0.6rem;
+    gap: 0.75rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 0.75rem;
     color: currentColor;
     text-decoration: none;
+    opacity: 0.6;
+    transition: all 0.2s ease;
     position: relative;
-    transition: background 150ms ease, color 150ms ease, transform 120ms ease, box-shadow 150ms ease;
   }
-  .sidebar-content:hover .nav-sublink:hover { background: hsl(var(--b3) / 0.06); transform: translateX(2px); box-shadow: 0 1px 0 hsl(var(--b3) / 0.06) inset; }
-  .nav-sublink:focus-visible { outline: none; background: hsl(var(--b3) / 0.10); transform: translateX(2px); }
-  .nav-sublink::after {
-    content: "›";
-    position: absolute;
-    right: 6px;
-    top: 50%;
-    transform: translateY(-50%) translateX(-4px);
-    opacity: 0;
-    transition: transform 150ms ease, opacity 150ms ease, color 150ms ease;
-    font-size: 0.85rem;
-    color: color-mix(in oklab, hsl(var(--b3)) 50%, transparent);
-    pointer-events: none;
+
+  .nav-sublink:hover {
+    opacity: 1;
+    background: rgba(128, 128, 128, 0.05);
+    transform: translateX(2px);
   }
-  .sidebar-content:hover .nav-sublink:hover::after, .nav-sublink:focus-visible::after { opacity: 0.85; transform: translateY(-50%) translateX(0); color: color-mix(in oklab, hsl(var(--p)) 70%, hsl(var(--pc)) 30%); }
+
   .nav-sublink.is-active {
-    background: linear-gradient(90deg, hsl(var(--p) / 0.16), transparent 65%);
-    color: color-mix(in oklab, hsl(var(--p)) 85%, hsl(var(--pc)) 15%);
+    opacity: 1;
+    color: oklch(var(--p));
+    background: oklch(var(--p) / 0.05);
+    font-weight: 700;
   }
-  .sub-icon { width: 0.9rem; text-align: center; opacity: 0.9; }
+
+  .dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 9999px;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    background-color: #d1d5db; /* Light grey for inactive dots */
+  }
+
+  .nav-sublink.is-active .dot {
+    background-color: #3b82f6; /* Bright blue for active dots */
+    transform: scale(1.5);
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+  }
+
+  .nav-sublink.is-active .dot.dot-indigo {
+    background-color: #6366f1; /* Bright indigo for teacher links */
+    box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+  }
+
+  /* Glow effects */
+  .divider-glow {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(128, 128, 128, 0.1), transparent);
+  }
 </style>
