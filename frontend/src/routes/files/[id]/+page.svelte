@@ -187,31 +187,30 @@
              <button class="btn btn-circle btn-ghost hover:bg-base-200/50 hover:text-secondary transition-colors" on:click={goBack} aria-label={t('frontend/src/routes/files/[id]/+page.svelte::Back to files')}>
                 <ArrowLeft size={22} />
              </button>
-             <div>
-                <h1 class="text-xl sm:text-2xl font-black tracking-tight flex items-center gap-3">
+             <div class="flex items-center gap-4">
+                <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-secondary/20 to-primary/20 flex items-center justify-center text-secondary shadow-lg shadow-secondary/5 shrink-0">
                    {#if isImage}
-                      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-secondary/20 to-primary/20 flex items-center justify-center text-secondary shadow-sm">
-                        <ImageIcon size={20} />
-                      </div>
-                      <span class="text-base-content">
+                      <ImageIcon size={28} />
+                   {:else}
+                      <BookOpen size={28} />
+                   {/if}
+                </div>
+                <div class="flex flex-col justify-center">
+                   <h1 class="text-xl sm:text-2xl font-black tracking-tight text-base-content leading-tight">
+                      {#if isImage}
                         {t('frontend/src/routes/files/[id]/+page.svelte::image_viewer') || 'Image Viewer'}
-                      </span>
-                   {:else}
-                      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-secondary/20 to-primary/20 flex items-center justify-center text-secondary shadow-sm">
-                        <BookOpen size={20} />
-                      </div>
-                      <span class="text-base-content">
+                      {:else}
                         {(fileName?.replace(/\.ipynb$/, '')) || $notebookStore?.metadata?.name || $notebookStore?.metadata?.title || 'Notebook'}
-                      </span>
-                   {/if}
-                </h1>
-                <p class="text-xs font-bold uppercase tracking-widest ml-[3.25rem] text-secondary/70">
-                   {#if isImage}
-                     {t('frontend/src/routes/files/[id]/+page.svelte::preview_label') || 'Preview'}
-                   {:else}
-                     {t('frontend/src/routes/files/[id]/+page.svelte::notebook_label') || 'Jupyter Notebook'}
-                   {/if}
-                </p>
+                      {/if}
+                   </h1>
+                   <p class="text-[10px] font-black uppercase tracking-[0.2em] text-secondary/70 leading-tight mt-1">
+                      {#if isImage}
+                        {t('frontend/src/routes/files/[id]/+page.svelte::preview_label') || 'Preview'}
+                      {:else}
+                        {t('frontend/src/routes/files/[id]/+page.svelte::notebook_label') || 'Jupyter Notebook'}
+                      {/if}
+                   </p>
+                </div>
              </div>
         </div>
     </header>
