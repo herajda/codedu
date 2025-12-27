@@ -99,20 +99,24 @@ import { Play, Download, Save, Plus, FileText, Code as CodeIcon } from 'lucide-s
 {#if nb}
   <div class="flex flex-col gap-6 relative" bind:this={container}>
     <!-- Sticky Toolbar -->
-    <div class="sticky top-0 z-40 bg-base-100/80 backdrop-blur-md rounded-2xl border border-base-200 shadow-sm p-2 flex flex-wrap items-center justify-between gap-3">
+    <div class="sticky top-0 z-40 bg-base-100/90 backdrop-blur-xl rounded-2xl border-2 border-primary/5 p-2 flex flex-wrap items-center justify-between gap-3 shadow-xl shadow-primary/5 ring-1 ring-base-content/5">
        
        <!-- Left: Add Cells -->
-       <div class="flex items-center gap-1 bg-base-200/50 rounded-xl p-1">
+       <div class="flex items-center gap-1 bg-gradient-to-br from-base-200/80 to-base-200/40 rounded-xl p-1 border border-base-content/5">
           <div class="tooltip tooltip-bottom" data-tip={translate('frontend/src/lib/components/NotebookEditor.svelte::add_code_cell')}>
-             <button class="btn btn-sm btn-ghost rounded-lg gap-2 text-xs font-bold" on:click={() => addCell("code")}>
-                <CodeIcon size={14} class="text-primary" />
+             <button class="btn btn-sm btn-ghost hover:bg-white/50 rounded-lg gap-2 text-xs font-bold" on:click={() => addCell("code")}>
+                <div class="w-5 h-5 rounded bg-primary/10 flex items-center justify-center text-primary">
+                  <CodeIcon size={12} />
+                </div>
                 Code
              </button>
           </div>
           <div class="w-px h-4 bg-base-content/10 mx-1"></div>
           <div class="tooltip tooltip-bottom" data-tip={translate('frontend/src/lib/components/NotebookEditor.svelte::add_markdown_cell')}>
-             <button class="btn btn-sm btn-ghost rounded-lg gap-2 text-xs font-bold" on:click={() => addCell("markdown")}>
-                <FileText size={14} class="text-secondary" />
+             <button class="btn btn-sm btn-ghost hover:bg-white/50 rounded-lg gap-2 text-xs font-bold" on:click={() => addCell("markdown")}>
+                <div class="w-5 h-5 rounded bg-secondary/10 flex items-center justify-center text-secondary">
+                  <FileText size={12} />
+                </div>
                 Markdown
              </button>
           </div>
@@ -120,8 +124,8 @@ import { Play, Download, Save, Plus, FileText, Code as CodeIcon } from 'lucide-s
 
        <!-- Right: Actions -->
        <div class="flex items-center gap-2">
-          <button class="btn btn-sm btn-success btn-outline gap-2 font-bold" on:click={() => runAllCells(true)}>
-             <Play size={14} />
+          <button class="btn btn-sm hover:bg-success/10 border-success/20 hover:border-success/40 text-success gap-2 font-bold px-4 rounded-xl" on:click={() => runAllCells(true)}>
+             <Play size={14} fill="currentColor" />
              {translate('frontend/src/lib/components/NotebookEditor.svelte::run_all')}
           </button>
           
@@ -131,7 +135,7 @@ import { Play, Download, Save, Plus, FileText, Code as CodeIcon } from 'lucide-s
           </button>
 
           {#if $auth?.role === 'teacher' && fileId}
-            <button class="btn btn-sm btn-primary gap-2 font-bold shadow-lg shadow-primary/20" on:click={saveNotebook} aria-label={translate('frontend/src/lib/components/NotebookEditor.svelte::save_notebook_aria_label')}>
+            <button class="btn btn-sm btn-primary gap-2 font-bold shadow-lg shadow-primary/20 rounded-xl" on:click={saveNotebook} aria-label={translate('frontend/src/lib/components/NotebookEditor.svelte::save_notebook_aria_label')}>
                <Save size={14} />
                {translate('frontend/src/lib/components/NotebookEditor.svelte::save')}
             </button>
