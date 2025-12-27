@@ -119,7 +119,7 @@ import { Play, Download, Save, Plus, FileText, Code as CodeIcon } from 'lucide-s
                 <div class="w-5 h-5 rounded bg-secondary/10 flex items-center justify-center text-secondary">
                   <FileText size={12} />
                 </div>
-                Markdown
+                Text
              </button>
           </div>
        </div>
