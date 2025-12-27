@@ -5,7 +5,7 @@
   import { formatDateTime } from '$lib/date';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { Filter, Search, AlertTriangle, Clock, CheckCircle2, Copy, GraduationCap, Users, Plus, FileText, Activity, ArrowRight } from 'lucide-svelte';
+  import { Search, AlertTriangle, Clock, CheckCircle2, Copy, GraduationCap, Users, Plus, FileText, Activity, ArrowRight, ArrowUpDown } from 'lucide-svelte';
   import { TEACHER_GROUP_ID } from '$lib/teacherGroup';
   import { t, translator } from '$lib/i18n';
   
@@ -252,21 +252,21 @@
 
   <!-- Assignments Section -->
   <div>
-    <div class="flex flex-col sm:flex-row sm:items-center justify-end gap-4 mb-6 px-2">
-      <div class="flex flex-wrap items-center gap-2 justify-end">
-        <div class="join hidden lg:flex bg-base-200/50 p-1 rounded-xl">
-          <button class={`btn btn-xs join-item border-none ${filterMode==='all' ? 'bg-base-100 shadow-sm text-primary' : 'bg-transparent opacity-60'}`} type="button" on:click={() => filterMode='all'}>
-            {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::filter_all')}
-          </button>
-          <button class={`btn btn-xs join-item border-none ${filterMode==='upcoming' ? 'bg-base-100 shadow-sm text-primary' : 'bg-transparent opacity-60'}`} type="button" on:click={() => filterMode='upcoming'}>
-            {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::filter_upcoming')}
-          </button>
-          <button class={`btn btn-xs join-item border-none ${filterMode==='late' ? 'bg-base-100 shadow-sm text-primary' : 'bg-transparent opacity-60'}`} type="button" on:click={() => filterMode='late'}>
-            {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::filter_overdue')}
-          </button>
-        </div>
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 px-2">
+      <div class="flex items-center bg-base-200/50 p-1 rounded-xl h-9 w-full lg:w-auto">
+        <button class={`btn btn-xs border-none rounded-lg h-7 px-3 ${filterMode==='all' ? 'bg-base-100 shadow-sm text-primary' : 'bg-transparent opacity-60'}`} type="button" on:click={() => filterMode='all'}>
+          {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::filter_all')}
+        </button>
+        <button class={`btn btn-xs border-none rounded-lg h-7 px-3 ${filterMode==='upcoming' ? 'bg-base-100 shadow-sm text-primary' : 'bg-transparent opacity-60'}`} type="button" on:click={() => filterMode='upcoming'}>
+          {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::filter_upcoming')}
+        </button>
+        <button class={`btn btn-xs border-none rounded-lg h-7 px-3 ${filterMode==='late' ? 'bg-base-100 shadow-sm text-primary' : 'bg-transparent opacity-60'}`} type="button" on:click={() => filterMode='late'}>
+          {translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::filter_overdue')}
+        </button>
+      </div>
 
-        <div class="relative flex items-center">
+      <div class="flex flex-wrap items-center gap-3 justify-end w-full lg:w-auto">
+        <div class="relative flex items-center w-full sm:w-auto">
           <Search size={14} class="absolute left-3 opacity-40" />
           <input 
             type="text" 
@@ -276,11 +276,23 @@
           />
         </div>
 
-        <select class="select select-sm bg-base-100 border-base-200 focus:border-primary/30 rounded-xl font-medium text-xs h-9" bind:value={sortMode}>
-          <option value="deadline_asc">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::sort_deadline_asc')}</option>
-          <option value="deadline_desc">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::sort_deadline_desc')}</option>
-          <option value="title_asc">{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::sort_title_asc')}</option>
-        </select>
+        <div class="dropdown dropdown-end">
+          <button type="button" class="btn btn-sm bg-base-100 border-base-200 hover:bg-base-200 rounded-xl h-9 px-4 gap-2 border shadow-sm" tabindex="0">
+            <ArrowUpDown size={14} class="opacity-60" />
+            <span class="text-[10px] font-black uppercase tracking-widest leading-none">
+              {sortMode === 'deadline_asc'
+                ? translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::sort_deadline_asc')
+                : sortMode === 'deadline_desc'
+                  ? translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::sort_deadline_desc')
+                  : translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::sort_title_asc')}
+            </span>
+          </button>
+          <ul class="dropdown-content menu bg-base-100 rounded-2xl z-[50] w-56 p-2 shadow-2xl border border-base-200 mt-2" tabindex="0">
+            <li><button type="button" class={sortMode==='deadline_asc' ? 'active' : ''} on:click={() => sortMode='deadline_asc'} class:bg-primary={sortMode==='deadline_asc'} class:text-primary-content={sortMode==='deadline_asc'}>{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::sort_deadline_asc')}</button></li>
+            <li><button type="button" class={sortMode==='deadline_desc' ? 'active' : ''} on:click={() => sortMode='deadline_desc'} class:bg-primary={sortMode==='deadline_desc'} class:text-primary-content={sortMode==='deadline_desc'}>{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::sort_deadline_desc')}</button></li>
+            <li><button type="button" class={sortMode==='title_asc' ? 'active' : ''} on:click={() => sortMode='title_asc'} class:bg-primary={sortMode==='title_asc'} class:text-primary-content={sortMode==='title_asc'}>{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::sort_title_asc')}</button></li>
+          </ul>
+        </div>
       </div>
     </div>
 
