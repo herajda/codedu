@@ -233,133 +233,129 @@
 </script>
 
 <div
-  class="bg-base-100 rounded-2xl border-y border-r border-l-4 border-l-primary/60 border-base-200 p-4 shadow-sm hover:shadow-lg transition-all group relative hover:border-l-primary"
+  class="bg-base-100/50 backdrop-blur-sm rounded-[2rem] border-2 border-primary/10 p-5 shadow-xl shadow-primary/5 hover:shadow-2xl hover:shadow-primary/10 transition-all duration-300 group relative hover:border-primary/30 mx-1"
 >
-  <div class="relative rounded-xl overflow-visible border border-base-200">
+  <!-- Cell Type Indicator -->
+  <div class="absolute -top-3 left-8 flex items-center gap-2">
+    {#if $running}
+      <div class="bg-success text-success-content px-3 py-1 rounded-full text-[10px] font-black tracking-widest flex items-center gap-1.5 shadow-lg shadow-success/20 animate-pulse">
+        <div class="w-1.5 h-1.5 rounded-full bg-current"></div>
+        RUNNING
+      </div>
+    {/if}
+  </div>
+
+  <div class="relative rounded-2xl border border-base-200 shadow-inner bg-base-300/30 mt-2 focus-within:border-primary/40 focus-within:ring-4 focus-within:ring-primary/5 focus-within:bg-base-300/50 transition-all duration-300 group/editor">
      <CodeMirror
-       class="w-full text-sm"
+       class="w-full text-base"
        bind:value={sourceStr}
        lang={python()}
        on:change={(e) => onChange(e.detail)}
      />
+     <div class="absolute right-3 top-3 opacity-20 pointer-events-none group-focus-within/editor:opacity-100 transition-opacity">
+        <CodeIcon size={14} class="text-primary" />
+     </div>
   </div>
 
-  <div class="flex gap-2 items-center mt-3">
-    <button
-      type="button"
-      aria-label={t(
-        "frontend/src/lib/components/cells/CodeCell.svelte::run_cell",
-      )}
-      title={t("frontend/src/lib/components/cells/CodeCell.svelte::run_cell")}
-      on:click={handleRunClick}
-      disabled={$running}
-      class="btn btn-xs btn-circle btn-ghost text-success hover:bg-success/10 hover:text-success disabled:opacity-50"
-    >
-      <Play size={14} class="ml-0.5" />
-    </button>
-    <button
-      type="button"
-      aria-label={t(
-        "frontend/src/lib/components/cells/CodeCell.svelte::stop_cell",
-      )}
-      title={t("frontend/src/lib/components/cells/CodeCell.svelte::stop_cell")}
-      on:click={stop}
-      class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10 hover:text-error"
-    >
-      <Square size={14} />
-    </button>
-    {#if $running}
-      <span class="loading loading-spinner loading-xs text-primary ml-2"></span>
-      <span class="text-xs opacity-50 font-bold uppercase tracking-widest">{t("frontend/src/lib/components/cells/CodeCell.svelte::running")}</span>
-    {/if}
+  <div class="flex gap-2 items-center mt-5">
+    <div class="flex items-center gap-1 bg-base-200/50 p-1 rounded-xl border border-base-content/5">
+      <button
+        type="button"
+        aria-label={t("frontend/src/lib/components/cells/CodeCell.svelte::run_cell")}
+        title={t("frontend/src/lib/components/cells/CodeCell.svelte::run_cell")}
+        on:click={handleRunClick}
+        disabled={$running}
+        class="btn btn-sm btn-circle btn-ghost text-success hover:bg-success/20 hover:text-success disabled:opacity-50 transition-all"
+      >
+        <Play size={16} fill="currentColor" class="ml-0.5" />
+      </button>
+      <button
+        type="button"
+        aria-label={t("frontend/src/lib/components/cells/CodeCell.svelte::stop_cell")}
+        title={t("frontend/src/lib/components/cells/CodeCell.svelte::stop_cell")}
+        on:click={stop}
+        class="btn btn-sm btn-circle btn-ghost text-error hover:bg-error/20 hover:text-error transition-all"
+      >
+        <Square size={16} fill="currentColor" />
+      </button>
+    </div>
     
     <div
-      class="flex gap-1 ml-auto opacity-0 group-hover:opacity-100 items-center transition-opacity"
+      class="flex gap-1 ml-auto opacity-0 group-hover:opacity-100 items-center transition-all duration-300 translate-x-2 group-hover:translate-x-0"
     >
+      <div class="flex items-center gap-1 bg-base-200/50 p-1 rounded-xl border border-base-content/5 shadow-sm">
+        <button
+          aria-label={t("frontend/src/lib/components/cells/CodeCell.svelte::move_cell_up")}
+          title={t("frontend/src/lib/components/cells/CodeCell.svelte::move_cell_up")}
+          on:click={() => moveCellUp(index)}
+          class="btn btn-xs btn-circle btn-ghost hover:bg-base-300"
+        >
+          <ArrowUp size={14} />
+        </button>
+        <button
+          aria-label={t("frontend/src/lib/components/cells/CodeCell.svelte::move_cell_down")}
+          title={t("frontend/src/lib/components/cells/CodeCell.svelte::move_cell_down")}
+          on:click={() => moveCellDown(index)}
+          class="btn btn-xs btn-circle btn-ghost hover:bg-base-300"
+        >
+          <ArrowDown size={14} />
+        </button>
+      </div>
+
       <button
-        aria-label={t(
-          "frontend/src/lib/components/cells/CodeCell.svelte::move_cell_up",
-        )}
-        title={t(
-          "frontend/src/lib/components/cells/CodeCell.svelte::move_cell_up",
-        )}
-        on:click={() => moveCellUp(index)}
-        class="btn btn-xs btn-circle btn-ghost opacity-60 hover:opacity-100"
-      >
-        <ArrowUp size={14} />
-      </button>
-      <button
-        aria-label={t(
-          "frontend/src/lib/components/cells/CodeCell.svelte::move_cell_down",
-        )}
-        title={t(
-          "frontend/src/lib/components/cells/CodeCell.svelte::move_cell_down",
-        )}
-        on:click={() => moveCellDown(index)}
-        class="btn btn-xs btn-circle btn-ghost opacity-60 hover:opacity-100"
-      >
-        <ArrowDown size={14} />
-      </button>
-      <button
-        aria-label={t(
-          "frontend/src/lib/components/cells/CodeCell.svelte::delete_cell",
-        )}
-        title={t(
-          "frontend/src/lib/components/cells/CodeCell.svelte::delete_cell",
-        )}
+        aria-label={t("frontend/src/lib/components/cells/CodeCell.svelte::delete_cell")}
+        title={t("frontend/src/lib/components/cells/CodeCell.svelte::delete_cell")}
         on:click={() => deleteCell(index)}
-        class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10 hover:text-error opacity-60 hover:opacity-100"
+        class="btn btn-sm btn-circle btn-ghost text-error hover:bg-error/10 hover:text-error mx-1"
       >
-        <Trash2 size={14} />
+        <Trash2 size={16} />
       </button>
 
       <div class="relative dropdown dropdown-end dropdown-bottom {showInsert ? 'dropdown-open' : ''}">
         <button
-          aria-label={t(
-            "frontend/src/lib/components/cells/CodeCell.svelte::insert_cell",
-          )}
-          title={t(
-            "frontend/src/lib/components/cells/CodeCell.svelte::insert_cell",
-          )}
+          aria-label={t("frontend/src/lib/components/cells/CodeCell.svelte::insert_cell")}
+          title={t("frontend/src/lib/components/cells/CodeCell.svelte::insert_cell")}
           on:click={() => { showInsert = !showInsert; if (!showInsert) insertPos = null; }}
-          class="btn btn-xs btn-circle btn-ghost opacity-60 hover:opacity-100"
+          class="btn btn-sm btn-circle btn-ghost bg-primary/10 text-primary hover:bg-primary/20"
         >
-          <Plus size={14} />
+          <Plus size={18} />
         </button>
         
         {#if showInsert}
-          <ul class="dropdown-content z-50 menu p-2 shadow-xl bg-base-100 rounded-box w-48 border border-base-200 mt-1">
+          <ul class="dropdown-content z-50 menu p-2 shadow-2xl bg-base-100 rounded-2xl w-52 border border-base-200 mt-2 ring-1 ring-black/5 animate-in fade-in zoom-in duration-200">
             {#if !insertPos}
+              <li class="menu-title text-[10px] font-black tracking-widest uppercase opacity-50 px-4 py-2">Position</li>
               <li>
-                  <button on:click={() => (insertPos = "above")}>
-                    <ArrowUp size={14} /> 
+                  <button class="rounded-xl py-3" on:click={() => (insertPos = "above")}>
+                    <ArrowUp size={14} class="text-primary" /> 
                     {t("frontend/src/lib/components/cells/CodeCell.svelte::insert_above")}
                   </button>
               </li>
               <li>
-                  <button on:click={() => (insertPos = "below")}>
-                    <ArrowDown size={14} /> 
+                  <button class="rounded-xl py-3" on:click={() => (insertPos = "below")}>
+                    <ArrowDown size={14} class="text-primary" /> 
                     {t("frontend/src/lib/components/cells/CodeCell.svelte::insert_below")}
                   </button>
               </li>
             {:else}
+              <li class="menu-title text-[10px] font-black tracking-widest uppercase opacity-50 px-4 py-2">Type ({insertPos})</li>
               <li>
-                  <button on:click={() => {
+                  <button class="rounded-xl py-3" on:click={() => {
                         insertCell(index, "code", insertPos);
                         showInsert = false;
                         insertPos = null;
                       }}>
-                    <CodeIcon size={14} /> 
+                    <CodeIcon size={14} class="text-primary" /> 
                     {t("frontend/src/lib/components/cells/CodeCell.svelte::insert_code")}
                   </button>
               </li>
               <li>
-                  <button on:click={() => {
+                  <button class="rounded-xl py-3" on:click={() => {
                         insertCell(index, "markdown", insertPos);
                         showInsert = false;
                         insertPos = null;
                       }}>
-                    <FileText size={14} /> 
+                    <FileText size={14} class="text-secondary" /> 
                     {t("frontend/src/lib/components/cells/CodeCell.svelte::insert_markdown")}
                   </button>
               </li>
@@ -371,79 +367,87 @@
   </div>
 
   {#if awaitingInput}
-    <div class="border border-primary/20 rounded-xl p-4 bg-primary/5 space-y-3 mt-4">
-      <div class="text-xs font-black uppercase tracking-widest text-primary">
-        {t(
-          "frontend/src/lib/components/cells/CodeCell.svelte::input_for_this_run",
-        )}
+    <div class="border-2 border-primary/20 rounded-[2rem] p-6 bg-primary/5 space-y-4 mt-6 animate-in slide-in-from-top-4 duration-300">
+      <div class="flex items-center gap-3">
+         <div class="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center text-primary">
+            <Plus size={20} />
+         </div>
+         <div>
+            <div class="text-xs font-black uppercase tracking-widest text-primary">
+              {t("frontend/src/lib/components/cells/CodeCell.svelte::input_for_this_run")}
+            </div>
+            {#if inputPrompt}
+              <div class="text-sm font-bold opacity-80 mt-0.5">{inputPrompt}</div>
+            {/if}
+         </div>
       </div>
-      {#if inputPrompt}
-        <div class="text-sm font-medium opacity-80">{inputPrompt}</div>
-      {/if}
+      
       <textarea
-        class="textarea textarea-bordered w-full"
-        rows="3"
+        class="textarea textarea-bordered w-full rounded-2xl bg-base-100/50 focus:ring-4 focus:ring-primary/10 transition-all border-2 text-base"
+        rows="2"
         bind:this={inputTextarea}
         bind:value={inputValue}
         tabindex={waitingForParent ? -1 : 0}
-        placeholder={t(
-          "frontend/src/lib/components/cells/CodeCell.svelte::input_placeholder",
-        )}
+        placeholder={t("frontend/src/lib/components/cells/CodeCell.svelte::input_placeholder")}
       ></textarea>
-      <div class="flex items-center gap-2">
+      
+      <div class="flex items-center gap-3">
         <button
           type="button"
-          class="btn btn-sm btn-primary"
+          class="btn btn-primary rounded-xl px-6 font-bold shadow-lg shadow-primary/20"
           on:click={submitInput}
         >
           {t("frontend/src/lib/components/cells/CodeCell.svelte::send")}
         </button>
         <button
           type="button"
-          class="btn btn-sm btn-ghost"
+          class="btn btn-ghost rounded-xl px-6 font-bold"
           on:click={cancelInput}
         >
           {t("frontend/src/lib/components/cells/CodeCell.svelte::cancel")}
         </button>
-        <span class="text-[10px] opacity-40 uppercase tracking-widest font-bold ml-auto"
-          >{t(
-            "frontend/src/lib/components/cells/CodeCell.svelte::leave_blank_for_empty_line",
-          )}</span
+        <span class="text-[10px] opacity-40 uppercase tracking-widest font-black ml-auto"
+          >{t("frontend/src/lib/components/cells/CodeCell.svelte::leave_blank_for_empty_line")}</span
         >
       </div>
     </div>
   {/if}
 
   <!-- Outputs -->
-  {#if $stdoutStore}
-    <OutputBlock
-      label={t(
-        "frontend/src/lib/components/cells/CodeCell.svelte::stdout_label",
-      )}
-      text={$stdoutStore}
-    />
-  {/if}
-  {#if $stderrStore}
-    <OutputBlock
-      label={t(
-        "frontend/src/lib/components/cells/CodeCell.svelte::stderr_label",
-      )}
-      text={$stderrStore}
-    />
-  {/if}
-  {#if $resultTextStore !== null && $resultTextStore !== undefined}
-    <div class="mt-2">
-      <OutputBlock
-        label={t(
-          "frontend/src/lib/components/cells/CodeCell.svelte::result_label",
-        )}
-        text={$resultTextStore}
-      />
-    </div>
-  {/if}
-  {#each $imagesStore as img}
-    <div class="mt-2 rounded-xl overflow-hidden shadow-sm inline-block">
-       <ImageOutput src={img} />
-    </div>
-  {/each}
+  <div class="space-y-4 mt-6">
+    {#if $stdoutStore}
+      <div class="rounded-2xl overflow-hidden border border-emerald-500/20 bg-emerald-500/5 shadow-sm ring-1 ring-emerald-500/10">
+        <OutputBlock
+          label={t("frontend/src/lib/components/cells/CodeCell.svelte::stdout_label")}
+          text={$stdoutStore}
+        />
+      </div>
+    {/if}
+    {#if $stderrStore}
+      <div class="rounded-2xl overflow-hidden border border-rose-500/20 bg-rose-500/5 shadow-sm ring-1 ring-rose-500/10">
+        <OutputBlock
+          label={t("frontend/src/lib/components/cells/CodeCell.svelte::stderr_label")}
+          text={$stderrStore}
+        />
+      </div>
+    {/if}
+    {#if $resultTextStore !== null && $resultTextStore !== undefined}
+      <div class="rounded-2xl overflow-hidden border border-primary/20 bg-primary/5 shadow-sm ring-1 ring-primary/10">
+        <OutputBlock
+          label={t("frontend/src/lib/components/cells/CodeCell.svelte::result_label")}
+          text={$resultTextStore}
+        />
+      </div>
+    {/if}
+    
+    {#if $imagesStore.length > 0}
+      <div class="flex flex-wrap gap-4 pt-2">
+        {#each $imagesStore as img}
+          <div class="rounded-[2rem] overflow-hidden shadow-2xl border border-base-200 bg-white p-2 hover:scale-[1.02] transition-transform duration-300">
+             <ImageOutput src={img} />
+          </div>
+        {/each}
+      </div>
+    {/if}
+  </div>
 </div>
