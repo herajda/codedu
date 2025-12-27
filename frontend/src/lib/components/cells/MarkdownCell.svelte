@@ -62,7 +62,7 @@
 
 <div
   bind:this={containerRef}
-  class="bg-base-100/50 backdrop-blur-sm rounded-[2rem] border-2 border-secondary/10 p-5 shadow-xl shadow-secondary/5 hover:shadow-2xl hover:shadow-secondary/10 transition-all duration-300 group relative hover:border-secondary/30 mx-1"
+  class="bg-base-100/50 backdrop-blur-sm rounded-[2rem] border-2 border-secondary/10 p-5 shadow-xl shadow-secondary/5 hover:shadow-2xl hover:shadow-secondary/10 transition-all duration-300 group relative hover:border-secondary/30 mx-1 {showInsert ? 'z-50' : 'z-auto'}"
   on:dblclick={() => { if (!editing) toggle(); }}
   on:focusout={handleFocusOut}
 >
@@ -77,7 +77,7 @@
   </div>
 
   {#if !editing}
-  <div class="absolute right-4 top-4 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-2 group-hover:translate-x-0 bg-base-100/80 backdrop-blur-md p-1.5 rounded-2xl border border-base-200 shadow-xl">
+  <div class="absolute right-4 top-4 z-10 flex gap-1 items-center transition-all duration-300 bg-base-100/80 backdrop-blur-md p-1.5 rounded-2xl border border-base-200 shadow-xl {showInsert ? 'opacity-100 translate-x-0' : 'opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0'}">
     <div class="flex items-center gap-1 bg-base-200/50 p-1 rounded-xl border border-base-content/5 shadow-sm mr-1">
       <button
         aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_up')}

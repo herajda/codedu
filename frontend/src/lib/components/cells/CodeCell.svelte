@@ -233,7 +233,7 @@
 </script>
 
 <div
-  class="bg-base-100/50 backdrop-blur-sm rounded-[2rem] border-2 border-primary/10 p-5 shadow-xl shadow-primary/5 hover:shadow-2xl hover:shadow-primary/10 transition-all duration-300 group relative hover:border-primary/30 mx-1"
+  class="bg-base-100/50 backdrop-blur-sm rounded-[2rem] border-2 border-primary/10 p-5 shadow-xl shadow-primary/5 hover:shadow-2xl hover:shadow-primary/10 transition-all duration-300 group relative hover:border-primary/30 mx-1 {showInsert ? 'z-50' : 'z-auto'}"
 >
   <!-- Cell Type Indicator -->
   <div class="absolute -top-3 left-8 flex items-center gap-2">
@@ -281,7 +281,7 @@
     </div>
     
     <div
-      class="flex gap-1 ml-auto opacity-0 group-hover:opacity-100 items-center transition-all duration-300 translate-x-2 group-hover:translate-x-0"
+      class="flex gap-1 ml-auto items-center transition-all duration-300 {showInsert ? 'opacity-100 translate-x-0' : 'opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0'}"
     >
       <div class="flex items-center gap-1 bg-base-200/50 p-1 rounded-xl border border-base-content/5 shadow-sm">
         <button

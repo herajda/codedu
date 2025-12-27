@@ -169,7 +169,7 @@ import { Play, Download, Save, Plus, FileText, Code as CodeIcon } from 'lucide-s
           {#if $auth?.role === 'teacher'}
             <div class="relative py-2 flex items-center justify-center group/divider h-10 transition-all">
                 <div class="absolute inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-base-content/5 to-transparent group-hover/divider:via-primary/20 transition-all duration-500"></div>
-                <div class="flex gap-2 relative bg-base-100 p-1.5 rounded-2xl border border-base-200 shadow-xl opacity-0 scale-90 group-hover/divider:opacity-100 group-hover/divider:scale-100 transition-all duration-300 z-10 hover:border-primary/30">
+                <div class="flex gap-2 relative bg-base-100 p-1.5 rounded-2xl border border-base-200 shadow-xl opacity-0 scale-90 group-hover/divider:opacity-100 group-hover/divider:scale-100 pointer-events-none group-hover/divider:pointer-events-auto transition-all duration-300 z-10 hover:border-primary/30">
                   <button class="btn btn-xs btn-ghost hover:bg-primary/10 text-primary gap-1.5 px-3 h-8 min-h-0 rounded-xl font-bold" on:click={() => insertCell(i, 'code', 'below')}>
                     <CodeIcon size={12} />
                     <span class="text-[10px] uppercase tracking-wider">{translate('frontend/src/lib/components/NotebookEditor.svelte::add_code_cell').split(' ')[1]}</span>
