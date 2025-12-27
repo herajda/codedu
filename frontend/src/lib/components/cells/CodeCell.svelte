@@ -15,6 +15,7 @@
   import OutputBlock from "./OutputBlock.svelte";
   import ImageOutput from "./ImageOutput.svelte";
   import { t } from "$lib/i18n";
+  import { Play, Square, ArrowUp, ArrowDown, Trash2, Plus, Code as CodeIcon, FileText } from 'lucide-svelte';
 
   export let cell: import("$lib/notebook").NotebookCell;
   export let index: number;
@@ -232,60 +233,48 @@
 </script>
 
 <div
-  class="border rounded-lg p-3 space-y-2 bg-white shadow-inner group relative hover:z-20"
+  class="bg-base-100 rounded-2xl border border-base-200 p-4 shadow-sm hover:shadow-md transition-all group relative hover:border-primary/20"
 >
-  <CodeMirror
-    class="w-full text-sm"
-    bind:value={sourceStr}
-    lang={python()}
-    on:change={(e) => onChange(e.detail)}
-  />
-  <div class="flex gap-2 items-center">
+  <div class="relative rounded-xl overflow-hidden border border-base-200">
+     <CodeMirror
+       class="w-full text-sm"
+       bind:value={sourceStr}
+       lang={python()}
+       on:change={(e) => onChange(e.detail)}
+     />
+  </div>
+
+  <div class="flex gap-2 items-center mt-3">
     <button
-      size="sm"
+      type="button"
       aria-label={t(
         "frontend/src/lib/components/cells/CodeCell.svelte::run_cell",
       )}
       title={t("frontend/src/lib/components/cells/CodeCell.svelte::run_cell")}
       on:click={handleRunClick}
       disabled={$running}
-      class="p-1 rounded text-green-600 hover:text-white hover:bg-green-600 hover:scale-110 transition-transform disabled:opacity-50"
+      class="btn btn-xs btn-circle btn-ghost text-success hover:bg-success/10 hover:text-success disabled:opacity-50"
     >
-      <svg
-        class="w-4 h-4"
-        viewBox="0 0 24 24"
-        fill="currentColor"
-        aria-hidden="true"
-      >
-        <path d="M5 3l14 9-14 9V3z" />
-      </svg>
+      <Play size={14} class="ml-0.5" />
     </button>
     <button
-      size="sm"
-      variant="destructive"
+      type="button"
       aria-label={t(
         "frontend/src/lib/components/cells/CodeCell.svelte::stop_cell",
       )}
       title={t("frontend/src/lib/components/cells/CodeCell.svelte::stop_cell")}
       on:click={stop}
-      class="p-1 rounded text-red-600 hover:text-white hover:bg-red-600 hover:scale-110 transition-transform"
+      class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10 hover:text-error"
     >
-      <svg
-        class="w-4 h-4"
-        viewBox="0 0 24 24"
-        fill="currentColor"
-        aria-hidden="true"
-      >
-        <path d="M6 6h12v12H6z" />
-      </svg>
+      <Square size={14} />
     </button>
     {#if $running}
-      <span class="animate-pulse text-xs ml-2"
-        >{t("frontend/src/lib/components/cells/CodeCell.svelte::running")}</span
-      >
+      <span class="loading loading-spinner loading-xs text-primary ml-2"></span>
+      <span class="text-xs opacity-50 font-bold uppercase tracking-widest">{t("frontend/src/lib/components/cells/CodeCell.svelte::running")}</span>
     {/if}
+    
     <div
-      class="flex gap-2 ml-auto opacity-0 group-hover:opacity-100 items-center"
+      class="flex gap-1 ml-auto opacity-0 group-hover:opacity-100 items-center transition-opacity"
     >
       <button
         aria-label={t(
@@ -295,16 +284,9 @@
           "frontend/src/lib/components/cells/CodeCell.svelte::move_cell_up",
         )}
         on:click={() => moveCellUp(index)}
-        class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
+        class="btn btn-xs btn-circle btn-ghost opacity-60 hover:opacity-100"
       >
-        <svg
-          class="w-4 h-4"
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          aria-hidden="true"
-        >
-          <path d="M12 4l-6 6h4v6h4v-6h4l-6-6z" />
-        </svg>
+        <ArrowUp size={14} />
       </button>
       <button
         aria-label={t(
@@ -314,16 +296,9 @@
           "frontend/src/lib/components/cells/CodeCell.svelte::move_cell_down",
         )}
         on:click={() => moveCellDown(index)}
-        class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
+        class="btn btn-xs btn-circle btn-ghost opacity-60 hover:opacity-100"
       >
-        <svg
-          class="w-4 h-4"
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          aria-hidden="true"
-        >
-          <path d="M12 20l6-6h-4v-6h-4v6H6l6 6z" />
-        </svg>
+        <ArrowDown size={14} />
       </button>
       <button
         aria-label={t(
@@ -333,25 +308,15 @@
           "frontend/src/lib/components/cells/CodeCell.svelte::delete_cell",
         )}
         on:click={() => deleteCell(index)}
-        class="p-1 rounded text-gray-600 hover:text-white hover:bg-red-600 hover:scale-110 transition-transform"
+        class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10 hover:text-error opacity-60 hover:opacity-100"
       >
-        <svg
-          class="w-4 h-4"
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          aria-hidden="true"
-        >
-          <path
-            d="M6 7h12M9 7v10m6-10v10M4 7h16l-1 12a2 2 0 01-2 2H7a2 2 0 01-2-2L4 7zM10 4h4"
-            stroke="currentColor"
-            stroke-width="2"
-            fill="none"
-            stroke-linecap="round"
-          />
-        </svg>
+        <Trash2 size={14} />
       </button>
-      <div class="relative">
+
+      <div class="relative dropdown dropdown-end dropdown-top {showInsert ? 'dropdown-open' : ''}">
         <button
+          tabindex="0"
+          role="button"
           aria-label={t(
             "frontend/src/lib/components/cells/CodeCell.svelte::insert_cell",
           )}
@@ -359,144 +324,69 @@
             "frontend/src/lib/components/cells/CodeCell.svelte::insert_cell",
           )}
           on:click={() => {
-            showInsert = !showInsert;
-            if (!showInsert) insertPos = null;
+             // Reset state when toggling if needed
+             if (!showInsert) { showInsert = true; insertPos = null; } else { showInsert = false; }
           }}
-          class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
+          class="btn btn-xs btn-circle btn-ghost opacity-60 hover:opacity-100"
         >
-          <svg
-            class="w-4 h-4"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            aria-hidden="true"
-          >
-            <path
-              d="M12 5v14M5 12h14"
-              stroke="currentColor"
-              stroke-width="2"
-              fill="none"
-              stroke-linecap="round"
-            />
-          </svg>
+          <Plus size={14} />
         </button>
+        
         {#if showInsert}
-          <div
-            class="absolute right-0 mt-1 z-10 bg-white border rounded shadow flex flex-col text-sm"
-          >
+          <ul class="dropdown-content z-[1] menu p-2 shadow-xl bg-base-100 rounded-box w-48 border border-base-200 mb-1">
             {#if !insertPos}
-              <button
-                class="p-1 hover:bg-gray-100"
-                aria-label={t(
-                  "frontend/src/lib/components/cells/CodeCell.svelte::insert_above",
-                )}
-                title={t(
-                  "frontend/src/lib/components/cells/CodeCell.svelte::insert_above",
-                )}
-                on:click={() => (insertPos = "above")}
-              >
-                <svg
-                  class="w-4 h-4"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  aria-hidden="true"
-                >
-                  <path d="M12 4l-6 6h4v6h4v-6h4l-6-6z" />
-                </svg>
-              </button>
-              <button
-                class="p-1 hover:bg-gray-100"
-                aria-label={t(
-                  "frontend/src/lib/components/cells/CodeCell.svelte::insert_below",
-                )}
-                title={t(
-                  "frontend/src/lib/components/cells/CodeCell.svelte::insert_below",
-                )}
-                on:click={() => (insertPos = "below")}
-              >
-                <svg
-                  class="w-4 h-4"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  aria-hidden="true"
-                >
-                  <path d="M12 20l6-6h-4v-6h-4v6H6l6 6z" />
-                </svg>
-              </button>
+              <li>
+                  <button on:click={() => (insertPos = "above")}>
+                    <ArrowUp size={14} /> 
+                    {t("frontend/src/lib/components/cells/CodeCell.svelte::insert_above")}
+                  </button>
+              </li>
+              <li>
+                  <button on:click={() => (insertPos = "below")}>
+                    <ArrowDown size={14} /> 
+                    {t("frontend/src/lib/components/cells/CodeCell.svelte::insert_below")}
+                  </button>
+              </li>
             {:else}
-              <button
-                class="p-1 hover:bg-gray-100"
-                aria-label={t(
-                  "frontend/src/lib/components/cells/CodeCell.svelte::insert_code",
-                )}
-                title={t(
-                  "frontend/src/lib/components/cells/CodeCell.svelte::insert_code",
-                )}
-                on:click={() => {
-                  insertCell(index, "code", insertPos);
-                  showInsert = false;
-                  insertPos = null;
-                }}
-              >
-                <svg
-                  class="w-4 h-4"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M16 18l6-6-6-6M8 6L2 12l6 6"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    fill="none"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                </svg>
-              </button>
-              <button
-                class="p-1 hover:bg-gray-100"
-                aria-label={t(
-                  "frontend/src/lib/components/cells/CodeCell.svelte::insert_markdown",
-                )}
-                title={t(
-                  "frontend/src/lib/components/cells/CodeCell.svelte::insert_markdown",
-                )}
-                on:click={() => {
-                  insertCell(index, "markdown", insertPos);
-                  showInsert = false;
-                  insertPos = null;
-                }}
-              >
-                <svg
-                  class="w-4 h-4"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M6 2a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6H6z"
-                  />
-                </svg>
-              </button>
+              <li>
+                  <button on:click={() => {
+                        insertCell(index, "code", insertPos);
+                        showInsert = false;
+                        insertPos = null;
+                      }}>
+                    <CodeIcon size={14} /> 
+                    {t("frontend/src/lib/components/cells/CodeCell.svelte::insert_code")}
+                  </button>
+              </li>
+              <li>
+                  <button on:click={() => {
+                        insertCell(index, "markdown", insertPos);
+                        showInsert = false;
+                        insertPos = null;
+                      }}>
+                    <FileText size={14} /> 
+                    {t("frontend/src/lib/components/cells/CodeCell.svelte::insert_markdown")}
+                  </button>
+              </li>
             {/if}
-          </div>
+          </ul>
         {/if}
       </div>
     </div>
   </div>
 
   {#if awaitingInput}
-    <div class="border border-dashed rounded-lg p-3 bg-gray-50 space-y-2">
-      <div class="text-sm font-medium text-gray-700">
+    <div class="border border-primary/20 rounded-xl p-4 bg-primary/5 space-y-3 mt-4">
+      <div class="text-xs font-black uppercase tracking-widest text-primary">
         {t(
           "frontend/src/lib/components/cells/CodeCell.svelte::input_for_this_run",
         )}
       </div>
       {#if inputPrompt}
-        <div class="text-xs text-gray-600">{inputPrompt}</div>
+        <div class="text-sm font-medium opacity-80">{inputPrompt}</div>
       {/if}
       <textarea
-        class="w-full border rounded-md p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+        class="textarea textarea-bordered w-full"
         rows="3"
         bind:this={inputTextarea}
         bind:value={inputValue}
@@ -515,12 +405,12 @@
         </button>
         <button
           type="button"
-          class="btn btn-sm btn-secondary"
+          class="btn btn-sm btn-ghost"
           on:click={cancelInput}
         >
           {t("frontend/src/lib/components/cells/CodeCell.svelte::cancel")}
         </button>
-        <span class="text-xs text-gray-500 ml-auto"
+        <span class="text-[10px] opacity-40 uppercase tracking-widest font-bold ml-auto"
           >{t(
             "frontend/src/lib/components/cells/CodeCell.svelte::leave_blank_for_empty_line",
           )}</span
@@ -547,14 +437,18 @@
     />
   {/if}
   {#if $resultTextStore !== null && $resultTextStore !== undefined}
-    <OutputBlock
-      label={t(
-        "frontend/src/lib/components/cells/CodeCell.svelte::result_label",
-      )}
-      text={$resultTextStore}
-    />
+    <div class="mt-2">
+      <OutputBlock
+        label={t(
+          "frontend/src/lib/components/cells/CodeCell.svelte::result_label",
+        )}
+        text={$resultTextStore}
+      />
+    </div>
   {/if}
   {#each $imagesStore as img}
-    <ImageOutput src={img} />
+    <div class="mt-2 rounded-xl overflow-hidden shadow-sm inline-block">
+       <ImageOutput src={img} />
+    </div>
   {/each}
 </div>

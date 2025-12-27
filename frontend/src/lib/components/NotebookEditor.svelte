@@ -10,11 +10,12 @@ import { auth } from "$lib/auth";
 import { onMount, afterUpdate, createEventDispatcher } from 'svelte';
 import { preloadPyodide } from '$lib/pyodide';
 import { t, translator } from '$lib/i18n';
+import { Play, Download, Save, Plus, FileText, Code as CodeIcon } from 'lucide-svelte';
 
   export let fileId: string | number | undefined;
   $: nb = $notebookStore;
 
-  let translate;
+  let translate: any;
   $: translate = $translator;
 
   let cellRefs: any[] = [];
@@ -22,23 +23,12 @@ import { t, translator } from '$lib/i18n';
   const dispatch = createEventDispatcher();
 
   let container: HTMLDivElement | null = null;
-  let showBottomButton = false;
-  function checkHeight() {
-    if (!container) return;
-    showBottomButton = container.scrollHeight > window.innerHeight;
-  }
+  // Removed showBottomButton logic as we use sticky header now
 
   onMount(() => {
     // Preload the Pyodide runtime and common packages in the background.
     // Loading happens inside a Web Worker so it does not block the UI.
     preloadPyodide();
-    checkHeight();
-    window.addEventListener('resize', checkHeight);
-    return () => window.removeEventListener('resize', checkHeight);
-  });
-
-  afterUpdate(() => {
-    checkHeight();
   });
 
   async function runAllCells(interactive: boolean = true) {
@@ -107,95 +97,86 @@ import { t, translator } from '$lib/i18n';
 </script>
 
 {#if nb}
-  <div class="space-y-3" bind:this={container}>
-    <div class="flex justify-end gap-2">
-      <button
-        on:click={runAllCells}
-        class="px-3 py-1 rounded text-green-600 hover:text-white hover:bg-green-600 hover:scale-110 transition-transform"
-      >
-        {translate('frontend/src/lib/components/NotebookEditor.svelte::run_all')}
-      </button>
-      <button
-        on:click={exportNotebook}
-        aria-label={translate('frontend/src/lib/components/NotebookEditor.svelte::download')}
-        class="px-3 py-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
-      >
-        {translate('frontend/src/lib/components/NotebookEditor.svelte::download')}
-      </button>
-    </div>
-    {#each nb.cells as cell, i (cell.id)}
-      {#if cell.cell_type === "code"}
-        <CodeCell
-          {cell}
-          index={i}
-          bind:this={cellRefs[i]}
-        />
-      {:else}
-        <MarkdownCell
-          {cell}
-          index={i}
-          bind:this={cellRefs[i]}
-        />
-      {/if}
-    {/each}
+  <div class="flex flex-col gap-6 relative" bind:this={container}>
+    <!-- Sticky Toolbar -->
+    <div class="sticky top-0 z-40 bg-base-100/80 backdrop-blur-md rounded-2xl border border-base-200 shadow-sm p-2 flex flex-wrap items-center justify-between gap-3">
+       
+       <!-- Left: Add Cells -->
+       <div class="flex items-center gap-1 bg-base-200/50 rounded-xl p-1">
+          <div class="tooltip tooltip-bottom" data-tip={translate('frontend/src/lib/components/NotebookEditor.svelte::add_code_cell')}>
+             <button class="btn btn-sm btn-ghost rounded-lg gap-2 text-xs font-bold" on:click={() => addCell("code")}>
+                <CodeIcon size={14} class="text-primary" />
+                Code
+             </button>
+          </div>
+          <div class="w-px h-4 bg-base-content/10 mx-1"></div>
+          <div class="tooltip tooltip-bottom" data-tip={translate('frontend/src/lib/components/NotebookEditor.svelte::add_markdown_cell')}>
+             <button class="btn btn-sm btn-ghost rounded-lg gap-2 text-xs font-bold" on:click={() => addCell("markdown")}>
+                <FileText size={14} class="text-secondary" />
+                Markdown
+             </button>
+          </div>
+       </div>
 
-    <div class="flex gap-2">
-      <button
-        on:click={() => addCell("markdown")}
-        aria-label={translate('frontend/src/lib/components/NotebookEditor.svelte::add_markdown_cell')}
-        title={translate('frontend/src/lib/components/NotebookEditor.svelte::add_markdown_cell')}
-        class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
-      >
-        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path d="M6 2a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6z" />
-          <path d="M12 11v5M9 13h6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" />
-        </svg>
-      </button>
-      <button
-        on:click={() => addCell("code")}
-        aria-label={translate('frontend/src/lib/components/NotebookEditor.svelte::add_code_cell')}
-        title={translate('frontend/src/lib/components/NotebookEditor.svelte::add_code_cell')}
-        class="p-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
-      >
-        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path d="M16 18l6-6-6-6M8 6L2 12l6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-      </button>
-      <button
-        on:click={exportNotebook}
-        aria-label={translate('frontend/src/lib/components/NotebookEditor.svelte::download')}
-        class="px-3 py-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
-      >
-        {translate('frontend/src/lib/components/NotebookEditor.svelte::download')}
-      </button>
-      {#if $auth?.role === 'teacher' && fileId}
-        <button
-          on:click={saveNotebook}
-          aria-label={translate('frontend/src/lib/components/NotebookEditor.svelte::save_notebook_aria_label')}
-          class="px-3 py-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
-        >
-          {translate('frontend/src/lib/components/NotebookEditor.svelte::save')}
-        </button>
-      {/if}
+       <!-- Right: Actions -->
+       <div class="flex items-center gap-2">
+          <button class="btn btn-sm btn-success btn-outline gap-2 font-bold" on:click={() => runAllCells(true)}>
+             <Play size={14} />
+             {translate('frontend/src/lib/components/NotebookEditor.svelte::run_all')}
+          </button>
+          
+          <button class="btn btn-sm btn-ghost gap-2 font-bold opacity-70 hover:opacity-100" on:click={exportNotebook} aria-label={translate('frontend/src/lib/components/NotebookEditor.svelte::download')}>
+             <Download size={14} />
+             <span class="hidden sm:inline">{translate('frontend/src/lib/components/NotebookEditor.svelte::download').replace(' (.ipynb)', '')}</span>
+          </button>
+
+          {#if $auth?.role === 'teacher' && fileId}
+            <button class="btn btn-sm btn-primary gap-2 font-bold shadow-lg shadow-primary/20" on:click={saveNotebook} aria-label={translate('frontend/src/lib/components/NotebookEditor.svelte::save_notebook_aria_label')}>
+               <Save size={14} />
+               {translate('frontend/src/lib/components/NotebookEditor.svelte::save')}
+            </button>
+          {/if}
+       </div>
     </div>
-    {#if showBottomButton}
-      <div class="flex justify-end gap-2">
-        <button
-          on:click={runAllCells}
-          class="px-3 py-1 rounded text-green-600 hover:text-white hover:bg-green-600 hover:scale-110 transition-transform"
-        >
-          {translate('frontend/src/lib/components/NotebookEditor.svelte::run_all')}
+
+    <!-- Cells Container -->
+    <div class="space-y-6">
+      {#each nb.cells as cell, i (cell.id)}
+        <div class="relative group">
+           {#if cell.cell_type === "code"}
+             <CodeCell
+               {cell}
+               index={i}
+               bind:this={cellRefs[i]}
+             />
+           {:else}
+             <MarkdownCell
+               {cell}
+               index={i}
+               bind:this={cellRefs[i]}
+             />
+           {/if}
+        </div>
+      {/each}
+    </div>
+
+    <!-- Bottom Add Buttons -->
+    <div class="flex items-center justify-center gap-4 py-12 border-t border-base-200 border-dashed opacity-60 hover:opacity-100 transition-opacity">
+        <button class="btn btn-ghost gap-2" on:click={() => addCell("code")}>
+           <Plus size={16} /> 
+           {translate('frontend/src/lib/components/NotebookEditor.svelte::add_code_cell')}
         </button>
-        <button
-          on:click={exportNotebook}
-          aria-label={translate('frontend/src/lib/components/NotebookEditor.svelte::download')}
-          class="px-3 py-1 rounded text-gray-600 hover:text-white hover:bg-gray-600 hover:scale-110 transition-transform"
-        >
-          {translate('frontend/src/lib/components/NotebookEditor.svelte::download')}
+        <button class="btn btn-ghost gap-2" on:click={() => addCell("markdown")}>
+           <Plus size={16} />
+           {translate('frontend/src/lib/components/NotebookEditor.svelte::add_markdown_cell')}
         </button>
-      </div>
-    {/if}
+    </div>
   </div>
 {:else}
-  <p>{translate('frontend/src/lib/components/NotebookEditor.svelte::loading')}</p>
+  <div class="flex flex-col items-center justify-center py-20 text-center gap-4">
+     <span class="loading loading-spinner loading-lg text-primary"></span>
+     <p class="font-medium opacity-50 tracking-widest uppercase text-xs">
+       {translate('frontend/src/lib/components/NotebookEditor.svelte::loading')}
+     </p>
+  </div>
 {/if}
