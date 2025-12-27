@@ -114,21 +114,17 @@ import { Play, Download, Save, Plus, FileText, Code as CodeIcon, Check } from 'l
     <div class="sticky top-4 z-40 bg-base-100/80 backdrop-blur-2xl rounded-[2rem] border border-white/20 p-3 flex flex-wrap items-center justify-between gap-4 shadow-2xl shadow-primary/10 ring-1 ring-base-content/5 transition-all duration-300 mx-1">
        
        <!-- Left: Add Cells -->
-       <div class="flex items-center gap-1 bg-base-200/50 rounded-2xl p-1.5 border border-base-content/5 shadow-inner">
+       <div class="flex items-center gap-1 bg-base-content/[0.03] rounded-2xl p-1 border border-base-content/5">
           <div class="tooltip tooltip-bottom tooltip-delayed px-1" data-tip={translate('frontend/src/lib/components/NotebookEditor.svelte::add_code_cell')}>
-             <button class="btn btn-sm btn-ghost hover:bg-primary/10 hover:text-primary rounded-xl gap-2 text-xs font-black transition-all" on:click={() => addCell("code")}>
-                <div class="w-6 h-6 rounded-lg bg-primary/20 flex items-center justify-center text-primary shadow-sm group-hover:scale-110 transition-transform">
-                  <CodeIcon size={14} />
-                </div>
+             <button class="btn btn-sm btn-ghost hover:bg-primary/[0.08] hover:text-primary rounded-[14px] gap-2.5 text-[11px] font-black tracking-wider transition-all h-9 min-h-0 px-4 group/btn" on:click={() => addCell("code")}>
+                <CodeIcon size={15} strokeWidth={2.5} class="transition-transform group-hover/btn:scale-110" />
                 CODE
              </button>
           </div>
-          <div class="w-px h-5 bg-base-content/10 mx-1"></div>
+          <div class="w-[1px] h-4 bg-base-content/10 mx-0.5"></div>
           <div class="tooltip tooltip-bottom tooltip-delayed px-1" data-tip={translate('frontend/src/lib/components/NotebookEditor.svelte::add_markdown_cell')}>
-             <button class="btn btn-sm btn-ghost hover:bg-secondary/10 hover:text-secondary rounded-xl gap-2 text-xs font-black transition-all" on:click={() => addCell("markdown")}>
-                <div class="w-6 h-6 rounded-lg bg-secondary/20 flex items-center justify-center text-secondary shadow-sm group-hover:scale-110 transition-transform">
-                  <FileText size={14} />
-                </div>
+             <button class="btn btn-sm btn-ghost hover:bg-secondary/[0.08] hover:text-secondary rounded-[14px] gap-2.5 text-[11px] font-black tracking-wider transition-all h-9 min-h-0 px-4 group/btn" on:click={() => addCell("markdown")}>
+                <FileText size={15} strokeWidth={2.5} class="transition-transform group-hover/btn:scale-110" />
                 TEXT
              </button>
           </div>
@@ -136,22 +132,22 @@ import { Play, Download, Save, Plus, FileText, Code as CodeIcon, Check } from 'l
 
        <!-- Right: Actions -->
        <div class="flex items-center gap-2">
-          <button class="btn btn-sm bg-success/10 hover:bg-success/20 border-success/30 hover:border-success/50 text-success gap-2 font-black px-5 rounded-xl transition-all shadow-sm" on:click={() => runAllCells(true)}>
+          <button class="btn btn-sm bg-success/[0.08] hover:bg-success/[0.15] border border-success/20 hover:border-success/40 text-success gap-2.5 font-black px-6 rounded-xl transition-all h-9 min-h-0 shadow-sm shadow-success/5" on:click={() => runAllCells(true)}>
              <Play size={14} fill="currentColor" />
              {translate('frontend/src/lib/components/NotebookEditor.svelte::run_all')}
           </button>
           
-          <div class="h-6 w-px bg-base-content/10 mx-1"></div>
+          <div class="h-5 w-[1px] bg-base-content/10 mx-1.5"></div>
 
-          <button class="btn btn-sm btn-ghost gap-2 font-bold opacity-70 hover:opacity-100 hover:bg-base-200/50 rounded-xl px-4" on:click={exportNotebook} aria-label={translate('frontend/src/lib/components/NotebookEditor.svelte::download')}>
-             <Download size={14} />
-             <span class="hidden sm:inline">{translate('frontend/src/lib/components/NotebookEditor.svelte::download').replace(' (.ipynb)', '')}</span>
+          <button class="btn btn-sm btn-ghost gap-2.5 font-bold opacity-60 hover:opacity-100 hover:bg-base-content/[0.05] rounded-xl px-4 h-9 min-h-0 transition-all" on:click={exportNotebook} aria-label={translate('frontend/src/lib/components/NotebookEditor.svelte::download')}>
+             <Download size={15} />
+             <span class="hidden sm:inline text-xs">{translate('frontend/src/lib/components/NotebookEditor.svelte::download').replace(' (.ipynb)', '')}</span>
           </button>
 
           {#if $auth?.role === 'teacher' && fileId}
-            <button class="btn btn-sm btn-primary gap-2 font-black shadow-lg shadow-primary/30 rounded-xl px-6 hover:scale-[1.02] active:scale-95 transition-all" on:click={saveNotebook} aria-label={translate('frontend/src/lib/components/NotebookEditor.svelte::save_notebook_aria_label')}>
-               <Save size={14} />
-               {translate('frontend/src/lib/components/NotebookEditor.svelte::save')}
+            <button class="btn btn-sm btn-primary gap-2.5 font-black shadow-lg shadow-primary/20 rounded-xl px-6 h-9 min-h-0 hover:scale-[1.02] active:scale-95 transition-all" on:click={saveNotebook} aria-label={translate('frontend/src/lib/components/NotebookEditor.svelte::save_notebook_aria_label')}>
+               <Save size={15} />
+               <span class="text-xs">{translate('frontend/src/lib/components/NotebookEditor.svelte::save')}</span>
             </button>
           {/if}
        </div>
@@ -179,15 +175,15 @@ import { Play, Download, Save, Plus, FileText, Code as CodeIcon, Check } from 'l
           {#if $auth?.role === 'teacher'}
             <div class="relative py-2 flex items-center justify-center group/divider h-10 transition-all">
                 <div class="absolute inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-base-content/5 to-transparent group-hover/divider:via-primary/20 transition-all duration-500"></div>
-                <div class="flex gap-2 relative bg-base-100 p-1.5 rounded-2xl border border-base-200 shadow-xl opacity-0 scale-90 group-hover/divider:opacity-100 group-hover/divider:scale-100 pointer-events-none group-hover/divider:pointer-events-auto transition-all duration-300 z-10 hover:border-primary/30">
-                  <button class="btn btn-xs btn-ghost hover:bg-primary/10 text-primary gap-1.5 px-3 h-8 min-h-0 rounded-xl font-bold" on:click={() => insertCell(i, 'code', 'below')}>
-                    <CodeIcon size={12} />
-                    <span class="text-[10px] uppercase tracking-wider">{translate('frontend/src/lib/components/NotebookEditor.svelte::add_code_cell').split(' ')[1]}</span>
+                <div class="flex gap-1 relative bg-base-100/90 backdrop-blur-md p-1 rounded-[18px] border border-base-200 shadow-2xl opacity-0 scale-95 group-hover/divider:opacity-100 group-hover/divider:scale-100 pointer-events-none group-hover/divider:pointer-events-auto transition-all duration-300 z-10 hover:border-primary/30">
+                  <button class="btn btn-xs btn-ghost hover:bg-primary/[0.08] text-primary gap-2 px-3 h-8 min-h-0 rounded-xl font-black text-[10px] tracking-wider transition-all" on:click={() => insertCell(i, 'code', 'below')}>
+                    <CodeIcon size={13} strokeWidth={2.5} />
+                    {translate('frontend/src/lib/components/NotebookEditor.svelte::add_code_cell').split(' ').pop()?.toUpperCase() || 'CODE'}
                   </button>
-                  <div class="w-px h-4 bg-base-content/10 my-auto"></div>
-                  <button class="btn btn-xs btn-ghost hover:bg-secondary/10 text-secondary gap-1.5 px-3 h-8 min-h-0 rounded-xl font-bold" on:click={() => insertCell(i, 'markdown', 'below')}>
-                    <FileText size={12} />
-                    <span class="text-[10px] uppercase tracking-wider">{translate('frontend/src/lib/components/NotebookEditor.svelte::add_markdown_cell').split(' ')[1]}</span>
+                  <div class="w-[1px] h-3.5 bg-base-content/10 my-auto mx-0.5"></div>
+                  <button class="btn btn-xs btn-ghost hover:bg-secondary/[0.08] text-secondary gap-2 px-3 h-8 min-h-0 rounded-xl font-black text-[10px] tracking-wider transition-all" on:click={() => insertCell(i, 'markdown', 'below')}>
+                    <FileText size={13} strokeWidth={2.5} />
+                    {translate('frontend/src/lib/components/NotebookEditor.svelte::add_markdown_cell').split(' ').pop()?.toUpperCase() || 'TEXT'}
                   </button>
                 </div>
             </div>
