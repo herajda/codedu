@@ -146,7 +146,7 @@ import { Play, Download, Save, Plus, FileText, Code as CodeIcon } from 'lucide-s
     </div>
 
     <!-- Cells Container -->
-    <div class="space-y-6">
+    <div class="flex flex-col gap-2">
       {#each nb.cells as cell, i (cell.id)}
         <div class="relative group hover:z-30">
            {#if cell.cell_type === "code"}
@@ -164,18 +164,20 @@ import { Play, Download, Save, Plus, FileText, Code as CodeIcon } from 'lucide-s
            {/if}
         </div>
         {#if i < nb.cells.length - 1}
-          <div class="h-6 -my-3 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity z-20 relative group/divider">
-              <div class="absolute inset-x-0 h-px bg-primary/20 scale-x-0 group-hover/divider:scale-x-100 transition-transform"></div>
-              <div class="flex gap-1 relative bg-base-100 px-1 rounded-full border border-base-200 shadow-sm py-0.5 transform scale-0 group-hover/divider:scale-100 transition-transform duration-200">
-                <button class="btn btn-xs btn-ghost btn-circle text-primary w-6 h-6 min-h-0" on:click={() => insertCell(i + 1, 'code')} title={translate('frontend/src/lib/components/NotebookEditor.svelte::add_code_cell')}>
-                  <CodeIcon size={12} />
-                </button>
-                <div class="w-px h-3 bg-base-content/10 my-auto"></div>
-                <button class="btn btn-xs btn-ghost btn-circle text-secondary w-6 h-6 min-h-0" on:click={() => insertCell(i + 1, 'markdown')} title={translate('frontend/src/lib/components/NotebookEditor.svelte::add_markdown_cell')}>
-                  <FileText size={12} />
-                </button>
-              </div>
-          </div>
+          {#if $auth?.role === 'teacher'}
+            <div class="relative py-3 flex items-center justify-center group/divider">
+                <div class="absolute inset-x-0 h-px bg-base-content/5 group-hover/divider:bg-base-content/10 transition-colors"></div>
+                <div class="flex gap-1 relative bg-base-100 px-2 rounded-full border border-base-200 shadow-sm py-1 z-10">
+                  <button class="btn btn-xs btn-ghost btn-circle text-primary w-6 h-6 min-h-0" on:click={() => insertCell(i, 'code', 'below')} title={translate('frontend/src/lib/components/NotebookEditor.svelte::add_code_cell')}>
+                    <CodeIcon size={14} />
+                  </button>
+                  <div class="w-px h-3 bg-base-content/10 my-auto"></div>
+                  <button class="btn btn-xs btn-ghost btn-circle text-secondary w-6 h-6 min-h-0" on:click={() => insertCell(i, 'markdown', 'below')} title={translate('frontend/src/lib/components/NotebookEditor.svelte::add_markdown_cell')}>
+                    <FileText size={14} />
+                  </button>
+                </div>
+            </div>
+          {/if}
         {/if}
       {/each}
     </div>

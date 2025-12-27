@@ -201,7 +201,7 @@
                         <FileCode size={20} />
                       </div>
                       <span class="bg-clip-text text-transparent bg-gradient-to-r from-base-content to-base-content/70">
-                        {fileName || $notebookStore?.metadata?.name || $notebookStore?.metadata?.title || 'Notebook'}
+                        {(fileName?.replace(/\.ipynb$/, '')) || $notebookStore?.metadata?.name || $notebookStore?.metadata?.title || 'Notebook'}
                       </span>
                    {/if}
                 </h1>
