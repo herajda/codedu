@@ -10,7 +10,7 @@
   import '@fortawesome/fontawesome-free/css/all.min.css';
   import { beforeNavigate, goto } from '$app/navigation';
   import { t } from '$lib/i18n';
-  import { ArrowLeft, Image as ImageIcon, FileCode } from 'lucide-svelte';
+  import { ArrowLeft, Image as ImageIcon, FileCode, BookOpen } from 'lucide-svelte';
 
   let notebookEditor: InstanceType<typeof NotebookEditor> | undefined;
   let unsavedModal: InstanceType<typeof UnsavedChangesModal> | undefined;
@@ -176,31 +176,31 @@
 <div class="min-h-screen bg-base-100 p-2 sm:p-4 lg:p-6">
   <div class="w-full max-w-[1920px] mx-auto space-y-6">
     <!-- Header -->
-    <header class="relative bg-base-100 rounded-3xl border border-base-200 shadow-xl shadow-primary/5 p-4 sm:p-6 flex items-center justify-between gap-4 overflow-hidden group">
+    <header class="relative bg-base-100 rounded-3xl border border-base-200 shadow-xl shadow-secondary/5 p-4 sm:p-6 flex items-center justify-between gap-4 overflow-hidden group">
         <div class="absolute inset-0 pointer-events-none overflow-hidden rounded-3xl">
-             <div class="absolute top-0 right-0 w-2/3 h-full bg-gradient-to-l from-primary/10 via-primary/5 to-transparent opacity-60"></div>
+             <div class="absolute top-0 right-0 w-2/3 h-full bg-gradient-to-l from-secondary/10 via-secondary/5 to-transparent opacity-60"></div>
              <div class="absolute -top-10 -right-10 w-64 h-64 bg-secondary/10 rounded-full blur-3xl opacity-40 group-hover:opacity-60 transition-opacity duration-700"></div>
-             <div class="absolute bottom-0 right-20 w-48 h-48 bg-accent/10 rounded-full blur-2xl opacity-30 group-hover:opacity-50 transition-opacity duration-700"></div>
+             <div class="absolute bottom-0 right-20 w-48 h-48 bg-secondary/10 rounded-full blur-2xl opacity-30 group-hover:opacity-50 transition-opacity duration-700"></div>
         </div>
         
         <div class="relative z-10 flex items-center gap-4">
-             <button class="btn btn-circle btn-ghost hover:bg-base-200/50 hover:text-primary transition-colors" on:click={goBack} aria-label={t('frontend/src/routes/files/[id]/+page.svelte::Back to files')}>
+             <button class="btn btn-circle btn-ghost hover:bg-base-200/50 hover:text-secondary transition-colors" on:click={goBack} aria-label={t('frontend/src/routes/files/[id]/+page.svelte::Back to files')}>
                 <ArrowLeft size={22} />
              </button>
              <div>
                 <h1 class="text-xl sm:text-2xl font-black tracking-tight flex items-center gap-3">
                    {#if isImage}
-                      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-primary shadow-sm">
+                      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-secondary/20 to-primary/20 flex items-center justify-center text-secondary shadow-sm">
                         <ImageIcon size={20} />
                       </div>
-                      <span class="bg-clip-text text-transparent bg-gradient-to-r from-base-content to-base-content/70">
+                      <span class="text-base-content">
                         {t('frontend/src/routes/files/[id]/+page.svelte::image_viewer') || 'Image Viewer'}
                       </span>
                    {:else}
-                      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-primary shadow-sm">
-                        <FileCode size={20} />
+                      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-secondary/20 to-primary/20 flex items-center justify-center text-secondary shadow-sm">
+                        <BookOpen size={20} />
                       </div>
-                      <span class="bg-clip-text text-transparent bg-gradient-to-r from-base-content to-base-content/70">
+                      <span class="text-base-content">
                         {(fileName?.replace(/\.ipynb$/, '')) || $notebookStore?.metadata?.name || $notebookStore?.metadata?.title || 'Notebook'}
                       </span>
                    {/if}
