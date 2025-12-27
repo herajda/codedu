@@ -230,6 +230,7 @@
   "frontend/src/lib/components/NotebookEditor.svelte::save": "Uložit",
   "frontend/src/lib/components/NotebookEditor.svelte::save_notebook_aria_label": "Uložit poznámkový blok",
   "frontend/src/lib/components/NotebookEditor.svelte::saved_alert": "Uloženo!",
+  "frontend/src/lib/components/NotebookEditor.svelte::saved_success": "Úspěšně uloženo",
   "frontend/src/lib/components/PromptModal.svelte::cancel": "Zrušit",
   "frontend/src/lib/components/PromptModal.svelte::close_button": "zavřít",
   "frontend/src/lib/components/PromptModal.svelte::enter_a_value": "Zadejte hodnotu",

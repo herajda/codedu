@@ -8,9 +8,10 @@ import { serializeNotebook } from "$lib/notebook";
 import { apiFetch } from "$lib/api";
 import { auth } from "$lib/auth";
 import { onMount, afterUpdate, createEventDispatcher } from 'svelte';
+import { fade, fly } from 'svelte/transition';
 import { preloadPyodide } from '$lib/pyodide';
 import { t, translator } from '$lib/i18n';
-import { Play, Download, Save, Plus, FileText, Code as CodeIcon } from 'lucide-svelte';
+import { Play, Download, Save, Plus, FileText, Code as CodeIcon, Check } from 'lucide-svelte';
 
   export let fileId: string | number | undefined;
   export let fileName: string | undefined = undefined;
@@ -22,6 +23,9 @@ import { Play, Download, Save, Plus, FileText, Code as CodeIcon } from 'lucide-s
   let cellRefs: any[] = [];
   const { saveAs } = pkg;
   const dispatch = createEventDispatcher();
+
+  let showSavedMessage = false;
+  let saveTimeout: any;
 
   let container: HTMLDivElement | null = null;
   // Removed showBottomButton logic as we use sticky header now
@@ -85,7 +89,13 @@ import { Play, Download, Save, Plus, FileText, Code as CodeIcon } from 'lucide-s
         headers: { 'Content-Type': 'application/json' },
         body: json
       });
-      alert(t('frontend/src/lib/components/NotebookEditor.svelte::saved_alert'));
+      
+      showSavedMessage = true;
+      if (saveTimeout) clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(() => {
+        showSavedMessage = false;
+      }, 3000);
+      
       dispatch('saved');
     } else {
       const blob = new Blob([json], { type: 'application/json' });
@@ -223,3 +233,30 @@ import { Play, Download, Save, Plus, FileText, Code as CodeIcon } from 'lucide-s
      </div>
   </div>
 {/if}
+
+{#if showSavedMessage}
+  <div class="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100]" in:fly={{ y: 20, duration: 400 }} out:fade={{ duration: 300 }}>
+    <div class="bg-base-100/90 backdrop-blur-2xl border border-success/30 px-6 py-3.5 rounded-2xl shadow-2xl flex items-center gap-4 ring-1 ring-black/5">
+      <div class="w-10 h-10 rounded-xl bg-success/20 flex items-center justify-center text-success shadow-inner">
+        <Check size={20} strokeWidth={3} />
+      </div>
+      <div class="flex flex-col">
+        <span class="font-black text-sm tracking-tight text-base-content uppercase">{translate('frontend/src/lib/components/NotebookEditor.svelte::saved_success')}</span>
+        <span class="text-[10px] opacity-60 font-medium">{translate('frontend/src/lib/components/NotebookEditor.svelte::save_notebook_aria_label')}</span>
+      </div>
+      <div class="ml-4 w-12 h-1 bg-success/10 rounded-full overflow-hidden relative">
+        <div class="absolute inset-0 bg-success/40 animate-progress"></div>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<style>
+  @keyframes progress {
+    from { width: 100%; }
+    to { width: 0%; }
+  }
+  .animate-progress {
+    animation: progress 3s linear forwards;
+  }
+</style>

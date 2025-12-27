@@ -230,6 +230,7 @@
   "frontend/src/lib/components/NotebookEditor.svelte::save": "Save",
   "frontend/src/lib/components/NotebookEditor.svelte::save_notebook_aria_label": "Save notebook",
   "frontend/src/lib/components/NotebookEditor.svelte::saved_alert": "Saved!",
+  "frontend/src/lib/components/NotebookEditor.svelte::saved_success": "Saved successfully",
   "frontend/src/lib/components/PromptModal.svelte::cancel": "Cancel",
   "frontend/src/lib/components/PromptModal.svelte::close_button": "close",
   "frontend/src/lib/components/PromptModal.svelte::enter_a_value": "Enter a value",
