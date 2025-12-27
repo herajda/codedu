@@ -5,12 +5,16 @@
   import { formatDateTime } from "$lib/date";
   import { goto } from '$app/navigation';
   import { auth } from '$lib/auth';
-  import '@fortawesome/fontawesome-free/css/all.min.css';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   import PromptModal from '$lib/components/PromptModal.svelte';
   import { t, translator } from '$lib/i18n';
   let translate;
   $: translate = $translator;
+  import { 
+    BookOpen, Upload, Plus, Search, LayoutGrid, List, 
+    ArrowUpDown, ChevronRight, Copy, Pencil, Trash2, 
+    RefreshCw, AlertCircle, Download, CloudDownload
+  } from 'lucide-svelte';
 
   import { TEACHER_GROUP_ID } from '$lib/teacherGroup';
 
@@ -20,6 +24,7 @@
   let role = '';
   $: role = $auth?.role ?? '';
 
+  let cls: any = null;
   let notes:any[] = [];
   let loading = true;
   let err = '';
@@ -109,7 +114,13 @@
   async function load(){
     loading = true; err = '';
     try {
-      notes = await apiJSON(`/api/classes/${id}/notebooks`);
+      const [notebooksData, classData] = await Promise.all([
+        apiJSON(`/api/classes/${id}/notebooks`),
+        apiJSON(`/api/classes/${id}`)
+      ]);
+      notes = notebooksData;
+      const detail = classData ?? null;
+      cls = detail?.class ?? detail ?? null;
     } catch(e:any){ err = e.message; }
     loading = false;
   }
@@ -396,177 +407,329 @@
   onMount(load);
 </script>
 
-<nav class="mb-4 sticky top-16 z-30 bg-base-200 rounded-box shadow px-4 py-2 flex items-center gap-2 flex-wrap">
-  <h1 class="text-xl font-semibold">{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::heading_notes')}</h1>
-  <div class="ml-auto flex items-center gap-2 w-full sm:w-auto justify-end">
-    <div class="relative flex items-center">
-      <i class="fa-solid fa-search absolute left-3 text-sm opacity-60"></i>
-       <input class="input input-sm input-bordered pl-8 w-full sm:w-48" placeholder={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::search_notes_placeholder')} bind:value={search} aria-label="Search notes" />
+<svelte:head>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap" rel="stylesheet">
+  <title>{cls?.name ? `${cls.name} | CodEdu` : 'Notes | CodEdu'}</title>
+</svelte:head>
+
+{#if loading && !cls}
+  <div class="flex justify-center mt-12">
+    <span class="loading loading-dots loading-lg text-primary"></span>
+  </div>
+{:else if err}
+  <div class="p-8 text-center bg-base-100 rounded-[2rem] border border-base-200 shadow-sm">
+    <div class="w-16 h-16 bg-error/10 text-error rounded-full flex items-center justify-center mx-auto mb-4">
+      <AlertCircle size={32} />
     </div>
-      <div class="dropdown dropdown-end">
-        <button type="button" class="btn btn-sm" tabindex="0" aria-haspopup="listbox" aria-label="Sort options">
-          <i class="fa-solid fa-arrow-up-wide-short mr-2"></i>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::sort_button_label')}
+    <p class="text-error font-black uppercase tracking-widest text-xs mb-2">Error</p>
+    <p class="text-base-content/60">{err}</p>
+    <button class="btn btn-ghost btn-sm mt-4 gap-2" on:click={() => load()}>
+      <RefreshCw size={14} /> Retry
+    </button>
+  </div>
+{:else}
+  <!-- Premium Header -->
+  <section class="relative bg-base-100 rounded-3xl border border-base-200 shadow-xl shadow-base-300/30 mb-8 p-6 sm:p-10">
+    <div class="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none">
+      <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-secondary/5 to-transparent"></div>
+      <div class="absolute -top-24 -right-24 w-64 h-64 bg-secondary/10 rounded-full blur-3xl"></div>
+    </div>
+    <div class="relative flex flex-col md:flex-row items-center justify-between gap-6">
+      <div class="flex-1 text-center md:text-left">
+        <h1 class="text-3xl sm:text-4xl font-black tracking-tight mb-2">
+          {cls?.name || ''} <span class="text-secondary/40">/</span> {translate('frontend/src/routes/classes/[id]/notes/+page.svelte::heading_notes')}
+        </h1>
+        <p class="text-base-content/60 font-medium max-w-xl mx-auto md:mx-0">
+          Manage and organize your Jupyter notebooks for this class
+        </p>
+      </div>
+      
+      <div class="flex flex-wrap items-center gap-3">
+        {#if role === 'teacher' || role === 'admin'}
+          <div class="dropdown dropdown-end">
+            <button class="btn btn-secondary btn-sm rounded-xl gap-2 font-black uppercase tracking-widest text-[10px] h-10 px-4 shadow-lg shadow-secondary/20" type="button">
+              <Plus size={16} />
+              Create
+            </button>
+            <ul class="dropdown-content menu bg-base-100 rounded-2xl z-[50] w-56 p-2 shadow-2xl border border-base-200 mt-2">
+              <li class="menu-title px-4 py-2 text-[10px] font-black uppercase tracking-widest opacity-40">Actions</li>
+              <li><button type="button" on:click={promptNotebook} class="rounded-xl py-3"><BookOpen size={16} class="mr-2 text-secondary" />{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::new_notebook_button')}</button></li>
+              <li><button type="button" on:click={promptUpload} class="rounded-xl py-3"><Upload size={16} class="mr-2 text-primary" />{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::upload_from_computer')}</button></li>
+              <li><button type="button" on:click={openImportFromTeachers} class="rounded-xl py-3"><CloudDownload size={16} class="mr-2 text-info" />{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::copy_from_teachers_group')}</button></li>
+            </ul>
+          </div>
+          <input bind:this={uploadInput} type="file" accept=".ipynb,application/x-ipynb+json,application/json" class="hidden" on:change={handleUploadChange} />
+        {/if}
+      </div>
+    </div>
+  </section>
+
+  <!-- Controls Bar -->
+  <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 px-2">
+    <!-- Search and View Toggle -->
+    <div class="flex flex-wrap items-center gap-3 justify-end w-full">
+      <div class="relative flex items-center">
+        <Search size={14} class="absolute left-3 opacity-40" />
+        <input 
+          type="text" 
+          class="input input-sm bg-base-100 border-base-200 focus:border-secondary/30 w-full sm:w-48 pl-9 rounded-xl font-medium text-xs h-9" 
+          placeholder={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::search_notes_placeholder')} 
+          bind:value={search} 
+        />
+      </div>
+
+      <div class="flex items-center bg-base-200/50 p-1 rounded-xl h-9">
+        <button 
+          title="Grid view"
+          class={`btn btn-xs border-none rounded-lg w-8 h-7 px-0 ${viewMode === 'grid' ? 'bg-base-100 shadow-sm text-secondary' : 'bg-transparent opacity-60'}`} 
+          on:click={() => { viewMode = 'grid'; localStorage.setItem('notesViewMode', 'grid'); }}
+        >
+          <LayoutGrid size={14} />
         </button>
-        <ul class="dropdown-content menu bg-base-200 rounded-box z-[1] w-44 p-2 shadow" tabindex="0" role="listbox">
-          <li><button type="button" class={sortKey==='name' ? 'active' : ''} on:click={() => sortKey='name'}>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::sort_option_name')}</button></li>
-          <li><button type="button" class={sortKey==='date' ? 'active' : ''} on:click={() => sortKey='date'}>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::sort_option_modified')}</button></li>
-          <li><button type="button" class={sortKey==='size' ? 'active' : ''} on:click={() => sortKey='size'}>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::sort_option_size')}</button></li>
-          <li class="mt-1"><button type="button" on:click={() => sortDir = sortDir==='asc' ? 'desc' : 'asc'}>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::sort_direction_label')}: {sortDir === 'asc' ? translate('frontend/src/routes/classes/[id]/notes/+page.svelte::sort_direction_asc') : translate('frontend/src/routes/classes/[id]/notes/+page.svelte::sort_direction_desc')}</button></li>
+        <button 
+          title="List view"
+          class={`btn btn-xs border-none rounded-lg w-8 h-7 px-0 ${viewMode === 'list' ? 'bg-base-100 shadow-sm text-secondary' : 'bg-transparent opacity-60'}`} 
+          on:click={() => { viewMode = 'list'; localStorage.setItem('notesViewMode', 'list'); }}
+        >
+          <List size={14} />
+        </button>
+      </div>
+
+      <div class="dropdown dropdown-end">
+        <button type="button" class="btn btn-sm bg-base-100 border-base-200 hover:bg-base-200 rounded-xl h-9 px-4 gap-2 border shadow-sm" tabindex="0">
+          <ArrowUpDown size={14} class="opacity-60" />
+          <span class="text-[10px] font-black uppercase tracking-widest leading-none">{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::sort_button_label')}</span>
+        </button>
+        <ul class="dropdown-content menu bg-base-100 rounded-2xl z-[50] w-48 p-2 shadow-2xl border border-base-200 mt-2" tabindex="0">
+          <li><button type="button" class={sortKey==='name' ? 'active' : ''} on:click={() => sortKey='name'} class:bg-secondary={sortKey==='name'} class:text-secondary-content={sortKey==='name'}>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::sort_option_name')}</button></li>
+          <li><button type="button" class={sortKey==='date' ? 'active' : ''} on:click={() => sortKey='date'} class:bg-secondary={sortKey==='date'} class:text-secondary-content={sortKey==='date'}>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::sort_option_modified')}</button></li>
+          <li><button type="button" class={sortKey==='size' ? 'active' : ''} on:click={() => sortKey='size'} class:bg-secondary={sortKey==='size'} class:text-secondary-content={sortKey==='size'}>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::sort_option_size')}</button></li>
+          <div class="divider my-1 opacity-10"></div>
+          <li>
+            <button type="button" on:click={() => sortDir = sortDir==='asc' ? 'desc' : 'asc'} class="justify-between">
+              <span>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::sort_direction_label')}</span>
+              <span class="font-black">{sortDir === 'asc' ? '↑' : '↓'}</span>
+            </button>
+          </li>
         </ul>
       </div>
-    <button class="btn btn-sm btn-circle" on:click={toggleView} title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::toggle_view_title')} aria-label="Toggle view">
-      {#if viewMode === 'grid'}
-        <i class="fa-solid fa-list"></i>
-      {:else}
-        <i class="fa-solid fa-th"></i>
-      {/if}
-    </button>
-    {#if role==='teacher' || role==='admin'}
-      <button class="btn btn-sm btn-outline" on:click={openImportFromTeachers} title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::copy_from_teachers_group')}><i class="fa-solid fa-cloud-arrow-down mr-2"></i>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::copy_from_teachers_group')}</button>
-      <button class="btn btn-sm" on:click={promptUpload} title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::upload_from_computer')}><i class="fa-solid fa-file-arrow-up mr-2"></i>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::upload_from_computer')}</button>
-      <button class="btn btn-sm btn-primary" on:click={promptNotebook}><i class="fa-solid fa-book-medical mr-2"></i>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::new_notebook_button')}</button>
-      <input bind:this={uploadInput} type="file" accept=".ipynb,application/x-ipynb+json,application/json" class="hidden" on:change={handleUploadChange} />
+    </div>
+  </div>
+
+  <!-- Notes List -->
+  <div class="relative min-h-[400px]">
+    {#if loading}
+      <div class="absolute inset-0 z-10 bg-base-100/10 backdrop-blur-[1px] flex items-center justify-center pointer-events-none">
+        <span class="loading loading-spinner text-secondary"></span>
+      </div>
+    {/if}
+
+    {#if viewMode === 'grid'}
+      <!-- ── GRID VIEW ── -->
+      <div class="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 mb-8">
+        {#each displayedNotes as n (n.id)}
+          <div 
+            class="group relative bg-base-100 border border-base-200 rounded-[2rem] p-4 flex flex-col items-center gap-3 hover:shadow-xl hover:shadow-secondary/5 hover:border-secondary/20 transition-all cursor-pointer overflow-hidden"
+            on:click={() => open(n)}
+            on:keydown={(e)=> (e.key==='Enter'||e.key===' ') && open(n)}
+            role="button"
+            tabindex="0"
+            aria-label={`Open ${displayName(n.name)}`}
+          >
+            <div class="absolute top-0 right-0 w-12 h-12 bg-secondary/5 rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+            
+            <div class="w-16 h-16 flex items-center justify-center relative">
+              <div class="text-secondary group-hover:scale-110 transition-transform duration-300">
+                <BookOpen size={40} />
+              </div>
+            </div>
+
+            <div class="text-center w-full min-w-0">
+              <h3 class="font-black text-xs tracking-tight truncate px-1 group-hover:text-secondary transition-colors" title={n.name}>
+                {displayName(n.name)}
+              </h3>
+              <div class="text-[9px] font-bold uppercase tracking-widest opacity-40 mt-1 whitespace-nowrap">
+                {fmtSize(n.size)} •
+                {formatDateTime(n.updated_at).split(' ')[0]}
+              </div>
+            </div>
+
+            {#if role === 'teacher' || role === 'admin'}
+              <div class="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button class="btn btn-xs btn-circle bg-base-100 border-base-200 shadow-sm hover:text-secondary" title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::copy_to_teachers_group')} on:click|stopPropagation={() => openCopyToTeachers(n)}>
+                  <Copy size={10} />
+                </button>
+                <button class="btn btn-xs btn-circle bg-base-100 border-base-200 shadow-sm hover:text-secondary" title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::rename_tooltip')} on:click|stopPropagation={() => rename(n)}>
+                  <Pencil size={10} />
+                </button>
+                <button class="btn btn-xs btn-circle btn-error btn-outline border-none bg-base-100 shadow-sm" title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::delete_tooltip')} on:click|stopPropagation={() => del(n)}>
+                  <Trash2 size={10} />
+                </button>
+              </div>
+            {/if}
+          </div>
+        {:else}
+          <div class="col-span-full py-20 text-center bg-base-100/50 rounded-[3rem] border-2 border-dashed border-base-200 flex flex-col items-center justify-center">
+            <div class="w-16 h-16 rounded-full bg-base-200 flex items-center justify-center mb-4 opacity-30">
+              <BookOpen size={32} />
+            </div>
+            <p class="text-sm font-bold opacity-30 uppercase tracking-[0.2em]">
+              {translate('frontend/src/routes/classes/[id]/notes/+page.svelte::no_notes_message')}
+            </p>
+          </div>
+        {/each}
+      </div>
+
+    {:else}
+      <!-- ── LIST VIEW ── -->
+      <div class="bg-base-100 rounded-[2rem] border border-base-200 shadow-sm overflow-hidden mb-8">
+        <table class="table w-full">
+          <thead>
+            <tr class="border-b border-base-200 hover:bg-transparent">
+              <th class="bg-base-100 text-[10px] font-black uppercase tracking-widest opacity-40 py-5 pl-8">{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::table_header_name')}</th>
+              <th class="bg-base-100 text-[10px] font-black uppercase tracking-widest opacity-40 text-right py-5">{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::table_header_size')}</th>
+              <th class="bg-base-100 text-[10px] font-black uppercase tracking-widest opacity-40 text-right py-5 pr-8">{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::table_header_modified')}</th>
+              {#if role === 'teacher' || role === 'admin'}<th class="bg-base-100 w-24 pr-8"></th>{/if}
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-base-100">
+            {#each displayedNotes as n (n.id)}
+              <tr class="hover:bg-base-200/50 cursor-pointer group transition-colors" on:click={() => open(n)}>
+                <td class="py-4 pl-8">
+                  <div class="flex items-center gap-4">
+                    <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-secondary/10 text-secondary group-hover:scale-110 transition-transform">
+                      <BookOpen size={18} />
+                    </div>
+                    <div class="min-w-0">
+                      <div class="font-black text-sm tracking-tight truncate group-hover:text-secondary transition-colors">{displayName(n.name)}</div>
+                    </div>
+                  </div>
+                </td>
+                <td class="text-right text-xs font-medium opacity-60 tabular-nums py-4">{fmtSize(n.size)}</td>
+                <td class="text-right text-xs font-medium opacity-60 py-4 pr-8">{formatDateTime(n.updated_at)}</td>
+
+                {#if role === 'teacher' || role === 'admin'}
+                  <td class="text-right py-4 pr-8">
+                    <div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button class="btn btn-xs btn-circle btn-ghost" title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::copy_to_teachers_group')} on:click|stopPropagation={() => openCopyToTeachers(n)}>
+                        <Copy size={12} />
+                      </button>
+                      <button class="btn btn-xs btn-circle btn-ghost" title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::rename_tooltip')} on:click|stopPropagation={() => rename(n)}>
+                        <Pencil size={12} />
+                      </button>
+                      <button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::delete_tooltip')} on:click|stopPropagation={() => del(n)}>
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </td>
+                {/if}
+              </tr>
+            {:else}
+              <tr>
+                <td colspan={role === 'teacher' || role === 'admin' ? 4 : 3} class="py-20 text-center">
+                  <div class="flex flex-col items-center justify-center opacity-30">
+                    <BookOpen size={32} class="mb-2" />
+                    <p class="text-xs font-bold uppercase tracking-widest">{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::no_notes_message')}</p>
+                  </div>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
     {/if}
   </div>
-</nav>
-
-{#if loading}
-  <p>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::loading_message')}</p>
-{:else if err}
-  <p class="text-error">{err}</p>
-{:else}
-  {#if viewMode === 'grid'}
-    <div class="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-      {#each displayedNotes as n (n.id)}
-        <div role="button" tabindex="0" class="relative border rounded-box p-3 flex flex-col items-center group hover:shadow-lg hover:-translate-y-0.5 transition cursor-pointer" on:click={() => open(n)} on:keydown={(e)=> (e.key==='Enter'||e.key===' ') && open(n)} aria-label={`Open ${displayName(n.name)}`}>
-          <div class="text-4xl mb-2 text-secondary"><i class="fa-solid fa-book"></i></div>
-          <div class="text-sm font-medium break-all text-center">{displayName(n.name)}</div>
-          <div class="mt-1 text-xs text-gray-500 text-center">
-            <span>{fmtSize(n.size)}</span>
-            <span class="mx-1">·</span>
-            <span>{formatDateTime(n.updated_at)}</span>
-          </div>
-          {#if role==='teacher' || role==='admin'}
-            <div class="absolute top-1 right-1 hidden group-hover:flex gap-1">
-              <button class="btn btn-xs btn-circle btn-outline" title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::copy_to_teachers_group')} aria-label={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::copy_to_teachers_group')} on:click|stopPropagation={() => openCopyToTeachers(n)}>
-                <i class="fa-solid fa-copy"></i>
-              </button>
-              <button class="btn btn-xs btn-circle" title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::rename_tooltip')} aria-label="Rename" on:click|stopPropagation={() => rename(n)}>
-                <i class="fa-solid fa-pen"></i>
-              </button>
-              <button class="btn btn-xs btn-circle btn-error" title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::delete_tooltip')} aria-label="Delete" on:click|stopPropagation={() => del(n)}>
-                <i class="fa-solid fa-trash"></i>
-              </button>
-            </div>
-          {/if}
-        </div>
-      {/each}
-      {#if !displayedNotes.length}
-        <p class="col-span-full"><i>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::no_notes_message')}</i></p>
-      {/if}
-    </div>
-  {:else}
-    <div class="overflow-x-auto">
-      <table class="table table-zebra w-full">
-        <thead>
-          <tr>
-            <th class="text-left">{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::table_header_name')}</th>
-            <th class="text-right">{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::table_header_size')}</th>
-            <th class="text-right">{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::table_header_modified')}</th>
-            {#if role==='teacher' || role==='admin'}<th class="w-16"></th>{/if}
-          </tr>
-        </thead>
-        <tbody>
-          {#each displayedNotes as n (n.id)}
-            <tr class="hover:bg-base-200 cursor-pointer group" on:click={() => open(n)}>
-              <td class="whitespace-nowrap">
-                <i class="fa-solid fa-book text-secondary mr-2"></i>{displayName(n.name)}
-              </td>
-              <td class="text-right">{fmtSize(n.size)}</td>
-              <td class="text-right">{formatDateTime(n.updated_at)}</td>
-              {#if role==='teacher' || role==='admin'}
-                <td class="text-right whitespace-nowrap w-16">
-                  <button class="btn btn-xs btn-circle btn-outline invisible group-hover:visible" title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::copy_to_teachers_group')} aria-label={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::copy_to_teachers_group')} on:click|stopPropagation={() => openCopyToTeachers(n)}>
-                    <i class="fa-solid fa-copy"></i>
-                  </button>
-                  <button class="btn btn-xs btn-circle invisible group-hover:visible" title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::rename_tooltip')} aria-label="Rename" on:click|stopPropagation={() => rename(n)}>
-                    <i class="fa-solid fa-pen"></i>
-                  </button>
-                  <button class="btn btn-xs btn-circle btn-error invisible group-hover:visible" title={translate('frontend/src/routes/classes/[id]/notes/+page.svelte::delete_tooltip')} aria-label="Delete" on:click|stopPropagation={() => del(n)}>
-                    <i class="fa-solid fa-trash"></i>
-                  </button>
-                </td>
-              {/if}
-            </tr>
-          {/each}
-      {#if !displayedNotes.length}
-            <tr><td colspan={role==='teacher' || role==='admin' ? 4 : 3}><i>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::no_notes_message')}</i></td></tr>
-          {/if}
-        </tbody>
-      </table>
-    </div>
-{/if}
 {/if}
 
 <dialog bind:this={copyDialog} class="modal" on:close={resetCopyState}>
-  <div class="modal-box max-w-2xl space-y-4">
-    <h3 class="font-bold text-lg">{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::copy_to_teachers_group')}</h3>
+  <div class="modal-box max-w-2xl rounded-[2.5rem] p-8 space-y-6 shadow-2xl border border-base-200">
+    <div class="flex items-center gap-4">
+      <div class="w-12 h-12 bg-secondary/10 text-secondary rounded-2xl flex items-center justify-center">
+        <Copy size={24} />
+      </div>
+      <div>
+        <h3 class="font-black text-xl tracking-tight">{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::copy_to_teachers_group')}</h3>
+        <p class="text-xs font-medium opacity-50">Select destination and rename if needed</p>
+      </div>
+    </div>
+
     {#if copyItem}
-      <p class="text-sm text-base-content/70 break-all">Source notebook: {copyItem.name}</p>
+      <div class="bg-base-200/50 p-4 rounded-2xl flex items-center gap-3">
+        <div class="text-secondary opacity-40"><BookOpen size={16} /></div>
+        <span class="text-xs font-black tracking-tight opacity-60 truncate">Source: {copyItem.name}</span>
+      </div>
     {/if}
-    <div>
+
+    <div class="space-y-4">
       <div class="flex items-center justify-between">
-        <span class="text-sm font-medium">Destination folder</span>
-        <button type="button" class="btn btn-ghost btn-xs" on:click={() => loadTeacherFolders(copyParent)} disabled={copyLoading}>
-          <i class="fa-solid fa-rotate-right mr-1"></i>Refresh
+        <span class="text-[10px] font-black uppercase tracking-widest opacity-40">Destination Path</span>
+        <button type="button" class="btn btn-ghost btn-xs rounded-lg gap-2" on:click={() => loadTeacherFolders(copyParent)} disabled={copyLoading}>
+          <RefreshCw size={10} class={copyLoading ? 'animate-spin' : ''} /> Refresh
         </button>
       </div>
-      <nav class="text-xs mt-1">
-        <ul class="flex flex-wrap gap-1 items-center">
+      
+      <div class="bg-base-200/30 rounded-2xl p-4 border border-base-200">
+        <nav class="flex items-center gap-1 overflow-x-auto no-scrollbar">
           {#each copyBreadcrumbs as b, i}
-            <li class="after:mx-1 after:content-['/'] last:after:hidden">
-              <button type="button" class="link px-2 py-1 rounded hover:bg-base-300" on:click={() => copyCrumbTo(i)}>
+            <div class="flex items-center gap-1 shrink-0">
+              <button type="button" class={`btn btn-xs rounded-lg py-0 h-6 px-2 ${i === copyBreadcrumbs.length - 1 ? 'btn-neutral' : 'btn-ghost opacity-60'}`} on:click={() => copyCrumbTo(i)}>
                 {b.name}
               </button>
-            </li>
+              {#if i < copyBreadcrumbs.length - 1}
+                <ChevronRight size={10} class="opacity-20" />
+              {/if}
+            </div>
           {/each}
-        </ul>
-      </nav>
-      <p class="text-xs text-base-content/70 mt-1">Current folder: {teacherDestinationPath()}</p>
+        </nav>
+      </div>
     </div>
+
     {#if copyErr}
-      <div class="alert alert-error text-sm">
-        <i class="fa-solid fa-triangle-exclamation"></i>
-        <span>{copyErr}</span>
+      <div class="alert alert-error rounded-xl py-3 text-xs bg-error/10 text-error border-none font-bold">
+        <AlertCircle size={14} />
+        {copyErr}
       </div>
     {/if}
-    <label class="form-control w-full">
-      <div class="label">
-        <span class="label-text">Notebook name</span>
+
+    <div class="space-y-4">
+      <div class="form-control">
+        <label class="label pt-0 pb-1">
+          <span class="label-text text-[10px] font-black uppercase tracking-widest opacity-40">Notebook Name</span>
+        </label>
+        <input class="input input-bordered w-full rounded-xl bg-base-100 border-base-200 font-bold text-sm" bind:value={copyName} />
       </div>
-      <input class="input input-bordered w-full" bind:value={copyName} />
-    </label>
-    <div class="border border-base-300 rounded-box max-h-64 overflow-y-auto">
-      {#if copyLoading}
-        <div class="p-4 text-sm">Loading folders…</div>
-      {:else if !copyFolders.length}
-        <div class="p-4 text-sm opacity-70">No subfolders. Notebook will be placed in {teacherDestinationPath()}.</div>
-      {:else}
-        <ul class="menu menu-sm bg-base-200/40">
-          {#each copyFolders as folder}
-            <li>
-              <button type="button" on:click={() => openTeacherFolder(folder)}>
-                <i class="fa-solid fa-folder text-warning mr-2"></i>{folder.name}
-              </button>
-            </li>
-          {/each}
-        </ul>
-      {/if}
+
+      <div class="border border-base-200 rounded-2xl max-h-48 overflow-y-auto bg-base-100 shadow-inner">
+        {#if copyLoading}
+          <div class="p-8 text-center">
+            <span class="loading loading-spinner text-secondary"></span>
+          </div>
+        {:else if !copyFolders.length}
+          <div class="p-8 text-center opacity-40 italic text-xs">No subfolders. Notebook will be placed in root.</div>
+        {:else}
+          <ul class="menu menu-sm p-1">
+            {#each copyFolders as folder}
+              <li>
+                <button type="button" class="rounded-xl py-2 flex items-center justify-between group" on:click={() => openTeacherFolder(folder)}>
+                  <div class="flex items-center gap-2">
+                    <BookOpen size={14} class="text-secondary" />
+                    <span class="font-bold">{folder.name}</span>
+                  </div>
+                  <ChevronRight size={12} class="opacity-0 group-hover:opacity-40 transition-opacity" />
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </div>
     </div>
-    <div class="modal-action">
-      <form method="dialog"><button class="btn">Cancel</button></form>
-      <button class="btn btn-primary" on:click|preventDefault={doCopyToTeachers} disabled={copying}>
-        {#if copying}<span class="loading loading-dots loading-sm mr-2"></span>{/if}
+
+    <div class="flex items-center gap-3 pt-2">
+      <form method="dialog" class="flex-1"><button class="btn btn-ghost w-full rounded-2xl font-black uppercase tracking-widest text-[10px]">Cancel</button></form>
+      <button class="btn btn-secondary flex-1 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-secondary/20" on:click|preventDefault={doCopyToTeachers} disabled={copying}>
+        {#if copying}<span class="loading loading-spinner loading-xs mr-2"></span>{:else}<Copy size={14} class="mr-2" />{/if}
         Copy here
       </button>
     </div>
@@ -575,80 +738,100 @@
 </dialog>
 
 <dialog bind:this={importDialog} class="modal" on:close={resetImportState}>
-  <div class="modal-box max-w-3xl space-y-4">
-    <h3 class="font-bold text-lg">{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::copy_from_teachers_group')}</h3>
-    <div>
+  <div class="modal-box max-w-3xl rounded-[2.5rem] p-8 space-y-6 shadow-2xl border border-base-200">
+    <div class="flex items-center gap-4">
+      <div class="w-12 h-12 bg-info/10 text-info rounded-2xl flex items-center justify-center">
+        <CloudDownload size={24} />
+      </div>
+      <div>
+        <h3 class="font-black text-xl tracking-tight">{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::copy_from_teachers_group')}</h3>
+        <p class="text-xs font-medium opacity-50">Browse and select a notebook to copy</p>
+      </div>
+    </div>
+
+    <div class="space-y-4">
       <div class="flex items-center justify-between">
-        <span class="text-sm font-medium">Browse Teachers' notebooks</span>
-        <button type="button" class="btn btn-ghost btn-xs" on:click={() => loadTeacherNoteEntries(importParent)} disabled={importLoading}>
-          <i class="fa-solid fa-rotate-right mr-1"></i>Refresh
+        <span class="text-[10px] font-black uppercase tracking-widest opacity-40">Browse Teachers' Notebooks</span>
+        <button type="button" class="btn btn-ghost btn-xs rounded-lg gap-2" on:click={() => loadTeacherNoteEntries(importParent)} disabled={importLoading}>
+          <RefreshCw size={10} class={importLoading ? 'animate-spin' : ''} /> Refresh
         </button>
       </div>
-      <nav class="text-xs mt-1">
-        <ul class="flex flex-wrap gap-1 items-center">
+      
+      <div class="bg-base-200/30 rounded-2xl p-4 border border-base-200">
+        <nav class="flex items-center gap-1 overflow-x-auto no-scrollbar">
           {#each importBreadcrumbs as b, i}
-            <li class="after:mx-1 after:content-['/'] last:after:hidden">
-              <button type="button" class="link px-2 py-1 rounded hover:bg-base-300" on:click={() => importCrumbTo(i)}>
+            <div class="flex items-center gap-1 shrink-0">
+              <button type="button" class={`btn btn-xs rounded-lg py-0 h-6 px-2 ${i === importBreadcrumbs.length - 1 ? 'btn-neutral' : 'btn-ghost opacity-60'}`} on:click={() => importCrumbTo(i)}>
                 {b.name}
               </button>
-            </li>
+              {#if i < importBreadcrumbs.length - 1}
+                <ChevronRight size={10} class="opacity-20" />
+              {/if}
+            </div>
           {/each}
-        </ul>
-      </nav>
-      <p class="text-xs text-base-content/70 mt-1">Current folder: {importDestinationPath()}</p>
+        </nav>
+      </div>
     </div>
+
     {#if importErr}
-      <div class="alert alert-error text-sm">
-        <i class="fa-solid fa-triangle-exclamation"></i>
-        <span>{importErr}</span>
+      <div class="alert alert-error rounded-xl py-3 text-xs bg-error/10 text-error border-none font-bold">
+        <AlertCircle size={14} />
+        {importErr}
       </div>
     {/if}
-    <div class="border border-base-300 rounded-box max-h-72 overflow-y-auto">
+
+    <div class="border border-base-200 rounded-2xl max-h-72 overflow-y-auto bg-base-100 shadow-inner">
       {#if importLoading}
-        <div class="p-4 text-sm">Loading…</div>
+        <div class="p-8 text-center">
+          <span class="loading loading-spinner text-info"></span>
+        </div>
       {:else if !importFiles.length}
-        <div class="p-4 text-sm opacity-70">No notebooks here.</div>
+        <div class="p-8 text-center opacity-40 italic text-xs">No notebooks here.</div>
       {:else}
-        <table class="table table-zebra table-sm w-full">
+        <table class="table table-sm w-full">
           <thead>
-            <tr>
-              <th class="text-left">Name</th>
-              <th class="text-left">Type</th>
-              <th class="text-right">Modified</th>
+            <tr class="border-b border-base-200">
+              <th class="bg-base-100 text-[10px] font-black uppercase tracking-widest opacity-40">Name</th>
+              <th class="bg-base-100 text-[10px] font-black uppercase tracking-widest opacity-40">Type</th>
+              <th class="bg-base-100 text-[10px] font-black uppercase tracking-widest opacity-40 text-right">Modified</th>
             </tr>
           </thead>
           <tbody>
             {#each importFiles as item}
               <tr
-                class="hover:bg-base-200 cursor-pointer"
-                class:bg-base-300={selectedTeacherNote?.id === item.id}
+                class={`hover:bg-base-200/50 cursor-pointer transition-colors ${selectedTeacherNote?.id === item.id ? 'bg-secondary/10' : ''}`}
                 on:click={() => item.is_dir ? openImportFolder(item) : selectTeacherNote(item)}
               >
                 <td>
-                  {#if item.is_dir}
-                    <i class="fa-solid fa-folder text-warning mr-2"></i>{item.name}
-                  {:else}
-                    <i class="fa-solid fa-book text-secondary mr-2"></i>{item.name}
-                  {/if}
+                  <div class="flex items-center gap-2">
+                    {#if item.is_dir}
+                      <BookOpen size={14} class="text-warning" />
+                    {:else}
+                      <BookOpen size={14} class="text-secondary" />
+                    {/if}
+                    <span class="font-bold text-xs">{item.name}</span>
+                  </div>
                 </td>
-                <td>{item.is_dir ? 'Folder' : 'Notebook'}</td>
-                <td class="text-right">{formatDateTime(item.updated_at)}</td>
+                <td class="text-xs opacity-60">{item.is_dir ? 'Folder' : 'Notebook'}</td>
+                <td class="text-right text-xs opacity-60">{formatDateTime(item.updated_at)}</td>
               </tr>
             {/each}
           </tbody>
         </table>
       {/if}
     </div>
-    <label class="form-control w-full">
-      <div class="label">
-        <span class="label-text">New notebook name</span>
-      </div>
-      <input class="input input-bordered w-full" bind:value={importName} placeholder="e.g. Lesson Plan.ipynb" />
-    </label>
-    <div class="modal-action">
-      <form method="dialog"><button class="btn">Cancel</button></form>
-      <button class="btn btn-primary" on:click|preventDefault={doImportFromTeachers} disabled={importing || !selectedTeacherNote}>
-        {#if importing}<span class="loading loading-dots loading-sm mr-2"></span>{/if}
+
+    <div class="form-control">
+      <label class="label pt-0 pb-1">
+        <span class="label-text text-[10px] font-black uppercase tracking-widest opacity-40">New Notebook Name</span>
+      </label>
+      <input class="input input-bordered w-full rounded-xl bg-base-100 border-base-200 font-bold text-sm" bind:value={importName} placeholder="e.g. Lesson Plan.ipynb" />
+    </div>
+
+    <div class="flex items-center gap-3 pt-2">
+      <form method="dialog" class="flex-1"><button class="btn btn-ghost w-full rounded-2xl font-black uppercase tracking-widest text-[10px]">Cancel</button></form>
+      <button class="btn btn-info flex-1 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-info/20" on:click|preventDefault={doImportFromTeachers} disabled={importing || !selectedTeacherNote}>
+        {#if importing}<span class="loading loading-spinner loading-xs mr-2"></span>{:else}<CloudDownload size={14} class="mr-2" />{/if}
         Copy to class
       </button>
     </div>
