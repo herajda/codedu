@@ -12,6 +12,7 @@ import { fade, fly } from 'svelte/transition';
 import { preloadPyodide } from '$lib/pyodide';
 import { t, translator } from '$lib/i18n';
 import { Play, Download, Save, Plus, FileText, Code as CodeIcon, Check } from 'lucide-svelte';
+import PromptModal from "./PromptModal.svelte";
 
   export let fileId: string | number | undefined;
   export let fileName: string | undefined = undefined;
@@ -28,6 +29,7 @@ import { Play, Download, Save, Plus, FileText, Code as CodeIcon, Check } from 'l
   let saveTimeout: any;
 
   let container: HTMLDivElement | null = null;
+  let promptModal: InstanceType<typeof PromptModal>;
   // Removed showBottomButton logic as we use sticky header now
 
   onMount(() => {
@@ -71,19 +73,41 @@ import { Play, Download, Save, Plus, FileText, Code as CodeIcon, Check } from 'l
     return 'notebook.ipynb';
   }
 
-  function exportNotebook() {
+  async function exportNotebook() {
     if (!nb) return;
+    
+    let defaultName = deriveDownloadName();
+    const fileNameWithoutExt = defaultName.toLowerCase().endsWith('.ipynb') 
+      ? defaultName.slice(0, -6) 
+      : defaultName;
+
+    const chosenName = await promptModal?.open({
+      title: translate('frontend/src/lib/components/NotebookEditor.svelte::download'),
+      label: translate('frontend/src/lib/components/NotebookEditor.svelte::download_filename_prompt'),
+      initialValue: fileNameWithoutExt,
+      placeholder: translate('frontend/src/lib/components/NotebookEditor.svelte::download_filename_placeholder'),
+      confirmLabel: translate('frontend/src/lib/components/NotebookEditor.svelte::download').replace(' (.ipynb)', ''),
+      icon: 'fa-solid fa-file-download text-primary',
+      validate: (value) => value.trim() ? null : translate('frontend/src/lib/components/NotebookEditor.svelte::download_filename_prompt'),
+      transform: (value) => {
+        const trimmed = value.trim();
+        return trimmed.toLowerCase().endsWith('.ipynb') ? trimmed : `${trimmed}.ipynb`;
+      }
+    });
+
+    if (!chosenName) return;
+
     const json = serializeNotebook(nb);
     const blob = new Blob([json], { type: 'application/json' });
-    saveAs(blob, deriveDownloadName());
+    saveAs(blob, chosenName);
   }
 
   async function saveNotebook() {
     // Run all cells to include outputs; avoid blocking on input for save.
     await runAllCells(false);
 
-    const json = serializeNotebook(nb);
     if (fileId && $auth?.role === 'teacher') {
+      const json = serializeNotebook(nb);
       await apiFetch(`/api/files/${fileId}/content`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -98,8 +122,7 @@ import { Play, Download, Save, Plus, FileText, Code as CodeIcon, Check } from 'l
       
       dispatch('saved');
     } else {
-      const blob = new Blob([json], { type: 'application/json' });
-      saveAs(blob, 'notebook.ipynb');
+      await exportNotebook();
     }
   }
 
@@ -246,6 +269,8 @@ import { Play, Download, Save, Plus, FileText, Code as CodeIcon, Check } from 'l
     </div>
   </div>
 {/if}
+
+<PromptModal bind:this={promptModal} />
 
 <style>
   @keyframes progress {
