@@ -83,7 +83,7 @@
         aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_up')}
         title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_up')}
         on:click={() => moveCellUp(index)}
-        class="btn btn-xs btn-circle btn-ghost"
+        class="btn btn-xs btn-circle btn-ghost hover:bg-base-300"
       >
         <ArrowUp size={14} />
       </button>
@@ -91,7 +91,7 @@
         aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_down')}
         title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_down')}
         on:click={() => moveCellDown(index)}
-        class="btn btn-xs btn-circle btn-ghost"
+        class="btn btn-xs btn-circle btn-ghost hover:bg-base-300"
       >
         <ArrowDown size={14} />
       </button>
@@ -100,18 +100,18 @@
       aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::delete_cell')}
       title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::delete_cell')}
       on:click={() => deleteCell(index)}
-      class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10 mx-1"
+      class="btn btn-sm btn-circle btn-ghost text-error hover:bg-error/10 hover:text-error mx-1"
     >
-      <Trash2 size={14} />
+      <Trash2 size={16} />
     </button>
     
     <button
       aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::edit_cell')}
       title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::edit_cell')}
       on:click={toggle}
-      class="btn btn-xs btn-circle btn-ghost text-primary bg-primary/10 hover:bg-primary/20 mx-1"
+      class="btn btn-sm btn-circle btn-ghost text-primary bg-primary/10 hover:bg-primary/20 mx-1"
     >
-      <Edit size={14} />
+      <Edit size={16} />
     </button>
     
     <div class="relative dropdown dropdown-end dropdown-bottom {showInsert ? 'dropdown-open' : ''}">
@@ -119,7 +119,7 @@
         aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_cell')}
         title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_cell')}
         on:click={() => { showInsert = !showInsert; if (!showInsert) insertPos = null; }}
-        class="btn btn-xs btn-circle btn-ghost bg-secondary/10 text-secondary hover:bg-secondary/20 ml-1"
+        class="btn btn-sm btn-circle btn-ghost bg-secondary/10 text-secondary hover:bg-secondary/20 ml-1"
       >
         <Plus size={18} />
       </button>
@@ -183,31 +183,31 @@
         </button>
         
         <div class="flex gap-2 items-center ml-auto">
-          <div class="flex items-center gap-1 bg-base-200/50 p-1 rounded-xl border border-base-content/5">
+          <div class="flex items-center gap-1 bg-base-200/50 p-1 rounded-xl border border-base-content/5 shadow-sm">
             <button
               aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_up')}
               title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_up')}
               on:click={() => moveCellUp(index)}
-              class="btn btn-sm btn-square btn-ghost"
+              class="btn btn-xs btn-circle btn-ghost hover:bg-base-300"
             >
-              <ArrowUp size={16} />
+              <ArrowUp size={14} />
             </button>
             <button
               aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_down')}
               title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::move_cell_down')}
               on:click={() => moveCellDown(index)}
-              class="btn btn-sm btn-square btn-ghost"
+              class="btn btn-xs btn-circle btn-ghost hover:bg-base-300"
             >
-              <ArrowDown size={16} />
+              <ArrowDown size={14} />
             </button>
           </div>
           <button
             aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::delete_cell')}
             title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::delete_cell')}
             on:click={() => deleteCell(index)}
-            class="btn btn-sm btn-square btn-ghost text-error"
+            class="btn btn-sm btn-circle btn-ghost text-error hover:bg-error/10 hover:text-error mx-1"
           >
-            <Trash2 size={18} />
+            <Trash2 size={16} />
           </button>
           
           <div class="relative dropdown dropdown-end dropdown-top {showInsert ? 'dropdown-open' : ''}">
@@ -215,9 +215,9 @@
               aria-label={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_cell')}
               title={t('frontend/src/lib/components/cells/MarkdownCell.svelte::insert_cell')}
               on:click={() => { showInsert = !showInsert; if (!showInsert) insertPos = null; }}
-              class="btn btn-sm btn-square btn-ghost bg-secondary/10 text-secondary"
+              class="btn btn-sm btn-circle btn-ghost bg-secondary/10 text-secondary hover:bg-secondary/20"
             >
-              <Plus size={20} />
+              <Plus size={18} />
             </button>
             {#if showInsert}
               <ul class="dropdown-content z-50 menu p-2 shadow-2xl bg-base-100 rounded-2xl w-52 border border-base-200 mb-2 ring-1 ring-black/5 animate-in fade-in zoom-in duration-200">
