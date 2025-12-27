@@ -20,6 +20,8 @@
   let editing = !cell.source;
 
   let editorRef: any;
+  let containerRef: HTMLDivElement;
+
 
   // keep a local string bound to the editor
   let sourceStr = Array.isArray(cell.source) ? cell.source.join("") : (cell.source ?? "");
@@ -31,10 +33,6 @@
   }
 
   async function toggle() {
-    if (editing) {
-      // clean up the EasyMDE instance before the component unmounts
-      editorRef?.destroyEditor?.();
-    }
     editing = !editing;
     if (editing) {
       sourceStr = Array.isArray(cell.source)
@@ -45,6 +43,16 @@
     }
   }
 
+  function handleFocusOut() {
+    // Small timeout to allow focus to settle (e.g. when clicking toolbar buttons)
+    setTimeout(() => {
+      if (editing && containerRef && !containerRef.contains(document.activeElement)) {
+        toggle();
+      }
+    }, 150);
+  }
+
+
   function onInput() {
     cell.source = sourceStr;
     // trigger store update so parent re-renders
@@ -53,8 +61,10 @@
 </script>
 
 <div
+  bind:this={containerRef}
   class="bg-base-100 rounded-2xl border-y border-r border-l-4 border-l-secondary/60 border-base-200 p-4 shadow-sm hover:shadow-lg transition-all group relative hover:border-l-secondary"
   on:dblclick={() => { if (!editing) toggle(); }}
+  on:focusout={handleFocusOut}
 >
   {#if !editing}
   <div class="absolute right-2 top-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-base-100/80 backdrop-blur-sm p-1 rounded-full border border-base-200 shadow-sm">
