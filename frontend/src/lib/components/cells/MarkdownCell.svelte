@@ -206,8 +206,34 @@
       </div>
     </div>
   {:else}
-    <div class="prose prose-sm max-w-none p-2">
+    <div class="prose prose-sm max-w-none p-2 prose-headings:font-bold prose-headings:text-base-content prose-p:text-base-content/80 prose-li:marker:text-base-content/50 prose-a:text-primary prose-code:text-secondary group-hover:prose-headings:text-primary transition-colors">
       {@html renderMarkdown(sourceStr)}
     </div>
   {/if}
 </div>
+
+<style>
+  :global(.prose ul) {
+    list-style-type: disc;
+    padding-left: 1.5em;
+  }
+
+  :global(.prose ol) {
+    list-style-type: decimal;
+    padding-left: 1.5em;
+  }
+
+  :global(.prose h1) {
+    font-size: 1.5em;
+    font-weight: bold;
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+  }
+
+  :global(.prose h2) {
+    font-size: 1.25em;
+    font-weight: bold;
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+  }
+</style>

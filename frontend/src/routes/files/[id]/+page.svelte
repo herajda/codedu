@@ -51,6 +51,7 @@
 
   let isImage = false;
   let imgUrl: string | null = null;
+  let fileName: string | undefined = undefined;
 
   async function load() {
     if (imgUrl) {
@@ -70,6 +71,13 @@
     } else {
       const text = await res.text();
       const nb = loadNotebook(text);
+      
+      const cd = res.headers.get('Content-Disposition');
+      if (cd) {
+        const match = cd.match(/filename="?([^"]+)"?/);
+        if (match) fileName = match[1];
+      }
+      
       originalNotebookSerialized = serializeNotebook(nb);
       notebookStore.set(nb);
       isImage = false;
@@ -193,7 +201,7 @@
                         <FileCode size={20} />
                       </div>
                       <span class="bg-clip-text text-transparent bg-gradient-to-r from-base-content to-base-content/70">
-                        {$notebookStore?.metadata?.name || $notebookStore?.metadata?.title || 'Notebook'}
+                        {fileName || $notebookStore?.metadata?.name || $notebookStore?.metadata?.title || 'Notebook'}
                       </span>
                    {/if}
                 </h1>
@@ -218,7 +226,7 @@
           </div>
        {:else}
           <!-- No extra container for notebook to let it blend -->
-          <NotebookEditor bind:this={notebookEditor} fileId={id} on:saved={handleSaved} />
+          <NotebookEditor bind:this={notebookEditor} fileId={id} fileName={fileName} on:saved={handleSaved} />
        {/if}
     </div>
   </div>

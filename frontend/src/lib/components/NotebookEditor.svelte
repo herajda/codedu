@@ -1,5 +1,5 @@
 <script lang="ts">
-import { notebookStore } from "$lib/stores/notebookStore";
+import { notebookStore, insertCell } from "$lib/stores/notebookStore";
 import pkg from "file-saver";
 import CodeCell from "./cells/CodeCell.svelte";
 import MarkdownCell from "./cells/MarkdownCell.svelte";
@@ -13,6 +13,7 @@ import { t, translator } from '$lib/i18n';
 import { Play, Download, Save, Plus, FileText, Code as CodeIcon } from 'lucide-svelte';
 
   export let fileId: string | number | undefined;
+  export let fileName: string | undefined = undefined;
   $: nb = $notebookStore;
 
   let translate: any;
@@ -51,6 +52,7 @@ import { Play, Download, Save, Plus, FileText, Code as CodeIcon } from 'lucide-s
   function deriveDownloadName(): string {
     if (!nb) return 'notebook.ipynb';
     const nameFields = [
+      fileName,
       nb?.metadata?.name,
       nb?.metadata?.title
     ];
@@ -161,6 +163,20 @@ import { Play, Download, Save, Plus, FileText, Code as CodeIcon } from 'lucide-s
              />
            {/if}
         </div>
+        {#if i < nb.cells.length - 1}
+          <div class="h-6 -my-3 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity z-20 relative group/divider">
+              <div class="absolute inset-x-0 h-px bg-primary/20 scale-x-0 group-hover/divider:scale-x-100 transition-transform"></div>
+              <div class="flex gap-1 relative bg-base-100 px-1 rounded-full border border-base-200 shadow-sm py-0.5 transform scale-0 group-hover/divider:scale-100 transition-transform duration-200">
+                <button class="btn btn-xs btn-ghost btn-circle text-primary w-6 h-6 min-h-0" on:click={() => insertCell(i + 1, 'code')} title={translate('frontend/src/lib/components/NotebookEditor.svelte::add_code_cell')}>
+                  <CodeIcon size={12} />
+                </button>
+                <div class="w-px h-3 bg-base-content/10 my-auto"></div>
+                <button class="btn btn-xs btn-ghost btn-circle text-secondary w-6 h-6 min-h-0" on:click={() => insertCell(i + 1, 'markdown')} title={translate('frontend/src/lib/components/NotebookEditor.svelte::add_markdown_cell')}>
+                  <FileText size={12} />
+                </button>
+              </div>
+          </div>
+        {/if}
       {/each}
     </div>
 

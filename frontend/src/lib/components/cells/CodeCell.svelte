@@ -313,7 +313,7 @@
         <Trash2 size={14} />
       </button>
 
-      <div class="relative dropdown dropdown-end dropdown-top {showInsert ? 'dropdown-open' : ''}">
+      <div class="relative dropdown dropdown-end dropdown-bottom {showInsert ? 'dropdown-open' : ''}">
         <button
           tabindex="0"
           role="button"
@@ -323,17 +323,14 @@
           title={t(
             "frontend/src/lib/components/cells/CodeCell.svelte::insert_cell",
           )}
-          on:click={() => {
-             // Reset state when toggling if needed
-             if (!showInsert) { showInsert = true; insertPos = null; } else { showInsert = false; }
-          }}
+          on:click={() => { showInsert = !showInsert; if (!showInsert) insertPos = null; }}
           class="btn btn-xs btn-circle btn-ghost opacity-60 hover:opacity-100"
         >
           <Plus size={14} />
         </button>
         
         {#if showInsert}
-          <ul class="dropdown-content z-[1] menu p-2 shadow-xl bg-base-100 rounded-box w-48 border border-base-200 mb-1">
+          <ul class="dropdown-content z-50 menu p-2 shadow-xl bg-base-100 rounded-box w-48 border border-base-200 mt-1">
             {#if !insertPos}
               <li>
                   <button on:click={() => (insertPos = "above")}>
