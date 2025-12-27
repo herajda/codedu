@@ -49,20 +49,36 @@
 
   // Persistent state for accordions to prevent unwanted collapses
   let openedSections: Record<string | number, boolean> = {};
+  let lastSection = '';
   
   $: {
-    // Aggressively ensure the current section is open based on the URL
+    // Only auto-open the section when the section actually changes (navigation)
+    // This allows manual collapse while staying within the same section
     if (currentPath) {
+      let foundSection = '';
+      
       $classesStore.classes.forEach(c => {
-        if (isSection(`/classes/${c.id}`)) {
-          openedSections[c.id] = true;
+        const sectionPath = `/classes/${c.id}`;
+        if (isSection(sectionPath)) {
+          foundSection = sectionPath;
+          if (lastSection !== sectionPath) {
+            openedSections[c.id] = true;
+          }
         }
       });
+
       if (isSection('/teachers')) {
-        openedSections['teachers'] = true;
+        foundSection = '/teachers';
+        if (lastSection !== '/teachers') {
+          openedSections['teachers'] = true;
+        }
       }
-      // Re-assign to trigger reactivity
-      openedSections = openedSections;
+
+      if (foundSection !== lastSection) {
+        lastSection = foundSection;
+        // Re-assign to trigger reactivity for the binding
+        openedSections = openedSections;
+      }
     }
   }
 </script>
