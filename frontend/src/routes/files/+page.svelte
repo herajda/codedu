@@ -636,65 +636,72 @@ onMount(() => {
       <div class="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 mb-8">
         {#each visible as it (it.id)}
           <div 
-            class="group relative bg-base-100 border border-base-200 rounded-[2rem] p-4 flex flex-col items-center gap-3 hover:shadow-xl hover:shadow-primary/5 hover:border-primary/20 transition-all cursor-pointer overflow-hidden"
+            class="group relative bg-base-100 hover:bg-gradient-to-br hover:from-base-100 hover:to-base-200/50 border border-base-200/60 rounded-[2.5rem] p-5 flex flex-col items-center gap-4 hover:shadow-xl hover:shadow-primary/5 hover:border-primary/20 hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden"
             on:click={() => open(it)}
           >
-            <div class="absolute top-0 right-0 w-12 h-12 bg-primary/5 rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+            <!-- Decorative background blob -->
+            <div class={`absolute top-0 right-0 w-24 h-24 rounded-bl-full transition-all duration-500 opacity-0 group-hover:opacity-100 ${it.is_dir ? 'bg-amber-400/10' : isImage(it.name) ? 'bg-purple-500/10' : 'bg-blue-500/10'}`}></div>
             
-            <div class="w-16 h-16 flex items-center justify-center relative">
+            <div class="w-20 h-20 flex items-center justify-center relative z-10">
               {#if it.is_dir}
-                <div class="text-warning group-hover:scale-110 transition-transform duration-300">
-                  <Folder size={48} fill="currentColor" fill-opacity="0.1" />
+                <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 text-amber-600 dark:text-amber-500 flex items-center justify-center shadow-sm group-hover:scale-110 group-hover:shadow-amber-500/20 transition-all duration-300">
+                  <Folder size={32} fill="currentColor" fill-opacity="0.2" />
                 </div>
               {:else if isImage(it.name)}
-                <div class="w-14 h-14 rounded-xl overflow-hidden shadow-sm group-hover:scale-110 transition-transform duration-300 ring-4 ring-base-200 group-hover:ring-primary/10 transition-all">
+                <div class="w-16 h-16 rounded-2xl overflow-hidden shadow-sm group-hover:scale-110 transition-transform duration-300 ring-2 ring-base-200 group-hover:ring-purple-500/30 relative">
                   <img src={`/api/files/${it.id}`} alt={it.name} class="w-full h-full object-cover" />
+                  <div class="absolute inset-0 ring-1 ring-inset ring-black/5 rounded-2xl"></div>
                 </div>
               {:else}
-                <div class="text-primary group-hover:scale-110 transition-transform duration-300">
-                  <svelte:component this={getIcon(it.name, it.is_dir)} size={40} />
+                <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shadow-sm group-hover:scale-110 group-hover:shadow-blue-500/20 transition-all duration-300">
+                  <svelte:component this={getIcon(it.name, it.is_dir)} size={32} strokeWidth={1.5} />
                 </div>
               {/if}
             </div>
 
-            <div class="text-center w-full min-w-0">
-              <h3 class="font-black text-xs tracking-tight truncate px-1 group-hover:text-primary transition-colors" title={it.name}>
+            <div class="text-center w-full min-w-0 z-10">
+              <h3 class="font-bold text-sm tracking-tight truncate px-2 text-base-content/90 group-hover:text-primary transition-colors" title={it.name}>
                 {it.is_dir ? it.name : displayName(it.name)}
               </h3>
-              <div class="text-[9px] font-bold uppercase tracking-widest opacity-40 mt-1 whitespace-nowrap">
-                {#if !it.is_dir}
-                  {fmtSize(it.size)} •
-                {/if}
-                {formatDateTime(it.updated_at).split(' ')[0]}
+              <div class="flex items-center justify-center gap-2 mt-1.5 opacity-50 group-hover:opacity-70 transition-opacity">
+                 <span class="text-[10px] font-bold uppercase tracking-wider">
+                  {#if !it.is_dir}
+                    {fmtSize(it.size)}
+                  {:else}
+                    Folder
+                  {/if}
+                 </span>
+                 <span class="w-0.5 h-0.5 rounded-full bg-base-content"></span>
+                 <span class="text-[10px] font-bold uppercase tracking-wider">{formatDateTime(it.updated_at).split(' ')[0]}</span>
               </div>
             </div>
 
             {#if role === 'teacher' || role === 'admin'}
-              <div class="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div class="absolute top-3 right-3 flex flex-col gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-2 group-hover:translate-x-0">
                 {#if !it.is_dir}
-                  <button class="btn btn-xs btn-circle bg-base-100 border-base-200 shadow-sm hover:text-primary" title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::copy_to_teachers_group')} on:click|stopPropagation={() => openCopyToTeachers(it)}>
-                    <Copy size={10} />
+                  <button class="btn btn-xs btn-circle bg-white/80 dark:bg-black/50 backdrop-blur border-none hover:bg-primary hover:text-primary-content shadow-sm transition-colors" title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::copy_to_teachers_group')} on:click|stopPropagation={() => openCopyToTeachers(it)}>
+                    <Copy size={12} />
                   </button>
                 {/if}
-                <button class="btn btn-xs btn-circle bg-base-100 border-base-200 shadow-sm hover:text-primary" title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::rename_tooltip')} on:click|stopPropagation={() => rename(it)}>
-                  <Pencil size={10} />
+                <button class="btn btn-xs btn-circle bg-white/80 dark:bg-black/50 backdrop-blur border-none hover:bg-primary hover:text-primary-content shadow-sm transition-colors" title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::rename_tooltip')} on:click|stopPropagation={() => rename(it)}>
+                  <Pencil size={12} />
                 </button>
-                <button class="btn btn-xs btn-circle btn-error btn-outline border-none bg-base-100 shadow-sm" title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::delete_tooltip')} on:click|stopPropagation={() => del(it)}>
-                  <Trash2 size={10} />
+                <button class="btn btn-xs btn-circle bg-white/80 dark:bg-black/50 backdrop-blur border-none hover:bg-error hover:text-error-content shadow-sm transition-colors" title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::delete_tooltip')} on:click|stopPropagation={() => del(it)}>
+                  <Trash2 size={12} />
                 </button>
               </div>
             {/if}
-
+            
             {#if search.trim() !== ''}
-              <div class="text-[8px] opacity-30 truncate w-full text-center mt-1">{it.path}</div>
+               <div class="absolute bottom-2 text-[9px] font-medium opacity-40 truncate max-w-[90%] bg-base-100/80 px-2 py-0.5 rounded-full">{it.path}</div>
             {/if}
           </div>
         {:else}
-          <div class="col-span-full py-20 text-center bg-base-100/50 rounded-[3rem] border-2 border-dashed border-base-200 flex flex-col items-center justify-center">
-             <div class="w-16 h-16 rounded-full bg-base-200 flex items-center justify-center mb-4 opacity-30">
-                <Folder size={32} />
+          <div class="col-span-full py-24 text-center bg-base-100/50 rounded-[3rem] border-2 border-dashed border-base-200 flex flex-col items-center justify-center group">
+             <div class="w-20 h-20 rounded-full bg-base-100 border border-base-200 flex items-center justify-center mb-6 shadow-sm group-hover:scale-110 transition-transform duration-500">
+                <Folder size={40} class="text-base-content/20" />
              </div>
-             <p class="text-sm font-bold opacity-30 uppercase tracking-[0.2em]">
+             <p class="text-xs font-black opacity-30 uppercase tracking-[0.2em]">
                {translate('frontend/src/routes/classes/[id]/files/+page.svelte::no_files_message')}
              </p>
           </div>
@@ -703,48 +710,48 @@ onMount(() => {
 
     {:else}
       <!-- ── LIST VIEW ── -->
-      <div class="bg-base-100 rounded-[2rem] border border-base-200 shadow-sm overflow-hidden mb-8">
+      <div class="bg-base-100 rounded-[2.5rem] border border-base-200 shadow-xl shadow-base-200/50 overflow-hidden mb-8">
         <table class="table w-full">
           <thead>
-            <tr class="border-b border-base-200 hover:bg-transparent">
-              <th class="bg-base-100 text-[10px] font-black uppercase tracking-widest opacity-40 py-5 pl-8">{translate('frontend/src/routes/classes/[id]/files/+page.svelte::table_header_name')}</th>
-              <th class="bg-base-100 text-[10px] font-black uppercase tracking-widest opacity-40 text-right py-5">{translate('frontend/src/routes/classes/[id]/files/+page.svelte::table_header_size')}</th>
-              <th class="bg-base-100 text-[10px] font-black uppercase tracking-widest opacity-40 text-right py-5 pr-8">{translate('frontend/src/routes/classes/[id]/files/+page.svelte::table_header_modified')}</th>
-              {#if role === 'teacher' || role === 'admin'}<th class="bg-base-100 w-24 pr-8"></th>{/if}
+            <tr class="border-b border-base-100">
+              <th class="bg-base-100/50 text-[10px] font-black uppercase tracking-widest opacity-40 py-6 pl-8">{translate('frontend/src/routes/classes/[id]/files/+page.svelte::table_header_name')}</th>
+              <th class="bg-base-100/50 text-[10px] font-black uppercase tracking-widest opacity-40 text-right py-6">{translate('frontend/src/routes/classes/[id]/files/+page.svelte::table_header_size')}</th>
+              <th class="bg-base-100/50 text-[10px] font-black uppercase tracking-widest opacity-40 text-right py-6 pr-8">{translate('frontend/src/routes/classes/[id]/files/+page.svelte::table_header_modified')}</th>
+              {#if role === 'teacher' || role === 'admin'}<th class="bg-base-100/50 w-32 pr-8"></th>{/if}
             </tr>
           </thead>
           <tbody class="divide-y divide-base-100">
             {#each visible as it (it.id)}
-              <tr class="hover:bg-base-200/50 cursor-pointer group transition-colors" on:click={() => open(it)}>
+              <tr class="hover:bg-base-50 transition-colors cursor-pointer group" on:click={() => open(it)}>
                 <td class="py-4 pl-8">
-                  <div class="flex items-center gap-4">
-                    <div class={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${it.is_dir ? 'bg-warning/10 text-warning' : 'bg-primary/10 text-primary'} group-hover:scale-110 transition-transform`}>
-                       <svelte:component this={getIcon(it.name, it.is_dir)} size={18} />
+                  <div class="flex items-center gap-5">
+                    <div class={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-110 duration-300 ${it.is_dir ? 'bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 text-amber-600' : 'bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 text-blue-600'}`}>
+                       <svelte:component this={getIcon(it.name, it.is_dir)} size={22} fill={it.is_dir ? "currentColor" : "none"} fill-opacity={it.is_dir ? "0.2" : "0"} strokeWidth={1.5} />
                     </div>
                     <div class="min-w-0">
-                       <div class="font-black text-sm tracking-tight truncate group-hover:text-primary transition-colors">{it.name}</div>
+                       <div class="font-bold text-sm tracking-tight truncate text-base-content/90 group-hover:text-primary transition-colors">{it.name}</div>
                        {#if search.trim() !== ''}
-                        <div class="text-[10px] opacity-30 truncate">{it.path}</div>
+                        <div class="text-[10px] opacity-40 truncate mt-0.5">{it.path}</div>
                        {/if}
                     </div>
                   </div>
                 </td>
-                <td class="text-right text-xs font-medium opacity-60 tabular-nums py-4">{it.is_dir ? '—' : fmtSize(it.size)}</td>
-                <td class="text-right text-xs font-medium opacity-60 py-4 pr-8">{formatDateTime(it.updated_at)}</td>
+                <td class="text-right text-xs font-bold opacity-50 tabular-nums py-4">{it.is_dir ? '—' : fmtSize(it.size)}</td>
+                <td class="text-right text-xs font-bold opacity-50 py-4 pr-8">{formatDateTime(it.updated_at)}</td>
 
                 {#if role === 'teacher' || role === 'admin'}
                   <td class="text-right py-4 pr-8">
-                    <div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-2 group-hover:translate-x-0">
                       {#if !it.is_dir}
-                        <button class="btn btn-xs btn-circle btn-ghost" title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::copy_to_teachers_group')} on:click|stopPropagation={() => openCopyToTeachers(it)}>
-                          <Copy size={12} />
+                        <button class="btn btn-xs btn-circle btn-ghost hover:bg-base-200 text-base-content/60 hover:text-primary" title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::copy_to_teachers_group')} on:click|stopPropagation={() => openCopyToTeachers(it)}>
+                          <Copy size={14} />
                         </button>
                       {/if}
-                      <button class="btn btn-xs btn-circle btn-ghost" title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::rename_tooltip')} on:click|stopPropagation={() => rename(it)}>
-                        <Pencil size={12} />
+                      <button class="btn btn-xs btn-circle btn-ghost hover:bg-base-200 text-base-content/60 hover:text-primary" title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::rename_tooltip')} on:click|stopPropagation={() => rename(it)}>
+                        <Pencil size={14} />
                       </button>
-                      <button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::delete_tooltip')} on:click|stopPropagation={() => del(it)}>
-                        <Trash2 size={12} />
+                      <button class="btn btn-xs btn-circle btn-ghost hover:bg-red-50 text-base-content/60 hover:text-error" title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::delete_tooltip')} on:click|stopPropagation={() => del(it)}>
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   </td>
@@ -752,10 +759,12 @@ onMount(() => {
               </tr>
             {:else}
                 <tr>
-                  <td colspan={role === 'teacher' || role === 'admin' ? 4 : 3} class="py-20 text-center">
+                  <td colspan={role === 'teacher' || role === 'admin' ? 4 : 3} class="py-24 text-center">
                     <div class="flex flex-col items-center justify-center opacity-30">
-                       <Folder size={32} class="mb-2" />
-                       <p class="text-xs font-bold uppercase tracking-widest">{translate('frontend/src/routes/classes/[id]/files/+page.svelte::no_files_message')}</p>
+                       <div class="w-16 h-16 rounded-full bg-base-200/50 flex items-center justify-center mb-4">
+                         <Folder size={32} />
+                       </div>
+                       <p class="text-xs font-black uppercase tracking-widest">{translate('frontend/src/routes/classes/[id]/files/+page.svelte::no_files_message')}</p>
                     </div>
                   </td>
                 </tr>

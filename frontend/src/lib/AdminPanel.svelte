@@ -10,6 +10,7 @@
   } from 'lucide-svelte';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   import PromptModal from '$lib/components/PromptModal.svelte';
+  import CustomSelect from '$lib/components/CustomSelect.svelte';
   import { t, translator } from '$lib/i18n';
 
   let translate;
@@ -378,6 +379,16 @@
     if (!confirmed) return;
     try { await apiFetch(`/api/users/${id}`, { method: 'DELETE' }); ok = t('frontend/src/lib/AdminPanel.svelte::user_deleted_success'); await loadUsers(); } catch (e: any) { err = e.message; }
   }
+
+  $: roleOptions = roles.map(r => ({
+    value: r,
+    label: r.charAt(0).toUpperCase() + r.slice(1)
+  }));
+
+  $: teacherOptions = teachers.map(t_user => ({
+    value: t_user.id,
+    label: userPrimary(t_user) + (t_user.name ? ` - ${t_user.email}` : '')
+  }));
   function exportUsersCSV() {
     const rows = [[t('frontend/src/lib/AdminPanel.svelte::user_csv_header_email'), t('frontend/src/lib/AdminPanel.svelte::user_csv_header_name'), t('frontend/src/lib/AdminPanel.svelte::user_csv_header_role'), t('frontend/src/lib/AdminPanel.svelte::user_csv_header_created')]]
       .concat(users.map(u => [u.email, u.name ?? '', u.role, formatDate(u.created_at)]));
@@ -859,9 +870,14 @@
                     </div>
                   </td>
                   <td>
-                    <select bind:value={u.role} on:change={(e)=>changeRole(u.id, (e.target as HTMLSelectElement).value)} class="select select-bordered select-sm">
-                      {#each roles as r}<option>{r}</option>{/each}
-                    </select>
+                    <div class="w-32">
+                      <CustomSelect 
+                        small 
+                        options={roleOptions} 
+                        bind:value={u.role} 
+                        on:change={(e) => changeRole(u.id, e.detail)}
+                      />
+                    </div>
                   </td>
                   <td>
                     <div class="flex flex-wrap gap-1">
@@ -965,12 +981,12 @@
       <div class="modal-box space-y-4">
         <h3 class="font-semibold">{t('frontend/src/lib/AdminPanel.svelte::create_class_modal_title')}</h3>
         <input class="input input-bordered w-full" placeholder={t('frontend/src/lib/AdminPanel.svelte::class_name_placeholder')} bind:value={newClassName} />
-        <select class="select select-bordered w-full" bind:value={newClassTeacherId}>
-          <option value={null} disabled selected>{t('frontend/src/lib/AdminPanel.svelte::select_teacher_option')}</option>
-          {#each teachers as t_teacher}
-            <option value={t_teacher.id}>{userPrimary(t_teacher)}{t_teacher.name ? ` - ${t_teacher.email}` : ''}</option>
-          {/each}
-        </select>
+        <CustomSelect 
+          searchable
+          options={teacherOptions} 
+          bind:value={newClassTeacherId} 
+          placeholder={t('frontend/src/lib/AdminPanel.svelte::select_teacher_option')}
+        />
         <div class="modal-action">
           <button class="btn" on:click={createClass}><Plus class="w-4 h-4" /> {t('frontend/src/lib/AdminPanel.svelte::create_button')}</button>
           <button class="btn btn-ghost" on:click={() => { showCreateClass = false; }}>{t('frontend/src/lib/AdminPanel.svelte::cancel_button')}</button>
@@ -985,12 +1001,12 @@
       <div class="modal-box space-y-4">
         <h3 class="font-semibold">{t('frontend/src/lib/AdminPanel.svelte::transfer_ownership_modal_title')}</h3>
         <p>{t('frontend/src/lib/AdminPanel.svelte::transfer_ownership_modal_body', { className: transferTarget.name || t('frontend/src/lib/AdminPanel.svelte::class_table_header') })}</p>
-        <select class="select select-bordered w-full" bind:value={transferTarget.to}>
-          <option value={null} disabled selected>{t('frontend/src/lib/AdminPanel.svelte::select_teacher_option')}</option>
-          {#each teachers as t_teacher}
-            <option value={t_teacher.id}>{userPrimary(t_teacher)}{t_teacher.name ? ` - ${t_teacher.email}` : ''}</option>
-          {/each}
-        </select>
+        <CustomSelect 
+          searchable
+          options={teacherOptions} 
+          bind:value={transferTarget.to} 
+          placeholder={t('frontend/src/lib/AdminPanel.svelte::select_teacher_option')}
+        />
         <div class="modal-action">
           <button class="btn" on:click={transferClass}><ArrowRightLeft class="w-4 h-4" /> {t('frontend/src/lib/AdminPanel.svelte::transfer_button')}</button>
           <button class="btn btn-ghost" on:click={() => transferTarget = null}>{t('frontend/src/lib/AdminPanel.svelte::cancel_button')}</button>
