@@ -925,18 +925,28 @@
           </div>
           <dialog bind:this={settingsDialog} class="modal">
             <div
-              class="modal-box max-w-3xl p-0 overflow-hidden flex flex-col max-h-[85vh]"
+              class="modal-box max-w-3xl p-0 overflow-hidden flex flex-col max-h-[85vh] rounded-3xl shadow-2xl bg-base-100"
             >
               <header
-                class="relative bg-gradient-to-r from-sky-600 via-sky-500 to-cyan-500 text-white px-6 py-6 shadow-lg sticky top-0 z-20"
+                class="relative bg-base-100 border-b border-base-200 sticky top-0 z-20"
               >
                 <div
-                  class="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between"
+                  class="absolute inset-0 overflow-hidden pointer-events-none"
                 >
-                  <div class="flex items-center gap-4">
-                    <div class="avatar">
+                  <div
+                    class="absolute top-0 right-0 w-full h-full bg-gradient-to-br from-primary/5 via-transparent to-transparent"
+                  ></div>
+                  <div
+                    class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl"
+                  ></div>
+                </div>
+                <div
+                  class="relative z-10 px-8 py-8 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div class="flex items-center gap-6">
+                    <div class="avatar shrink-0">
                       <div
-                        class="w-20 h-20 rounded-full ring-4 ring-white/30 shadow-lg overflow-hidden"
+                        class="w-28 h-28 rounded-full ring-4 ring-base-100 bg-base-100 shadow-xl overflow-hidden"
                       >
                         {#if avatarFile}
                           <img
@@ -964,7 +974,7 @@
                           />
                         {:else}
                           <div
-                            class="w-full h-full flex items-center justify-center text-3xl font-semibold bg-white/20 text-white"
+                            class="w-full h-full flex items-center justify-center text-4xl font-black bg-primary/10 text-primary"
                           >
                             {user?.role.slice(0, 1).toUpperCase()}
                           </div>
@@ -973,7 +983,7 @@
                     </div>
                     <div class="space-y-1">
                       <h3
-                        class="text-2xl font-semibold tracking-tight flex items-center gap-2"
+                        class="text-3xl font-black tracking-tight flex items-center gap-3 text-base-content"
                       >
                         {user?.name ??
                           translate(
@@ -981,21 +991,23 @@
                           )}
                         {#if user?.role}
                           <span
-                            class="badge badge-outline badge-sm border-white/40 text-white/80 bg-white/10 uppercase tracking-wide"
+                            class="badge badge-primary badge-outline badge-lg font-bold uppercase tracking-widest text-[10px]"
                           >
                             {user.role}
                           </span>
                         {/if}
                       </h3>
                       {#if user?.email}
-                        <p class="text-sm text-white/80">{user.email}</p>
+                        <p class="text-base font-medium text-base-content/60">
+                          {user.email}
+                        </p>
                       {/if}
                     </div>
                   </div>
                   <div class="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      class="btn btn-sm btn-outline border-white/40 text-white hover:border-white"
+                      class="btn btn-sm btn-primary rounded-xl font-bold uppercase tracking-wider h-10 px-4 gap-2"
                       class:btn-active={editingAvatar}
                       on:click={() => {
                         editingAvatar = !editingAvatar;
@@ -1017,7 +1029,7 @@
                     {#if user && user.bk_uid == null}
                       <button
                         type="button"
-                        class="btn btn-sm btn-outline border-white/40 text-white hover:border-white"
+                        class="btn btn-sm btn-ghost rounded-xl font-bold uppercase tracking-wider h-10 px-4 border border-base-200"
                         class:btn-active={editingName}
                         on:click={() => {
                           if (editingName) {
@@ -1038,13 +1050,16 @@
               </header>
 
               <div
-                class="space-y-6 bg-base-200/40 px-6 py-6 flex-1 overflow-y-auto"
+                class="space-y-6 p-6 sm:p-8 flex-1 overflow-y-auto bg-base-50/50"
               >
                 {#if editingAvatar}
                   <section
-                    class="card border border-primary/20 bg-base-100 shadow-lg"
+                    class="group bg-base-100 p-6 rounded-[2rem] border border-primary/20 shadow-lg hover:shadow-xl hover:shadow-primary/5 transition-all relative overflow-hidden"
                   >
-                    <div class="card-body gap-4">
+                    <div
+                      class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none group-hover:scale-150 transition-transform duration-700"
+                    ></div>
+                    <div class="relative z-10 flex flex-col gap-6">
                       <div
                         class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
                       >
@@ -1211,9 +1226,12 @@
                 {/if}
 
                 <section
-                  class="card border border-base-300/60 bg-base-100 shadow-sm"
+                  class="group bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all relative overflow-hidden"
                 >
-                  <div class="card-body gap-4">
+                  <div
+                    class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none group-hover:scale-150 transition-transform duration-700"
+                  ></div>
+                  <div class="relative z-10 flex flex-col gap-6">
                     <div
                       class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"
                     >
@@ -1313,9 +1331,12 @@
                 </section>
 
                 <section
-                  class="card border border-base-300/60 bg-base-100 shadow-sm"
+                  class="group bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all relative overflow-hidden"
                 >
-                  <div class="card-body gap-4">
+                  <div
+                    class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none group-hover:scale-150 transition-transform duration-700"
+                  ></div>
+                  <div class="relative z-10 flex flex-col gap-6">
                     <div class="space-y-2">
                       <h4 class="card-title text-lg">
                         {translate(
@@ -1375,9 +1396,12 @@
 
                 {#if user?.role === "student"}
                   <section
-                    class="card border border-base-300/60 bg-base-100 shadow-sm"
+                    class="group bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all relative overflow-hidden"
                   >
-                    <div class="card-body gap-4">
+                    <div
+                      class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none group-hover:scale-150 transition-transform duration-700"
+                    ></div>
+                    <div class="relative z-10 flex flex-col gap-6">
                       <div
                         class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"
                       >
@@ -1506,9 +1530,12 @@
                   </section>
                 {:else if user?.role === "teacher"}
                   <section
-                    class="card border border-base-300/60 bg-base-100 shadow-sm"
+                    class="group bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all relative overflow-hidden"
                   >
-                    <div class="card-body gap-4">
+                    <div
+                      class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none group-hover:scale-150 transition-transform duration-700"
+                    ></div>
+                    <div class="relative z-10 flex flex-col gap-6">
                       <div
                         class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"
                       >
@@ -1591,9 +1618,12 @@
 
                 {#if user && user.bk_uid == null}
                   <section
-                    class="card border border-base-300/60 bg-base-100 shadow-sm"
+                    class="group bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all relative overflow-hidden"
                   >
-                    <div class="card-body gap-4">
+                    <div
+                      class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none group-hover:scale-150 transition-transform duration-700"
+                    ></div>
+                    <div class="relative z-10 flex flex-col gap-6">
                       <div
                         class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
                       >
@@ -1629,9 +1659,12 @@
 
                   {#if hasBakalari}
                     <section
-                      class="card border border-base-300/60 bg-base-100 shadow-sm"
+                      class="group bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all relative overflow-hidden"
                     >
-                      <div class="card-body gap-4">
+                      <div
+                        class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none group-hover:scale-150 transition-transform duration-700"
+                      ></div>
+                      <div class="relative z-10 flex flex-col gap-6">
                         <div
                           class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"
                         >
@@ -1716,9 +1749,12 @@
                   {/if}
                 {:else if user && (!isValidEmail(user.email) || user.email_verified === false)}
                   <section
-                    class="card border border-base-300/60 bg-base-100 shadow-sm"
+                    class="group bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all relative overflow-hidden"
                   >
-                    <div class="card-body gap-4">
+                    <div
+                      class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none group-hover:scale-150 transition-transform duration-700"
+                    ></div>
+                    <div class="relative z-10 flex flex-col gap-6">
                       <div
                         class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"
                       >
@@ -1893,7 +1929,7 @@
               </div>
 
               <div
-                class="modal-action bg-base-100 px-6 py-4 border-t border-base-300/60 justify-between sticky bottom-0 z-20"
+                class="modal-action bg-base-100/80 backdrop-blur-xl px-8 py-6 border-t border-base-200 justify-between sticky bottom-0 z-20 m-0"
               >
                 <button
                   type="button"
@@ -1927,7 +1963,7 @@
             class="modal"
             on:cancel|preventDefault
           >
-            <div class="modal-box space-y-4 max-w-md">
+            <div class="modal-box space-y-4 max-w-md rounded-3xl shadow-2xl bg-base-100">
               <div class="flex items-center gap-3">
                 <img src="/bakalari-logo.svg" alt="Bakaláři" class="w-8 h-8" />
                 <h3 class="font-bold text-lg">
@@ -2074,7 +2110,7 @@
             <!-- No modal-backdrop to prevent closing -->
           </dialog>
           <dialog bind:this={passwordDialog} class="modal">
-            <div class="modal-box space-y-4">
+            <div class="modal-box space-y-4 rounded-3xl shadow-2xl bg-base-100">
               <h3 class="font-bold text-lg">
                 {translate(
                   "frontend/src/routes/+layout.svelte::change_password_dialog_title",
