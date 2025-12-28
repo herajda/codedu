@@ -1183,6 +1183,8 @@
   "frontend/src/routes/classes/[id]/settings/+page.svelte::delete_class_confirmation": "Tuto akci nelze vrátit zpět. Opravdu chcete smazat {name}?",
   "frontend/src/routes/classes/[id]/settings/+page.svelte::delete_class_warning": "Trvale smazat tuto třídu a všechna související data",
   "frontend/src/routes/classes/[id]/settings/+page.svelte::edit_description": "Upravit popis",
+  "frontend/src/routes/classes/[id]/settings/+page.svelte::settings_heading": "Nastavení",
+  "frontend/src/routes/classes/[id]/settings/+page.svelte::settings_description": "Spravujte nastavení třídy, aktualizujte popisy a efektivně organizujte své studenty.",
   "frontend/src/routes/classes/[id]/settings/+page.svelte::import_from_bakalari": "Import z Bakalářů",
   "frontend/src/routes/classes/[id]/settings/+page.svelte::imported_students": "Importováno {count} studentů",
   "frontend/src/routes/classes/[id]/settings/+page.svelte::load_classes": "Načíst třídy",

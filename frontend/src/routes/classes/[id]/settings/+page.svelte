@@ -7,7 +7,7 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { classesStore } from '$lib/stores/classes';
-  import { BookOpen, FileText, Pencil, Trash2, UserPlus, UserMinus, Search as SearchIcon, Loader2, Check, X, Users, Download } from 'lucide-svelte';
+  import { BookOpen, FileText, Pencil, Trash2, UserPlus, UserMinus, Search as SearchIcon, Loader2, Check, X, Users, Download, ArrowRight } from 'lucide-svelte';
   import DOMPurify from 'dompurify';
   import { marked } from 'marked';
   import { t, translator } from '$lib/i18n';
@@ -45,6 +45,7 @@
   let currentDescription = '';
   let safeCurrentDescription = '';
   let safeDescriptionPreview = '';
+  let showBakalari = false;
 
   function sanitizeMarkdown(input: string): string {
     if (!input) return '';
@@ -176,6 +177,7 @@
   }
 
   function openAddModal() {
+    showBakalari = false;
     addDialog.showModal();
   }
 
@@ -208,117 +210,154 @@
   }
 </script>
 
+<svelte:head>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap" rel="stylesheet">
+  <title>{cls?.name ? `${cls.name} | CodEdu` : 'Settings | CodEdu'}</title>
+</svelte:head>
+
 {#if loading}
-  <div class="w-full grid gap-6">
-    <div class="h-28 rounded-2xl bg-base-200/60 animate-pulse"></div>
-    <div class="h-64 rounded-xl bg-base-200/60 animate-pulse"></div>
-  </div>
+  <div class="flex justify-center mt-8"><span class="loading loading-dots loading-lg"></span></div>
 {:else if err}
-  <div class="alert alert-error shadow">
+  <div class="alert alert-error shadow-xl rounded-2xl border-none">
     <X class="size-5" />
-    <span>{err}</span>
+    <span class="font-bold">{err}</span>
   </div>
 {:else}
-  <section class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/15 via-base-200 to-base-100 border border-base-300/60 shadow-xl">
-    <div class="absolute -inset-24 opacity-40 blur-3xl pointer-events-none" aria-hidden="true">
-      <div class="size-full bg-[conic-gradient(var(--fallback-p,oklch(var(--p))),transparent_50%)]"></div>
+  <!-- Premium Class Header -->
+  <section class="relative overflow-hidden bg-base-100 rounded-3xl border border-base-200 shadow-xl shadow-base-300/30 mb-8 p-6 sm:p-10">
+    <div class="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none">
+      <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent"></div>
+      <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl"></div>
     </div>
-    <div class="relative p-6 md:p-8 flex items-start justify-between gap-4 flex-wrap">
-      <div class="flex items-center gap-4">
-        <div class="size-14 md:size-16 rounded-xl bg-primary/20 ring-1 ring-primary/30 grid place-items-center">
-          <BookOpen class="size-7 md:size-8 text-primary" />
-        </div>
-        <div>
-          <div class="flex items-center gap-3">
-            {#if renaming}
-              <input class="input input-bordered input-md md:input-lg w-[min(28rem,90vw)]" bind:value={newName} bind:this={renameInput} />
-              <button class="btn btn-primary btn-sm" on:click|preventDefault={renameClass}><Check class="size-4" /></button>
-              <button class="btn btn-ghost btn-sm" on:click={() => { renaming = false; newName = cls.name; }}><X class="size-4" /></button>
-            {:else}
-              <h1 class="text-2xl md:text-3xl font-semibold tracking-tight">{cls.name}</h1>
-            {/if}
+    
+    <div class="relative flex flex-col md:flex-row items-center justify-between gap-6">
+      <div class="flex-1 text-center md:text-left">
+        {#if renaming}
+          <div class="flex items-center gap-2 mb-2 justify-center md:justify-start">
+            <input class="input input-bordered input-md bg-base-200/50 border-base-300 focus:border-primary/30 rounded-xl font-bold w-[min(24rem,80vw)]" bind:value={newName} bind:this={renameInput} />
+            <button class="btn btn-primary btn-sm rounded-xl" on:click|preventDefault={renameClass}><Check class="size-4" /></button>
+            <button class="btn btn-ghost btn-sm rounded-xl" on:click={() => { renaming = false; newName = cls.name; }}><X class="size-4" /></button>
           </div>
-          <p class="text-base-content/60 text-sm mt-1 flex items-center gap-2"><Users class="size-4" /> {translate('frontend/src/routes/classes/[id]/settings/+page.svelte::student_count', { count: students.length })}</p>
-        </div>
+        {:else}
+          <h1 class="text-3xl sm:text-4xl font-black tracking-tight mb-2">
+            {cls.name} <span class="text-primary/40">/</span> {translate('frontend/src/routes/classes/[id]/settings/+page.svelte::settings_heading')}
+          </h1>
+        {/if}
+        <p class="text-base-content/60 font-medium max-w-xl mx-auto md:mx-0">
+          {translate('frontend/src/routes/classes/[id]/settings/+page.svelte::settings_description')}
+        </p>
       </div>
-      {#if role === 'teacher' || role === 'admin'}
-        <div class="flex items-center gap-2 ml-auto">
+
+      <div class="flex flex-wrap items-center gap-3">
+        {#if role === 'teacher' || role === 'admin'}
           {#if !renaming}
-            <button class="btn btn-ghost btn-sm" on:click={startRename}><Pencil class="size-4" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::rename')}</button>
+            <button class="btn btn-ghost btn-sm rounded-xl gap-2 font-black uppercase tracking-widest text-[10px] h-10 border border-base-300 hover:bg-base-200" on:click={startRename}>
+              <Pencil class="size-3.5" /> 
+              {t('frontend/src/routes/classes/[id]/settings/+page.svelte::rename')}
+            </button>
           {/if}
-        </div>
-      {/if}
+        {/if}
+      </div>
     </div>
   </section>
 
-  <section class="mt-6">
-    <div class="card bg-base-100/80 backdrop-blur border border-base-300/60 shadow-md">
-      <div class="card-body space-y-4">
-        <div class="flex items-center justify-between gap-3 flex-wrap">
-          <h2 class="card-title flex items-center gap-2">
-            <FileText class="size-5" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::class_description_heading')}
-          </h2>
+  <section class="mt-8">
+    <div class="bg-base-100 rounded-[2rem] border border-base-200 shadow-sm overflow-hidden">
+      <div class="p-6 sm:p-8 space-y-6">
+        <div class="flex items-center justify-between gap-4 flex-wrap">
+          <div class="flex items-center gap-3">
+            <div class="size-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+              <FileText class="size-5" />
+            </div>
+            <h2 class="text-xl font-black tracking-tight tracking-tight">
+              {t('frontend/src/routes/classes/[id]/settings/+page.svelte::class_description_heading')}
+            </h2>
+          </div>
           {#if role === 'teacher' || role === 'admin'}
-            <button class="btn btn-ghost btn-sm" on:click={openDescriptionModal}>
-              <FileText class="size-4" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::edit_description')}
+            <button class="btn btn-ghost btn-xs rounded-lg h-8 px-3 gap-2 font-black uppercase tracking-widest text-[9px] border border-base-300 hover:bg-base-200" on:click={openDescriptionModal}>
+              <Pencil class="size-3" />
+              {t('frontend/src/routes/classes/[id]/settings/+page.svelte::edit_description')}
             </button>
           {/if}
         </div>
+
         {#if safeCurrentDescription}
-          <div class="prose max-w-none assignment-description text-base-content/90">
+          <div class="prose max-w-none assignment-description text-base-content/80 font-medium leading-relaxed bg-base-200/30 p-6 rounded-2xl border border-base-200">
             {@html safeCurrentDescription}
           </div>
         {:else}
-          <div class="rounded-xl border border-dashed border-base-300/80 bg-base-200/40 p-6 text-sm text-base-content/70">
-            {t('frontend/src/routes/classes/[id]/settings/+page.svelte::class_description_empty')}
+          <div class="rounded-2xl border-2 border-dashed border-base-200 bg-base-200/20 p-8 text-center">
+            <p class="text-[10px] font-black uppercase tracking-widest opacity-30">
+              {t('frontend/src/routes/classes/[id]/settings/+page.svelte::class_description_empty')}
+            </p>
           </div>
         {/if}
       </div>
     </div>
   </section>
 
-  <div class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="lg:col-span-2 space-y-6">
+  <div class="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div class="lg:col-span-2 space-y-8">
       <!-- Students management -->
-      <div class="card bg-base-100/80 backdrop-blur border border-base-300/60 shadow-md">
-        <div class="card-body">
+      <div class="bg-base-100 rounded-[2rem] border border-base-200 shadow-sm overflow-hidden h-full flex flex-col">
+        <div class="p-6 sm:p-8 space-y-6 flex-1">
           <div class="flex items-center justify-between gap-4 flex-wrap">
-            <h2 class="card-title flex items-center gap-2"><Users class="size-5" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::students')}</h2>
+            <div class="flex items-center gap-3">
+              <div class="size-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                <Users class="size-5" />
+              </div>
+              <h2 class="text-xl font-black tracking-tight">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::students')}</h2>
+              <span class="px-2 py-1 rounded-lg bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest">{translate('frontend/src/routes/classes/[id]/settings/+page.svelte::student_count', { count: students.length })}</span>
+            </div>
             {#if role === 'teacher' || role === 'admin'}
-              <button class="btn btn-primary btn-sm" on:click={openAddModal}><UserPlus class="size-4" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::add_students')}</button>
+              <button class="btn btn-primary btn-sm rounded-xl gap-2 font-black uppercase tracking-widest text-[10px] h-10 px-4" on:click={openAddModal}>
+                <UserPlus class="size-4" /> 
+                {t('frontend/src/routes/classes/[id]/settings/+page.svelte::add_students')}
+              </button>
             {/if}
           </div>
 
           <div class="mt-4">
             {#if students.length}
-              <ul class="divide-y divide-base-300/60">
-                {#each students as s}
-                  <li class="py-3 flex items-center gap-3">
-                    <div class="size-9 rounded-full overflow-hidden ring-1 ring-base-300/70 flex items-center justify-center bg-base-200 text-sm font-semibold select-none">
-                      {#if s.avatar}
-                        <img src={s.avatar} alt={t('frontend/src/routes/classes/[id]/settings/+page.svelte::user_avatar', { name: displayName(s) })} class="w-full h-full object-cover" loading="lazy" />
-                      {:else}
-                        {getInitials(displayName(s))}
+              <div class="bg-base-200/30 rounded-[1.5rem] border border-base-200 overflow-hidden">
+                <ul class="divide-y divide-base-200">
+                  {#each students as s}
+                    <li class="p-4 flex items-center gap-4 hover:bg-base-200/50 transition-colors group">
+                      <div class="size-11 rounded-full overflow-hidden ring-2 ring-base-100 group-hover:ring-primary/20 transition-all flex items-center justify-center bg-base-100 text-sm font-black select-none shadow-sm">
+                        {#if s.avatar}
+                          <img src={s.avatar} alt={t('frontend/src/routes/classes/[id]/settings/+page.svelte::user_avatar', { name: displayName(s) })} class="w-full h-full object-cover" loading="lazy" />
+                        {:else}
+                          <span class="opacity-40">{getInitials(displayName(s))}</span>
+                        {/if}
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <p class="font-black text-sm tracking-tight truncate group-hover:text-primary transition-colors">{displayName(s)}</p>
+                        <div class="flex items-center gap-2 mt-0.5">
+                          {#if s.email}<p class="text-[10px] font-bold text-base-content/40 truncate tracking-wide">{s.email}</p>{/if}
+                        </div>
+                      </div>
+                      {#if role === 'teacher' || role === 'admin'}
+                        <button class="btn btn-ghost btn-circle btn-sm text-error/40 hover:text-error hover:bg-error/10 opacity-0 group-hover:opacity-100 transition-all" title={t('frontend/src/routes/classes/[id]/settings/+page.svelte::remove_student')} on:click={() => promptRemoveStudent(s)}>
+                          <UserMinus class="size-4" />
+                        </button>
                       {/if}
-                    </div>
-                    <div class="flex-1 min-w-0">
-                      <p class="truncate">{displayName(s)}</p>
-                      {#if s.email}<p class="text-xs text-base-content/60 truncate">{s.email}</p>{/if}
-                      <p class="text-xs text-base-content/60 truncate">ID: {s.id}</p>
-                    </div>
-                    {#if role === 'teacher' || role === 'admin'}
-                      <button class="btn btn-ghost btn-xs text-error ml-auto" title={t('frontend/src/routes/classes/[id]/settings/+page.svelte::remove_student')} on:click={() => promptRemoveStudent(s)}>
-                        <UserMinus class="size-4" />
-                      </button>
-                    {/if}
-                  </li>
-                {/each}
-              </ul>
+                    </li>
+                  {/each}
+                </ul>
+              </div>
             {:else}
-              <div class="rounded-xl border border-dashed border-base-300/80 p-8 text-center">
-                <p class="text-base-content/70">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::no_students_yet')}</p>
+              <div class="rounded-[2rem] border-2 border-dashed border-base-200 p-12 text-center bg-base-200/20">
+                <div class="size-16 rounded-full bg-base-200 flex items-center justify-center mx-auto mb-4 opacity-30">
+                  <Users size={32} />
+                </div>
+                <p class="text-xs font-black uppercase tracking-[0.2em] opacity-30">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::no_students_yet')}</p>
                 {#if role === 'teacher' || role === 'admin'}
-                  <button class="btn btn-primary btn-sm mt-3" on:click={openAddModal}><UserPlus class="size-4" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::add_students')}</button>
+                  <button class="btn btn-primary btn-sm mt-6 rounded-xl font-black uppercase tracking-widest text-[10px]" on:click={openAddModal}>
+                    <UserPlus class="size-4" /> 
+                    {t('frontend/src/routes/classes/[id]/settings/+page.svelte::add_students')}
+                  </button>
                 {/if}
               </div>
             {/if}
@@ -327,42 +366,26 @@
       </div>
     </div>
 
-    <!-- Integrations -->
-    <div class="space-y-6">
-      {#if hasBakalari}
-        <div class="card bg-base-100/80 backdrop-blur border border-base-300/60 shadow-md">
-          <div class="card-body">
-            <h2 class="card-title flex items-center gap-2"><Download class="size-5" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::import_from_bakalari')}</h2>
-            <div class="form-control mt-2 space-y-2">
-              <input class="input input-bordered w-full" placeholder={t('frontend/src/routes/classes/[id]/settings/+page.svelte::username')} bind:value={bkUser} />
-              <input class="input input-bordered w-full" type="password" placeholder={t('frontend/src/routes/classes/[id]/settings/+page.svelte::password')} bind:value={bkPass} />
-              <button class="btn btn-outline w-full" on:click={fetchAtoms} disabled={loadingAtoms}>
-                {#if loadingAtoms}<Loader2 class="size-4 animate-spin" />{:else}<Download class="size-4" />{/if}
-                <span class="ml-1">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::load_classes')}</span>
-              </button>
+      <div class="space-y-8">
+        <!-- Danger zone -->
+        {#if role === 'teacher' || role === 'admin'}
+        <div class="bg-base-100 rounded-[2rem] border border-error/20 shadow-sm overflow-hidden">
+          <div class="p-6 sm:p-8 space-y-6">
+            <div class="flex items-center gap-3">
+              <div class="size-10 rounded-xl bg-error/10 flex items-center justify-center text-error">
+                <Trash2 class="size-5" />
+              </div>
+              <h2 class="text-xl font-black tracking-tight text-error">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::danger_zone')}</h2>
             </div>
-            {#if bkAtoms.length}
-              <ul class="menu mt-3">
-                {#each bkAtoms as a}
-                  <li>
-                    <button class="btn btn-sm btn-outline w-full justify-between" on:click={() => importAtom(a.Id)}>{a.Name}</button>
-                  </li>
-                {/each}
-              </ul>
-            {/if}
-          </div>
-        </div>
-      {/if}
-
-      <!-- Danger zone -->
-      {#if role === 'teacher' || role === 'admin'}
-        <div class="card bg-base-100/80 backdrop-blur border border-error/30 shadow-md">
-          <div class="card-body">
-            <h2 class="card-title text-error flex items-center gap-2"><Trash2 class="size-5" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::danger_zone')}</h2>
-            <p class="text-sm text-base-content/70">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::delete_class_warning')}</p>
-            <div>
-              <button class="btn btn-error btn-outline" on:click={() => deleteDialog.showModal()}><Trash2 class="size-4" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::delete_class')}</button>
-            </div>
+            
+            <p class="text-xs font-bold text-base-content/50 leading-relaxed uppercase tracking-widest opacity-60">
+              {t('frontend/src/routes/classes/[id]/settings/+page.svelte::delete_class_warning')}
+            </p>
+            
+            <button class="btn btn-error btn-outline w-full rounded-xl gap-2 font-black uppercase tracking-widest text-[10px] h-11 border-error/30 hover:bg-error hover:text-white transition-all shadow-lg shadow-error/10" on:click={() => deleteDialog.showModal()}>
+              <Trash2 class="size-4" /> 
+              {t('frontend/src/routes/classes/[id]/settings/+page.svelte::delete_class')}
+            </button>
           </div>
         </div>
       {/if}
@@ -371,43 +394,102 @@
 
   <!-- Add students modal -->
   <dialog bind:this={addDialog} class="modal">
-    <div class="modal-box w-11/12 max-w-2xl">
-      <div class="flex items-center justify-between mb-3">
-        <h3 class="font-bold text-lg flex items-center gap-2"><UserPlus class="size-5" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::add_students')}</h3>
-        <form method="dialog"><button class="btn btn-ghost btn-sm"><X class="size-4" /></button></form>
+    <div class="modal-box w-11/12 max-w-2xl rounded-[2.5rem] p-8 space-y-6 shadow-2xl border border-base-200">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="size-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+            <UserPlus class="size-5" />
+          </div>
+          <h3 class="text-xl font-black tracking-tight">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::add_students')}</h3>
+        </div>
+        <div class="flex items-center gap-2">
+          {#if hasBakalari}
+            <button 
+              class="btn btn-ghost btn-sm rounded-xl font-black uppercase tracking-widest text-[10px] gap-2 border border-base-300/10" 
+              on:click={() => showBakalari = !showBakalari}
+            >
+              <Download class="size-3" />
+              {t('frontend/src/routes/classes/[id]/settings/+page.svelte::import_from_bakalari')}
+            </button>
+          {/if}
+          <form method="dialog"><button class="btn btn-ghost btn-circle btn-sm"><X class="size-5" /></button></form>
+        </div>
       </div>
-      <label class="input input-bordered flex items-center gap-2 mb-3">
-        <SearchIcon class="size-4 opacity-70" />
-        <input class="grow" placeholder={t('frontend/src/routes/classes/[id]/settings/+page.svelte::search_students')} bind:value={search} />
-      </label>
-      <div class="max-h-72 overflow-y-auto rounded-lg border border-base-300/60 divide-y divide-base-300/60">
+
+      {#if showBakalari}
+        <div class="bg-base-200/50 rounded-3xl p-6 border border-base-300/30 space-y-4 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <input class="input input-bordered w-full h-11 rounded-xl bg-base-100 border-base-300 focus:border-primary/30 font-bold text-sm shadow-sm" placeholder={t('frontend/src/routes/classes/[id]/settings/+page.svelte::username')} bind:value={bkUser} />
+            <input class="input input-bordered w-full h-11 rounded-xl bg-base-100 border-base-300 focus:border-primary/30 font-bold text-sm shadow-sm" type="password" placeholder={t('frontend/src/routes/classes/[id]/settings/+page.svelte::password')} bind:value={bkPass} />
+          </div>
+          
+          <button class="btn btn-primary w-full rounded-xl gap-2 font-black uppercase tracking-widest text-[10px] h-11 shadow-lg shadow-primary/20" on:click={fetchAtoms} disabled={loadingAtoms}>
+            {#if loadingAtoms}<Loader2 class="size-4 animate-spin" />{:else}<Download class="size-4" />{/if}
+            {t('frontend/src/routes/classes/[id]/settings/+page.svelte::load_classes')}
+          </button>
+
+          {#if bkAtoms.length}
+            <div class="pt-2">
+              <div class="text-[10px] font-black uppercase tracking-widest opacity-40 mb-3 px-1">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::load_classes')}</div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {#each bkAtoms as a}
+                  <button class="rounded-xl p-3 flex items-center justify-between group font-bold bg-base-100 border border-base-200 hover:border-primary/30 hover:shadow-md transition-all text-sm text-left" on:click={() => importAtom(a.Id)}>
+                    <span class="truncate pr-2">{a.Name}</span>
+                    <ArrowRight class="size-3 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all shrink-0" />
+                  </button>
+                {/each}
+              </div>
+            </div>
+          {/if}
+        </div>
+      {/if}
+
+      <div class="relative flex items-center">
+        <SearchIcon size={14} class="absolute left-4 opacity-40" />
+        <input 
+          type="text" 
+          class="input input-bordered w-full pl-11 rounded-xl bg-base-200/50 border-base-300 focus:border-primary/30 font-bold text-sm h-12" 
+          placeholder={t('frontend/src/routes/classes/[id]/settings/+page.svelte::search_students')} 
+          bind:value={search} 
+        />
+      </div>
+
+      <div class="max-h-80 overflow-y-auto rounded-2xl border border-base-200 bg-base-200/20 divide-y divide-base-200 shadow-inner">
         {#if filtered.length}
           {#each filtered as s}
-            <label class="flex items-center gap-3 p-3 cursor-pointer">
-              <input type="checkbox" class="checkbox checkbox-sm" value={s.id} bind:group={selectedIDs} />
-              <div class="size-8 rounded-full overflow-hidden ring-[1.5px] ring-base-300/70 flex items-center justify-center bg-base-200 text-xs font-semibold">
+            <label class="flex items-center gap-4 p-4 cursor-pointer hover:bg-base-100/50 transition-colors group">
+              <input type="checkbox" class="checkbox checkbox-primary rounded-lg" value={s.id} bind:group={selectedIDs} />
+              <div class="size-10 rounded-full overflow-hidden ring-2 ring-base-100 group-hover:ring-primary/20 transition-all flex items-center justify-center bg-base-100 text-xs font-black shadow-sm">
                 {#if s.avatar}
                   <img src={s.avatar} alt={t('frontend/src/routes/classes/[id]/settings/+page.svelte::user_avatar', { name: displayName(s) })} class="w-full h-full object-cover" loading="lazy" />
                 {:else}
-                  {getInitials(displayName(s))}
+                  <span class="opacity-40">{getInitials(displayName(s))}</span>
                 {/if}
               </div>
               <div class="flex-1 min-w-0">
-                <div class="truncate">{displayName(s)}</div>
-                {#if s.email}<div class="text-xs text-base-content/60 truncate">{s.email}</div>{/if}
-                <div class="text-xs text-base-content/50 truncate">ID: {s.id}</div>
+                <div class="font-black text-sm tracking-tight truncate group-hover:text-primary transition-colors">{displayName(s)}</div>
+                {#if s.email}<div class="text-[10px] font-bold text-base-content/40 truncate tracking-wide">{s.email}</div>{/if}
               </div>
             </label>
           {/each}
         {:else}
-          <div class="p-6 text-center text-base-content/70">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::no_students')}</div>
+          <div class="p-12 text-center">
+             <div class="size-12 rounded-full bg-base-200 flex items-center justify-center mx-auto mb-3 opacity-20">
+               <SearchIcon size={24} />
+             </div>
+             <p class="text-[10px] font-black uppercase tracking-widest opacity-30">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::no_students')}</p>
+          </div>
         {/if}
       </div>
-      <div class="modal-action items-center justify-between">
-        <div class="text-sm text-base-content/70">{translate('frontend/src/routes/classes/[id]/settings/+page.svelte::selected_count', { count: selectedIDs.length })}</div>
-        <div class="flex items-center gap-2">
-          <button class="btn btn-ghost" on:click={() => { selectedIDs = []; }} disabled={!selectedIDs.length}>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::clear')}</button>
-          <button class="btn btn-primary" on:click={addStudents} disabled={!selectedIDs.length}>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::add_selected')}</button>
+
+      <div class="flex items-center justify-between gap-4 pt-2">
+        <div class="text-[10px] font-black uppercase tracking-widest opacity-40">{translate('frontend/src/routes/classes/[id]/settings/+page.svelte::selected_count', { count: selectedIDs.length })}</div>
+        <div class="flex items-center gap-3">
+          <button class="btn btn-ghost btn-sm rounded-xl font-black uppercase tracking-widest text-[10px]" on:click={() => { selectedIDs = []; }} disabled={!selectedIDs.length}>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::clear')}</button>
+          <button class="btn btn-primary btn-sm rounded-xl h-10 px-6 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20" on:click={addStudents} disabled={!selectedIDs.length}>
+            <Check class="size-4 mr-1" />
+            {t('frontend/src/routes/classes/[id]/settings/+page.svelte::add_selected')}
+          </button>
         </div>
       </div>
     </div>
@@ -416,37 +498,57 @@
 
   <!-- Class description modal -->
   <dialog bind:this={descriptionDialog} class="modal" on:close={() => { descriptionDraft = cls?.description ?? ''; savingDescription = false; }}>
-    <div class="modal-box w-full max-w-4xl">
-      <h3 class="font-bold text-lg flex items-center gap-2">
-        <FileText class="size-5" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::description_modal_title')}
-      </h3>
-      <p class="text-sm text-base-content/70 mt-2">
+    <div class="modal-box w-full max-w-4xl rounded-[2.5rem] p-8 space-y-6 shadow-2xl border border-base-200">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="size-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+            <FileText class="size-5" />
+          </div>
+          <h3 class="text-xl font-black tracking-tight">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::description_modal_title')}</h3>
+        </div>
+        <form method="dialog"><button class="btn btn-ghost btn-circle btn-sm" on:click={closeDescriptionModal}><X class="size-5" /></button></form>
+      </div>
+
+      <p class="text-[10px] font-black uppercase tracking-widest opacity-40 leading-relaxed">
         {t('frontend/src/routes/classes/[id]/settings/+page.svelte::description_modal_help')}
       </p>
-      <div class="mt-4 space-y-4">
-        <MarkdownEditor bind:value={descriptionDraft} placeholder={t('frontend/src/routes/classes/[id]/settings/+page.svelte::description_placeholder')} />
-        <div>
-          <h4 class="font-semibold text-base flex items-center gap-2">
-            <FileText class="size-4" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::description_preview_title')}
-          </h4>
-          {#if safeDescriptionPreview}
-            <div class="prose max-w-none assignment-description mt-2 rounded-xl border border-base-300/70 bg-base-200/40 p-4">
-              {@html safeDescriptionPreview}
-            </div>
-          {:else}
-            <div class="mt-2 rounded-xl border border-dashed border-base-300/70 p-5 text-sm text-base-content/60">
-              {t('frontend/src/routes/classes/[id]/settings/+page.svelte::description_preview_empty')}
-            </div>
-          {/if}
+
+      <div class="grid lg:grid-cols-2 gap-8">
+        <div class="space-y-4">
+          <div class="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest opacity-40">
+            <Pencil class="size-3" /> Editor
+          </div>
+          <div class="rounded-2xl border border-base-200 overflow-hidden shadow-inner bg-base-200/20">
+            <MarkdownEditor bind:value={descriptionDraft} placeholder={t('frontend/src/routes/classes/[id]/settings/+page.svelte::description_placeholder')} />
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <div class="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest opacity-40">
+            <FileText class="size-3" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::description_preview_title')}
+          </div>
+          <div class="h-[400px] overflow-y-auto rounded-2xl border border-base-200 bg-base-100 p-6 shadow-inner">
+            {#if safeDescriptionPreview}
+              <div class="prose prose-sm max-w-none assignment-description text-base-content/80 font-medium">
+                {@html safeDescriptionPreview}
+              </div>
+            {:else}
+              <div class="h-full flex items-center justify-center text-center opacity-20">
+                <p class="text-[10px] font-black uppercase tracking-widest leading-relaxed">
+                  {t('frontend/src/routes/classes/[id]/settings/+page.svelte::description_preview_empty')}
+                </p>
+              </div>
+            {/if}
+          </div>
         </div>
       </div>
-      <div class="modal-action">
-        <form method="dialog">
-          <button class="btn btn-ghost" on:click={closeDescriptionModal}>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::cancel')}</button>
-        </form>
-        <button class="btn btn-primary gap-2" on:click|preventDefault={saveDescription} disabled={savingDescription}>
+      <div class="flex items-center gap-3 pt-2">
+        <form method="dialog" class="flex-1"><button class="btn btn-ghost w-full rounded-2xl font-black uppercase tracking-widest text-[10px]" on:click={closeDescriptionModal}>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::cancel')}</button></form>
+        <button class="btn btn-primary flex-1 rounded-2xl font-black uppercase tracking-widest text-[10px] h-12 shadow-lg shadow-primary/20" on:click|preventDefault={saveDescription} disabled={savingDescription}>
           {#if savingDescription}
-            <Loader2 class="size-4 animate-spin" />
+            <Loader2 class="size-4 animate-spin mr-2" />
+          {:else}
+            <Check class="size-4 mr-2" />
           {/if}
           <span>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::description_save')}</span>
         </button>
@@ -457,20 +559,28 @@
 
   <!-- Remove student confirm modal -->
   <dialog bind:this={removeStudentDialog} class="modal" on:close={() => (studentToRemove = null)}>
-    <div class="modal-box">
-      <h3 class="font-bold text-lg flex items-center gap-2 text-error">
-        <UserMinus class="size-5" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::remove_student_modal_title')}
-      </h3>
-      <p class="py-3">
+    <div class="modal-box rounded-[2.5rem] p-8 space-y-6 shadow-2xl border border-base-200">
+      <div class="flex items-center gap-3 text-error">
+        <div class="size-10 rounded-xl bg-error/10 flex items-center justify-center">
+          <UserMinus class="size-5" />
+        </div>
+        <h3 class="text-xl font-black tracking-tight">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::remove_student_modal_title')}</h3>
+      </div>
+      
+      <p class="text-sm font-bold text-base-content/70 leading-relaxed">
         {translate('frontend/src/routes/classes/[id]/settings/+page.svelte::remove_student_modal_body', {
           name: studentToRemove ? displayName(studentToRemove) : ''
         })}
       </p>
-      <div class="modal-action">
-        <form method="dialog" class="mr-auto">
-          <button class="btn">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::cancel')}</button>
+
+      <div class="flex items-center gap-3 pt-2">
+        <form method="dialog" class="flex-1">
+          <button class="btn btn-ghost w-full rounded-2xl font-black uppercase tracking-widest text-[10px]">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::cancel')}</button>
         </form>
-        <button class="btn btn-error" on:click={confirmRemoveStudent}>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::remove_student_modal_confirm')}</button>
+        <button class="btn btn-error flex-1 rounded-2xl font-black uppercase tracking-widest text-[10px] h-12 shadow-lg shadow-error/10" on:click={confirmRemoveStudent}>
+          <UserMinus class="size-4 mr-2" />
+          {t('frontend/src/routes/classes/[id]/settings/+page.svelte::remove_student_modal_confirm')}
+        </button>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::close')}</button></form>
@@ -478,12 +588,22 @@
 
   <!-- Delete confirm modal -->
   <dialog bind:this={deleteDialog} class="modal">
-    <div class="modal-box">
-      <h3 class="font-bold text-lg flex items-center gap-2 text-error"><Trash2 class="size-5" /> {t('frontend/src/routes/classes/[id]/settings/+page.svelte::delete_class')}</h3>
-      <p class="py-3">{translate('frontend/src/routes/classes/[id]/settings/+page.svelte::delete_class_confirmation', { name: cls.name })}</p>
-      <div class="modal-action">
-        <form method="dialog" class="mr-auto"><button class="btn">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::cancel')}</button></form>
-        <button class="btn btn-error" on:click={deleteClass}>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::delete')}</button>
+    <div class="modal-box rounded-[2.5rem] p-8 space-y-6 shadow-2xl border border-base-200">
+      <div class="flex items-center gap-3 text-error">
+        <div class="size-10 rounded-xl bg-error/10 flex items-center justify-center">
+          <Trash2 class="size-5" />
+        </div>
+        <h3 class="text-xl font-black tracking-tight">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::delete_class')}</h3>
+      </div>
+
+      <p class="text-sm font-bold text-base-content/70 leading-relaxed">{translate('frontend/src/routes/classes/[id]/settings/+page.svelte::delete_class_confirmation', { name: cls.name })}</p>
+
+      <div class="flex items-center gap-3 pt-2">
+        <form method="dialog" class="flex-1"><button class="btn btn-ghost w-full rounded-2xl font-black uppercase tracking-widest text-[10px]">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::cancel')}</button></form>
+        <button class="btn btn-error flex-1 rounded-2xl font-black uppercase tracking-widest text-[10px] h-12 shadow-lg shadow-error/10" on:click={deleteClass}>
+          <Trash2 class="size-4 mr-2" />
+          {t('frontend/src/routes/classes/[id]/settings/+page.svelte::delete')}
+        </button>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::close')}</button></form>
