@@ -180,16 +180,17 @@
   <title>{t('frontend/src/routes/login/+page.svelte::log_in_title')} | CodEdu</title>
 </svelte:head>
 
-<!-- Animated Background -->
-<div class="fixed inset-0 -z-10 overflow-hidden bg-[#fafafa] dark:bg-[#050505]">
-    <div class="absolute inset-0 opacity-[0.4] dark:opacity-[0.2]" style="background-image: url('https://www.transparenttextures.com/patterns/cubes.png');"></div>
-    <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-primary/20 blur-[120px] animate-pulse"></div>
-    <div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-secondary/20 blur-[120px] animate-pulse" style="animation-delay: 2s;"></div>
-    <div class="absolute top-[20%] right-[10%] w-[25%] h-[25%] rounded-full bg-accent/10 blur-[100px] animate-pulse" style="animation-delay: 1s;"></div>
-</div>
+<div class="auth-page">
+  <!-- Animated Background -->
+  <div class="fixed inset-0 -z-10 overflow-hidden bg-[#fafafa] dark:bg-[#050505]">
+      <div class="absolute inset-0 opacity-[0.4] dark:opacity-[0.2]" style="background-image: url('https://www.transparenttextures.com/patterns/cubes.png');"></div>
+      <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-primary/20 blur-[120px] animate-pulse"></div>
+      <div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-secondary/20 blur-[120px] animate-pulse" style="animation-delay: 2s;"></div>
+      <div class="absolute top-[20%] right-[10%] w-[25%] h-[25%] rounded-full bg-accent/10 blur-[100px] animate-pulse" style="animation-delay: 1s;"></div>
+  </div>
 
-<div class="flex-1 flex items-center justify-center p-4 min-h-[calc(100vh-4rem)]">
-    <div class="w-full max-w-[460px] relative -mt-16" in:scale={{duration: 600, start: 0.98, opacity: 0}}>
+  <div class="flex-1 flex items-center justify-center p-4 min-h-[calc(100vh-4rem)]">
+      <div class="w-full max-w-[460px] relative -mt-16" in:scale={{duration: 600, start: 0.98, opacity: 0}}>
         
         <!-- Header Section -->
         <div class="text-center mb-6">
@@ -412,14 +413,14 @@
                  </div>
             </div>
         </div>
-    </div>
+      </div>
+  </div>
 </div>
 
 <style>
-  :global(body) {
+  .auth-page {
     font-family: 'Outfit', sans-serif;
   }
   .bg-pos-0 { background-size: 200% 100%; background-position: 0% 0%; }
   .bg-pos-100 { background-size: 200% 100%; background-position: 100% 0%; }
 </style>
-
