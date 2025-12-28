@@ -21,7 +21,9 @@
     Paperclip,
     X,
     Smile,
-    Table
+    Table,
+    MessageSquare,
+    Download
   } from 'lucide-svelte';
 import { renderMarkdown } from '$lib/markdown';
 import MarkdownEditor from '$lib/MarkdownEditor.svelte';
@@ -397,118 +399,132 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
   }
 </script>
 
-<!-- Enhanced Chat Window -->
-<div class="{`chat-window fixed top-16 bottom-0 right-0 left-0 ${$sidebarCollapsed ? 'sm:left-0' : 'sm:left-60'} z-40 flex flex-col bg-gradient-to-br from-base-100/95 to-base-200/95 backdrop-blur-xl border-l border-base-300/30`}">
-  <!-- Enhanced Header -->
-  <div class="chat-header relative z-30 mx-2 sm:mx-4 mt-2 sm:mt-3 flex items-center justify-between p-2 sm:p-4 rounded-xl bg-base-100/80 backdrop-blur supports-[backdrop-filter]:bg-base-100/85 border border-base-300/30 shadow-md">
-    <div class="flex items-center gap-3 min-w-0">
-      <button 
-        class="btn btn-ghost btn-circle hover:bg-base-200/80 transition-all duration-200" 
-        on:click={back} 
-        aria-label="Back"
-      >
-        <ChevronLeft class="w-5 h-5" />
-      </button>
-      
-      <!-- Enhanced Avatar -->
-      <div class="relative">
-        <div class="avatar">
-          <div class="w-12 h-12 rounded-full overflow-hidden ring-2 ring-primary/20 shadow-lg">
-            {#if contactAvatar}
-              <img src={contactAvatar} alt="Contact" class="w-full h-full object-cover" />
+<svelte:head>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap" rel="stylesheet">
+  <title>{name ? `${name} | CodEdu` : 'Messages | CodEdu'}</title>
+</svelte:head>
+
+<div class="flex flex-col h-[calc(100vh-7.5rem)] sm:h-[calc(100vh-9rem)] overflow-hidden">
+  <!-- Premium Profile Header -->
+  <section class="relative overflow-hidden bg-base-100 rounded-3xl border border-base-200 shadow-xl shadow-base-300/30 mb-4 p-4 sm:p-6 shrink-0">
+    <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent pointer-events-none"></div>
+    <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="relative flex items-center justify-between gap-4">
+      <div class="flex items-center gap-4 min-w-0">
+        <button 
+          class="btn btn-ghost btn-circle hover:bg-base-200/80 transition-all duration-200" 
+          on:click={back} 
+          aria-label="Back"
+        >
+          <ChevronLeft size={24} />
+        </button>
+
+        <div class="relative">
+          <div class="avatar">
+            <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-full overflow-hidden">
+              {#if contactAvatar}
+                <img src={contactAvatar} alt="Contact" class="w-full h-full object-cover" />
+              {:else}
+                <div class="w-full h-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-xl font-bold text-primary">
+                  {(name || 'U').charAt(0).toUpperCase()}
+                </div>
+              {/if}
+            </div>
+          </div>
+          {#if $onlineUsers.some(u => u.id === id)}
+            <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-success rounded-full border-2 border-base-100 shadow-sm animate-pulse"></div>
+          {:else}
+            <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-base-300 rounded-full border-2 border-base-100 shadow-sm"></div>
+          {/if}
+        </div>
+
+        <div class="flex flex-col min-w-0">
+          <h1 class="text-xl sm:text-2xl font-black tracking-tight truncate">{name}</h1>
+          <div class="flex items-center gap-2">
+            {#if $onlineUsers.some(u => u.id === id)}
+              <span class="text-[10px] font-black uppercase tracking-widest text-success">{translate('frontend/src/routes/messages/[id]/+page.svelte::online')}</span>
             {:else}
-              <div class="w-full h-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-lg font-semibold text-primary">
-                {(name || 'U').charAt(0).toUpperCase()}
-              </div>
+              <span class="text-[10px] font-black uppercase tracking-widest opacity-40">{translate('frontend/src/routes/messages/[id]/+page.svelte::offline')}</span>
             {/if}
           </div>
         </div>
-        <!-- Online indicator -->
-        {#if $onlineUsers.some(u => u.id === id)}
-          <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-success rounded-full border-2 border-base-100 shadow-sm animate-pulse"></div>
-        {:else}
-          <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-base-300 rounded-full border-2 border-base-100 shadow-sm"></div>
-        {/if}
       </div>
       
-      <div class="flex flex-col min-w-0">
-        <h2 class="font-semibold text-lg truncate">{name}</h2>
-        <div class="text-sm text-base-content/60 flex items-center gap-1">
-          {#if $onlineUsers.some(u => u.id === id)}
-            <div class="w-2 h-2 bg-success rounded-full animate-pulse"></div>
-            <span class="text-success">{translate('frontend/src/routes/messages/[id]/+page.svelte::online')}</span>
-          {:else}
-            <div class="w-2 h-2 bg-base-300 rounded-full"></div>
-            <span class="text-base-content/40">{translate('frontend/src/routes/messages/[id]/+page.svelte::offline')}</span>
-          {/if}
+      <div class="flex items-center gap-2">
+        <button class="btn btn-ghost btn-circle w-10 h-10 hover:bg-primary/10 hover:text-primary transition-all" on:click={toggleSearch}>
+          <Search size={20} />
+        </button>
+        <div class="dropdown dropdown-end">
+          <button class="btn btn-ghost btn-circle w-10 h-10 hover:bg-primary/10 hover:text-primary transition-all">
+            <MoreVertical size={20} />
+          </button>
+          <ul class="dropdown-content menu p-2 shadow-2xl bg-base-100 rounded-2xl w-52 border border-base-200 mt-2 z-50">
+            <li><button class="rounded-xl font-medium" on:click={openProfile}>{translate('frontend/src/routes/messages/[id]/+page.svelte::view_profile')}</button></li>
+            <li><button class="rounded-xl font-medium text-error" on:click={blockThisUser}>{translate('frontend/src/routes/messages/[id]/+page.svelte::block_user')}</button></li>
+          </ul>
         </div>
       </div>
     </div>
-    
-    <!-- Header Actions -->
-    <div class="flex items-center gap-2">
-      <button class="btn btn-ghost btn-circle hover:bg-base-200/80 transition-all duration-200" on:click={toggleSearch}>
-        <Search class="w-4 h-4" />
-      </button>
-      <div class="dropdown dropdown-bottom dropdown-end">
-        <button class="btn btn-ghost btn-circle hover:bg-base-200/80 transition-all duration-200">
-          <MoreVertical class="w-4 h-4" />
-        </button>
-        <ul class="dropdown-content menu p-2 shadow-lg bg-base-100 rounded-box w-52 border border-base-300/30 z-50">
-          <li><button class="gap-2" on:click={openProfile}>{translate('frontend/src/routes/messages/[id]/+page.svelte::view_profile')}</button></li>
-          <li><button class="gap-2 text-error" on:click={blockThisUser}>{translate('frontend/src/routes/messages/[id]/+page.svelte::block_user')}</button></li>
-        </ul>
-      </div>
-    </div>
-  </div>
+  </section>
 
   {#if showSearch}
-    <div class="mx-2 sm:mx-4 mt-2 sm:mt-3 p-2 rounded-lg bg-base-100/80 backdrop-blur supports-[backdrop-filter]:bg-base-100/85 border border-base-300/30 flex items-center gap-2 shadow-sm" in:fade out:fade>
-      <input class="input input-sm input-bordered flex-1" placeholder={t('frontend/src/routes/messages/[id]/+page.svelte::search_messages_placeholder')} bind:value={searchQuery} bind:this={searchInput} />
-      <button class="btn btn-sm" on:click={prevResult}>
-        <ChevronUp class="w-4 h-4" />
-      </button>
-      <button class="btn btn-sm" on:click={nextResult}>
-        <ChevronDown class="w-4 h-4" />
-      </button>
-      <button class="btn btn-sm" on:click={toggleSearch}>
-        <X class="w-4 h-4" />
-      </button>
+    <div class="mb-4 p-3 rounded-2xl bg-base-100/80 border border-base-200 flex items-center gap-2 shadow-sm" in:fade out:fade>
+      <input class="input input-sm bg-base-200/50 border-transparent focus:border-primary/30 flex-1 rounded-xl font-medium" placeholder={t('frontend/src/routes/messages/[id]/+page.svelte::search_messages_placeholder')} bind:value={searchQuery} bind:this={searchInput} />
+      <div class="flex gap-1">
+        <button class="btn btn-ghost btn-sm btn-square rounded-lg" on:click={prevResult}><ChevronUp size={16} /></button>
+        <button class="btn btn-ghost btn-sm btn-square rounded-lg" on:click={nextResult}><ChevronDown size={16} /></button>
+        <button class="btn btn-ghost btn-sm btn-square rounded-lg text-error" on:click={toggleSearch}><X size={16} /></button>
+      </div>
     </div>
   {/if}
 
-  <!-- Enhanced Chat Messages -->
-  <div class="flex-1 overflow-hidden relative z-0">
-    <div class="h-full overflow-y-auto p-6 space-y-6" bind:this={chatBox}>
+  <div class="flex flex-col flex-1 min-h-0 bg-base-100/50 rounded-[2.5rem] border border-base-200 shadow-sm overflow-hidden relative backdrop-blur-sm">
+    <!-- Messages Area -->
+    <div class="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth custom-scrollbar" bind:this={chatBox}>
       {#if hasMore}
-        <div class="text-center">
-          <button class="btn btn-outline btn-sm glass" on:click={() => load(true)}>
+        <div class="text-center py-4">
+          <button class="btn btn-ghost btn-sm rounded-xl gap-2 font-black uppercase tracking-widest text-[10px] border border-base-300 hover:bg-base-200" on:click={() => load(true)}>
+            <ChevronRight class="rotate-[-90deg] w-3 h-3" />
             {translate('frontend/src/routes/messages/[id]/+page.svelte::load_more_messages')}
           </button>
+        </div>
+      {/if}
+
+      {#if convo.length === 0 && !hasMore}
+        <div class="h-full flex flex-col items-center justify-center text-center opacity-30 py-20">
+          <div class="w-20 h-20 rounded-full bg-base-200 flex items-center justify-center mb-4">
+            <MessageSquare size={40} />
+          </div>
+          <p class="text-sm font-black uppercase tracking-[0.2em]">
+            {t('frontend/src/routes/messages/[id]/+page.svelte::no_messages_yet') || 'No messages yet.'}
+          </p>
         </div>
       {/if}
       
       {#each convo as m, index (m.id)}
         {#if index === 0 || !sameDate(m.created_at, convo[index-1].created_at)}
-          <div class="flex justify-center">
-            <div class="bg-base-200/60 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-medium text-base-content/70 border border-base-300/30">
+          <div class="flex justify-center my-4">
+            <div class="bg-base-200/60 backdrop-blur-sm px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-base-content/50 border border-base-200">
               {formatDateLabel(m.created_at)}
             </div>
           </div>
         {/if}
         
         <div
-          class="{`flex ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'} group ${searchResults.includes(index) ? 'bg-warning/20' : ''}`}"
+          class="{`flex ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'} group ${searchResults.includes(index) ? 'bg-primary/10 -mx-6 px-6 py-2' : ''}`}"
           use:registerMsgEl={index}
+          in:fade={{ duration: 200 }}
         >
-            <div class="flex gap-3 max-w-[85%] sm:max-w-[75%] items-end">
+          <div class={`flex gap-3 max-w-[85%] sm:max-w-[70%] items-end ${m.sender_id === $auth?.id ? 'flex-row-reverse' : 'flex-row'}`}>
             {#if m.sender_id !== $auth?.id}
-              <div class="avatar flex-shrink-0">
-                <div class="w-8 h-8 rounded-full overflow-hidden ring-1 ring-base-300/50">
+              <div class="avatar flex-shrink-0 mb-1">
+                <div class="w-10 h-10 rounded-full overflow-hidden shrink-0 bg-base-300">
                   {#if contactAvatar}
                     <img src={contactAvatar} alt="Contact" class="w-full h-full object-cover" />
                   {:else}
-                    <div class="w-full h-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-sm font-semibold text-primary">
+                    <div class="w-full h-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-sm font-black text-primary">
                       {(name || 'U').charAt(0).toUpperCase()}
                     </div>
                   {/if}
@@ -516,269 +532,210 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
               </div>
             {/if}
             
-            <div class="relative flex flex-col">
-              {#if m.image}
-                <div class="mb-2">
-                  <button type="button" class="block p-0 m-0 bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-primary/50 rounded-2xl" on:click={() => openImage(m.image)} aria-label={t('frontend/src/routes/messages/[id]/+page.svelte::open_attachment_aria')}>
-                    <img
-                      src={m.image}
-                      alt={t('frontend/src/routes/messages/[id]/+page.svelte::attachment_alt')}
-                      class="max-w-[70vw] sm:max-w-xs w-full max-h-96 object-contain rounded-2xl shadow-lg"
-                    />
-                  </button>
-                </div>
-              {/if}
+            <div class={`flex flex-col group/msg ${m.sender_id === $auth?.id ? 'items-end' : 'items-start'}`}>
+              <div class="relative flex flex-col">
+                {#if m.image}
+                  <div class="mb-3 rounded-3xl overflow-hidden shadow-xl border border-base-200 bg-base-200/50 group/img relative">
+                    <button type="button" class="block p-0 m-0 w-full" on:click={() => openImage(m.image)}>
+                      <img src={m.image} alt="" class="max-w-full sm:max-w-md max-h-96 object-contain hover:scale-[1.02] transition-transform duration-500" />
+                    </button>
+                  </div>
+                {/if}
 
-              {#if m.file}
-                <div class="mb-2">
+                {#if m.file}
                   <a
                     href="{`/api/messages/file/${m.id}`}"
                     download="{m.file_name || t('frontend/src/routes/messages/[id]/+page.svelte::file_link_text')}"
-                    class="flex items-center gap-3 p-3 bg-base-200/50 rounded-2xl border border-base-300/30 hover:bg-base-200/70 transition-colors"
+                    class="flex items-center gap-4 p-4 mb-3 bg-base-100/80 rounded-3xl border border-base-200 hover:border-primary/30 hover:shadow-lg transition-all group/file"
                   >
-                    <div class="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <Paperclip class="w-6 h-6 text-primary" />
+                    <div class="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover/file:bg-primary group-hover/file:text-primary-content transition-colors">
+                      <Paperclip size={24} />
                     </div>
                     <div class="flex-1 min-w-0">
-                      <p class="text-sm font-medium truncate">{m.file_name || translate('frontend/src/routes/messages/[id]/+page.svelte::file_name_display')}</p>
-                      <p class="text-xs text-base-content/60">{translate('frontend/src/routes/messages/[id]/+page.svelte::click_to_download')}</p>
-                    </div>
-                    <div class="flex-shrink-0">
-                      <svg class="w-5 h-5 text-base-content/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                      </svg>
+                      <p class="text-sm font-black truncate tracking-tight">{m.file_name || translate('frontend/src/routes/messages/[id]/+page.svelte::file_name_display')}</p>
+                      <p class="text-[10px] font-bold uppercase tracking-widest opacity-40">{translate('frontend/src/routes/messages/[id]/+page.svelte::click_to_download')}</p>
                     </div>
                   </a>
-                </div>
-              {/if}
-              
-              {#if m.text}
-                {#if isEmojiOnly(m.text)}
-                  <div
-                    class="select-none text-5xl leading-none"
-                    on:click={() => { m.showTime = !m.showTime; convo = [...convo]; }}
-                    role="button"
-                    tabindex="0"
-                    on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.showTime = !m.showTime; convo = [...convo]; } }}
-                  >
-                    {m.text}
-                  </div>
-                  
-                  <!-- Time display below emoji -->
-                  {#if m.showTime}
-                    <div class="{`text-xs opacity-60 mt-1 ${m.sender_id === $auth?.id ? 'text-right' : 'text-left'}`}">
-                      <span class="text-base-content/60">{formatTime(m.created_at)}</span>
+                {/if}
+                
+                {#if m.text}
+                  {#if isEmojiOnly(m.text)}
+                    <div
+                      class="text-6xl py-2 cursor-pointer transition-transform hover:scale-110"
+                      on:click={() => { m.showTime = !m.showTime; convo = [...convo]; }}
+                      role="button"
+                      tabindex="0"
+                      on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.showTime = !m.showTime; convo = [...convo]; } }}
+                    >
+                      {m.text}
                     </div>
-                  {/if}
-                {:else}
-                  <div 
-                    class="{`message-bubble relative rounded-2xl px-4 py-3 whitespace-pre-wrap break-words shadow-sm transition-all duration-200 ${m.sender_id === $auth?.id ? 'sent-message bg-gradient-to-br from-primary to-primary/80 text-primary-content rounded-br-md' : 'received-message bg-base-200/80 backdrop-blur-sm border border-base-300/30 rounded-bl-md'} ${m.recipient_id === $auth?.id && !m.is_read ? 'ring-2 ring-primary/50 shadow-lg' : ''}`}"
-                    on:click={() => { m.showTime = !m.showTime; convo = [...convo]; }}
-                    role="button"
-                    tabindex="0"
-                    on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.showTime = !m.showTime; convo = [...convo]; } }}
-                  >
-                    {#if m.structured}
-                      <div class="markdown prose prose-sm max-w-none prose-headings:text-inherit prose-p:text-inherit prose-strong:text-inherit prose-code:text-inherit prose-pre:bg-base-300/50 prose-a:text-inherit prose-a:underline">
-                        {@html renderMarkdown(m.text)}
-                      </div>
-                    {:else}
-                      {hyphenateLongWords(m.text)}
-                    {/if}
-                  </div>
-
-                  <!-- Message Status below the bubble -->
-                  {#if m.sender_id === $auth?.id}
-                    <div class="flex items-center gap-1 text-xs opacity-60 mt-1 justify-end w-full">
-                      {#if m.is_read}
-                        <CheckCheck class="w-3 h-3 text-primary" />
+                  {:else}
+                    <div 
+                      class={`relative rounded-[2rem] px-5 py-4 shadow-sm transition-all duration-300 group/bubble w-fit ${
+                        m.sender_id === $auth?.id
+                          ? 'bg-primary text-primary-content rounded-br-lg shadow-primary/20 hover:shadow-primary/30 [&_a]:text-primary-content'
+                          : 'bg-base-100 border border-base-200 text-base-content rounded-bl-lg hover:border-primary/20'
+                      }`}
+                      on:click={() => { m.showTime = !m.showTime; convo = [...convo]; }}
+                      role="button"
+                      tabindex="0"
+                      on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.showTime = !m.showTime; convo = [...convo]; } }}
+                    >
+                      {#if m.structured}
+                        <div class="markdown prose prose-sm max-w-none prose-headings:text-inherit prose-p:text-inherit prose-strong:text-inherit prose-code:text-inherit prose-pre:bg-black/10 prose-a:text-inherit prose-a:underline">
+                          {@html renderMarkdown(m.text)}
+                        </div>
                       {:else}
-                        <Check class="w-3 h-3 text-base-content/40" />
+                        <p class="text-sm font-medium leading-relaxed">{hyphenateLongWords(m.text)}</p>
+                      {/if}
+
+                      <!-- Message Status Overlay for sent messages -->
+                      {#if m.sender_id === $auth?.id}
+                        <div class="absolute -bottom-1 -left-2 flex items-center gap-1 opacity-0 group-hover/bubble:opacity-100 transition-opacity">
+                          {#if m.is_read}
+                            <CheckCheck size={12} class="text-primary" />
+                          {:else}
+                            <Check size={12} class="text-base-content/40" />
+                          {/if}
+                        </div>
                       {/if}
                     </div>
                   {/if}
-                  
-                  <!-- Time display below message -->
-                  {#if m.showTime}
-                    <div class="{`text-xs opacity-60 mt-1 ${m.sender_id === $auth?.id ? 'text-right' : 'text-left'}`}">
-                      <span class="text-base-content/60">{formatTime(m.created_at)}</span>
-                    </div>
-                  {/if}
                 {/if}
-              {/if}
+
+                {#if m.showTime}
+                  <div class={`text-[9px] font-black uppercase tracking-widest opacity-40 mt-2 px-2 flex items-center gap-2 ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'}`} in:fade>
+                    {formatTime(m.created_at)}
+                    {#if m.sender_id === $auth?.id}
+                      <span class="inline-flex">
+                        {#if m.is_read}
+                          <CheckCheck size={10} class="text-primary" />
+                        {:else}
+                          <Check size={10} />
+                        {/if}
+                      </span>
+                    {/if}
+                  </div>
+                {/if}
+              </div>
             </div>
           </div>
         </div>
       {/each}
     </div>
-  </div>
 
-  <!-- Enhanced Input Area -->
-  <div class="chat-input-area mx-2 sm:mx-4 mb-2 sm:mb-3 p-4 rounded-xl bg-base-100/80 backdrop-blur supports-[backdrop-filter]:bg-base-100/85 border border-base-300/30 shadow-md">
-    {#if imageData}
-      <div class="relative mb-3">
-        <img src={imageData} alt={t('frontend/src/routes/messages/[id]/+page.svelte::image_preview_alt')} class="max-h-32 rounded-lg shadow-sm" />
-        <button
-          class="btn btn-circle btn-sm btn-ghost absolute top-2 right-2 bg-base-100/80 backdrop-blur-sm hover:bg-base-200/80"
-          on:click={() => imageData = null}
-        >
-          <X class="w-4 h-4" />
-        </button>
-      </div>
-    {/if}
+    <!-- Input Area -->
+    <div class="p-6 bg-base-100/50 border-t border-base-200 backdrop-blur-md">
+      {#if imageData || fileData}
+        <div class="flex flex-wrap gap-3 mb-4" in:fade>
+          {#if imageData}
+            <div class="relative group">
+              <img src={imageData} alt="" class="h-24 w-24 object-cover rounded-2xl border-4 border-base-100 shadow-lg" />
+              <button class="absolute -top-2 -right-2 btn btn-circle btn-xs btn-error shadow-lg" on:click={() => imageData = null}><X size={12} /></button>
+            </div>
+          {/if}
+          {#if fileData}
+            <div class="flex items-center gap-3 p-3 bg-base-100 rounded-2xl border-2 border-primary/20 shadow-sm max-w-xs">
+              <div class="w-8 h-8 bg-primary/10 text-primary rounded-xl flex items-center justify-center"><Paperclip size={14} /></div>
+              <span class="text-xs font-black truncate flex-1">{fileName}</span>
+              <button class="btn btn-ghost btn-xs btn-circle" on:click={() => {fileData=null; fileName=null;}}><X size={12} /></button>
+            </div>
+          {/if}
+        </div>
+      {/if}
 
-    {#if fileData}
-      <div class="relative mb-3">
-        <div class="flex items-center gap-3 p-3 bg-base-200/50 rounded-lg border border-base-300/50">
-          <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-            <Paperclip class="w-5 h-5 text-primary" />
+      <div class="flex flex-col gap-3">
+        <div class="flex items-center gap-2">
+          <!-- Hidden file inputs -->
+          <input type="file" accept="image/*" class="hidden" bind:this={fileInput} on:change={fileChanged} />
+          <input type="file" class="hidden" bind:this={generalFileInput} on:change={generalFileChanged} />
+          
+          <div class="attachment-menu dropdown dropdown-top">
+            <button class="btn btn-ghost btn-sm h-10 w-10 rounded-xl p-0 hover:bg-primary/10 hover:text-primary transition-all">
+              <Paperclip size={20} />
+            </button>
+            <ul class="dropdown-content menu p-2 shadow-2xl bg-base-100 rounded-2xl w-48 mb-2 border border-base-200">
+              <li><button on:click={chooseFile} class="rounded-xl"><ImagePlus size={16} class="text-primary" /> {translate('frontend/src/routes/messages/[id]/+page.svelte::photo_attachment')}</button></li>
+              <li><button on:click={chooseGeneralFile} class="rounded-xl"><Paperclip size={16} class="text-secondary" /> {translate('frontend/src/routes/messages/[id]/+page.svelte::file_attachment')}</button></li>
+            </ul>
           </div>
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium truncate">{fileName}</p>
-            <p class="text-xs text-base-content/60">{(fileData.length * 0.75 / 1024).toFixed(1)} KB</p>
+          
+          <div class="relative">
+            <button type="button" class={`emoji-picker btn btn-ghost btn-sm h-10 w-10 rounded-xl p-0 transition-all ${showEmojiPicker ? 'text-primary bg-primary/10' : ''}`} on:click={() => showEmojiPicker = !showEmojiPicker}>
+              <Smile size={20} />
+            </button>
+
+            {#if showEmojiPicker}
+              <div class="emoji-picker absolute bottom-full left-0 mb-4 bg-base-100 p-4 rounded-[2rem] shadow-2xl border border-base-200 w-80 z-50 overflow-hidden" in:fade={{ duration: 150 }}>
+                <div class="grid grid-cols-7 gap-1 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                  {#each commonEmojis as emoji}
+                    <button type="button" class="w-9 h-9 flex items-center justify-center text-xl hover:bg-base-200 rounded-xl transition-colors" on:click={() => insertEmoji(emoji)}>{emoji}</button>
+                  {/each}
+                </div>
+              </div>
+            {/if}
           </div>
-          <button
-            class="btn btn-circle btn-sm btn-ghost hover:bg-base-200/80"
-            on:click={() => { fileData = null; fileName = null; }}
-          >
-            <X class="w-4 h-4" />
+          
+          <button class={`btn btn-ghost btn-sm h-10 w-10 rounded-xl p-0 transition-all ${structured ? 'text-primary bg-primary/10' : ''}`} on:click={() => structured = !structured} title={t('frontend/src/routes/messages/[id]/+page.svelte::structured_messaging')}>
+            <Table size={20} />
           </button>
         </div>
-      </div>
-    {/if}
-    
-    <div class="flex items-end gap-3">
-      <!-- Hidden file inputs -->
-      <input type="file" accept="image/*" class="hidden" bind:this={fileInput} on:change={fileChanged} />
-      <input type="file" class="hidden" bind:this={generalFileInput} on:change={generalFileChanged} />
-      
-      <!-- Attachment Menu -->
-      <div class="relative attachment-menu">
-        <button 
-          class="btn btn-circle btn-ghost hover:bg-base-200/80 transition-all duration-200" 
-          on:click={() => showAttachmentMenu = !showAttachmentMenu}
-        >
-          <Paperclip class="w-4 h-4" />
-        </button>
-        {#if showAttachmentMenu}
-          <div class="absolute bottom-full left-0 mb-2 bg-base-100 rounded-lg shadow-lg border border-base-300/30 p-2 backdrop-blur-sm">
-            <button class="btn btn-ghost btn-sm gap-2 w-full justify-start" on:click={chooseFile}>
-              <ImagePlus class="w-4 h-4" />
-              {translate('frontend/src/routes/messages/[id]/+page.svelte::photo_attachment')}
-            </button>
-            <button class="btn btn-ghost btn-sm gap-2 w-full justify-start" on:click={chooseGeneralFile}>
-              <Paperclip class="w-4 h-4" />
-              {translate('frontend/src/routes/messages/[id]/+page.svelte::file_attachment')}
-            </button>
-          </div>
-        {/if}
-      </div>
-      
-      <!-- Emoji Picker -->
-      <div class="relative emoji-picker">
-        <button 
-          class="btn btn-circle btn-ghost hover:bg-base-200/80 transition-all duration-200" 
-          on:click={() => showEmojiPicker = !showEmojiPicker}
-        >
-          <Smile class="w-4 h-4" />
-        </button>
-        {#if showEmojiPicker}
-          <div class="absolute bottom-full left-0 mb-2 bg-base-100 rounded-lg shadow-lg border border-base-300/30 p-3 backdrop-blur-sm w-64 max-h-48 overflow-y-auto">
-            <div class="grid grid-cols-8 gap-1">
-              {#each commonEmojis as emoji}
-                <button 
-                  class="w-8 h-8 text-lg hover:bg-base-200 rounded transition-colors flex items-center justify-center"
-                  on:click={() => insertEmoji(emoji)}
-                >
-                  {emoji}
-                </button>
-              {/each}
-            </div>
-          </div>
-        {/if}
-      </div>
-      
-      <!-- Message Input -->
-      <div class="flex-1 relative min-h-[42px] flex items-end">
-        {#if structured}
-          <div class="w-full bg-base-100 rounded-2xl border border-base-300 shadow-sm overflow-hidden" transition:fade={{ duration: 200 }}>
-            <MarkdownEditor 
-              bind:value={msg} 
-              placeholder={t('frontend/src/routes/messages/[id]/+page.svelte::type_a_message_placeholder')}
-              className="chat-md-editor"
-              showExtraButtons={false}
-            />
-          </div>
-        {:else}
-          <div class="w-full" transition:fade={{ duration: 200 }}>
-            <textarea
-              class="textarea textarea-bordered w-full resize-none overflow-hidden bg-base-200/50 backdrop-blur-sm border-base-300/50 focus:border-primary/50 focus:bg-base-100/80 transition-all duration-200 rounded-2xl"
-              rows="1"
-              style="min-height:0;height:auto"
-              placeholder={t('frontend/src/routes/messages/[id]/+page.svelte::type_a_message_placeholder')}
-              bind:value={msg}
-              bind:this={msgInput}
-              on:input={adjustHeight}
-              on:keydown={handleKeydown}
-            ></textarea>
-          </div>
-        {/if}
-      </div>
-      
-      <!-- Structured Toggle -->
-      <div class="relative">
-        <button 
-          class="btn btn-circle btn-ghost {structured ? 'text-primary' : 'text-base-content/40'} hover:bg-base-200/80 transition-all duration-200" 
-          on:click={() => structured = !structured}
-          title={t('frontend/src/routes/messages/[id]/+page.svelte::structured_messaging')}
-        >
-          <Table class="w-4 h-4" />
-        </button>
-      </div>
 
-      <!-- Send Button -->
-      <button
-        class="btn btn-circle btn-primary shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-        on:click={send}
-        disabled={!msg.trim() && !imageData && !fileData}
-        aria-label={t('frontend/src/routes/messages/[id]/+page.svelte::send_message_aria')}
-      >
-        <Send class="w-4 h-4" />
-      </button>
-    </div>
-    
-    {#if err}
-      <div class="mt-2 p-2 bg-error/10 border border-error/20 rounded-lg">
-        <p class="text-error text-sm">{err}</p>
+        <div class="flex items-end gap-3 relative">
+          <div class="flex-1 relative">
+            {#if structured}
+              <div class="w-full bg-base-100 rounded-2xl border-2 border-base-200 focus-within:border-primary/30 shadow-sm overflow-hidden transition-all overflow-y-auto max-h-40" in:fade>
+                <MarkdownEditor 
+                  bind:value={msg} 
+                  placeholder={t('frontend/src/routes/messages/[id]/+page.svelte::type_a_message_placeholder')}
+                  className="forum-md-editor"
+                  showExtraButtons={false}
+                />
+              </div>
+            {:else}
+              <textarea
+                class="textarea w-full bg-base-200/50 focus:bg-base-100 border-2 border-transparent focus:border-primary/30 transition-all duration-300 rounded-[1.5rem] px-5 py-4 text-sm font-medium resize-none max-h-40 min-h-[56px] custom-scrollbar"
+                placeholder={t('frontend/src/routes/messages/[id]/+page.svelte::type_a_message_placeholder')}
+                bind:value={msg}
+                bind:this={msgInput}
+                on:input={adjustHeight}
+                on:keydown={handleKeydown}
+              ></textarea>
+            {/if}
+          </div>
+          
+          <button
+            class="btn btn-primary h-14 w-14 rounded-2xl p-0 shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 shrink-0"
+            on:click={send}
+            disabled={!msg.trim() && !imageData && !fileData}
+          >
+            <Send size={24} />
+          </button>
+        </div>
+
+        {#if err}
+          <div class="mt-2 p-2 bg-error/10 border border-error/20 rounded-xl" in:fade>
+            <p class="text-error text-xs font-bold uppercase tracking-tight text-center">{err}</p>
+          </div>
+        {/if}
       </div>
-    {/if}
+    </div>
   </div>
 </div>
 
 <!-- Image Lightbox Overlay -->
 {#if lightboxOpen && modalImage}
-  <div class="{`fixed top-0 bottom-0 right-0 left-0 ${$sidebarCollapsed ? 'sm:left-0' : 'sm:left-60'} z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center`}" on:click|self={closeLightbox} in:fade={{ duration: 150 }} out:fade={{ duration: 150 }} role="dialog" aria-modal="true" aria-label={t('frontend/src/routes/messages/[id]/+page.svelte::image_viewer_aria')} tabindex="-1" on:keydown={handleLightboxKeydown}>
-    <!-- Controls -->
-    <div class="absolute top-0 left-0 right-0 p-4 flex items-center justify-end gap-2">
-      <a class="btn btn-sm md:btn-md no-animation bg-white/20 hover:bg-white/30 text-white border-0" href={modalImage} download on:click|stopPropagation aria-label={t('frontend/src/routes/messages/[id]/+page.svelte::download_image_aria')}>{t('frontend/src/routes/messages/[id]/+page.svelte::download_button')}</a>
-      <button class="btn btn-circle no-animation bg-white/20 hover:bg-white/30 text-white border-0" on:click|stopPropagation={closeLightbox} aria-label={t('frontend/src/routes/messages/[id]/+page.svelte::close_button_aria')}>
-        <X class="w-5 h-5" />
-      </button>
+  <div class="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4" in:fade={{ duration: 200 }} out:fade={{ duration: 200 }} on:click|self={closeLightbox}>
+    <div class="absolute top-6 right-6 flex items-center gap-4">
+      <a href={modalImage} download class="btn btn-ghost text-white font-black uppercase tracking-widest text-xs gap-2"><Download size={18}/> {t('frontend/src/routes/messages/[id]/+page.svelte::download_button')}</a>
+      <button class="btn btn-circle btn-ghost text-white" on:click={closeLightbox}><X size={24}/></button>
     </div>
 
-    <!-- Image -->
-    <button type="button" class="bg-transparent p-0 m-0 border-0 focus:outline-none" on:click|stopPropagation aria-label={t('frontend/src/routes/messages/[id]/+page.svelte::image_aria')}>
-      <img src={modalImage} alt="" class="max-h-[90vh] max-w-[90vw] object-contain rounded-xl shadow-2xl" transition:scale={{ duration: 200, start: 0.98 }} />
-    </button>
+    <img src={modalImage} alt="" class="max-w-full max-h-full object-contain rounded-xl shadow-2xl" transition:scale={{ duration: 300, start: 0.95 }} />
 
-    <!-- Nav Arrows -->
     {#if imageUrls.length > 1}
-      <button class="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 rounded-full p-2 md:p-3 bg-white/15 hover:bg-white/25 text-white shadow-sm border border-transparent focus:outline-none focus:ring-2 focus:ring-white/50" on:click|stopPropagation={showPrevImage} aria-label={t('frontend/src/routes/messages/[id]/+page.svelte::previous_image_aria')}>
-        <ChevronLeft class="w-6 h-6" />
-      </button>
-      <button class="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 rounded-full p-2 md:p-3 bg-white/15 hover:bg-white/25 text-white shadow-sm border border-transparent focus:outline-none focus:ring-2 focus:ring-white/50" on:click|stopPropagation={showNextImage} aria-label={t('frontend/src/routes/messages/[id]/+page.svelte::next_image_aria')}>
-        <ChevronRight class="w-6 h-6" />
-      </button>
+      <button class="absolute left-6 btn btn-circle btn-ghost text-white lg:btn-lg" on:click|stopPropagation={showPrevImage}><ChevronLeft size={32}/></button>
+      <button class="absolute right-6 btn btn-circle btn-ghost text-white lg:btn-lg" on:click|stopPropagation={showNextImage}><ChevronRight size={32}/></button>
     {/if}
   </div>
 {/if}
@@ -790,67 +747,40 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
 <ConfirmModal bind:this={confirmModal} />
 
 <style>
-  .chat-window {
-    background: linear-gradient(135deg, hsl(var(--b1) / 0.95) 0%, hsl(var(--b2) / 0.95) 100%);
-  }
-  
-  .message-bubble {
-    position: relative;
-    transition: all 0.2s ease;
-  }
-  
-  .message-bubble:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-  
-  .typing-indicator {
-    animation: slideIn 0.3s ease-out;
-  }
-  
-  @keyframes slideIn {
-    from {
-      opacity: 0;
-      transform: translateY(10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-  
-  .chat-input-area {
-    background: linear-gradient(180deg, hsl(var(--b1) / 0.8) 0%, hsl(var(--b1) / 0.95) 100%);
-  }
-  
-  /* Custom scrollbar for chat */
-  .overflow-y-auto::-webkit-scrollbar {
-    width: 6px;
-  }
-  
-  .overflow-y-auto::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  
-  .overflow-y-auto::-webkit-scrollbar-thumb {
-    background: hsl(var(--bc) / 0.2);
-    border-radius: 3px;
-  }
-  
-  .overflow-y-auto::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--bc) / 0.3);
+  :global(body) {
+    font-family: 'Outfit', sans-serif;
   }
 
-  /* Chat Markdown Editor Styles */
-  
-  :global(.sent-message a),
-  :global(.received-message a) {
-    color: inherit !important;
-    text-decoration: underline;
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
   }
-  
-  :global(.sent-message .markdown a),
-  :global(.received-message .markdown a) {
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: hsl(var(--bc) / 0.1);
+    border-radius: 10px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--bc) / 0.2);
+  }
+
+  :global(.token.operator), :global(.token.entity), :global(.token.url), :global(.language-css .token.string), :global(.style .token.string) {
+    background: transparent !important;
+  }
+
+  /* Force link visibility in sent messages (blue background) */
+  :global(.bg-primary a), :global(.bg-primary a *) {
+    color: white !important;
+    text-decoration: underline !important;
+    opacity: 1 !important;
+  }
+  :global(.bg-primary a:hover) {
+    color: rgba(255, 255, 255, 0.8) !important;
+  }
+
+  /* Specific message bubble tweaks */
+  :global(.group\/bubble .markdown a) {
     color: inherit !important;
   }
 </style>
