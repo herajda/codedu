@@ -49,20 +49,36 @@
 
   // Persistent state for accordions to prevent unwanted collapses
   let openedSections: Record<string | number, boolean> = {};
+  let lastSection = '';
   
   $: {
-    // Aggressively ensure the current section is open based on the URL
+    // Only auto-open the section when the section actually changes (navigation)
+    // This allows manual collapse while staying within the same section
     if (currentPath) {
+      let foundSection = '';
+      
       $classesStore.classes.forEach(c => {
-        if (isSection(`/classes/${c.id}`)) {
-          openedSections[c.id] = true;
+        const sectionPath = `/classes/${c.id}`;
+        if (isSection(sectionPath)) {
+          foundSection = sectionPath;
+          if (lastSection !== sectionPath) {
+            openedSections[c.id] = true;
+          }
         }
       });
+
       if (isSection('/teachers')) {
-        openedSections['teachers'] = true;
+        foundSection = '/teachers';
+        if (lastSection !== '/teachers') {
+          openedSections['teachers'] = true;
+        }
       }
-      // Re-assign to trigger reactivity
-      openedSections = openedSections;
+
+      if (foundSection !== lastSection) {
+        lastSection = foundSection;
+        // Re-assign to trigger reactivity for the binding
+        openedSections = openedSections;
+      }
     }
   }
 </script>
@@ -134,7 +150,7 @@
                         class:is-active={isActive(`/classes/${c.id}/overview`)} 
                         href={`/classes/${c.id}/overview`} 
                       >
-                        <div class="dot"></div>
+                        <span class="nav-emoji">🏠</span>
                         <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::class_overview_link')}</span>
                       </a>
                     {/if}
@@ -143,7 +159,7 @@
                       class:is-active={isActive(`/classes/${c.id}/assignments`)} 
                       href={`/classes/${c.id}/assignments`} 
                     >
-                      <div class="dot"></div>
+                      <span class="nav-emoji">📋</span>
                       <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::class_assignments_link')}</span>
                     </a>
                     <a 
@@ -151,7 +167,7 @@
                       class:is-active={isActive(`/classes/${c.id}/files`)} 
                       href={`/classes/${c.id}/files`} 
                     >
-                      <div class="dot"></div>
+                      <span class="nav-emoji">📁</span>
                       <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::class_files_link')}</span>
                     </a>
                     <a 
@@ -159,7 +175,7 @@
                       class:is-active={isActive(`/classes/${c.id}/notes`)} 
                       href={`/classes/${c.id}/notes`} 
                     >
-                      <div class="dot"></div>
+                      <span class="nav-emoji">📒</span>
                       <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::class_notes_link')}</span>
                     </a>
                     <a 
@@ -167,7 +183,7 @@
                       class:is-active={isActive(`/classes/${c.id}/forum`)} 
                       href={`/classes/${c.id}/forum`} 
                     >
-                      <div class="dot"></div>
+                      <span class="nav-emoji">💬</span>
                       <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::class_forum_link')}</span>
                     </a>
                     {#if $auth?.role !== 'student'}
@@ -176,7 +192,7 @@
                         class:is-active={isActive(`/classes/${c.id}/progress`)} 
                         href={`/classes/${c.id}/progress`} 
                       >
-                        <div class="dot"></div>
+                        <span class="nav-emoji">📊</span>
                         <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::class_progress_link')}</span>
                       </a>
                       <a 
@@ -184,7 +200,7 @@
                         class:is-active={isActive(`/classes/${c.id}/settings`)} 
                         href={`/classes/${c.id}/settings`} 
                       >
-                        <div class="dot"></div>
+                        <span class="nav-emoji">🛠️</span>
                         <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::class_settings_link')}</span>
                       </a>
                     {/if}
@@ -221,7 +237,7 @@
                       class:is-active={isActive('/teachers/forum')} 
                       href="/teachers/forum" 
                     >
-                      <div class="dot dot-indigo"></div>
+                      <span class="nav-emoji">👥</span>
                       <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::teachers_forum_link')}</span>
                     </a>
                     <a 
@@ -229,7 +245,7 @@
                       class:is-active={isActive('/teachers/files')} 
                       href="/teachers/files" 
                     >
-                      <div class="dot dot-indigo"></div>
+                      <span class="nav-emoji">📁</span>
                       <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::teachers_files_link')}</span>
                     </a>
                     <a 
@@ -237,7 +253,7 @@
                       class:is-active={isActive('/teachers/assignments')} 
                       href="/teachers/assignments" 
                     >
-                      <div class="dot dot-indigo"></div>
+                      <span class="nav-emoji">📋</span>
                       <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::teachers_assignments_link')}</span>
                     </a>
                   </div>
@@ -432,24 +448,26 @@
     font-weight: 700;
   }
 
-  .dot {
-    width: 4px;
-    height: 4px;
-    border-radius: 9999px;
-    transition: all 0.2s ease;
+  .nav-emoji {
+    font-size: 0.95rem;
+    transition: all 0.25s cubic-bezier(0.23, 1, 0.32, 1);
     flex-shrink: 0;
-    background-color: #d1d5db; /* Light grey for inactive dots */
+    filter: saturate(0.8) opacity(0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
   }
 
-  .nav-sublink.is-active .dot {
-    background-color: #3b82f6; /* Bright blue for active dots */
-    transform: scale(1.5);
-    box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+  .nav-sublink:hover .nav-emoji {
+    filter: saturate(1.1) opacity(1);
+    transform: scale(1.1) translateY(-1px);
   }
 
-  .nav-sublink.is-active .dot.dot-indigo {
-    background-color: #6366f1; /* Bright indigo for teacher links */
-    box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+  .nav-sublink.is-active .nav-emoji {
+    filter: saturate(1.3) opacity(1);
+    transform: scale(1.2);
+    filter: drop-shadow(0 0 8px oklch(var(--p) / 0.3));
   }
 
   /* Glow effects */
