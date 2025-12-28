@@ -381,6 +381,8 @@ func main() {
 		api.GET("/classes/:id/files", RoleGuard("teacher", "student", "admin"), listClassFiles)
 		api.GET("/classes/:id/notebooks", RoleGuard("teacher", "student", "admin"), listClassNotebooks)
 		api.POST("/classes/:id/files", RoleGuard("teacher", "admin"), uploadClassFile)
+		api.GET("/teacher-files", RoleGuard("teacher", "admin"), listTeacherFiles)
+		api.POST("/teacher-files", RoleGuard("teacher", "admin"), uploadTeacherFile)
 		api.GET("/files/:id", RoleGuard("teacher", "student", "admin"), downloadClassFile)
 		api.PUT("/files/:id", RoleGuard("teacher", "admin"), renameClassFile)
 		api.PUT("/files/:id/content", RoleGuard("teacher", "admin"), updateFileContent)

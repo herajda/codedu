@@ -1,6 +1,5 @@
 <script lang="ts">
 import { onMount } from 'svelte';
-import { page } from '$app/stores';
 import { goto } from '$app/navigation';
 import { auth } from '$lib/auth';
 import { apiJSON, apiFetch } from '$lib/api';
@@ -19,12 +18,13 @@ import {
 } from 'lucide-svelte';
 
 import { formatDateTime } from "$lib/date";
-let id = $page.params.id;
-$: if ($page.params.id !== id) { id = $page.params.id; load(currentParent); }
 let role = '';
 $: role = $auth?.role ?? '';
+const storageKey = 'personal_files';
+$: if (role && role !== 'teacher' && role !== 'admin') {
+  goto('/dashboard');
+}
 
-let cls: any = null;
 let items:any[] = [];
 let search = '';
 let searchResults:any[] = [];
@@ -111,13 +111,7 @@ async function load(parent:number|null){
   loading = true; err='';
   try{
     const q = parent===null ? '' : `?parent=${parent}`;
-    const [filesData, classData] = await Promise.all([
-      apiJSON(`/api/classes/${id}/files${q}`),
-      apiJSON(`/api/classes/${id}`)
-    ]);
-    items = filesData;
-    const detail = classData ?? null;
-    cls = detail?.class ?? detail ?? null;
+    items = await apiJSON(`/api/teacher-files${q}`);
     currentParent = parent;
   }catch(e:any){ err = e.message }
   loading = false;
@@ -126,7 +120,7 @@ async function load(parent:number|null){
 async function fetchSearch(q:string){
   loading = true; err='';
   try{
-    searchResults = await apiJSON(`/api/classes/${id}/files?search=${encodeURIComponent(q)}`);
+    searchResults = await apiJSON(`/api/teacher-files?search=${encodeURIComponent(q)}`);
   }catch(e:any){ err = e.message }
   loading = false;
 }
@@ -134,8 +128,8 @@ async function fetchSearch(q:string){
 async function openDir(item:any){
   breadcrumbs = [...breadcrumbs, {id:item.id,name:item.name}];
   if (typeof sessionStorage !== 'undefined') {
-    sessionStorage.setItem(`files_breadcrumbs_${id}`, JSON.stringify(breadcrumbs));
-    sessionStorage.setItem(`files_parent_${id}`, String(item.id));
+    sessionStorage.setItem(`${storageKey}_breadcrumbs`, JSON.stringify(breadcrumbs));
+    sessionStorage.setItem(`${storageKey}_parent`, String(item.id));
   }
   search = '';
   await load(item.id);
@@ -145,8 +139,8 @@ function crumbTo(i:number){
   const b = breadcrumbs[i];
   breadcrumbs = breadcrumbs.slice(0,i+1);
   if (typeof sessionStorage !== 'undefined') {
-    sessionStorage.setItem(`files_breadcrumbs_${id}`, JSON.stringify(breadcrumbs));
-    sessionStorage.setItem(`files_parent_${id}`, b.id === null ? '' : String(b.id));
+    sessionStorage.setItem(`${storageKey}_breadcrumbs`, JSON.stringify(breadcrumbs));
+    sessionStorage.setItem(`${storageKey}_parent`, b.id === null ? '' : String(b.id));
   }
   search = '';
   load(b.id);
@@ -175,7 +169,7 @@ async function doUpload() {
   if (currentParent !== null) fd.append('parent_id', String(currentParent));
   fd.append('file', fileToUpload);
   uploading = true;
-  const res = await apiFetch(`/api/classes/${id}/files`, { method: 'POST', body: fd });
+  const res = await apiFetch(`/api/teacher-files`, { method: 'POST', body: fd });
   if (!res.ok) {
     uploadErr = (await res.json()).error || res.statusText;
     uploading = false;
@@ -187,7 +181,7 @@ async function doUpload() {
 }
 
 async function createDir(name:string){
-  await apiFetch(`/api/classes/${id}/files`, {
+  await apiFetch(`/api/teacher-files`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, parent_id: currentParent, is_dir: true })
@@ -210,7 +204,7 @@ async function promptDir(){
 }
 
 async function createNotebook(name: string) {
-  const cf = await apiJSON(`/api/classes/${id}/files`, {
+  const cf = await apiJSON(`/api/teacher-files`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, parent_id: currentParent })
@@ -446,7 +440,7 @@ function toggleView() {
   }
 
   async function uploadFiles(files: File[]) {
-    for (const f of files) {
+  for (const f of files) {
       let fileToUpload: File = f;
       if (f.type.startsWith('image/')) {
         try { fileToUpload = await compressImage(f); } catch {}
@@ -457,7 +451,7 @@ function toggleView() {
       const fd = new FormData();
       if (currentParent !== null) fd.append('parent_id', String(currentParent));
       fd.append('file', fileToUpload);
-      const res = await apiFetch(`/api/classes/${id}/files`, { method: 'POST', body: fd });
+      const res = await apiFetch(`/api/teacher-files`, { method: 'POST', body: fd });
       if (!res.ok) {
         const js = await res.json().catch(() => ({}));
         throw new Error(js.error || res.statusText);
@@ -481,11 +475,11 @@ function fmtSize(bytes: number | null | undefined, decimals = 1) {
 onMount(() => {
   let storedParent: string | null = null;
   if (typeof sessionStorage !== 'undefined') {
-    const sp = sessionStorage.getItem(`files_parent_${id}`);
+    const sp = sessionStorage.getItem(`${storageKey}_parent`);
     if (sp) {
       storedParent = sp;
     }
-    const bc = sessionStorage.getItem(`files_breadcrumbs_${id}`);
+    const bc = sessionStorage.getItem(`${storageKey}_breadcrumbs`);
     if (bc) {
       try {
         breadcrumbs = JSON.parse(bc);
@@ -500,10 +494,10 @@ onMount(() => {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap" rel="stylesheet">
-  <title>{cls?.name ? `${cls.name} | CodEdu` : 'Files | CodEdu'}</title>
+  <title>{translate('frontend/src/routes/files/+page.svelte::page_title')}</title>
 </svelte:head>
 
-{#if loading && !cls}
+{#if loading && !items.length}
   <div class="flex justify-center mt-12">
     <span class="loading loading-dots loading-lg text-primary"></span>
   </div>
@@ -528,10 +522,10 @@ onMount(() => {
     <div class="relative flex flex-col md:flex-row items-center justify-between gap-6">
       <div class="flex-1 text-center md:text-left">
         <h1 class="text-3xl sm:text-4xl font-black tracking-tight mb-2">
-          {cls?.name || ''} <span class="text-primary/40">/</span> {translate('frontend/src/routes/classes/[id]/files/+page.svelte::files_heading')}
+          {translate('frontend/src/routes/files/+page.svelte::files_heading')}
         </h1>
         <p class="text-base-content/60 font-medium max-w-xl mx-auto md:mx-0">
-          {translate('frontend/src/routes/classes/[id]/files/+page.svelte::files_description')}
+          {translate('frontend/src/routes/files/+page.svelte::files_description')}
         </p>
       </div>
       
@@ -826,7 +820,7 @@ onMount(() => {
     <div class="bg-base-200/50 border-2 border-dashed border-base-300 rounded-3xl p-8 text-center group hover:border-primary/30 transition-all relative">
       <input 
         type="file" 
-        class="absolute inset-0 opacity-0 cursor-pointer" 
+        class="absolute inset-0 opacity-0 cursor-pointer z-10" 
         on:change={e => uploadFile=(e.target as HTMLInputElement).files?.[0] || null}
       >
       {#if uploadFile}
@@ -838,7 +832,7 @@ onMount(() => {
             <p class="text-[10px] opacity-40 uppercase tracking-widest mt-1">{fmtSize(uploadFile.size)}</p>
          </div>
       {:else}
-         <div class="flex flex-col items-center opacity-40 group-hover:opacity-60 transition-opacity">
+         <div class="flex flex-col items-center opacity-40 group-hover:opacity-60 transition-opacity pointer-events-none select-none">
             <Upload size={32} class="mb-3" />
             <p class="text-sm font-bold uppercase tracking-widest">Click or drag to select</p>
          </div>

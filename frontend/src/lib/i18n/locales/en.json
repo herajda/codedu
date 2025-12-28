@@ -1065,6 +1065,7 @@
   "frontend/src/routes/classes/[id]/files/+page.svelte::unit_yb": "YB",
   "frontend/src/routes/classes/[id]/files/+page.svelte::unit_zb": "ZB",
   "frontend/src/routes/classes/[id]/files/+page.svelte::upload_button_label": "Upload",
+  "frontend/src/routes/classes/[id]/files/+page.svelte::upload_file_dialog_title": "Upload file",
   "frontend/src/routes/classes/[id]/files/+page.svelte::upload_file_menu_item": "Upload file",
   "frontend/src/routes/classes/[id]/files/+page.svelte::uploading_button_label": "Uploading",
   "frontend/src/routes/classes/[id]/files/+page.svelte::uploading_message": "Uploading…",
@@ -1756,6 +1757,9 @@
   "frontend/src/routes/assignments/[id]/+page.svelte::explain_failure_error": "Could not explain failure.",
   "frontend/src/routes/classes/[id]/files/+page.svelte::files_heading": "Files",
   "frontend/src/routes/classes/[id]/files/+page.svelte::files_description": "Manage and share resources for this class.",
+  "frontend/src/routes/files/+page.svelte::page_title": "My Files | CodEdu",
+  "frontend/src/routes/files/+page.svelte::files_heading": "My Files",
+  "frontend/src/routes/files/+page.svelte::files_description": "Store and manage your personal teaching resources.",
   "frontend/src/routes/files/[id]/+page.svelte::image_viewer": "Image Viewer",
   "frontend/src/routes/files/[id]/+page.svelte::preview_label": "Preview",
   "frontend/src/routes/files/[id]/+page.svelte::notebook_label": "Jupyter Notebook"

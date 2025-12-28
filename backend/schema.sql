@@ -225,6 +225,7 @@ CREATE TABLE IF NOT EXISTS class_students (
 CREATE TABLE IF NOT EXISTS class_files (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   class_id UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+  owner_id UUID REFERENCES users(id) ON DELETE CASCADE,
   parent_id UUID REFERENCES class_files(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   path TEXT NOT NULL,
@@ -233,12 +234,15 @@ CREATE TABLE IF NOT EXISTS class_files (
   content BYTEA,
   size INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE(class_id, path)
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_class_files_path ON class_files(class_id, path);
 -- Backfill column if upgrading
 ALTER TABLE class_files ADD COLUMN IF NOT EXISTS assignment_id UUID REFERENCES assignments(id) ON DELETE SET NULL;
+ALTER TABLE class_files ADD COLUMN IF NOT EXISTS owner_id UUID REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE class_files DROP CONSTRAINT IF EXISTS class_files_class_id_path_key;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_class_files_class_path_unique ON class_files(class_id, path) WHERE owner_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_class_files_owner_path_unique ON class_files(owner_id, path) WHERE owner_id IS NOT NULL;
 
 -- Messages table for private chats
 CREATE TABLE IF NOT EXISTS messages (

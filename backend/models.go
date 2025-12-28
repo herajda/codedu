@@ -1706,6 +1706,7 @@ func GetClassProgress(classID uuid.UUID) (*ClassProgress, error) {
 type ClassFile struct {
 	ID           uuid.UUID  `db:"id" json:"id"`
 	ClassID      uuid.UUID  `db:"class_id" json:"class_id"`
+	OwnerID      *uuid.UUID `db:"owner_id" json:"owner_id,omitempty"`
 	ParentID     *uuid.UUID `db:"parent_id" json:"parent_id"`
 	Name         string     `db:"name" json:"name"`
 	Path         string     `db:"path" json:"path"`
@@ -1732,10 +1733,21 @@ func buildFilePath(parentID *uuid.UUID, name string) (string, error) {
 	return p + "/" + name, nil
 }
 
+func buildOwnedFilePath(parentID *uuid.UUID, ownerID uuid.UUID, name string) (string, error) {
+	if parentID == nil {
+		return "/" + name, nil
+	}
+	var p string
+	if err := DB.Get(&p, `SELECT path FROM class_files WHERE id=$1 AND owner_id=$2`, *parentID, ownerID); err != nil {
+		return "", err
+	}
+	return p + "/" + name, nil
+}
+
 func ListFiles(classID uuid.UUID, parentID *uuid.UUID) ([]ClassFile, error) {
 	list := []ClassFile{}
-	query := `SELECT id,class_id,parent_id,name,path,is_dir,assignment_id,size,created_at,updated_at
-                   FROM class_files WHERE class_id=$1`
+	query := `SELECT id,class_id,owner_id,parent_id,name,path,is_dir,assignment_id,size,created_at,updated_at
+                   FROM class_files WHERE class_id=$1 AND owner_id IS NULL`
 	args := []any{classID}
 	if parentID == nil {
 		query += ` AND parent_id IS NULL`
@@ -1751,9 +1763,9 @@ func ListFiles(classID uuid.UUID, parentID *uuid.UUID) ([]ClassFile, error) {
 func SearchFiles(classID uuid.UUID, term string) ([]ClassFile, error) {
 	list := []ClassFile{}
 	err := DB.Select(&list, `
-                SELECT id,class_id,parent_id,name,path,is_dir,assignment_id,size,created_at,updated_at
+                SELECT id,class_id,owner_id,parent_id,name,path,is_dir,assignment_id,size,created_at,updated_at
                   FROM class_files
-                 WHERE class_id=$1 AND (name ILIKE $2 OR path ILIKE $2)
+                 WHERE class_id=$1 AND owner_id IS NULL AND (name ILIKE $2 OR path ILIKE $2)
                  ORDER BY is_dir DESC, path`,
 		classID, "%"+term+"%")
 	return list, err
@@ -1761,10 +1773,37 @@ func SearchFiles(classID uuid.UUID, term string) ([]ClassFile, error) {
 
 func ListNotebooks(classID uuid.UUID) ([]ClassFile, error) {
 	list := []ClassFile{}
-	err := DB.Select(&list, `SELECT id,class_id,parent_id,name,path,is_dir,size,created_at,updated_at
+	err := DB.Select(&list, `SELECT id,class_id,owner_id,parent_id,name,path,is_dir,size,created_at,updated_at
                 FROM class_files
-               WHERE class_id=$1 AND NOT is_dir AND lower(name) LIKE '%.ipynb'
+               WHERE class_id=$1 AND owner_id IS NULL AND NOT is_dir AND lower(name) LIKE '%.ipynb'
                ORDER BY updated_at DESC`, classID)
+	return list, err
+}
+
+func ListTeacherFiles(ownerID uuid.UUID, parentID *uuid.UUID) ([]ClassFile, error) {
+	list := []ClassFile{}
+	query := `SELECT id,class_id,owner_id,parent_id,name,path,is_dir,assignment_id,size,created_at,updated_at
+                   FROM class_files WHERE class_id=$1 AND owner_id=$2`
+	args := []any{TeacherGroupID, ownerID}
+	if parentID == nil {
+		query += ` AND parent_id IS NULL`
+	} else {
+		query += ` AND parent_id=$3`
+		args = append(args, *parentID)
+	}
+	query += ` ORDER BY is_dir DESC, name`
+	err := DB.Select(&list, query, args...)
+	return list, err
+}
+
+func SearchTeacherFiles(ownerID uuid.UUID, term string) ([]ClassFile, error) {
+	list := []ClassFile{}
+	err := DB.Select(&list, `
+                SELECT id,class_id,owner_id,parent_id,name,path,is_dir,assignment_id,size,created_at,updated_at
+                  FROM class_files
+                 WHERE class_id=$1 AND owner_id=$2 AND (name ILIKE $3 OR path ILIKE $3)
+                 ORDER BY is_dir DESC, path`,
+		TeacherGroupID, ownerID, "%"+term+"%")
 	return list, err
 }
 
@@ -1780,9 +1819,30 @@ func SaveFile(classID uuid.UUID, parentID *uuid.UUID, name string, data []byte, 
 	var cf ClassFile
 	err = DB.QueryRow(`INSERT INTO class_files (class_id,parent_id,name,path,is_dir,content,size)
                         VALUES ($1,$2,$3,$4,$5,$6,$7)
-                        RETURNING id,class_id,parent_id,name,path,is_dir,assignment_id,size,created_at,updated_at`,
+                        RETURNING id,class_id,owner_id,parent_id,name,path,is_dir,assignment_id,size,created_at,updated_at`,
 		classID, parentID, name, path, isDir, data, size).Scan(
-		&cf.ID, &cf.ClassID, &cf.ParentID, &cf.Name, &cf.Path, &cf.IsDir, &cf.AssignmentID, &cf.Size, &cf.CreatedAt, &cf.UpdatedAt)
+		&cf.ID, &cf.ClassID, &cf.OwnerID, &cf.ParentID, &cf.Name, &cf.Path, &cf.IsDir, &cf.AssignmentID, &cf.Size, &cf.CreatedAt, &cf.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &cf, nil
+}
+
+func SaveTeacherFile(ownerID uuid.UUID, parentID *uuid.UUID, name string, data []byte, isDir bool) (*ClassFile, error) {
+	if !isDir && len(data) > maxFileSize {
+		return nil, fmt.Errorf("file too large")
+	}
+	path, err := buildOwnedFilePath(parentID, ownerID, name)
+	if err != nil {
+		return nil, err
+	}
+	size := len(data)
+	var cf ClassFile
+	err = DB.QueryRow(`INSERT INTO class_files (class_id,owner_id,parent_id,name,path,is_dir,content,size)
+                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+                        RETURNING id,class_id,owner_id,parent_id,name,path,is_dir,assignment_id,size,created_at,updated_at`,
+		TeacherGroupID, ownerID, parentID, name, path, isDir, data, size).Scan(
+		&cf.ID, &cf.ClassID, &cf.OwnerID, &cf.ParentID, &cf.Name, &cf.Path, &cf.IsDir, &cf.AssignmentID, &cf.Size, &cf.CreatedAt, &cf.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -1809,7 +1869,7 @@ func SaveAssignmentRef(classID uuid.UUID, parentID *uuid.UUID, name string, assi
 
 func GetFile(id uuid.UUID) (*ClassFileWithContent, error) {
 	var cf ClassFileWithContent
-	err := DB.Get(&cf, `SELECT id,class_id,parent_id,name,path,is_dir,size,created_at,updated_at,content FROM class_files WHERE id=$1`, id)
+	err := DB.Get(&cf, `SELECT id,class_id,owner_id,parent_id,name,path,is_dir,size,created_at,updated_at,content FROM class_files WHERE id=$1`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1818,7 +1878,7 @@ func GetFile(id uuid.UUID) (*ClassFileWithContent, error) {
 
 func RenameFile(id uuid.UUID, newName string) error {
 	var f ClassFile
-	if err := DB.Get(&f, `SELECT id,class_id,parent_id,name,path FROM class_files WHERE id=$1`, id); err != nil {
+	if err := DB.Get(&f, `SELECT id,class_id,owner_id,parent_id,name,path FROM class_files WHERE id=$1`, id); err != nil {
 		return err
 	}
 	newPath, err := buildFilePath(f.ParentID, newName)
@@ -1836,12 +1896,24 @@ func RenameFile(id uuid.UUID, newName string) error {
 	oldPrefix := f.Path + "/"
 	newPrefix := newPath + "/"
 	rows := []ClassFile{}
-	if err := tx.Select(&rows, `SELECT id,path FROM class_files WHERE class_id=$1 AND path LIKE $2`, f.ClassID, oldPrefix+"%"); err == nil {
-		for _, r := range rows {
-			np := newPrefix + r.Path[len(oldPrefix):]
-			if _, err := tx.Exec(`UPDATE class_files SET path=$1 WHERE id=$2`, np, r.ID); err != nil {
-				tx.Rollback()
-				return err
+	if f.OwnerID == nil {
+		if err := tx.Select(&rows, `SELECT id,path FROM class_files WHERE class_id=$1 AND owner_id IS NULL AND path LIKE $2`, f.ClassID, oldPrefix+"%"); err == nil {
+			for _, r := range rows {
+				np := newPrefix + r.Path[len(oldPrefix):]
+				if _, err := tx.Exec(`UPDATE class_files SET path=$1 WHERE id=$2`, np, r.ID); err != nil {
+					tx.Rollback()
+					return err
+				}
+			}
+		}
+	} else {
+		if err := tx.Select(&rows, `SELECT id,path FROM class_files WHERE owner_id=$1 AND path LIKE $2`, *f.OwnerID, oldPrefix+"%"); err == nil {
+			for _, r := range rows {
+				np := newPrefix + r.Path[len(oldPrefix):]
+				if _, err := tx.Exec(`UPDATE class_files SET path=$1 WHERE id=$2`, np, r.ID); err != nil {
+					tx.Rollback()
+					return err
+				}
 			}
 		}
 	}
@@ -1850,10 +1922,14 @@ func RenameFile(id uuid.UUID, newName string) error {
 
 func DeleteFile(id uuid.UUID) error {
 	var f ClassFile
-	if err := DB.Get(&f, `SELECT class_id,path FROM class_files WHERE id=$1`, id); err != nil {
+	if err := DB.Get(&f, `SELECT class_id,owner_id,path FROM class_files WHERE id=$1`, id); err != nil {
 		return err
 	}
-	_, err := DB.Exec(`DELETE FROM class_files WHERE class_id=$1 AND (id=$2 OR path LIKE $3)`, f.ClassID, id, f.Path+"/%")
+	if f.OwnerID == nil {
+		_, err := DB.Exec(`DELETE FROM class_files WHERE class_id=$1 AND owner_id IS NULL AND (id=$2 OR path LIKE $3)`, f.ClassID, id, f.Path+"/%")
+		return err
+	}
+	_, err := DB.Exec(`DELETE FROM class_files WHERE owner_id=$1 AND (id=$2 OR path LIKE $3)`, *f.OwnerID, id, f.Path+"/%")
 	return err
 }
 
