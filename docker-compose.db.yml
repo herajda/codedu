@@ -4,10 +4,12 @@ services:
   db:
     image: postgres:16
     restart: always
+    env_file:
+      - .env
     environment:
-      POSTGRES_USER: codedu_user
-      POSTGRES_PASSWORD: supersecret
-      POSTGRES_DB: codedu_db
+      POSTGRES_USER: "${DB_USER:-codedu_user}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-supersecret}"
+      POSTGRES_DB: "${DB_NAME:-codedu_db}"
     volumes:
       - db_data:/var/lib/postgresql/data
     networks: [appnet]
@@ -17,4 +19,3 @@ volumes:
 
 networks:
   appnet:
-    name: codedu_appnet

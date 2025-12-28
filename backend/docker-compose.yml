@@ -3,12 +3,14 @@ services:
   db:
     image: postgres:16
     restart: always
+    env_file:
+      - ../.env
     environment:
-      POSTGRES_USER: codedu_user
-      POSTGRES_PASSWORD: supersecret
-      POSTGRES_DB: codedu_db
+      POSTGRES_USER: "${DB_USER:-codedu_user}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-supersecret}"
+      POSTGRES_DB: "${DB_NAME:-codedu_db}"
     ports:
-      - "48812:5432"
+      - "${DB_HOST_PORT:-48812}:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
 
