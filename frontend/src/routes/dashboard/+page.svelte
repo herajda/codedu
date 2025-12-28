@@ -326,18 +326,14 @@
         </div>
         
         <!-- Teacher Toolbar integrated into header -->
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 w-full md:w-auto">
-          <a href="/forum" class="group flex flex-col items-center gap-2 p-3 px-4 rounded-2xl bg-primary text-primary-content shadow-lg shadow-primary/20 hover:scale-105 transition-all text-center">
+        <div class="grid grid-cols-2 gap-3 w-full md:w-auto">
+          <a href="/messages" class="group flex flex-col items-center gap-2 p-3 px-4 rounded-2xl bg-primary text-primary-content shadow-lg shadow-primary/20 hover:scale-105 transition-all text-center">
             <MessageSquare size={20} />
-            <span class="text-[9px] font-black uppercase tracking-widest">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_forum_button')}</span>
+            <span class="text-[9px] font-black uppercase tracking-widest">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_messages_button')}</span>
           </a>
           <a href="/files" class="group flex flex-col items-center gap-2 p-3 px-4 rounded-2xl bg-base-200 hover:bg-base-300 transition-all text-center">
             <FolderOpen size={20} class="opacity-70 group-hover:opacity-100" />
             <span class="text-[9px] font-black uppercase tracking-widest opacity-60 group-hover:opacity-100">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_files_button')}</span>
-          </a>
-          <a href="/teachers/assignments" class="group flex flex-col items-center gap-2 p-3 px-4 rounded-2xl bg-base-200 hover:bg-base-300 transition-all text-center">
-            <ListChecks size={20} class="opacity-70 group-hover:opacity-100" />
-            <span class="text-[9px] font-black uppercase tracking-widest opacity-60 group-hover:opacity-100">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_assignments_button')}</span>
           </a>
         </div>
       </div>

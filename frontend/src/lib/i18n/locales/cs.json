@@ -1219,6 +1219,7 @@
   "frontend/src/routes/dashboard/+page.svelte::dashboard_create_new_class_button": "Vytvořit novou třídu",
   "frontend/src/routes/dashboard/+page.svelte::dashboard_files_button": "Soubory",
   "frontend/src/routes/dashboard/+page.svelte::dashboard_forum_button": "Fórum",
+  "frontend/src/routes/dashboard/+page.svelte::dashboard_messages_button": "Zprávy",
   "frontend/src/routes/dashboard/+page.svelte::dashboard_new_class_placeholder": "Nová třída",
   "frontend/src/routes/dashboard/+page.svelte::dashboard_no_assignments": "Žádné úkoly",
   "frontend/src/routes/dashboard/+page.svelte::dashboard_no_upcoming_deadlines": "Žádné nadcházejicí termíny",
