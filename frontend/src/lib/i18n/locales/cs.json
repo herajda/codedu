@@ -446,6 +446,8 @@
   "frontend/src/routes/+layout.svelte::language_current_helper": "Aktuálně zobrazujeme CodEdu v jazyce {language}.",
   "frontend/src/routes/+layout.svelte::language_option_en": "Angličtina",
   "frontend/src/routes/+layout.svelte::language_option_cs": "Čeština",
+  "frontend/src/lib/components/CustomSelect.svelte::search_placeholder": "Hledat...",
+  "frontend/src/lib/components/CustomSelect.svelte::no_options": "Nenalezeny žádné možnosti",
   "frontend/src/routes/+layout.svelte::provide_bakalari_credentials": "Prosím, zadejte své přihlašovací údaje k Bakalářům",
   "frontend/src/routes/+layout.svelte::provide_valid_email": "Prosím, zadejte platnou e-mailovou adresu",
   "frontend/src/routes/+layout.svelte::register_button": "Registrovat",

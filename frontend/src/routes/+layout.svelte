@@ -31,6 +31,8 @@
     detectLocale as detectLocaleFromHeader,
     ensureLocale,
   } from "$lib/i18n/detect";
+  import CustomSelect from "$lib/components/CustomSelect.svelte";
+  import { Globe } from "lucide-svelte";
   import type { LayoutData } from "./$types";
   import type { Locale, TranslationDictionary } from "$lib/i18n";
 
@@ -74,6 +76,21 @@
   let showLocalAccountForm = false;
   let forcedLinkMode = false;
   let preferredLocaleSelection: "" | Locale = "";
+  $: localeOptions = [
+    {
+      value: "",
+      label: translate(
+        "frontend/src/routes/+layout.svelte::language_system_default",
+      ),
+    },
+    ...(data?.availableLocales || []).map((code) => ({
+      value: code,
+      label: translate(
+        `frontend/src/routes/+layout.svelte::language_option_${code}`,
+      ),
+      flag: code === "cs" ? "🇨🇿" : code === "en" ? "🇺🇸" : "",
+    })),
+  ];
   let authInitReady = false;
 
   $: trimmedLinkEmail = linkEmail.trim();
@@ -925,7 +942,7 @@
           </div>
           <dialog bind:this={settingsDialog} class="modal">
             <div
-              class="modal-box max-w-3xl p-0 overflow-hidden flex flex-col max-h-[85vh] rounded-3xl shadow-2xl bg-base-100"
+              class="modal-box max-w-3xl p-0 flex flex-col max-h-[85vh] rounded-3xl shadow-2xl bg-base-100"
             >
               <header
                 class="relative bg-base-100 border-b border-base-200 sticky top-0 z-20"
@@ -985,10 +1002,12 @@
                       <h3
                         class="text-3xl font-black tracking-tight flex items-center gap-3 text-base-content"
                       >
-                        {user?.name ??
-                          translate(
-                            "frontend/src/routes/+layout.svelte::user_fallback_name",
-                          )}
+                        {editingName && name.length > 0
+                          ? name
+                          : user?.name ??
+                            translate(
+                              "frontend/src/routes/+layout.svelte::user_fallback_name",
+                            )}
                         {#if user?.role}
                           <span
                             class="badge badge-primary badge-outline badge-lg font-bold uppercase tracking-widest text-[10px]"
@@ -1004,7 +1023,7 @@
                       {/if}
                     </div>
                   </div>
-                  <div class="flex flex-wrap gap-2">
+                  <div class="flex flex-col gap-2 sm:self-start shrink-0">
                     <button
                       type="button"
                       class="btn btn-sm btn-primary rounded-xl font-bold uppercase tracking-wider h-10 px-4 gap-2"
@@ -1054,11 +1073,13 @@
               >
                 {#if editingAvatar}
                   <section
-                    class="group bg-base-100 p-6 rounded-[2rem] border border-primary/20 shadow-lg hover:shadow-xl hover:shadow-primary/5 transition-all relative overflow-hidden"
+                    class="group bg-base-100 p-6 rounded-[2rem] border border-primary/20 shadow-lg hover:shadow-xl hover:shadow-primary/5 transition-all relative isolate focus-within:z-50"
                   >
-                    <div
-                      class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none group-hover:scale-150 transition-transform duration-700"
-                    ></div>
+                    <div class="absolute inset-0 overflow-hidden pointer-events-none rounded-[2rem]">
+                      <div
+                        class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full group-hover:scale-150 transition-transform duration-700"
+                      ></div>
+                    </div>
                     <div class="relative z-10 flex flex-col gap-6">
                       <div
                         class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
@@ -1226,11 +1247,13 @@
                 {/if}
 
                 <section
-                  class="group bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all relative overflow-hidden"
+                  class="group bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all relative isolate focus-within:z-50"
                 >
-                  <div
-                    class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none group-hover:scale-150 transition-transform duration-700"
-                  ></div>
+                  <div class="absolute inset-0 overflow-hidden pointer-events-none rounded-[2rem]">
+                    <div
+                      class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full group-hover:scale-150 transition-transform duration-700"
+                    ></div>
+                  </div>
                   <div class="relative z-10 flex flex-col gap-6">
                     <div
                       class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"
@@ -1268,26 +1291,37 @@
                       {/if}
                     </div>
                     {#if editingName && user && user.bk_uid == null}
-                      <div class="space-y-3 max-w-md">
-                        <label class="form-control w-full space-y-1">
-                          <span class="label-text"
-                            >{translate(
-                              "frontend/src/routes/+layout.svelte::display_name_label",
-                            )}</span
-                          >
-                          <input
-                            class="input input-bordered w-full"
-                            bind:value={name}
-                            placeholder={translate(
-                              "frontend/src/routes/+layout.svelte::enter_your_name_placeholder",
-                            )}
-                          />
-                        </label>
-                        <p class="text-xs text-base-content/60">
-                          {translate(
-                            "frontend/src/routes/+layout.svelte::display_name_tip",
-                          )}
-                        </p>
+                      <div class="space-y-4 max-w-md">
+                        <div class="form-control w-full">
+                          <label class="label">
+                            <span class="label-text font-medium"
+                              >{translate(
+                                "frontend/src/routes/+layout.svelte::display_name_label",
+                              )}</span
+                            >
+                          </label>
+                          <div class="relative">
+                            <div
+                              class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-base-content/50"
+                            >
+                              <i class="fa-solid fa-user"></i>
+                            </div>
+                            <input
+                              class="input input-bordered w-full pl-10 focus:input-primary transition-all duration-200 bg-base-50/50 focus:bg-base-100"
+                              bind:value={name}
+                              placeholder={translate(
+                                "frontend/src/routes/+layout.svelte::enter_your_name_placeholder",
+                              )}
+                            />
+                          </div>
+                          <label class="label">
+                            <span class="label-text-alt text-base-content/60">
+                              {translate(
+                                "frontend/src/routes/+layout.svelte::display_name_tip",
+                              )}
+                            </span>
+                          </label>
+                        </div>
                       </div>
                     {:else}
                       <div class="grid gap-4 sm:grid-cols-2">
@@ -1331,11 +1365,13 @@
                 </section>
 
                 <section
-                  class="group bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all relative overflow-hidden"
+                  class="group bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all relative isolate focus-within:z-50"
                 >
-                  <div
-                    class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none group-hover:scale-150 transition-transform duration-700"
-                  ></div>
+                  <div class="absolute inset-0 overflow-hidden pointer-events-none rounded-[2rem]">
+                    <div
+                      class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full group-hover:scale-150 transition-transform duration-700"
+                    ></div>
+                  </div>
                   <div class="relative z-10 flex flex-col gap-6">
                     <div class="space-y-2">
                       <h4 class="card-title text-lg">
@@ -1350,31 +1386,19 @@
                       </p>
                     </div>
                     <div class="form-control w-full max-w-xs space-y-2">
-                      <label class="form-control w-full space-y-1">
+                      <label class="label">
                         <span
-                          class="label-text text-sm font-medium text-base-content/80"
+                          class="label-text font-medium text-base-content/80"
                           >{translate(
                             "frontend/src/routes/+layout.svelte::language_select_label",
                           )}</span
                         >
-                        <select
-                          class="select select-bordered w-full"
-                          bind:value={preferredLocaleSelection}
-                        >
-                          <option value=""
-                            >{translate(
-                              "frontend/src/routes/+layout.svelte::language_system_default",
-                            )}</option
-                          >
-                          {#each data.availableLocales as code}
-                            <option value={code}>
-                              {translate(
-                                `frontend/src/routes/+layout.svelte::language_option_${code}`,
-                              )}
-                            </option>
-                          {/each}
-                        </select>
                       </label>
+                        <CustomSelect
+                          options={localeOptions}
+                          bind:value={preferredLocaleSelection}
+                          icon={Globe}
+                        />
                       <p class="text-xs text-base-content/60">
                         {translate(
                           "frontend/src/routes/+layout.svelte::language_select_helper",
@@ -1396,11 +1420,13 @@
 
                 {#if user?.role === "student"}
                   <section
-                    class="group bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all relative overflow-hidden"
+                    class="group bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all relative isolate focus-within:z-50"
                   >
-                    <div
-                      class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none group-hover:scale-150 transition-transform duration-700"
-                    ></div>
+                    <div class="absolute inset-0 overflow-hidden pointer-events-none rounded-[2rem]">
+                      <div
+                        class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full group-hover:scale-150 transition-transform duration-700"
+                      ></div>
+                    </div>
                     <div class="relative z-10 flex flex-col gap-6">
                       <div
                         class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"
@@ -1530,11 +1556,13 @@
                   </section>
                 {:else if user?.role === "teacher"}
                   <section
-                    class="group bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all relative overflow-hidden"
+                    class="group bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all relative isolate focus-within:z-50"
                   >
-                    <div
-                      class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none group-hover:scale-150 transition-transform duration-700"
-                    ></div>
+                    <div class="absolute inset-0 overflow-hidden pointer-events-none rounded-[2rem]">
+                      <div
+                        class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full group-hover:scale-150 transition-transform duration-700"
+                      ></div>
+                    </div>
                     <div class="relative z-10 flex flex-col gap-6">
                       <div
                         class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"
@@ -1618,11 +1646,13 @@
 
                 {#if user && user.bk_uid == null}
                   <section
-                    class="group bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all relative overflow-hidden"
+                    class="group bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all relative isolate focus-within:z-50"
                   >
-                    <div
-                      class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none group-hover:scale-150 transition-transform duration-700"
-                    ></div>
+                    <div class="absolute inset-0 overflow-hidden pointer-events-none rounded-[2rem]">
+                      <div
+                        class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full group-hover:scale-150 transition-transform duration-700"
+                      ></div>
+                    </div>
                     <div class="relative z-10 flex flex-col gap-6">
                       <div
                         class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
@@ -1659,11 +1689,13 @@
 
                   {#if hasBakalari}
                     <section
-                      class="group bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all relative overflow-hidden"
+                      class="group bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all relative isolate focus-within:z-50"
                     >
-                      <div
-                        class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none group-hover:scale-150 transition-transform duration-700"
-                      ></div>
+                      <div class="absolute inset-0 overflow-hidden pointer-events-none rounded-[2rem]">
+                        <div
+                          class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full group-hover:scale-150 transition-transform duration-700"
+                        ></div>
+                      </div>
                       <div class="relative z-10 flex flex-col gap-6">
                         <div
                           class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"
@@ -1749,11 +1781,13 @@
                   {/if}
                 {:else if user && (!isValidEmail(user.email) || user.email_verified === false)}
                   <section
-                    class="group bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all relative overflow-hidden"
+                    class="group bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all relative isolate focus-within:z-50"
                   >
-                    <div
-                      class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none group-hover:scale-150 transition-transform duration-700"
-                    ></div>
+                    <div class="absolute inset-0 overflow-hidden pointer-events-none rounded-[2rem]">
+                      <div
+                        class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full group-hover:scale-150 transition-transform duration-700"
+                      ></div>
+                    </div>
                     <div class="relative z-10 flex flex-col gap-6">
                       <div
                         class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"
@@ -1929,24 +1963,29 @@
               </div>
 
               <div
-                class="modal-action bg-base-100/80 backdrop-blur-xl px-8 py-6 border-t border-base-200 justify-between sticky bottom-0 z-20 m-0"
+                class="modal-action bg-base-100/80 backdrop-blur-xl px-8 py-6 border-t border-base-200 flex items-center justify-between sticky bottom-0 z-20 m-0"
               >
                 <button
                   type="button"
-                  class="btn btn-ghost"
+                  class="btn btn-ghost hover:bg-base-200 rounded-xl"
                   on:click={() => settingsDialog.close()}
-                  >{translate(
-                    "frontend/src/routes/+layout.svelte::cancel_button",
-                  )}</button
                 >
+                  {translate(
+                    "frontend/src/routes/+layout.svelte::cancel_button",
+                  )}
+                </button>
                 <button
-                  class="btn btn-primary"
+                  class="btn btn-primary rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all font-bold tracking-wide px-8"
                   on:click={saveSettings}
                   disabled={avatarProcessing}
-                  >{translate(
-                    "frontend/src/routes/+layout.svelte::save_changes_button",
-                  )}</button
                 >
+                  {#if avatarProcessing}
+                    <span class="loading loading-spinner loading-sm"></span>
+                  {/if}
+                  {translate(
+                    "frontend/src/routes/+layout.svelte::save_changes_button",
+                  )}
+                </button>
               </div>
             </div>
             <form method="dialog" class="modal-backdrop">
@@ -2110,57 +2149,127 @@
             <!-- No modal-backdrop to prevent closing -->
           </dialog>
           <dialog bind:this={passwordDialog} class="modal">
-            <div class="modal-box space-y-4 rounded-3xl shadow-2xl bg-base-100">
-              <h3 class="font-bold text-lg">
-                {translate(
-                  "frontend/src/routes/+layout.svelte::change_password_dialog_title",
-                )}
-              </h3>
-              <label class="form-control w-full space-y-1">
-                <span class="label-text"
-                  >{translate(
-                    "frontend/src/routes/+layout.svelte::current_password_label",
-                  )}</span
+            <div
+              class="modal-box p-0 overflow-hidden space-y-0 rounded-3xl shadow-2xl bg-base-100"
+            >
+              <div
+                class="bg-base-100 border-b border-base-200 p-6 relative overflow-hidden"
+              >
+                <div
+                  class="absolute inset-0 overflow-hidden pointer-events-none"
                 >
-                <input
-                  type="password"
-                  class="input input-bordered w-full"
-                  bind:value={oldPassword}
-                />
-              </label>
-              <label class="form-control w-full space-y-1">
-                <span class="label-text"
-                  >{translate(
-                    "frontend/src/routes/+layout.svelte::new_password_label",
-                  )}</span
+                  <div
+                    class="absolute top-0 right-0 w-full h-full bg-gradient-to-br from-primary/5 via-transparent to-transparent"
+                  ></div>
+                  <div
+                    class="absolute -top-12 -right-12 w-32 h-32 bg-primary/10 rounded-full blur-2xl"
+                  ></div>
+                </div>
+                <div class="relative z-10">
+                  <h3 class="font-bold text-xl">
+                    {translate(
+                      "frontend/src/routes/+layout.svelte::change_password_dialog_title",
+                    )}
+                  </h3>
+                  <p class="text-sm text-base-content/70 mt-1">
+                    {translate(
+                      "frontend/src/routes/+layout.svelte::password_security_tip",
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <div class="p-6 space-y-4">
+                <div class="form-control w-full">
+                  <label class="label">
+                    <span class="label-text font-medium"
+                      >{translate(
+                        "frontend/src/routes/+layout.svelte::current_password_label",
+                      )}</span
+                    >
+                  </label>
+                  <div class="relative">
+                    <div
+                      class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-base-content/50"
+                    >
+                      <i class="fa-solid fa-key"></i>
+                    </div>
+                    <input
+                      type="password"
+                      class="input input-bordered w-full pl-10 focus:input-primary bg-base-50/50"
+                      bind:value={oldPassword}
+                    />
+                  </div>
+                </div>
+
+                <div class="form-control w-full">
+                  <label class="label">
+                    <span class="label-text font-medium"
+                      >{translate(
+                        "frontend/src/routes/+layout.svelte::new_password_label",
+                      )}</span
+                    >
+                  </label>
+                  <div class="relative">
+                    <div
+                      class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-base-content/50"
+                    >
+                      <i class="fa-solid fa-lock"></i>
+                    </div>
+                    <input
+                      type="password"
+                      class="input input-bordered w-full pl-10 focus:input-primary bg-base-50/50"
+                      bind:value={newPassword}
+                    />
+                  </div>
+                </div>
+
+                <div class="form-control w-full">
+                  <label class="label">
+                    <span class="label-text font-medium"
+                      >{translate(
+                        "frontend/src/routes/+layout.svelte::repeat_password_label",
+                      )}</span
+                    >
+                  </label>
+                  <div class="relative">
+                    <div
+                      class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-base-content/50"
+                    >
+                      <i class="fa-solid fa-lock"></i>
+                    </div>
+                    <input
+                      type="password"
+                      class="input input-bordered w-full pl-10 focus:input-primary bg-base-50/50"
+                      bind:value={newPassword2}
+                    />
+                  </div>
+                </div>
+
+                {#if passwordError}
+                  <div class="alert alert-error text-sm py-2">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                    <span>{passwordError}</span>
+                  </div>
+                {/if}
+              </div>
+
+              <div
+                class="modal-action bg-base-50/50 border-t border-base-200 px-6 py-4 mt-0 flex justify-end gap-2"
+              >
+                <form method="dialog">
+                  <button class="btn btn-ghost hover:bg-base-200 rounded-xl">
+                    {translate(
+                      "frontend/src/routes/+layout.svelte::cancel_button",
+                    )}
+                  </button>
+                </form>
+                <button
+                  class="btn btn-primary rounded-xl shadow-lg shadow-primary/20"
+                  on:click={savePassword}
                 >
-                <input
-                  type="password"
-                  class="input input-bordered w-full"
-                  bind:value={newPassword}
-                />
-              </label>
-              <label class="form-control w-full space-y-1">
-                <span class="label-text"
-                  >{translate(
-                    "frontend/src/routes/+layout.svelte::repeat_password_label",
-                  )}</span
-                >
-                <input
-                  type="password"
-                  class="input input-bordered w-full"
-                  bind:value={newPassword2}
-                />
-              </label>
-              {#if passwordError}
-                <p class="text-error">{passwordError}</p>
-              {/if}
-              <div class="modal-action">
-                <button class="btn" on:click={savePassword}
-                  >{translate(
-                    "frontend/src/routes/+layout.svelte::save_button",
-                  )}</button
-                >
+                  {translate("frontend/src/routes/+layout.svelte::save_button")}
+                </button>
               </div>
             </div>
             <form method="dialog" class="modal-backdrop">
