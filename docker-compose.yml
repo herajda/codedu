@@ -6,10 +6,12 @@ services:
     depends_on:
       - frontend
       - backend
+    environment:
+      BACKEND_PORT: "${BACKEND_PORT:-8080}"
     ports:
       - "${APP_PORT:-61189}:80"
     volumes:
-      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro,z
+      - ./deploy/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro,z
     networks: [appnet]
 
   frontend:
