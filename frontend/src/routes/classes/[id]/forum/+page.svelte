@@ -463,7 +463,7 @@
                   <div
                     class={`relative rounded-[2rem] px-5 py-4 shadow-sm transition-all duration-300 group/bubble w-fit ${
                       m.user_id === $auth?.id
-                        ? 'bg-primary text-primary-content rounded-br-lg shadow-primary/20 hover:shadow-primary/30'
+                        ? 'bg-primary text-primary-content rounded-br-lg shadow-primary/20 hover:shadow-primary/30 [&_a]:!text-primary-content'
                         : 'bg-base-100 border border-base-200 text-base-content rounded-bl-lg hover:border-primary/20'
                     }`}
                     on:click={() => { m.showTime = !m.showTime; msgs = [...msgs]; }}
@@ -471,7 +471,7 @@
                     tabindex="0"
                   >
                     {#if m.structured}
-                      <div class="markdown prose prose-sm max-w-none prose-headings:text-inherit prose-p:text-inherit prose-strong:text-inherit prose-code:text-inherit prose-pre:bg-black/10 prose-a:text-inherit prose-a:underline">
+                      <div class="markdown prose prose-sm max-w-none prose-headings:text-inherit prose-p:text-inherit prose-strong:text-inherit prose-code:text-inherit prose-pre:bg-black/10 prose-a:text-inherit prose-a:underline [&_a]:!text-primary-content">
                         {@html renderMarkdown(m.text)}
                       </div>
                     {:else}
@@ -626,6 +626,16 @@
 
   :global(.token.operator), :global(.token.entity), :global(.token.url), :global(.language-css .token.string), :global(.style .token.string) {
     background: transparent !important;
+  }
+
+  /* Force link visibility in sent messages (blue background) */
+  :global(.bg-primary a), :global(.bg-primary a *) {
+    color: white !important;
+    text-decoration: underline !important;
+    opacity: 1 !important;
+  }
+  :global(.bg-primary a:hover) {
+    color: rgba(255, 255, 255, 0.8) !important;
   }
 </style>
 
