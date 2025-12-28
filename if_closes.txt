@@ -1,0 +1,22 @@
+251:              {/if}
+268:          {/if}
+270:      {/if}
+291:          {/if}
+304:        {/if}
+326:            {/if}
+340:                        {/if}
+345:                          {#if s.email}<p class="text-[10px] font-bold text-base-content/40 truncate tracking-wide">{s.email}</p>{/if}
+354:                      {/if}
+370:                {/if}
+372:            {/if}
+398:      {/if}
+421:          {/if}
+434:            {#if loadingAtoms}<Loader2 class="size-4 animate-spin" />{:else}<Download class="size-4" />{/if}
+450:          {/if}
+452:      {/if}
+474:                {/if}
+478:                {#if s.email}<div class="text-[10px] font-bold text-base-content/40 truncate tracking-wide">{s.email}</div>{/if}
+489:        {/if}
+548:            {/if}
+560:          {/if}
+619:{/if}

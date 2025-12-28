@@ -1,0 +1,141 @@
+
+> frontend@0.0.1 build
+> vite build
+
+vite v6.3.5 building SSR bundle for production...
+transforming...
+15:36:55 [vite-plugin-svelte] src/routes/classes/[id]/assignments/+page.svelte:290:10 noninteractive element cannot have nonnegative tabIndex value
+https://svelte.dev/e/a11y_no_noninteractive_tabindex
+288:             </span>
+289:           </button>
+290:           <ul class="dropdown-content menu bg-base-100 rounded-2xl z-[50] w-56 p-2 shadow-2xl border border-base-200 mt-2" tabindex="0">
+                    ^
+291:             <li><button type="button" class={sortMode==='deadline_asc' ? 'active' : ''} on:click={() => sortMode='deadline_asc'} class:bg-primary={sortMode==='deadline_asc'} class:text-primary-content={sortMode==='deadline_asc'}>{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::sort_deadline_asc')}</button></li>
+292:             <li><button type="button" class={sortMode==='deadline_desc' ? 'active' : ''} on:click={() => sortMode='deadline_desc'} class:bg-primary={sortMode==='deadline_desc'} class:text-primary-content={sortMode==='deadline_desc'}>{translate('frontend/src/routes/classes/[id]/assignments/+page.svelte::sort_deadline_desc')}</button></li>
+15:36:55 [vite-plugin-svelte] src/routes/classes/[id]/files/+page.svelte:545:12 noninteractive element cannot have nonnegative tabIndex value
+https://svelte.dev/e/a11y_no_noninteractive_tabindex
+543:               {translate('frontend/src/routes/classes/[id]/files/+page.svelte::create_menu_button_label')}
+544:             </button>
+545:             <ul class="dropdown-content menu bg-base-100 rounded-2xl z-[50] w-56 p-2 shadow-2xl border border-base-200 mt-2" tabindex="0">
+                      ^
+546:               <li class="menu-title px-4 py-2 text-[10px] font-black uppercase tracking-widest opacity-40">Actions</li>
+547:               <li><button type="button" on:click={openUploadDialog} class="rounded-xl py-3 select-none"><Upload size={16} class="mr-2 text-primary" />{translate('frontend/src/routes/classes/[id]/files/+page.svelte::upload_file_menu_item')}</button></li>
+15:36:55 [vite-plugin-svelte] src/routes/classes/[id]/files/+page.svelte:611:10 noninteractive element cannot have nonnegative tabIndex value
+https://svelte.dev/e/a11y_no_noninteractive_tabindex
+609:             <span class="text-[10px] font-black uppercase tracking-widest leading-none">{translate('frontend/src/routes/classes/[id]/files/+page.svelte::sort_button_label')}</span>
+610:           </button>
+611:           <ul class="dropdown-content menu bg-base-100 rounded-2xl z-[50] w-48 p-2 shadow-2xl border border-base-200 mt-2" tabindex="0">
+                    ^
+612:             <li><button type="button" class={sortKey==='name' ? 'active' : ''} on:click={() => sortKey='name'} class:bg-primary={sortKey==='name'} class:text-primary-content={sortKey==='name'}>{translate('frontend/src/routes/classes/[id]/files/+page.svelte::sort_by_name_label')}</button></li>
+613:             <li><button type="button" class={sortKey==='date' ? 'active' : ''} on:click={() => sortKey='date'} class:bg-primary={sortKey==='date'} class:text-primary-content={sortKey==='date'}>{translate('frontend/src/routes/classes/[id]/files/+page.svelte::sort_by_modified_label')}</button></li>
+15:36:55 [vite-plugin-svelte] src/routes/classes/[id]/files/+page.svelte:628:2 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+626: 
+627:   <!-- File List Dropzone -->
+628:   <div class="relative min-h-[400px] select-none" 
+             ^
+629:        on:dragenter|preventDefault={onDragEnter}
+630:        on:dragleave|preventDefault={onDragLeave}
+15:36:55 [vite-plugin-svelte] src/routes/classes/[id]/files/+page.svelte:628:2 `<div>` with a dragenter, dragleave, dragover, drop or click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+626: 
+627:   <!-- File List Dropzone -->
+628:   <div class="relative min-h-[400px] select-none" 
+             ^
+629:        on:dragenter|preventDefault={onDragEnter}
+630:        on:dragleave|preventDefault={onDragLeave}
+15:36:55 [vite-plugin-svelte] src/routes/classes/[id]/files/+page.svelte:645:10 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+643:       <div class="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 mb-8">
+644:         {#each visible as it (it.id)}
+645:           <div 
+                    ^
+646:             class="group relative bg-base-100 border border-base-200 rounded-[2rem] p-4 flex flex-col items-center gap-3 hover:shadow-xl hover:shadow-primary/5 hover:border-primary/20 transition-all cursor-pointer overflow-hidden select-none"
+647:             on:click={(e) => { e.stopPropagation(); open(it); }}
+15:36:55 [vite-plugin-svelte] src/routes/classes/[id]/files/+page.svelte:645:10 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+643:       <div class="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 mb-8">
+644:         {#each visible as it (it.id)}
+645:           <div 
+                    ^
+646:             class="group relative bg-base-100 border border-base-200 rounded-[2rem] p-4 flex flex-col items-center gap-3 hover:shadow-xl hover:shadow-primary/5 hover:border-primary/20 transition-all cursor-pointer overflow-hidden select-none"
+647:             on:click={(e) => { e.stopPropagation(); open(it); }}
+15:36:55 [vite-plugin-svelte] src/routes/classes/[id]/files/+page.svelte:700:10 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+698:           </div>
+699:         {:else}
+700:           <div 
+                    ^
+701:             class="col-span-full py-20 text-center bg-base-100/50 rounded-[3rem] border-2 border-dashed border-base-200 flex flex-col items-center justify-center select-none {role === 'teacher' || role === 'admin' ? 'cursor-pointer hover:border-primary/30 transition-colors' : ''}"
+702:             on:click={() => { if (role === 'teacher' || role === 'admin') openUploadDialog(); }}
+15:36:55 [vite-plugin-svelte] src/routes/classes/[id]/files/+page.svelte:700:10 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+698:           </div>
+699:         {:else}
+700:           <div 
+                    ^
+701:             class="col-span-full py-20 text-center bg-base-100/50 rounded-[3rem] border-2 border-dashed border-base-200 flex flex-col items-center justify-center select-none {role === 'teacher' || role === 'admin' ? 'cursor-pointer hover:border-primary/30 transition-colors' : ''}"
+702:             on:click={() => { if (role === 'teacher' || role === 'admin') openUploadDialog(); }}
+15:36:55 [vite-plugin-svelte] src/routes/classes/[id]/files/+page.svelte:769:20 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+767:                 <tr>
+768:                   <td colspan={role === 'teacher' || role === 'admin' ? 4 : 3} class="py-20 text-center">
+769:                     <div 
+                              ^
+770:                       class="flex flex-col items-center justify-center opacity-30 select-none {role === 'teacher' || role === 'admin' ? 'cursor-pointer hover:opacity-100 transition-opacity' : ''}"
+771:                       on:click={() => { if (role === 'teacher' || role === 'admin') openUploadDialog(); }}
+15:36:55 [vite-plugin-svelte] src/routes/classes/[id]/files/+page.svelte:769:20 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+767:                 <tr>
+768:                   <td colspan={role === 'teacher' || role === 'admin' ? 4 : 3} class="py-20 text-center">
+769:                     <div 
+                              ^
+770:                       class="flex flex-col items-center justify-center opacity-30 select-none {role === 'teacher' || role === 'admin' ? 'cursor-pointer hover:opacity-100 transition-opacity' : ''}"
+771:                       on:click={() => { if (role === 'teacher' || role === 'admin') openUploadDialog(); }}
+15:36:55 [vite-plugin-svelte] src/routes/classes/[id]/files/+page.svelte:924:8 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+922:     <div class="space-y-4">
+923:       <div class="form-control">
+924:         <label class="label pt-0 pb-1">
+                     ^
+925:           <span class="label-text text-[10px] font-black uppercase tracking-widest opacity-40">New File Name</span>
+926:         </label>
+15:36:55 [vite-plugin-svelte] src/routes/classes/[id]/notes/+page.svelte:505:8 noninteractive element cannot have nonnegative tabIndex value
+https://svelte.dev/e/a11y_no_noninteractive_tabindex
+503:           <span class="text-[10px] font-black uppercase tracking-widest leading-none">{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::sort_button_label')}</span>
+504:         </button>
+505:         <ul class="dropdown-content menu bg-base-100 rounded-2xl z-[50] w-48 p-2 shadow-2xl border border-base-200 mt-2" tabindex="0">
+                  ^
+506:           <li><button type="button" class={sortKey==='name' ? 'active' : ''} on:click={() => sortKey='name'} class:bg-secondary={sortKey==='name'} class:text-secondary-content={sortKey==='name'}>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::sort_option_name')}</button></li>
+507:           <li><button type="button" class={sortKey==='date' ? 'active' : ''} on:click={() => sortKey='date'} class:bg-secondary={sortKey==='date'} class:text-secondary-content={sortKey==='date'}>{translate('frontend/src/routes/classes/[id]/notes/+page.svelte::sort_option_modified')}</button></li>
+15:36:55 [vite-plugin-svelte] src/routes/classes/[id]/notes/+page.svelte:698:8 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+696:     <div class="space-y-4">
+697:       <div class="form-control">
+698:         <label class="label pt-0 pb-1">
+                     ^
+699:           <span class="label-text text-[10px] font-black uppercase tracking-widest opacity-40">Notebook Name</span>
+700:         </label>
+15:36:55 [vite-plugin-svelte] src/routes/classes/[id]/notes/+page.svelte:825:6 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+823: 
+824:     <div class="form-control">
+825:       <label class="label pt-0 pb-1">
+                   ^
+826:         <span class="label-text text-[10px] font-black uppercase tracking-widest opacity-40">New Notebook Name</span>
+827:       </label>
+✓ 15 modules transformed.
+✗ Build failed in 593ms
+error during build:
+[vite-plugin-svelte] [plugin vite-plugin-svelte] src/routes/classes/[id]/settings/+page.svelte (309:2): src/routes/classes/[id]/settings/+page.svelte:309:2 `<div>` was left open
+https://svelte.dev/e/element_unclosed
+file: src/routes/classes/[id]/settings/+page.svelte:309:2 (/home/herajda/codedu/frontend/src/routes/classes/[id]/settings/+page.svelte)
+
+ 307 |    </section>
+ 308 |  
+ 309 |    <div class="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+           ^
+ 310 |      <div class="lg:col-span-2 space-y-8">
+ 311 |        <!-- Students management -->
+
+
