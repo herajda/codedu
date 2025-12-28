@@ -692,11 +692,6 @@
   let prefersDark = false;
   let media: MediaQueryList;
   function applyThemeFromPreference() {
-    // Force light theme on auth pages (login/register)
-    if (isAuthPage) {
-      document.documentElement.setAttribute("data-theme", "light");
-      return;
-    }
     document.documentElement.setAttribute(
       "data-theme",
       prefersDark ? "dark" : "light",
