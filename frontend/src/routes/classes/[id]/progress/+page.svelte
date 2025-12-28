@@ -132,16 +132,17 @@
   <title>{cls?.name ? `${cls.name} | CodEdu` : 'Progress | CodEdu'}</title>
 </svelte:head>
 
-{#if loading}
-  <div class="flex justify-center mt-8"><span class="loading loading-dots loading-lg"></span></div>
-{:else if err}
-  <div class="alert alert-error" in:fade>
-    <AlertCircle size={20} />
-    <span>{err}</span>
-  </div>
-{:else}
-  <!-- Premium Class Header -->
-  <section class="relative overflow-hidden bg-base-100 rounded-3xl border border-base-200 shadow-xl shadow-base-300/30 mb-8 p-6 sm:p-10">
+<div class="classes-progress-page">
+  {#if loading}
+    <div class="flex justify-center mt-8"><span class="loading loading-dots loading-lg"></span></div>
+  {:else if err}
+    <div class="alert alert-error" in:fade>
+      <AlertCircle size={20} />
+      <span>{err}</span>
+    </div>
+  {:else}
+    <!-- Premium Class Header -->
+    <section class="relative overflow-hidden bg-base-100 rounded-3xl border border-base-200 shadow-xl shadow-base-300/30 mb-8 p-6 sm:p-10">
     <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent pointer-events-none"></div>
     <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
     <div class="relative flex flex-col md:flex-row items-center justify-between gap-6">
@@ -326,11 +327,12 @@
         </table>
       </div>
     </div>
-  </div>
-{/if}
+    </div>
+  {/if}
+</div>
 
 <style>
-  :global(body) {
+  .classes-progress-page {
     font-family: 'Outfit', sans-serif;
   }
 
@@ -366,4 +368,3 @@
     border-spacing: 0;
   }
 </style>
-

@@ -406,7 +406,7 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
   <title>{name ? `${name} | CodEdu` : 'Messages | CodEdu'}</title>
 </svelte:head>
 
-<div class="flex flex-col h-[calc(100vh-7.5rem)] sm:h-[calc(100vh-9rem)] overflow-hidden">
+<div class="messages-page flex flex-col h-[calc(100vh-7.5rem)] sm:h-[calc(100vh-9rem)] overflow-hidden">
   <!-- Premium Profile Header -->
   <section class="relative overflow-hidden bg-base-100 rounded-3xl border border-base-200 shadow-xl shadow-base-300/30 mb-4 p-4 sm:p-6 shrink-0">
     <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent pointer-events-none"></div>
@@ -747,7 +747,7 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
 <ConfirmModal bind:this={confirmModal} />
 
 <style>
-  :global(body) {
+  .messages-page {
     font-family: 'Outfit', sans-serif;
   }
 

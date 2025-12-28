@@ -357,7 +357,7 @@
   <title>{cls?.name ? `${cls.name} | CodEdu` : 'Forum | CodEdu'}</title>
 </svelte:head>
 
-<div class="flex flex-col h-[calc(100vh-7.5rem)] sm:h-[calc(100vh-9rem)] overflow-hidden">
+<div class="classes-forum-page flex flex-col h-[calc(100vh-7.5rem)] sm:h-[calc(100vh-9rem)] overflow-hidden">
   <!-- Premium Class Header -->
   <section class="relative overflow-hidden bg-base-100 rounded-3xl border border-base-200 shadow-xl shadow-base-300/30 mb-4 p-4 sm:p-6 shrink-0">
     <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent pointer-events-none"></div>
@@ -606,7 +606,7 @@
 <ConfirmModal bind:this={confirmModal} />
 
 <style>
-  :global(body) {
+  .classes-forum-page {
     font-family: 'Outfit', sans-serif;
   }
 
@@ -638,4 +638,3 @@
     color: rgba(255, 255, 255, 0.8) !important;
   }
 </style>
-

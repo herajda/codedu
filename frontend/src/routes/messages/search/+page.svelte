@@ -59,7 +59,7 @@
   <title>{translate('frontend/src/routes/messages/search/+page.svelte::new_message')} | CodEdu</title>
 </svelte:head>
 
-<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 h-[calc(100vh-4rem)] overflow-y-auto custom-scrollbar">
+<div class="messages-page max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 h-[calc(100vh-4rem)] overflow-y-auto custom-scrollbar">
   <!-- Premium Header -->
   <section class="relative overflow-hidden bg-base-100 rounded-[2.5rem] border border-base-200 shadow-xl shadow-base-300/30 mb-8 p-6 sm:p-10 shrink-0">
     <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent pointer-events-none"></div>
@@ -158,7 +158,7 @@
 </div>
 
 <style>
-  :global(body) {
+  .messages-page {
     font-family: 'Outfit', sans-serif;
   }
 
