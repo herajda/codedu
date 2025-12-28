@@ -416,7 +416,7 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
         <button 
           class="btn btn-ghost btn-circle hover:bg-base-200/80 transition-all duration-200" 
           on:click={back} 
-          aria-label="Back"
+          aria-label={translate('frontend/src/routes/messages/[id]/+page.svelte::back_aria_label')}
         >
           <ChevronLeft size={24} />
         </button>
@@ -425,10 +425,10 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
           <div class="avatar">
             <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-full overflow-hidden">
               {#if contactAvatar}
-                <img src={contactAvatar} alt="Contact" class="w-full h-full object-cover" />
+                <img src={contactAvatar} alt={translate('frontend/src/routes/messages/[id]/+page.svelte::contact_avatar_alt')} class="w-full h-full object-cover" />
               {:else}
                 <div class="w-full h-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-xl font-bold text-primary">
-                  {(name || 'U').charAt(0).toUpperCase()}
+                  {(name || translate('frontend/src/routes/messages/[id]/+page.svelte::unknown_avatar_initial')).charAt(0).toUpperCase()}
                 </div>
               {/if}
             </div>
