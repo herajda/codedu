@@ -820,7 +820,7 @@ onMount(() => {
     <div class="bg-base-200/50 border-2 border-dashed border-base-300 rounded-3xl p-8 text-center group hover:border-primary/30 transition-all relative">
       <input 
         type="file" 
-        class="absolute inset-0 opacity-0 cursor-pointer" 
+        class="absolute inset-0 opacity-0 cursor-pointer z-10" 
         on:change={e => uploadFile=(e.target as HTMLInputElement).files?.[0] || null}
       >
       {#if uploadFile}
@@ -832,7 +832,7 @@ onMount(() => {
             <p class="text-[10px] opacity-40 uppercase tracking-widest mt-1">{fmtSize(uploadFile.size)}</p>
          </div>
       {:else}
-         <div class="flex flex-col items-center opacity-40 group-hover:opacity-60 transition-opacity">
+         <div class="flex flex-col items-center opacity-40 group-hover:opacity-60 transition-opacity pointer-events-none select-none">
             <Upload size={32} class="mb-3" />
             <p class="text-sm font-bold uppercase tracking-widest">Click or drag to select</p>
          </div>
