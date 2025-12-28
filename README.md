@@ -24,9 +24,11 @@ Prerequisites: Docker and Docker Compose installed on your machine/server.
 - `docker compose up -d`
 
 3) Open the app
-- Visit `http://localhost:8080`
+- Visit `http://localhost:61189`
 
 Stop the app at any time with `docker compose down`. To stop the database as well: `docker compose -f docker-compose.db.yml down`.
+
+Tip: For local development, you can also use `./refresh_docker.sh` to rebuild and restart both app and DB.
 
 —
 
@@ -57,6 +59,11 @@ Optional (recommended for production):
 - `SMTP_DKIM_SELECTOR`, `SMTP_DKIM_DOMAIN` – DKIM signing configuration (optional)
 - `SMTP_DKIM_PRIVATE_KEY` or `SMTP_DKIM_PRIVATE_KEY_FILE` – DKIM private key (inline or file path)
 - `BAKALARI_BASE_URL` – optional integration endpoint for Bakaláři
+- `APP_PORT` – public HTTP port for the proxy (default `61189`)
+- `BACKEND_PORT` – internal backend port (default `8080`)
+- `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_SSLMODE` – database settings used by containers
+- `DB_HOST_PORT` – host port to expose Postgres when using `backend/docker-compose.yml`
+- `COMPOSE_PROJECT_NAME` – set this to run multiple instances in parallel (isolates networks/volumes)
 
 Quick start template:
 
@@ -68,7 +75,7 @@ ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=change-me-strong
 
 # Public URL of your deployment (used for links in emails)
-PASSWORD_RESET_BASE_URL=http://localhost:8080
+PASSWORD_RESET_BASE_URL=http://localhost:61189
 
 # Email (optional but recommended)
 SMTP_HOST=
@@ -87,6 +94,23 @@ BAKALARI_BASE_URL=
 ```
 
 After editing `.env`, (re)start the services with `docker compose up -d`.
+
+—
+
+## Running Multiple Instances in Parallel
+
+Use a unique `COMPOSE_PROJECT_NAME` and `APP_PORT` per instance to avoid port and database collisions. Each project name gets its own Docker network and volume, so the database is isolated per instance.
+
+Example:
+
+```
+APP_PORT=61189 COMPOSE_PROJECT_NAME=codedu_a ./refresh_docker.sh
+APP_PORT=61190 COMPOSE_PROJECT_NAME=codedu_b ./refresh_docker.sh
+```
+
+Open the apps at:
+- `http://localhost:61189`
+- `http://localhost:61190`
 
 —
 
