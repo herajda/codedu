@@ -188,7 +188,7 @@
                 <div class="absolute inset-0 bg-primary/20 rounded-[2rem] blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                 <KeyRound class="w-10 h-10 text-primary relative" />
             </div>
-            <h1 class="text-5xl font-black tracking-tight mb-4 bg-clip-text text-transparent bg-gradient-to-br from-base-content via-base-content/80 to-base-content/50 dark:from-white dark:to-white/40" in:fade={{delay: 300}}>
+            <h1 class="text-5xl font-black tracking-tight mb-4 pb-2 bg-clip-text text-transparent bg-gradient-to-br from-base-content via-base-content/80 to-base-content/50 dark:from-white dark:to-white/40" in:fade={{delay: 300}}>
                 {t('frontend/src/routes/forgot-password/+page.svelte::forgot_password_heading')}
             </h1>
             <p class="text-base-content/50 dark:text-white/40 font-bold uppercase tracking-[0.2em] text-[10px] max-w-xs mx-auto" in:fade={{delay: 400}}>
