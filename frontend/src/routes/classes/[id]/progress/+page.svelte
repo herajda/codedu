@@ -4,6 +4,8 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { t, translator } from '$lib/i18n';
+  import { Search, ArrowUpDown, Users, GraduationCap, Trophy, Activity, Percent, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-svelte';
+  import { fade } from 'svelte/transition';
 
   let id = $page.params.id;
   $: if ($page.params.id !== id) { id = $page.params.id; load(); }
@@ -13,6 +15,7 @@
   let scores: any[] = [];
   let loading = true;
   let err = '';
+  let cls: any = null;
 
   // UI state
   let search = '';
@@ -30,6 +33,10 @@
       students = data.students ?? [];
       assignments = data.assignments ?? [];
       scores = data.scores ?? [];
+      
+      // Load class details for header
+      const classData = await apiJSON(`/api/classes/${id}`);
+      cls = classData?.class ?? classData ?? null;
     } catch (e: any) { err = e.message }
     loading = false;
   }
@@ -76,11 +83,11 @@
   }
 
   function heatClass(pct: number) {
-    if (pct >= 95) return 'bg-success/20';
-    if (pct >= 80) return 'bg-success/10';
-    if (pct >= 60) return 'bg-warning/10';
-    if (pct > 0) return 'bg-error/10';
-    return '';
+    if (pct >= 95) return 'bg-success/20 text-success-content font-bold shadow-inner';
+    if (pct >= 80) return 'bg-success/10 text-success-content/80';
+    if (pct >= 60) return 'bg-warning/10 text-warning-content/80';
+    if (pct > 0) return 'bg-error/10 text-error-content/80';
+    return 'opacity-30';
   }
 
   $: filteredStudents = (students ?? [])
@@ -105,100 +112,258 @@
   function openStudent(studentId: number) {
     goto(`/classes/${id}/progress/${studentId}`);
   }
+
+  // Deterministic placeholder avatar helper
+  function placeholderAvatar(seed: string): string {
+    let h = 0;
+    for (let i = 0; i < seed.length; i++) h = ((h << 5) - h + seed.charCodeAt(i)) >>> 0;
+    const n = (h % 50) + 1;
+    return `/avatars/a${n}.svg`;
+  }
+  function avatarFor(s: any): string {
+    return s.avatar ?? placeholderAvatar(String(s.id ?? s.email ?? 'x'));
+  }
 </script>
 
-<div class="flex items-start justify-between gap-3 mb-4 flex-wrap">
-  <div>
-    <h1 class="text-2xl font-semibold">{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::class_progress_title')}</h1>
-    <p class="opacity-70 text-sm">{students.length} {translate('frontend/src/routes/classes/[id]/progress/+page.svelte::label_students_plural')} · {assignments.length} {translate('frontend/src/routes/classes/[id]/progress/+page.svelte::label_assignments_plural')}</p>
-  </div>
-  <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
-    <label class="input input-bordered input-sm flex items-center gap-2">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 opacity-70" aria-hidden="true"><path fill-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 1 0 4.243 11.964l3.271 3.272a.75.75 0 1 0 1.06-1.06l-3.272-3.272A6.75 6.75 0 0 0 10.5 3.75ZM5.25 10.5a5.25 5.25 0 1 1 10.5 0 5.25 5.25 0 0 1-10.5 0Z" clip-rule="evenodd"/></svg>
-      <input type="text" class="grow" placeholder={translate('frontend/src/routes/classes/[id]/progress/+page.svelte::search_students_placeholder')} bind:value={search} />
-    </label>
-    <div class="dropdown dropdown-end">
-      <button type="button" class="btn btn-sm">{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::sort_button')}</button>
-      <ul class="dropdown-content menu bg-base-200 rounded-box z-[1] w-48 p-2 shadow">
-        <li><button type="button" class={sortKey==='total' ? 'active' : ''} on:click={() => sortKey='total'}>{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::sort_by_total')}</button></li>
-        <li><button type="button" class={sortKey==='name' ? 'active' : ''} on:click={() => sortKey='name'}>{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::sort_by_name')}</button></li>
-        <li class="mt-1"><button type="button" on:click={() => sortDir = sortDir==='asc' ? 'desc' : 'asc'}>{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::sort_direction_label')}{sortDir === 'asc' ? translate('frontend/src/routes/classes/[id]/progress/+page.svelte::sort_direction_asc') : translate('frontend/src/routes/classes/[id]/progress/+page.svelte::sort_direction_desc')}</button></li>
-      </ul>
-    </div>
-  </div>
-</div>
+<svelte:head>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap" rel="stylesheet">
+  <title>{cls?.name ? `${cls.name} | CodEdu` : 'Progress | CodEdu'}</title>
+</svelte:head>
 
 {#if loading}
-  <p>{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::loading_message')}</p>
+  <div class="flex justify-center mt-8"><span class="loading loading-dots loading-lg"></span></div>
 {:else if err}
-  <p class="text-error">{err}</p>
+  <div class="alert alert-error" in:fade>
+    <AlertCircle size={20} />
+    <span>{err}</span>
+  </div>
 {:else}
-  <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-4">
-    <div class="card-elevated p-4">
-      <div class="text-xs uppercase opacity-70">{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::average_completion_title')}</div>
-      <div class="text-xl font-semibold">{Math.round(classAverageCompletion()*100)}%</div>
-    </div>
-    <div class="card-elevated p-4">
-      <div class="text-xs uppercase opacity-70">{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::average_score_title')}</div>
-      <div class="text-xl font-semibold">{Math.round(classAveragePointsPercent())}%</div>
-      <div class="text-xs opacity-70">{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::of_total_possible_label')}</div>
-    </div>
-    <div class="card-elevated p-4">
-      <div class="text-xs uppercase opacity-70">{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::total_points_title')}</div>
-      <div class="text-xl font-semibold">{visibleStudents.reduce((acc: number, s: any) => acc + total(s.id), 0)}/{visibleStudents.length * totalPossible()}</div>
+  <!-- Premium Class Header -->
+  <section class="relative overflow-hidden bg-base-100 rounded-3xl border border-base-200 shadow-xl shadow-base-300/30 mb-8 p-6 sm:p-10">
+    <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent pointer-events-none"></div>
+    <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="relative flex flex-col md:flex-row items-center justify-between gap-6">
+      <div class="flex-1 text-center md:text-left">
+        <h1 class="text-3xl sm:text-4xl font-black tracking-tight mb-2">
+          {cls?.name} <span class="text-primary/40">/</span> {translate('frontend/src/routes/classes/[id]/progress/+page.svelte::class_progress_title')}
+        </h1>
+        <p class="text-base-content/60 font-medium max-w-xl mx-auto md:mx-0">
+          {students.length} {translate('frontend/src/routes/classes/[id]/progress/+page.svelte::label_students_plural')} · {assignments.length} {translate('frontend/src/routes/classes/[id]/progress/+page.svelte::label_assignments_plural')}
+        </p>
+      </div>
+      
+      <div class="hidden lg:flex items-center gap-4">
+        <div class="w-12 h-12 bg-primary/10 text-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/10">
+          <GraduationCap size={24} />
+        </div>
+      </div>
     </div>
   </section>
 
-  <div class="card-elevated p-0">
-    <div class="relative overflow-auto max-h-[70vh]">
-      <table class="table table-compact w-full">
-        <thead>
-          <tr>
-            <th class="min-w-28 w-28 sm:min-w-40 sm:w-40 sticky left-0 top-0 z-40 bg-base-200">{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::table_header_student')}</th>
-            {#each assignments as a}
-              <th class="min-w-14 sm:min-w-16 text-center sticky top-0 z-20 bg-base-200">
-                <div class="font-medium whitespace-normal break-words leading-snug text-xs sm:text-sm" title={a.title}>{a.title}</div>
-                <div class="text-xs opacity-70">{a.max_points}</div>
+  <!-- Stats Section -->
+  <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+    <div class="bg-base-100 p-5 rounded-3xl border border-base-200 shadow-sm group hover:border-success/30 transition-all">
+      <div class="text-[10px] font-black uppercase tracking-widest opacity-40 mb-3">{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::average_completion_title')}</div>
+      <div class="flex items-center gap-4">
+        <div class="w-10 h-10 rounded-xl bg-success/10 text-success flex items-center justify-center group-hover:bg-success group-hover:text-success-content transition-all duration-300">
+          <CheckCircle2 size={20} />
+        </div>
+        <div class="text-2xl font-black tabular-nums">{Math.round(classAverageCompletion()*100)}%</div>
+      </div>
+    </div>
+
+    <div class="bg-base-100 p-5 rounded-3xl border border-base-200 shadow-sm group hover:border-info/30 transition-all">
+      <div class="text-[10px] font-black uppercase tracking-widest opacity-40 mb-3">{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::average_score_title')}</div>
+      <div class="flex items-center gap-4">
+        <div class="w-10 h-10 rounded-xl bg-info/10 text-info flex items-center justify-center group-hover:bg-info group-hover:text-info-content transition-all duration-300">
+          <Percent size={20} />
+        </div>
+        <div class="text-2xl font-black tabular-nums">{Math.round(classAveragePointsPercent())}%</div>
+      </div>
+    </div>
+
+    <div class="bg-base-100 p-5 rounded-3xl border border-base-200 shadow-sm group hover:border-warning/30 transition-all">
+      <div class="text-[10px] font-black uppercase tracking-widest opacity-40 mb-3">{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::total_points_title')}</div>
+      <div class="flex items-center gap-4">
+        <div class="w-10 h-10 rounded-xl bg-warning/10 text-warning flex items-center justify-center group-hover:bg-warning group-hover:text-warning-content transition-all duration-300">
+          <Activity size={20} />
+        </div>
+        <div class="text-lg font-black tabular-nums leading-tight">
+          {visibleStudents.reduce((acc: number, s: any) => acc + total(s.id), 0)}
+          <span class="text-xs opacity-40 font-normal block">/ {visibleStudents.length * totalPossible()}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-base-100 p-5 rounded-3xl border border-base-200 shadow-sm group hover:border-primary/30 transition-all">
+      <div class="text-[10px] font-black uppercase tracking-widest opacity-40 mb-3">{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::label_students_plural')}</div>
+      <div class="flex items-center gap-4">
+        <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-primary-content transition-all duration-300">
+          <Users size={20} />
+        </div>
+        <div class="text-2xl font-black tabular-nums">{visibleStudents.length}</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Filters & List Section -->
+  <div>
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 px-2">
+      <div class="flex items-center gap-3 w-full lg:w-auto">
+        <div class="relative flex items-center w-full sm:w-auto">
+          <Search size={14} class="absolute left-3 opacity-40" />
+          <input 
+            type="text" 
+            class="input input-sm bg-base-100 border-base-200 focus:border-primary/30 w-full sm:w-64 pl-9 rounded-xl font-medium text-xs h-9" 
+            placeholder={translate('frontend/src/routes/classes/[id]/progress/+page.svelte::search_students_placeholder')} 
+            bind:value={search} 
+          />
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-3 justify-end w-full lg:w-auto">
+        <div class="dropdown dropdown-end">
+          <button type="button" class="btn btn-sm bg-base-100 border-base-200 hover:bg-base-200 rounded-xl h-9 px-4 gap-2 border shadow-sm" tabindex="0">
+            <ArrowUpDown size={14} class="opacity-60" />
+            <span class="text-[10px] font-black uppercase tracking-widest leading-none">
+              {sortKey === 'total' 
+                ? translate('frontend/src/routes/classes/[id]/progress/+page.svelte::sort_by_total')
+                : translate('frontend/src/routes/classes/[id]/progress/+page.svelte::sort_by_name')}
+              ({sortDir === 'asc' ? translate('frontend/src/routes/classes/[id]/progress/+page.svelte::sort_direction_asc') : translate('frontend/src/routes/classes/[id]/progress/+page.svelte::sort_direction_desc')})
+            </span>
+          </button>
+          <ul class="dropdown-content menu bg-base-100 rounded-2xl z-[50] w-56 p-2 shadow-2xl border border-base-200 mt-2" tabindex="0">
+            <li><button type="button" class={sortKey==='total' ? 'active' : ''} on:click={() => sortKey='total'} class:bg-primary={sortKey==='total'} class:text-primary-content={sortKey==='total'}>{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::sort_by_total')}</button></li>
+            <li><button type="button" class={sortKey==='name' ? 'active' : ''} on:click={() => sortKey='name'} class:bg-primary={sortKey==='name'} class:text-primary-content={sortKey==='name'}>{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::sort_by_name')}</button></li>
+            <div class="divider my-0 opacity-10"></div>
+            <li><button type="button" on:click={() => sortDir = sortDir==='asc' ? 'desc' : 'asc'}>{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::sort_direction_label')}{sortDir === 'asc' ? translate('frontend/src/routes/classes/[id]/progress/+page.svelte::sort_direction_asc') : translate('frontend/src/routes/classes/[id]/progress/+page.svelte::sort_direction_desc')}</button></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-base-100 p-0 rounded-[2rem] border border-base-200 shadow-sm overflow-hidden backdrop-blur-sm">
+      <div class="relative overflow-x-auto custom-scrollbar">
+        <table class="table table-compact w-full border-separate border-spacing-0">
+          <thead>
+            <tr>
+              <th class="p-5 bg-base-200/50 sticky left-0 z-40 backdrop-blur-md border-b border-base-200">
+                <span class="text-[10px] font-black uppercase tracking-widest opacity-40">{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::table_header_student')}</span>
               </th>
-            {/each}
-            <th class="min-w-28 sm:min-w-36 text-right sticky top-0 z-20 bg-base-200">{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::table_header_total')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each visibleStudents as s (s.id)}
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <tr class="hover bg-base-100/10 cursor-pointer" on:click={() => openStudent(s.id)}>
-              <td class="sticky left-0 z-30 min-w-28 w-28 sm:min-w-40 sm:w-40 bg-base-200">
-                <div class="font-medium truncate"><a class="link" href={`/classes/${id}/progress/${s.id}`}>{s.name ?? s.email}</a></div>
-                <div class="text-xs opacity-70">{Math.round(completionRatio(s.id)*100)}% {translate('frontend/src/routes/classes/[id]/progress/+page.svelte::completion_status_complete')}</div>
-              </td>
               {#each assignments as a}
-                {#key `${s.id}-${a.id}`}
-                  {#if a.max_points > 0}
-                    <td class={`text-center ${heatClass(percent(s.id, a.id))}`} title={`${percent(s.id, a.id)}%`}> 
-                      <div class="flex items-center justify-center gap-1">
-                        <span class="text-xs">{score(s.id, a.id)}</span>
-                        <span class="text-[10px] opacity-60">/{a.max_points}</span>
-                      </div>
-                    </td>
-                  {:else}
-                    <td class="text-center">{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::no_score_dash')}</td>
-                  {/if}
-                {/key}
+                <th class="p-4 text-center sticky top-0 z-20 bg-base-200/50 border-b border-base-200 min-w-24">
+                  <div class="font-black text-[10px] uppercase tracking-wider leading-snug mb-1 line-clamp-2" title={a.title}>{a.title}</div>
+                  <div class="text-[9px] font-bold opacity-30">{a.max_points} pts</div>
+                </th>
               {/each}
-              <td class="text-right">
-                <div class="flex flex-col items-end gap-1">
-                  <span class="font-semibold text-sm">{total(s.id)}/{totalPossible()}</span>
-                  <progress class="progress progress-primary w-24" value={total(s.id)} max={totalPossible()}></progress>
-                </div>
-              </td>
+              <th class="p-5 text-right sticky right-0 z-30 bg-base-200/50 border-b border-base-200 min-w-32 backdrop-blur-md">
+                <span class="text-[10px] font-black uppercase tracking-widest opacity-40">{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::table_header_total')}</span>
+              </th>
             </tr>
-          {/each}
-          {#if !visibleStudents.length}
-            <tr><td colspan={assignments.length + 2}><i>{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::no_students_message')}</i></td></tr>
-          {/if}
-        </tbody>
-      </table>
+          </thead>
+          <tbody class="divide-y divide-base-200">
+            {#each visibleStudents as s (s.id)}
+              <tr class="group hover:bg-primary/5 transition-colors cursor-pointer" on:click={() => openStudent(s.id)}>
+                <td class="p-5 sticky left-0 z-30 bg-base-100 group-hover:bg-transparent transition-colors shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)]">
+                  <div class="flex items-center gap-3">
+                    <div class="avatar shrink-0">
+                      <div class="w-10 h-10 rounded-2xl ring-2 ring-base-200 shadow-sm bg-base-200 overflow-hidden group-hover:ring-primary/20 transition-all">
+                        <img src={avatarFor(s)} alt="" class="w-full h-full object-cover" />
+                      </div>
+                    </div>
+                    <div class="min-w-0">
+                      <div class="font-black text-sm tracking-tight text-base-content group-hover:text-primary transition-colors truncate">{s.name ?? s.email}</div>
+                      <div class="flex items-center gap-2 mt-1">
+                        <div class="w-16 h-1 bg-base-200 rounded-full overflow-hidden">
+                          <div class="h-full bg-success transition-all duration-500" style={`width: ${Math.round(completionRatio(s.id)*100)}%`}></div>
+                        </div>
+                        <span class="text-[9px] font-bold uppercase tracking-widest opacity-40">{Math.round(completionRatio(s.id)*100)}%</span>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                {#each assignments as a}
+                  {#key `${s.id}-${a.id}`}
+                    {#if a.max_points > 0}
+                      <td class={`p-4 text-center transition-all duration-300 ${heatClass(percent(s.id, a.id))}`} title={`${percent(s.id, a.id)}%`}> 
+                        <div class="flex flex-col items-center">
+                          <span class="text-sm font-black">{score(s.id, a.id)}</span>
+                          <span class="text-[9px] font-bold opacity-40">/ {a.max_points}</span>
+                        </div>
+                      </td>
+                    {:else}
+                      <td class="p-4 text-center opacity-20">{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::no_score_dash')}</td>
+                    {/if}
+                  {/key}
+                {/each}
+                <td class="p-5 text-right sticky right-0 z-20 bg-base-100 group-hover:bg-transparent transition-colors shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.05)]">
+                  <div class="flex flex-col items-end gap-1.5">
+                    <div class="font-black text-sm tabular-nums">
+                      {total(s.id)} <span class="text-[10px] opacity-40 font-bold">/ {totalPossible()}</span>
+                    </div>
+                    <div class="w-24 h-1.5 rounded-full bg-base-200 overflow-hidden">
+                       <div class="h-full bg-primary transition-all duration-500 rounded-full shadow-[0_0_8px_rgba(var(--p),0.5)]" style={`width: ${totalPossible() > 0 ? (total(s.id)/totalPossible()*100) : 0}%`}></div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            {/each}
+            {#if !visibleStudents.length}
+              <tr>
+                <td colspan={assignments.length + 2} class="p-20 text-center">
+                  <div class="w-16 h-16 rounded-full bg-base-200 flex items-center justify-center mx-auto mb-4 opacity-30">
+                    <Users size={32} />
+                  </div>
+                  <p class="text-sm font-black uppercase tracking-widest opacity-30">
+                    {translate('frontend/src/routes/classes/[id]/progress/+page.svelte::no_students_message')}
+                  </p>
+                </td>
+              </tr>
+            {/if}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 {/if}
+
+<style>
+  :global(body) {
+    font-family: 'Outfit', sans-serif;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: hsl(var(--bc) / 0.1);
+    border-radius: 10px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--bc) / 0.2);
+  }
+
+  /* Sticky column shadow effects */
+  td.sticky:after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 20px;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+
+  /* Table borders and details */
+  table {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+</style>
+
