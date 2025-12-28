@@ -189,11 +189,11 @@
 </div>
 
 <div class="flex-1 flex items-center justify-center p-4 min-h-[calc(100vh-4rem)]">
-    <div class="w-full max-w-[460px] relative" in:scale={{duration: 600, start: 0.98, opacity: 0}}>
+    <div class="w-full max-w-[460px] relative -mt-16" in:scale={{duration: 600, start: 0.98, opacity: 0}}>
         
         <!-- Header Section -->
         <div class="text-center mb-6">
-            <h1 class="text-6xl font-black tracking-tight mb-4 bg-clip-text text-transparent bg-gradient-to-br from-base-content via-base-content/80 to-base-content/50 dark:from-white dark:to-white/80" in:fade={{delay: 300}}>
+            <h1 class="text-6xl font-black tracking-tight mb-4 pb-2 bg-clip-text text-transparent bg-gradient-to-br from-base-content via-base-content/80 to-base-content/50 dark:from-white dark:to-white/80" in:fade={{delay: 300}}>
                 {t('frontend/src/routes/login/+page.svelte::log_in_title')}
             </h1>
             <p class="text-base-content/50 dark:text-white/70 font-bold uppercase tracking-[0.2em] text-xs" in:fade={{delay: 400}}>

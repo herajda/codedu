@@ -206,15 +206,8 @@
         
         <!-- Header Section -->
         <div class="text-center mb-8">
-            <div class="inline-flex items-center justify-center p-4 bg-white dark:bg-base-100 shadow-2xl rounded-[2rem] mb-6 relative group border border-base-200/50 dark:border-white/5" in:fade={{delay: 200}}>
-                <div class="absolute inset-0 bg-primary/20 rounded-[2rem] blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                <UserPlus class="w-10 h-10 text-primary relative" />
-                <div class="absolute -bottom-1 -left-1 flex h-4 w-4">
-                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-20"></span>
-                    <span class="relative inline-flex rounded-full h-4 w-4 bg-secondary/40"></span>
-                </div>
-            </div>
-            <h1 class="text-5xl font-black tracking-tight mb-4 bg-clip-text text-transparent bg-gradient-to-br from-base-content via-base-content/80 to-base-content/50 dark:from-white dark:to-white/40" in:fade={{delay: 300}}>
+
+            <h1 class="text-5xl font-black tracking-tight mb-4 pb-2 bg-clip-text text-transparent bg-gradient-to-br from-base-content via-base-content/80 to-base-content/50 dark:from-white dark:to-white/40" in:fade={{delay: 300}}>
                 {translate('frontend/src/routes/register/+page.svelte::register_title')}
             </h1>
             <p class="text-base-content/50 dark:text-white/40 font-bold uppercase tracking-[0.2em] text-[10px]" in:fade={{delay: 400}}>
