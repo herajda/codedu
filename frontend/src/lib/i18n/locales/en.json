@@ -1065,6 +1065,7 @@
   "frontend/src/routes/classes/[id]/files/+page.svelte::unit_yb": "YB",
   "frontend/src/routes/classes/[id]/files/+page.svelte::unit_zb": "ZB",
   "frontend/src/routes/classes/[id]/files/+page.svelte::upload_button_label": "Upload",
+  "frontend/src/routes/classes/[id]/files/+page.svelte::upload_file_dialog_title": "Upload file",
   "frontend/src/routes/classes/[id]/files/+page.svelte::upload_file_menu_item": "Upload file",
   "frontend/src/routes/classes/[id]/files/+page.svelte::uploading_button_label": "Uploading",
   "frontend/src/routes/classes/[id]/files/+page.svelte::uploading_message": "Uploading…",

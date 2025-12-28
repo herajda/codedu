@@ -1041,6 +1041,7 @@
   "frontend/src/routes/classes/[id]/files/+page.svelte::unit_yb": "YB",
   "frontend/src/routes/classes/[id]/files/+page.svelte::unit_zb": "ZB",
   "frontend/src/routes/classes/[id]/files/+page.svelte::upload_button_label": "Nahrát",
+  "frontend/src/routes/classes/[id]/files/+page.svelte::upload_file_dialog_title": "Nahrát soubor",
   "frontend/src/routes/classes/[id]/files/+page.svelte::upload_file_menu_item": "Nahrát soubor",
   "frontend/src/routes/classes/[id]/files/+page.svelte::uploading_button_label": "Nahrávám",
   "frontend/src/routes/classes/[id]/files/+page.svelte::uploading_message": "Nahrávám…",

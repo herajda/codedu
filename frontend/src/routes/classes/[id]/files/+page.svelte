@@ -538,11 +538,11 @@ onMount(() => {
       <div class="flex flex-wrap items-center gap-3">
         {#if role === 'teacher' || role === 'admin'}
           <div class="dropdown dropdown-end">
-            <button class="btn btn-primary btn-sm rounded-xl gap-2 font-black uppercase tracking-widest text-[10px] h-10 px-4 shadow-lg shadow-primary/20" type="button">
+            <button class="btn btn-primary btn-sm rounded-xl gap-2 font-black uppercase tracking-widest text-[10px] h-10 px-4 shadow-lg shadow-primary/20" type="button" tabindex="0">
               <Plus size={16} />
               {translate('frontend/src/routes/classes/[id]/files/+page.svelte::create_menu_button_label')}
             </button>
-            <ul class="dropdown-content menu bg-base-100 rounded-2xl z-[50] w-56 p-2 shadow-2xl border border-base-200 mt-2">
+            <ul class="dropdown-content menu bg-base-100 rounded-2xl z-[50] w-56 p-2 shadow-2xl border border-base-200 mt-2" tabindex="0">
               <li class="menu-title px-4 py-2 text-[10px] font-black uppercase tracking-widest opacity-40">Actions</li>
               <li><button type="button" on:click={openUploadDialog} class="rounded-xl py-3"><Upload size={16} class="mr-2 text-primary" />{translate('frontend/src/routes/classes/[id]/files/+page.svelte::upload_file_menu_item')}</button></li>
               <li><button type="button" on:click={promptDir} class="rounded-xl py-3"><Folder size={16} class="mr-2 text-warning" />{translate('frontend/src/routes/classes/[id]/files/+page.svelte::new_folder_menu_item')}</button></li>
@@ -629,7 +629,8 @@ onMount(() => {
        on:dragenter|preventDefault={onDragEnter}
        on:dragleave|preventDefault={onDragLeave}
        on:dragover|preventDefault={onDragOver}
-       on:drop|preventDefault={onDrop}>
+       on:drop|preventDefault={onDrop}
+       on:click={() => { if (role === 'teacher' || role === 'admin') openUploadDialog(); }}>
 
     {#if loading}
       <div class="absolute inset-0 z-10 bg-base-100/10 backdrop-blur-[1px] flex items-center justify-center pointer-events-none">
@@ -643,7 +644,7 @@ onMount(() => {
         {#each visible as it (it.id)}
           <div 
             class="group relative bg-base-100 border border-base-200 rounded-[2rem] p-4 flex flex-col items-center gap-3 hover:shadow-xl hover:shadow-primary/5 hover:border-primary/20 transition-all cursor-pointer overflow-hidden"
-            on:click={() => open(it)}
+            on:click={(e) => { e.stopPropagation(); open(it); }}
           >
             <div class="absolute top-0 right-0 w-12 h-12 bg-primary/5 rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
             
@@ -696,13 +697,19 @@ onMount(() => {
             {/if}
           </div>
         {:else}
-          <div class="col-span-full py-20 text-center bg-base-100/50 rounded-[3rem] border-2 border-dashed border-base-200 flex flex-col items-center justify-center">
+          <div 
+            class="col-span-full py-20 text-center bg-base-100/50 rounded-[3rem] border-2 border-dashed border-base-200 flex flex-col items-center justify-center {role === 'teacher' || role === 'admin' ? 'cursor-pointer hover:border-primary/30 transition-colors' : ''}"
+            on:click={() => { if (role === 'teacher' || role === 'admin') openUploadDialog(); }}
+          >
              <div class="w-16 h-16 rounded-full bg-base-200 flex items-center justify-center mb-4 opacity-30">
                 <Folder size={32} />
              </div>
              <p class="text-sm font-bold opacity-30 uppercase tracking-[0.2em]">
                {translate('frontend/src/routes/classes/[id]/files/+page.svelte::no_files_message')}
              </p>
+             {#if role === 'teacher' || role === 'admin'}
+               <p class="text-[10px] font-black uppercase tracking-widest opacity-20 mt-2">Click to upload your first file</p>
+             {/if}
           </div>
         {/each}
       </div>
@@ -721,7 +728,7 @@ onMount(() => {
           </thead>
           <tbody class="divide-y divide-base-100">
             {#each visible as it (it.id)}
-              <tr class="hover:bg-base-200/50 cursor-pointer group transition-colors" on:click={() => open(it)}>
+              <tr class="hover:bg-base-200/50 cursor-pointer group transition-colors" on:click={(e) => { e.stopPropagation(); open(it); }}>
                 <td class="py-4 pl-8">
                   <div class="flex items-center gap-4">
                     <div class={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${it.is_dir ? 'bg-warning/10 text-warning' : 'bg-primary/10 text-primary'} group-hover:scale-110 transition-transform`}>
@@ -759,9 +766,15 @@ onMount(() => {
             {:else}
                 <tr>
                   <td colspan={role === 'teacher' || role === 'admin' ? 4 : 3} class="py-20 text-center">
-                    <div class="flex flex-col items-center justify-center opacity-30">
+                    <div 
+                      class="flex flex-col items-center justify-center opacity-30 {role === 'teacher' || role === 'admin' ? 'cursor-pointer hover:opacity-100 transition-opacity' : ''}"
+                      on:click={() => { if (role === 'teacher' || role === 'admin') openUploadDialog(); }}
+                    >
                        <Folder size={32} class="mb-2" />
                        <p class="text-xs font-bold uppercase tracking-widest">{translate('frontend/src/routes/classes/[id]/files/+page.svelte::no_files_message')}</p>
+                       {#if role === 'teacher' || role === 'admin'}
+                          <p class="text-[10px] font-black uppercase tracking-widest mt-2">Click to upload your first file</p>
+                       {/if}
                     </div>
                   </td>
                 </tr>
@@ -826,7 +839,7 @@ onMount(() => {
     <div class="bg-base-200/50 border-2 border-dashed border-base-300 rounded-3xl p-8 text-center group hover:border-primary/30 transition-all relative">
       <input 
         type="file" 
-        class="absolute inset-0 opacity-0 cursor-pointer" 
+        class="absolute inset-0 opacity-0 cursor-pointer z-10" 
         on:change={e => uploadFile=(e.target as HTMLInputElement).files?.[0] || null}
       >
       {#if uploadFile}
