@@ -231,6 +231,52 @@
           </ul>
         </div>
 
+        {#if $auth?.role === 'teacher' || $auth?.role === 'admin'}
+          <div class="divider-glow mx-2 mb-6"></div>
+          <div class="section-container">
+            <div class="section-title">{translate('frontend/src/lib/Sidebar.svelte::teachers_title')}</div>
+            <ul class="space-y-3 pb-4">
+              <li class="nav-collapsible" data-open={!!openedSections['teachers']}>
+                <details bind:open={openedSections['teachers']} class="group/details">
+                  <summary class="nav-summary">
+                    <div class="icon-box text-primary bg-primary/10">
+                      <Users size={18} />
+                    </div>
+                    <span class="truncate font-bold text-sm tracking-tight flex-1">{translate('frontend/src/lib/Sidebar.svelte::teachers_title')}</span>
+                    <ChevronDown size={14} class="opacity-30 group-open/details:rotate-180 transition-transform duration-300" />
+                  </summary>
+                  <div class="nav-group mt-1">
+                    <a
+                      class="nav-sublink"
+                      class:is-active={isActive('/teachers/assignments')}
+                      href="/teachers/assignments"
+                    >
+                      <span class="nav-emoji">📋</span>
+                      <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::teachers_assignments_link')}</span>
+                    </a>
+                    <a
+                      class="nav-sublink"
+                      class:is-active={isActive('/teachers/files')}
+                      href="/teachers/files"
+                    >
+                      <span class="nav-emoji">📁</span>
+                      <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::teachers_files_link')}</span>
+                    </a>
+                    <a
+                      class="nav-sublink"
+                      class:is-active={isActive('/teachers/forum')}
+                      href="/teachers/forum"
+                    >
+                      <span class="nav-emoji">💬</span>
+                      <span class="text-xs font-semibold">{translate('frontend/src/lib/Sidebar.svelte::teachers_forum_link')}</span>
+                    </a>
+                  </div>
+                </details>
+              </li>
+            </ul>
+          </div>
+        {/if}
+
 
 
         {#if $classesStore.error}
