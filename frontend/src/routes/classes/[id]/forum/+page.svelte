@@ -412,8 +412,8 @@
             </div>
           </div>
 
-          <div class="flex flex-col group/msg">
-            <div class={`flex items-center gap-2 mb-1.5 px-1 ${m.user_id === $auth?.id ? 'justify-end' : ''}`}>
+          <div class={`flex flex-col group/msg ${m.user_id === $auth?.id ? 'items-end' : 'items-start'}`}>
+            <div class="flex items-center gap-2 mb-1.5 px-1">
               <span class="text-[10px] font-black uppercase tracking-widest opacity-40">
                 {m.user_id === $auth?.id ? translate('frontend/src/routes/classes/[id]/forum/+page.svelte::you') : displayName(m)}
               </span>
@@ -429,7 +429,7 @@
               {/if}
             </div>
 
-            <div class="relative">
+            <div class={`relative flex flex-col ${m.user_id === $auth?.id ? 'items-end' : 'items-start'}`}>
               {#if m.image}
                 <div class="mb-3 rounded-3xl overflow-hidden shadow-xl border border-base-200 bg-base-200/50 group/img relative">
                   <button type="button" class="block p-0 m-0 w-full" on:click={() => openImage(m.image)}>
@@ -456,14 +456,14 @@
 
               {#if m.text}
                 {#if isEmojiOnly(m.text)}
-                  <div class="text-6xl py-2 cursor-pointer transition-transform hover:scale-110" on:click={() => { m.showTime = !m.showTime; msgs = [...msgs]; }} role="button" tabindex="0">
+                  <div class="text-6xl py-2 cursor-pointer transition-transform hover:scale-110 w-fit" on:click={() => { m.showTime = !m.showTime; msgs = [...msgs]; }} role="button" tabindex="0">
                     {m.text}
                   </div>
                 {:else}
                   <div
-                    class={`relative rounded-[2rem] px-5 py-4 shadow-sm transition-all duration-300 group/bubble ${
+                    class={`relative rounded-[2rem] px-5 py-4 shadow-sm transition-all duration-300 group/bubble w-fit ${
                       m.user_id === $auth?.id
-                        ? 'bg-gradient-to-br from-primary to-primary-focus text-primary-content rounded-br-lg shadow-primary/20 hover:shadow-primary/30'
+                        ? 'bg-primary text-primary-content rounded-br-lg shadow-primary/20 hover:shadow-primary/30'
                         : 'bg-base-100 border border-base-200 text-base-content rounded-bl-lg hover:border-primary/20'
                     }`}
                     on:click={() => { m.showTime = !m.showTime; msgs = [...msgs]; }}
