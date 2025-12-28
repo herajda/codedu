@@ -182,6 +182,11 @@ img {
   @apply link link-primary;
 }
 
+.bg-primary a,
+.bg-primary a:visited {
+  color: white !important;
+}
+
 .markdown pre,
 .editor-preview pre,
 .editor-preview-side pre,
