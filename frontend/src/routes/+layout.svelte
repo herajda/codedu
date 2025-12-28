@@ -1023,7 +1023,7 @@
                           <span
                             class="badge badge-primary badge-outline badge-lg font-bold uppercase tracking-widest text-[10px]"
                           >
-                            {user.role}
+                            {translate(`frontend/src/routes/+layout.svelte::role_${user.role}`)}
                           </span>
                         {/if}
                       </h3>
@@ -1693,7 +1693,7 @@
                           <div class="flex items-center gap-3">
                             <img
                               src="/bakalari-logo.svg"
-                              alt="Bakaláři"
+                              alt={translate("frontend/src/routes/+layout.svelte::bakalari_logo_alt")}
                               class="w-8 h-8"
                             />
                             <div>
@@ -1916,9 +1916,9 @@
                         </div>
                       {:else if user.email_verified === false && isValidEmail(user.email)}
                         <p class="text-xs text-base-content/60">
-                          {translate(
+                          {@html translate(
                             "frontend/src/routes/+layout.svelte::verification_pending_email_tip",
-                            { values: { email: user.email } },
+                            { email: user.email },
                           )}
                         </p>
                       {:else}
@@ -1975,7 +1975,11 @@
           >
             <div class="modal-box space-y-4 max-w-md rounded-3xl shadow-2xl bg-base-100">
               <div class="flex items-center gap-3">
-                <img src="/bakalari-logo.svg" alt="Bakaláři" class="w-8 h-8" />
+                <img
+                  src="/bakalari-logo.svg"
+                  alt={translate("frontend/src/routes/+layout.svelte::bakalari_logo_alt")}
+                  class="w-8 h-8"
+                />
                 <h3 class="font-bold text-lg">
                   {translate(
                     "frontend/src/routes/+layout.svelte::mandatory_email_link_title",
@@ -2108,10 +2112,10 @@
                     )}
                   </button>
                   {#if user.allow_microsoft_login}
-                    <div class="divider text-xs opacity-50 my-1">OR</div>
+                    <div class="divider text-xs opacity-50 my-1">{translate("frontend/src/routes/+layout.svelte::or_divider")}</div>
                     <a href="/api/auth/microsoft/login" class="btn btn-outline gap-2 w-full">
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path fill="#f25022" d="M1 1h10v10H1z"/><path fill="#7fba00" d="M13 1h10v10H13z"/><path fill="#00a4ef" d="M1 13h10v10H1z"/><path fill="#ffb900" d="M13 13h10v10H13z"/></svg>
-                      Link Microsoft Account
+                      {translate("frontend/src/routes/+layout.svelte::link_microsoft_account_button")}
                     </a>
                   {/if}
                 </div>
