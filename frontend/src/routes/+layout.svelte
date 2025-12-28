@@ -32,7 +32,8 @@
     ensureLocale,
   } from "$lib/i18n/detect";
   import CustomSelect from "$lib/components/CustomSelect.svelte";
-  import { Globe } from "lucide-svelte";
+  import StylishInput from "$lib/components/StylishInput.svelte";
+  import { Globe, User as UserIcon, Key as KeyIcon, Lock as LockIcon, Mail as MailIcon } from "lucide-svelte";
   import type { LayoutData } from "./$types";
   import type { Locale, TranslationDictionary } from "$lib/i18n";
 
@@ -1292,36 +1293,15 @@
                     </div>
                     {#if editingName && user && user.bk_uid == null}
                       <div class="space-y-4 max-w-md">
-                        <div class="form-control w-full">
-                          <label class="label">
-                            <span class="label-text font-medium"
-                              >{translate(
-                                "frontend/src/routes/+layout.svelte::display_name_label",
-                              )}</span
-                            >
-                          </label>
-                          <div class="relative">
-                            <div
-                              class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-base-content/50"
-                            >
-                              <i class="fa-solid fa-user"></i>
-                            </div>
-                            <input
-                              class="input input-bordered w-full pl-10 focus:input-primary transition-all duration-200 bg-base-50/50 focus:bg-base-100"
-                              bind:value={name}
-                              placeholder={translate(
-                                "frontend/src/routes/+layout.svelte::enter_your_name_placeholder",
-                              )}
-                            />
-                          </div>
-                          <label class="label">
-                            <span class="label-text-alt text-base-content/60">
-                              {translate(
-                                "frontend/src/routes/+layout.svelte::display_name_tip",
-                              )}
-                            </span>
-                          </label>
-                        </div>
+                        <StylishInput
+                          bind:value={name}
+                          label={translate("frontend/src/routes/+layout.svelte::display_name_label")}
+                          placeholder={translate("frontend/src/routes/+layout.svelte::enter_your_name_placeholder")}
+                          icon={UserIcon}
+                        />
+                        <p class="text-[10px] uppercase tracking-wider text-base-content/40 ml-1">
+                          {translate("frontend/src/routes/+layout.svelte::display_name_tip")}
+                        </p>
                       </div>
                     {:else}
                       <div class="grid gap-4 sm:grid-cols-2">
@@ -1736,26 +1716,18 @@
                         </div>
                         {#if showBakalariForm}
                           <div class="space-y-3 max-w-md">
-                            <input
-                              class="input input-bordered w-full"
+                            <StylishInput
                               bind:value={bkLinkUsername}
-                              placeholder={translate(
-                                "frontend/src/routes/+layout.svelte::bakalari_username_placeholder",
-                              )}
-                              autocomplete="username"
+                              placeholder={translate("frontend/src/routes/+layout.svelte::bakalari_username_placeholder")}
+                              icon={UserIcon}
                             />
-                            <input
+                            <StylishInput
                               type="password"
-                              class="input input-bordered w-full"
                               bind:value={bkLinkPassword}
-                              placeholder={translate(
-                                "frontend/src/routes/+layout.svelte::bakalari_password_placeholder",
-                              )}
-                              autocomplete="current-password"
+                              placeholder={translate("frontend/src/routes/+layout.svelte::bakalari_password_placeholder")}
+                              icon={LockIcon}
+                              error={bkLinkError}
                             />
-                            {#if bkLinkError}
-                              <p class="text-error text-sm">{bkLinkError}</p>
-                            {/if}
                             <button
                               class="btn btn-primary"
                               on:click={linkBakalari}
@@ -1836,24 +1808,18 @@
                       </div>
                       {#if showLocalAccountForm}
                         <div class="space-y-3 max-w-md">
-                          <input
+                          <StylishInput
                             type="email"
-                            class="input input-bordered w-full"
                             bind:value={linkEmail}
-                            placeholder={translate(
-                              "frontend/src/routes/+layout.svelte::email_placeholder",
-                            )}
-                            autocomplete="email"
+                            placeholder={translate("frontend/src/routes/+layout.svelte::email_placeholder")}
+                            icon={MailIcon}
                           />
                           <div class="space-y-2">
-                            <input
+                            <StylishInput
                               type="password"
-                              class="input input-bordered w-full"
                               bind:value={linkPassword}
-                              placeholder={translate(
-                                "frontend/src/routes/+layout.svelte::password_placeholder",
-                              )}
-                              autocomplete="new-password"
+                              placeholder={translate("frontend/src/routes/+layout.svelte::password_placeholder")}
+                              icon={LockIcon}
                             />
                             <div
                               class="bg-base-200 rounded-lg p-3 text-sm space-y-2"
@@ -1915,18 +1881,13 @@
                               </ul>
                             </div>
                           </div>
-                          <input
+                          <StylishInput
                             type="password"
-                            class="input input-bordered w-full"
                             bind:value={linkPassword2}
-                            placeholder={translate(
-                              "frontend/src/routes/+layout.svelte::repeat_password_placeholder",
-                            )}
-                            autocomplete="new-password"
+                            placeholder={translate("frontend/src/routes/+layout.svelte::repeat_password_placeholder")}
+                            icon={LockIcon}
+                            error={linkError}
                           />
-                          {#if linkError}
-                            <p class="text-error text-sm">{linkError}</p>
-                          {/if}
                           <button
                             type="button"
                             class="btn btn-primary"
@@ -2180,71 +2141,26 @@
               </div>
 
               <div class="p-6 space-y-4">
-                <div class="form-control w-full">
-                  <label class="label">
-                    <span class="label-text font-medium"
-                      >{translate(
-                        "frontend/src/routes/+layout.svelte::current_password_label",
-                      )}</span
-                    >
-                  </label>
-                  <div class="relative">
-                    <div
-                      class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-base-content/50"
-                    >
-                      <i class="fa-solid fa-key"></i>
-                    </div>
-                    <input
-                      type="password"
-                      class="input input-bordered w-full pl-10 focus:input-primary bg-base-50/50"
-                      bind:value={oldPassword}
-                    />
-                  </div>
-                </div>
+                <StylishInput
+                  type="password"
+                  label={translate("frontend/src/routes/+layout.svelte::current_password_label")}
+                  bind:value={oldPassword}
+                  icon={KeyIcon}
+                />
 
-                <div class="form-control w-full">
-                  <label class="label">
-                    <span class="label-text font-medium"
-                      >{translate(
-                        "frontend/src/routes/+layout.svelte::new_password_label",
-                      )}</span
-                    >
-                  </label>
-                  <div class="relative">
-                    <div
-                      class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-base-content/50"
-                    >
-                      <i class="fa-solid fa-lock"></i>
-                    </div>
-                    <input
-                      type="password"
-                      class="input input-bordered w-full pl-10 focus:input-primary bg-base-50/50"
-                      bind:value={newPassword}
-                    />
-                  </div>
-                </div>
+                <StylishInput
+                  type="password"
+                  label={translate("frontend/src/routes/+layout.svelte::new_password_label")}
+                  bind:value={newPassword}
+                  icon={LockIcon}
+                />
 
-                <div class="form-control w-full">
-                  <label class="label">
-                    <span class="label-text font-medium"
-                      >{translate(
-                        "frontend/src/routes/+layout.svelte::repeat_password_label",
-                      )}</span
-                    >
-                  </label>
-                  <div class="relative">
-                    <div
-                      class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-base-content/50"
-                    >
-                      <i class="fa-solid fa-lock"></i>
-                    </div>
-                    <input
-                      type="password"
-                      class="input input-bordered w-full pl-10 focus:input-primary bg-base-50/50"
-                      bind:value={newPassword2}
-                    />
-                  </div>
-                </div>
+                <StylishInput
+                  type="password"
+                  label={translate("frontend/src/routes/+layout.svelte::repeat_password_label")}
+                  bind:value={newPassword2}
+                  icon={LockIcon}
+                />
 
                 {#if passwordError}
                   <div class="alert alert-error text-sm py-2">
