@@ -391,6 +391,7 @@
   "frontend/src/routes/+layout.svelte::change_name_button": "Změnit jméno",
   "frontend/src/routes/+layout.svelte::change_name_button_short": "Změnit jméno",
   "frontend/src/routes/+layout.svelte::change_password_button": "Změnit heslo",
+  "frontend/src/routes/+layout.svelte::change_password_dialog_title": "Změnit heslo",
   "frontend/src/routes/+layout.svelte::create_local_account_prompt_title": "Vytvořit nebo sloučit místní účet",
   "frontend/src/routes/+layout.svelte::create_local_account_title": "Vytvořit nebo sloučit místní účet",
   "frontend/src/routes/+layout.svelte::current_avatar_alt": "Současný avatar",

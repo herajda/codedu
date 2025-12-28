@@ -107,6 +107,15 @@
     linkMeetsPasswordRules &&
     linkPasswordsMatch;
 
+  $: newPasswordHasMinLength = newPassword.length > 8;
+  $: newPasswordHasLetter = /[A-Za-z]/.test(newPassword);
+  $: newPasswordHasNumber = /\d/.test(newPassword);
+  $: newPasswordMeetsRules =
+    newPasswordHasMinLength && newPasswordHasLetter && newPasswordHasNumber;
+  $: newPasswordsMatch =
+    newPassword2.length === 0 ? false : newPassword === newPassword2;
+  $: canSavePassword = newPasswordMeetsRules && newPasswordsMatch;
+
   const PUBLIC_AUTH_PREFIXES = [
     "/login",
     "/register",
@@ -330,6 +339,12 @@
 
   async function savePassword() {
     passwordError = "";
+    if (!newPasswordMeetsRules) {
+      passwordError = t(
+        "frontend/src/routes/+layout.svelte::password_rules_not_met",
+      );
+      return;
+    }
     if (newPassword !== newPassword2) {
       passwordError = t(
         "frontend/src/routes/+layout.svelte::passwords_do_not_match",
@@ -2155,6 +2170,65 @@
                   icon={LockIcon}
                 />
 
+                <div class="bg-base-200 rounded-xl p-4 text-sm space-y-3">
+                  <p class="font-semibold text-base-content flex items-center gap-2">
+                    <UserIcon class="w-4 h-4 text-primary" />
+                    {translate(
+                      "frontend/src/routes/+layout.svelte::password_requirements_title",
+                    )}
+                  </p>
+                  <ul class="space-y-2">
+                    <li
+                      class={`flex items-center gap-2 transition-colors ${newPasswordHasMinLength ? "text-success" : "text-base-content/50"}`}
+                    >
+                      <span
+                        class={`inline-flex w-2 h-2 rounded-full transition-all ${newPasswordHasMinLength ? "bg-success scale-110" : "bg-base-300"}`}
+                      ></span>
+                      <span
+                        >{translate(
+                          "frontend/src/routes/+layout.svelte::password_min_length_requirement",
+                        )}</span
+                      >
+                    </li>
+                    <li
+                      class={`flex items-center gap-2 transition-colors ${newPasswordHasLetter ? "text-success" : "text-base-content/50"}`}
+                    >
+                      <span
+                        class={`inline-flex w-2 h-2 rounded-full transition-all ${newPasswordHasLetter ? "bg-success scale-110" : "bg-base-300"}`}
+                      ></span>
+                      <span
+                        >{translate(
+                          "frontend/src/routes/+layout.svelte::password_includes_letter_requirement",
+                        )}</span
+                      >
+                    </li>
+                    <li
+                      class={`flex items-center gap-2 transition-colors ${newPasswordHasNumber ? "text-success" : "text-base-content/50"}`}
+                    >
+                      <span
+                        class={`inline-flex w-2 h-2 rounded-full transition-all ${newPasswordHasNumber ? "bg-success scale-110" : "bg-base-300"}`}
+                      ></span>
+                      <span
+                        >{translate(
+                          "frontend/src/routes/+layout.svelte::password_includes_number_requirement",
+                        )}</span
+                      >
+                    </li>
+                    <li
+                      class={`flex items-center gap-2 transition-colors ${newPassword2.length === 0 ? "text-base-content/50" : newPasswordsMatch ? "text-success" : "text-error"}`}
+                    >
+                      <span
+                        class={`inline-flex w-2 h-2 rounded-full transition-all ${newPassword2.length === 0 ? "bg-base-300" : newPasswordsMatch ? "bg-success scale-110" : "bg-error"}`}
+                      ></span>
+                      <span
+                        >{translate(
+                          "frontend/src/routes/+layout.svelte::passwords_match_requirement",
+                        )}</span
+                      >
+                    </li>
+                  </ul>
+                </div>
+
                 <StylishInput
                   type="password"
                   label={translate("frontend/src/routes/+layout.svelte::repeat_password_label")}
@@ -2183,6 +2257,7 @@
                 <button
                   class="btn btn-primary rounded-xl shadow-lg shadow-primary/20"
                   on:click={savePassword}
+                  disabled={!canSavePassword}
                 >
                   {translate("frontend/src/routes/+layout.svelte::save_button")}
                 </button>

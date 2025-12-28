@@ -391,6 +391,7 @@
   "frontend/src/routes/+layout.svelte::change_name_button": "Change name",
   "frontend/src/routes/+layout.svelte::change_name_button_short": "Change name",
   "frontend/src/routes/+layout.svelte::change_password_button": "Change password",
+  "frontend/src/routes/+layout.svelte::change_password_dialog_title": "Change Password",
   "frontend/src/routes/+layout.svelte::create_local_account_prompt_title": "Create or merge a local account",
   "frontend/src/routes/+layout.svelte::create_local_account_title": "Create or merge local account",
   "frontend/src/routes/+layout.svelte::current_avatar_alt": "Current avatar",
