@@ -35,6 +35,7 @@
     let verificationHelpLink = '/verify-email'
     let mode: 'local' | 'bakalari' = 'local'
     let allowMicrosoftLogin = true
+    let allowBakalariLogin = true
     
     onMount(async () => {
       try {
@@ -42,6 +43,7 @@
         if (res.ok) {
           const config = await res.json()
           allowMicrosoftLogin = config.allow_microsoft_login
+          allowBakalariLogin = config.allow_bakalari_login
         }
       } catch (e) {
         console.error('Failed to fetch public settings', e)
@@ -271,7 +273,7 @@
                             </div>
                         </button>
 
-                        {#if allowMicrosoftLogin || hasBakalari}
+                        {#if allowMicrosoftLogin || (hasBakalari && allowBakalariLogin)}
                              <div class="flex items-center gap-4 py-2">
                                  <div class="h-px flex-1 bg-base-content/5 dark:bg-white/5"></div>
                                  <span class="text-[10px] font-black uppercase tracking-[0.4em] text-base-content/20 dark:text-white/40">OR</span>
@@ -288,7 +290,7 @@
                                      </a>
                                  {/if}
 
-                                 {#if hasBakalari}
+                                 {#if hasBakalari && allowBakalariLogin}
                                      <button on:click={() => mode = 'bakalari'} type="button" class="flex items-center justify-center gap-3 w-full h-16 rounded-2xl font-bold transition-all duration-300 bg-white dark:bg-white/5 border border-base-200/50 dark:border-white/5 hover:bg-base-50 dark:hover:bg-white/10 shadow-sm group text-black dark:text-white">
                                         <img src="/bakalari_logo_small.webp" alt="Bakaláři" class="w-8 h-8 object-contain group-hover:scale-110 transition-transform" />
                                         <span class="text-base">{t('frontend/src/routes/login/+page.svelte::log_in_with_bakalari')}</span>

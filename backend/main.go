@@ -156,6 +156,7 @@ func main() {
 	publicAPI.GET("/public-settings", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"allow_microsoft_login": GetSystemSetting("allow_microsoft_login", "true") == "true",
+			"allow_bakalari_login":  GetSystemSetting("allow_bakalari_login", "true") == "true",
 		})
 	})
 
@@ -260,6 +261,7 @@ func main() {
 		api.POST("/teachers", RoleGuard("admin"), createTeacher)
 		api.POST("/students", RoleGuard("admin"), adminCreateStudent)
 		api.GET("/users", RoleGuard("admin"), listUsers)
+		api.PUT("/users/:id", RoleGuard("admin"), adminUpdateUser)
 		api.PUT("/users/:id/role", RoleGuard("admin"), updateUserRole)
 		api.PUT("/users/:id/password", RoleGuard("admin"), adminSetUserPassword)
 		api.POST("/admin/email-ping", RoleGuard("admin"), adminEmailPing)
