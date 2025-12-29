@@ -23,7 +23,9 @@
     Smile,
     Table,
     MessageSquare,
-    Download
+    Download,
+    Reply,
+    CornerDownRight
   } from 'lucide-svelte';
 import { renderMarkdown } from '$lib/markdown';
 import MarkdownEditor from '$lib/MarkdownEditor.svelte';
@@ -73,6 +75,19 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
   let searchPos = 0;
   let searchInput: HTMLInputElement | null = null;
   let msgEls: HTMLDivElement[] = [];
+
+  // Reply feature state
+  let replyToMessage: any = null; // The message being replied to
+  
+  function setReplyTo(message: any) {
+    replyToMessage = message;
+    // Focus the input after setting reply
+    setTimeout(() => msgInput?.focus(), 0);
+  }
+  
+  function clearReply() {
+    replyToMessage = null;
+  }
 
   function registerMsgEl(node: HTMLDivElement, idx: number) {
     msgEls[idx] = node;
@@ -243,11 +258,15 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
   async function send() {
     err = '';
     if (!msg.trim() && !imageData && !fileData) return;
+    const payload: any = { to: id, text: msg, image: imageData, file_name: fileName, file: fileData, structured };
+    if (replyToMessage) {
+      payload.reply_to = replyToMessage.id;
+    }
     const res = await apiFetch('/api/messages', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ to: id, text: msg, image: imageData, file_name: fileName, file: fileData, structured })
+      body: JSON.stringify(payload)
     });
-    if (res.ok) { msg=''; imageData=null; fileData=null; fileName=null; structured=false; offset=0; await load(); }
+    if (res.ok) { msg=''; imageData=null; fileData=null; fileName=null; structured=false; replyToMessage=null; offset=0; await load(); }
     else { err = (await res.json()).error; }
   }
 
@@ -534,6 +553,27 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
             
             <div class={`flex flex-col group/msg ${m.sender_id === $auth?.id ? 'items-end' : 'items-start'}`}>
               <div class="relative flex flex-col">
+                <!-- Reply preview (if this message is a reply) -->
+                {#if m.reply_to_id && m.reply_text}
+                  <div 
+                    class={`flex items-start gap-2 mb-2 px-3 py-2 rounded-xl text-xs border-l-2 ${
+                      m.sender_id === $auth?.id 
+                        ? 'bg-primary-content/10 border-primary-content/30' 
+                        : 'bg-base-200/50 border-primary/30'
+                    }`}
+                  >
+                    <CornerDownRight size={12} class="mt-0.5 shrink-0 opacity-50" />
+                    <div class="flex-1 min-w-0">
+                      <p class={`text-[9px] font-black uppercase tracking-wider mb-0.5 ${
+                        m.sender_id === $auth?.id ? 'opacity-60' : 'text-primary opacity-80'
+                      }`}>
+                        {m.reply_sender_id === $auth?.id ? t('frontend/src/routes/messages/[id]/+page.svelte::you') : name}
+                      </p>
+                      <p class="opacity-70 line-clamp-2">{m.reply_text}</p>
+                    </div>
+                  </div>
+                {/if}
+                
                 {#if m.image}
                   <div class="mb-3 rounded-3xl overflow-hidden shadow-xl border border-base-200 bg-base-200/50 group/img relative">
                     <button type="button" class="block p-0 m-0 w-full" on:click={() => openImage(m.image)}>
@@ -617,6 +657,16 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
                     {/if}
                   </div>
                 {/if}
+
+                <!-- Reply button - appears on hover -->
+                <button
+                  class={`btn btn-ghost btn-xs h-7 px-2 rounded-lg gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity mt-1 text-base-content/50 hover:text-primary hover:bg-primary/10 ${m.sender_id === $auth?.id ? 'self-end' : 'self-start'}`}
+                  on:click|stopPropagation={() => setReplyTo(m)}
+                  title={t('frontend/src/routes/messages/[id]/+page.svelte::reply_button')}
+                >
+                  <Reply size={12} />
+                  <span class="text-[9px] font-bold uppercase tracking-wider">{t('frontend/src/routes/messages/[id]/+page.svelte::reply_button')}</span>
+                </button>
               </div>
             </div>
           </div>
@@ -641,6 +691,28 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
               <button class="btn btn-ghost btn-xs btn-circle" on:click={() => {fileData=null; fileName=null;}}><X size={12} /></button>
             </div>
           {/if}
+        </div>
+      {/if}
+
+      <!-- Reply composer preview -->
+      {#if replyToMessage}
+        <div class="flex items-start gap-3 mb-4 p-3 bg-base-200/50 rounded-2xl border-l-4 border-primary" in:fade>
+          <Reply size={16} class="text-primary shrink-0 mt-0.5" />
+          <div class="flex-1 min-w-0">
+            <p class="text-[10px] font-black text-primary uppercase tracking-widest mb-1">
+              {t('frontend/src/routes/messages/[id]/+page.svelte::replying_to')} {replyToMessage.sender_id === $auth?.id ? t('frontend/src/routes/messages/[id]/+page.svelte::yourself') : name}
+            </p>
+            <p class="text-sm text-base-content/70 line-clamp-2">
+              {replyToMessage.text || (replyToMessage.image ? t('frontend/src/routes/messages/[id]/+page.svelte::image_message') : t('frontend/src/routes/messages/[id]/+page.svelte::file_message'))}
+            </p>
+          </div>
+          <button 
+            class="btn btn-ghost btn-xs btn-circle shrink-0" 
+            on:click={clearReply}
+            title={t('frontend/src/routes/messages/[id]/+page.svelte::cancel_reply')}
+          >
+            <X size={14} />
+          </button>
         </div>
       {/if}
 
