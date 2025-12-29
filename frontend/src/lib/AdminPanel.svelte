@@ -67,6 +67,7 @@
   let showEmailTools = false;
   let showCreateUsers = false;
   let showSystemVariables = false;
+  let showLoginOptions = false;
 
   // System variable form state
   let variableKey = '';
@@ -538,6 +539,7 @@
   $: tabId = (t: string) => `admin-tab-${t}`;
 </script>
 
+<div style="font-family: 'Plus Jakarta Sans', sans-serif; display: contents;">
 <!-- Premium Header -->
 <div class="relative z-10 mb-10">
   <div class="absolute inset-x-0 -top-40 -z-10 h-96 bg-gradient-to-b from-primary/5 to-transparent opacity-60 blur-3xl pointer-events-none"></div>
@@ -881,7 +883,9 @@
 
       <div class="bg-base-100 p-6 rounded-[2.5rem] border border-base-200 shadow-sm">
         <h2 class="text-sm font-black uppercase tracking-widest opacity-40 mb-6 flex items-center gap-2">
-          <Shield size={16} />
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 23 23" class="opacity-40">
+            <path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/><path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/>
+          </svg>
           {t('frontend/src/lib/AdminPanel.svelte::whitelist_title')}
         </h2>
         
@@ -1224,45 +1228,62 @@
   <div class="space-y-8">
     <!-- Login Options -->
     <section class="space-y-6">
-      <div class="flex items-center justify-between px-2">
-        <h2 class="text-sm font-black uppercase tracking-[0.2em] opacity-40">{t('frontend/src/lib/AdminPanel.svelte::login_options_title')}</h2>
-      </div>
+      <button 
+        type="button"
+        class="flex items-center gap-2 px-2 group hover:opacity-100 transition-all relative z-20" 
+        on:click|stopPropagation={() => { showLoginOptions = !showLoginOptions; }}
+      >
+        <h2 class="text-sm font-black uppercase tracking-[0.2em] opacity-40 group-hover:opacity-100 transition-all flex items-center gap-2">
+          {t('frontend/src/lib/AdminPanel.svelte::login_options_title')}
+          <ChevronDown size={14} class="transition-transform duration-300 {showLoginOptions ? 'rotate-180 opacity-100' : 'opacity-40'}" />
+        </h2>
+      </button>
       
-      <div class="grid gap-4">
-        <!-- Microsoft Login -->
-        <label class="bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm flex items-center justify-between gap-6 group hover:border-primary/30 transition-all cursor-pointer">
-          <div class="flex-1">
-            <span class="font-black text-sm uppercase tracking-widest block mb-1">{t('frontend/src/lib/AdminPanel.svelte::allow_microsoft_login_label')}</span>
-            <span class="text-[10px] font-bold opacity-50 uppercase tracking-widest leading-relaxed">{t('frontend/src/lib/AdminPanel.svelte::allow_microsoft_login_description')}</span>
-          </div>
-          <input type="checkbox" class="toggle toggle-primary toggle-lg scale-75" checked={allowMicrosoftLogin} on:change={(e) => updateSetting('allow_microsoft_login', (e.target as HTMLInputElement).checked)} />
-        </label>
-
-        <!-- Bakalari Login -->
-        <div class="bg-base-100 rounded-[2rem] border border-base-200 shadow-sm overflow-hidden group hover:border-primary/30 transition-all">
-          <label class="p-6 flex items-center justify-between gap-6 cursor-pointer">
-            <div class="flex-1">
-              <span class="font-black text-sm uppercase tracking-widest block mb-1">{t('frontend/src/lib/AdminPanel.svelte::allow_bakalari_login_label')}</span>
-              <span class="text-[10px] font-bold opacity-50 uppercase tracking-widest leading-relaxed">{t('frontend/src/lib/AdminPanel.svelte::allow_bakalari_login_description')}</span>
+      {#if showLoginOptions}
+        <div class="grid gap-4">
+          <!-- Microsoft Login -->
+          <label class="bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm flex items-center justify-between gap-6 group hover:border-primary/30 transition-all cursor-pointer">
+            <div class="flex items-center gap-4 flex-1">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 23 23" class="shrink-0">
+                <path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/><path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/>
+              </svg>
+              <div class="flex-1">
+                <span class="font-black text-sm uppercase tracking-widest block mb-1">{t('frontend/src/lib/AdminPanel.svelte::allow_microsoft_login_label')}</span>
+                <span class="text-[10px] font-bold opacity-50 uppercase tracking-widest leading-relaxed">{t('frontend/src/lib/AdminPanel.svelte::allow_microsoft_login_description')}</span>
+              </div>
             </div>
-            <input type="checkbox" class="toggle toggle-primary toggle-lg scale-75" checked={allowBakalariLogin} on:change={(e) => updateSetting('allow_bakalari_login', (e.target as HTMLInputElement).checked)} />
+            <input type="checkbox" class="toggle toggle-primary toggle-lg scale-75" checked={allowMicrosoftLogin} on:change={(e) => updateSetting('allow_microsoft_login', (e.target as HTMLInputElement).checked)} />
           </label>
-          
-          {#if allowBakalariLogin}
-            <div class="px-6 pb-6 pt-0">
-               <div class="bg-base-200/30 rounded-2xl p-4 border border-base-200/50">
-                  <label class="flex items-center justify-between gap-6 cursor-pointer">
-                    <div class="flex-1">
-                      <span class="font-black text-xs uppercase tracking-widest block mb-1">{t('frontend/src/lib/AdminPanel.svelte::force_bakalari_email_label')}</span>
-                      <span class="text-[9px] font-bold opacity-50 uppercase tracking-widest leading-relaxed">{t('frontend/src/lib/AdminPanel.svelte::force_bakalari_email_description')}</span>
-                    </div>
-                    <input type="checkbox" class="toggle toggle-primary toggle-md scale-90" checked={forceBakalariEmail} on:change={(e) => updateSetting('force_bakalari_email', (e.target as HTMLInputElement).checked)} />
-                  </label>
-               </div>
-            </div>
-          {/if}
+
+          <!-- Bakalari Login -->
+          <div class="bg-base-100 rounded-[2rem] border border-base-200 shadow-sm overflow-hidden group hover:border-primary/30 transition-all">
+            <label class="p-6 flex items-center justify-between gap-6 cursor-pointer">
+              <div class="flex items-center gap-4 flex-1">
+                <img src="/bakalari_logo_small.webp" alt="Bakaláři" class="w-8 h-8 object-contain shrink-0" />
+                <div class="flex-1">
+                  <span class="font-black text-sm uppercase tracking-widest block mb-1">{t('frontend/src/lib/AdminPanel.svelte::allow_bakalari_login_label')}</span>
+                  <span class="text-[10px] font-bold opacity-50 uppercase tracking-widest leading-relaxed">{t('frontend/src/lib/AdminPanel.svelte::allow_bakalari_login_description')}</span>
+                </div>
+              </div>
+              <input type="checkbox" class="toggle toggle-primary toggle-lg scale-75" checked={allowBakalariLogin} on:change={(e) => updateSetting('allow_bakalari_login', (e.target as HTMLInputElement).checked)} />
+            </label>
+            
+            {#if allowBakalariLogin}
+              <div class="px-6 pb-6 pt-0">
+                 <div class="bg-base-200/30 rounded-2xl p-4 border border-base-200/50">
+                    <label class="flex items-center justify-between gap-6 cursor-pointer">
+                      <div class="flex-1">
+                        <span class="font-black text-xs uppercase tracking-widest block mb-1">{t('frontend/src/lib/AdminPanel.svelte::force_bakalari_email_label')}</span>
+                        <span class="text-[9px] font-bold opacity-50 uppercase tracking-widest leading-relaxed">{t('frontend/src/lib/AdminPanel.svelte::force_bakalari_email_description')}</span>
+                      </div>
+                      <input type="checkbox" class="toggle toggle-primary toggle-md scale-90" checked={forceBakalariEmail} on:change={(e) => updateSetting('force_bakalari_email', (e.target as HTMLInputElement).checked)} />
+                    </label>
+                 </div>
+              </div>
+            {/if}
+          </div>
         </div>
-      </div>
+      {/if}
     </section>
 
     <!-- System Variables -->
@@ -1350,62 +1371,47 @@
 
     <!-- Email Tools Section -->
     <section class="space-y-6">
-      <div class="flex items-center justify-between px-2">
-        <h2 class="text-sm font-black uppercase tracking-[0.2em] opacity-40">{t('frontend/src/lib/AdminPanel.svelte::email_ping_card_title')}</h2>
-      </div>
-      
-      <div class="bg-base-100 p-8 rounded-[2rem] border border-base-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6 group hover:border-primary/30 transition-all">
-        <div class="flex items-center gap-6">
-          <div class="w-14 h-14 rounded-2xl bg-warning/10 text-warning flex items-center justify-center shrink-0">
-             <MailCheck size={28} />
-          </div>
-          <div class="text-center md:text-left">
-            <div class="font-black text-lg tracking-tight mb-1">{t('frontend/src/lib/AdminPanel.svelte::email_ping_card_title')}</div>
-            <div class="text-xs font-bold opacity-50 uppercase tracking-widest leading-relaxed">{t('frontend/src/lib/AdminPanel.svelte::email_ping_description')}</div>
+      <button 
+        type="button"
+        class="flex items-center gap-2 px-2 group hover:opacity-100 transition-all relative z-20" 
+        on:click|stopPropagation={() => { showEmailTools = !showEmailTools; }}
+      >
+        <h2 class="text-sm font-black uppercase tracking-[0.2em] opacity-40 group-hover:opacity-100 transition-all flex items-center gap-2">
+          {t('frontend/src/lib/AdminPanel.svelte::email_ping_card_title')}
+          <ChevronDown size={14} class="transition-transform duration-300 {showEmailTools ? 'rotate-180 opacity-100' : 'opacity-40'}" />
+        </h2>
+      </button>
+
+      {#if showEmailTools}
+        <div class="bg-base-100 rounded-[2.5rem] border border-base-200 shadow-sm overflow-hidden">
+          <div class="p-6">
+            <p class="text-[10px] font-bold opacity-50 uppercase tracking-widest leading-relaxed mb-6">
+               {t('frontend/src/lib/AdminPanel.svelte::email_ping_description')}
+            </p>
+            
+            <form class="flex gap-2 items-end" on:submit|preventDefault={sendEmailPing}>
+              <div class="flex-1">
+                <StylishInput 
+                    bind:value={emailPingTarget} 
+                    placeholder={t('frontend/src/lib/AdminPanel.svelte::email_ping_placeholder')} 
+                    type="email" 
+                    required 
+                    icon={MailCheck}
+                    label={t('frontend/src/lib/AdminPanel.svelte::email_label')}
+                  />
+              </div>
+              
+              <button type="submit" class="btn btn-primary h-[50px] rounded-xl px-6 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20" disabled={sendingEmailPing}>
+                {sendingEmailPing ? t('frontend/src/lib/AdminPanel.svelte::sending_button') : t('frontend/src/lib/AdminPanel.svelte::email_ping_button')}
+              </button>
+            </form>
           </div>
         </div>
-        <button class="btn btn-primary h-12 rounded-xl px-8 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20" on:click={() => { showEmailTools = true; }}>
-          <MailCheck size={16} class="mr-2" />
-          {t('frontend/src/lib/AdminPanel.svelte::email_ping_button')}
-        </button>
-      </div>
+      {/if}
     </section>
   </div>
 {/if}
 
 
-{#if showEmailTools}
-  <dialog open class="modal">
-    <div class="modal-box bg-base-100 rounded-[2.5rem] border border-base-200 shadow-2xl p-8 max-w-md">
-      <div class="flex items-center gap-3 mb-6">
-        <div class="w-10 h-10 rounded-xl bg-warning/10 text-warning flex items-center justify-center">
-          <MailCheck size={20} />
-        </div>
-        <h3 class="text-xl font-black tracking-tight">{t('frontend/src/lib/AdminPanel.svelte::email_ping_card_title')}</h3>
-      </div>
-      
-      <p class="text-sm font-medium opacity-60 mb-6 leading-relaxed">
-         {t('frontend/src/lib/AdminPanel.svelte::email_ping_description')}
-      </p>
-      
-      <form class="space-y-4" on:submit|preventDefault={sendEmailPing}>
-        <StylishInput 
-            bind:value={emailPingTarget} 
-            placeholder={t('frontend/src/lib/AdminPanel.svelte::email_ping_placeholder')} 
-            type="email" 
-            required 
-            icon={MailCheck}
-            label={t('frontend/src/lib/AdminPanel.svelte::email_label')}
-          />
-        
-        <div class="modal-action gap-2 mt-4">
-          <button type="button" class="btn btn-ghost rounded-xl font-black uppercase tracking-widest text-[10px] h-11" on:click={() => { showEmailTools = false; }}>{t('frontend/src/lib/AdminPanel.svelte::cancel_button')}</button>
-          <button type="submit" class="btn btn-primary rounded-xl px-8 font-black uppercase tracking-widest text-[10px] h-11 shadow-lg shadow-primary/20" disabled={sendingEmailPing}>
-            {sendingEmailPing ? t('frontend/src/lib/AdminPanel.svelte::sending_button') : t('frontend/src/lib/AdminPanel.svelte::email_ping_button')}
-          </button>
-        </div>
-      </form>
-    </div>
-    <form method="dialog" class="modal-backdrop bg-base-content/20 backdrop-blur-sm" on:click={() => { showEmailTools = false; }}><button>close</button></form>
-  </dialog>
-{/if}
+
+</div>

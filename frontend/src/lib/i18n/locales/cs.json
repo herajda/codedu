@@ -120,7 +120,7 @@
   "frontend/src/lib/AdminPanel.svelte::add_student_card_title": "Přidat studenta",
   "frontend/src/lib/AdminPanel.svelte::add_student_card_description": "Rychle vygenerujte studentský účet.",
   "frontend/src/lib/AdminPanel.svelte::account_tools_sidebar_title": "Nástroje účtů",
-  "frontend/src/lib/AdminPanel.svelte::student_name_placeholder": "Celé jméno (volitelné)",
+  "frontend/src/lib/AdminPanel.svelte::student_name_placeholder": "Jméno studenta",
   "frontend/src/lib/AdminPanel.svelte::student_created_success": "Student byl vytvořen",
   "frontend/src/lib/AdminPanel.svelte::failed_to_create_student": "Studenta se nepodařilo vytvořit",
   "frontend/src/lib/AdminPanel.svelte::platform_stats_title": "Statistiky platformy",
