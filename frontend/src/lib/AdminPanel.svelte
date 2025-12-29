@@ -6,7 +6,7 @@
   import { classesStore } from '$lib/stores/classes';
   import {
     Users2, GraduationCap, School, Plus, Trash2, RefreshCw,
-    Shield, Search, Edit, ArrowRightLeft, Check, KeyRound, MailCheck, ChevronDown
+    Shield, Search, Edit, ArrowRightLeft, Check, KeyRound, MailCheck, ChevronDown, CheckCircle2, XCircle, ArrowLeft
   } from 'lucide-svelte';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   import PromptModal from '$lib/components/PromptModal.svelte';
@@ -317,52 +317,77 @@
   // ───────────────────────────
   // Teacher management
   // ───────────────────────────
-  let teacherEmail = '', teacherPassword = '', teacherName = '';
-  async function addTeacher() {
-    err = ok = '';
-    const payload: Record<string, string> = {
-      email: teacherEmail,
-      password: await sha256(teacherPassword)
-    };
-    const trimmedName = teacherName.trim();
-    if (trimmedName) payload.name = trimmedName;
-    const r = await apiFetch('/api/teachers', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (r.status === 201) {
-      ok = t('frontend/src/lib/AdminPanel.svelte::teacher_created_success');
-      teacherEmail = teacherPassword = teacherName = '';
-      await loadUsers();
-    } else {
-      const j = await r.json().catch(() => ({}));
-      err = j.error || t('frontend/src/lib/AdminPanel.svelte::failed_to_create_teacher');
-    }
+  // ───────────────────────────
+  // Account creation
+  // ───────────────────────────
+  let createUserRole: 'teacher' | 'student' | null = null;
+  let createAccountName = '';
+  let createAccountEmail = '';
+  let createAccountPassword = '';
+  let createAccountPasswordConfirm = '';
+
+  // Validation
+  $: createAccountHasMinLength = createAccountPassword.length >= 9;
+  $: createAccountHasLetter = /[A-Za-z]/.test(createAccountPassword);
+  $: createAccountHasNumber = /\d/.test(createAccountPassword);
+  $: createAccountPasswordsMatch = createAccountPassword && createAccountPassword === createAccountPasswordConfirm;
+  $: createAccountPasswordValid = createAccountHasMinLength && createAccountHasLetter && createAccountHasNumber && createAccountPasswordsMatch;
+  $: createAccountEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(createAccountEmail.trim());
+  $: createAccountNameValid = createAccountName.trim().length > 0;
+  
+  $: canCreateAccount = createAccountNameValid && createAccountEmailValid && createAccountPasswordValid;
+
+  function resetCreateAccountForm() {
+    createAccountName = '';
+    createAccountEmail = '';
+    createAccountPassword = '';
+    createAccountPasswordConfirm = '';
   }
 
-  // ───────────────────────────
-  // Student management
-  // ───────────────────────────
-  let studentEmail = '', studentPassword = '', studentName = '';
-  async function addStudent() {
+  async function createAccount() {
+    if (!createUserRole || !canCreateAccount) return;
     err = ok = '';
-    const payload: Record<string, string> = {
-      email: studentEmail,
-      password: await sha256(studentPassword)
+    
+    // Explicit validation check before sending
+    if (!createAccountEmailValid) {
+        err = t('frontend/src/lib/AdminPanel.svelte::invalid_email_error');
+        return;
+    }
+
+    if (!createAccountPasswordsMatch) {
+       err = t('frontend/src/lib/AdminPanel.svelte::passwords_do_not_match_error');
+       return;
+    }
+
+    const payload = {
+        name: createAccountName.trim(),
+        email: createAccountEmail.trim(),
+        password: await sha256(createAccountPassword)
     };
-    const trimmedName = studentName.trim();
-    if (trimmedName) payload.name = trimmedName;
-    const r = await apiFetch('/api/students', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (r.status === 201) {
-      ok = t('frontend/src/lib/AdminPanel.svelte::student_created_success');
-      studentEmail = studentPassword = studentName = '';
-      await loadUsers();
-    } else {
-      const j = await r.json().catch(() => ({}));
-      err = j.error || t('frontend/src/lib/AdminPanel.svelte::failed_to_create_student');
+
+    try {
+        const endpoint = createUserRole === 'teacher' ? '/api/teachers' : '/api/students';
+        const r = await apiFetch(endpoint, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (r.status === 201) {
+            ok = createUserRole === 'teacher'
+                ? t('frontend/src/lib/AdminPanel.svelte::teacher_created_success')
+                : t('frontend/src/lib/AdminPanel.svelte::student_created_success');
+            
+            resetCreateAccountForm();
+            await loadUsers();
+            createUserRole = null; 
+        } else {
+            const j = await r.json().catch(() => ({}));
+            err = j.error || (createUserRole === 'teacher' 
+                ? t('frontend/src/lib/AdminPanel.svelte::failed_to_create_teacher') 
+                : t('frontend/src/lib/AdminPanel.svelte::failed_to_create_student'));
+        }
+    } catch (e: any) {
+        err = e.message;
     }
   }
 
@@ -811,127 +836,193 @@
         </summary>
 
         {#if showCreateUsers}
-          <div class="px-6 pb-6 pt-2 space-y-6 border-t border-base-200" transition:slide>
-            <!-- Add Teacher -->
-            <div class="relative group">
-              <div class="absolute -left-3 top-0 bottom-0 w-1 bg-gradient-to-b from-secondary to-transparent rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <h3 class="font-black text-xs uppercase tracking-widest opacity-40 mb-3 flex items-center gap-2">
-                <GraduationCap size={14} /> {t('frontend/src/lib/AdminPanel.svelte::add_teacher_card_title')}
-              </h3>
-              <form on:submit|preventDefault={addTeacher} class="space-y-3">
-                <StylishInput 
-                  bind:value={teacherName} 
-                  placeholder={t('frontend/src/lib/AdminPanel.svelte::teacher_name_placeholder')} 
-                  icon={Users2}
-                />
-                <StylishInput 
-                  bind:value={teacherEmail} 
-                  placeholder={t('frontend/src/lib/AdminPanel.svelte::email_label')} 
-                  type="email" 
-                  required 
-                  icon={MailCheck}
-                />
-                <StylishInput 
-                  bind:value={teacherPassword} 
-                  placeholder={t('frontend/src/lib/AdminPanel.svelte::password_label')} 
-                  type="password" 
-                  required 
-                  icon={KeyRound}
-                />
-                <button class="btn btn-secondary btn-sm w-full h-10 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-secondary/10 hover:shadow-secondary/20 hover:scale-[1.02] transition-all">
-                  {t('frontend/src/lib/AdminPanel.svelte::add_button')}
-                </button>
-              </form>
-            </div>
+          <div class="px-6 pb-6 pt-2 border-t border-base-200" transition:slide>
+            
+            {#if !createUserRole}
+              <!-- Step 1: Choose Role -->
+               <div class="text-center mb-6">
+                  <h3 class="font-black text-sm uppercase tracking-widest opacity-60 mb-1">{t('frontend/src/lib/AdminPanel.svelte::create_account_step_1_title')}</h3>
+               </div>
+               
+               <div class="grid grid-cols-2 gap-4">
+                 <button 
+                    class="flex flex-col items-center justify-center gap-3 p-6 rounded-[2rem] bg-base-200/50 hover:bg-secondary/10 border-2 border-transparent hover:border-secondary/20 transition-all group"
+                    on:click={() => createUserRole = 'teacher'}
+                  >
+                    <div class="w-12 h-12 rounded-2xl bg-base-100 shadow-sm text-secondary flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <GraduationCap size={24} />
+                    </div>
+                    <span class="font-black uppercase tracking-widest text-[10px] group-hover:text-secondary transition-colors">{t('frontend/src/lib/AdminPanel.svelte::create_teacher_option')}</span>
+                 </button>
 
-            <div class="divider opacity-50"></div>
-
-            <!-- Add Student -->
-            <div class="relative group">
-              <div class="absolute -left-3 top-0 bottom-0 w-1 bg-gradient-to-b from-primary to-transparent rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <h3 class="font-black text-xs uppercase tracking-widest opacity-40 mb-3 flex items-center gap-2">
-                <Users2 size={14} /> {t('frontend/src/lib/AdminPanel.svelte::add_student_card_title')}
-              </h3>
-              <form on:submit|preventDefault={addStudent} class="space-y-3">
-                <StylishInput 
-                  bind:value={studentName} 
-                  placeholder={t('frontend/src/lib/AdminPanel.svelte::student_name_placeholder')} 
-                  icon={Users2}
-                />
-                <StylishInput 
-                  bind:value={studentEmail} 
-                  placeholder={t('frontend/src/lib/AdminPanel.svelte::email_label')} 
-                  type="email" 
-                  required 
-                  icon={MailCheck}
-                />
-                <StylishInput 
-                  bind:value={studentPassword} 
-                  placeholder={t('frontend/src/lib/AdminPanel.svelte::password_label')} 
-                  type="password" 
-                  required 
-                  icon={KeyRound}
-                />
-                <button class="btn btn-primary btn-sm w-full h-10 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-primary/10 hover:shadow-primary/20 hover:scale-[1.02] transition-all">
-                  {t('frontend/src/lib/AdminPanel.svelte::add_button')}
+                 <button 
+                    class="flex flex-col items-center justify-center gap-3 p-6 rounded-[2rem] bg-base-200/50 hover:bg-primary/10 border-2 border-transparent hover:border-primary/20 transition-all group"
+                    on:click={() => createUserRole = 'student'}
+                  >
+                    <div class="w-12 h-12 rounded-2xl bg-base-100 shadow-sm text-primary flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Users2 size={24} />
+                    </div>
+                    <span class="font-black uppercase tracking-widest text-[10px] group-hover:text-primary transition-colors">{t('frontend/src/lib/AdminPanel.svelte::create_student_option')}</span>
+                 </button>
+               </div>
+            {:else}
+              <!-- Step 2: Form -->
+              <div class="space-y-6">
+                <button 
+                  class="btn btn-ghost btn-xs -ml-2 gap-1 opacity-50 hover:opacity-100 font-bold"
+                  on:click={() => createUserRole = null}
+                >
+                  <ArrowLeft size={14} /> {t('frontend/src/lib/AdminPanel.svelte::back_to_role_selection')}
                 </button>
-              </form>
-            </div>
+
+                <div class="relative group">
+                   <div class="absolute -left-3 top-0 bottom-0 w-1 bg-gradient-to-b {createUserRole === 'teacher' ? 'from-secondary' : 'from-primary'} to-transparent rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                   <h3 class="font-black text-xs uppercase tracking-widest opacity-40 mb-3 flex items-center gap-2">
+                     {#if createUserRole === 'teacher'}
+                        <GraduationCap size={14} /> {t('frontend/src/lib/AdminPanel.svelte::add_teacher_card_title')}
+                     {:else}
+                        <Users2 size={14} /> {t('frontend/src/lib/AdminPanel.svelte::add_student_card_title')}
+                     {/if}
+                   </h3>
+                   
+                   <form on:submit|preventDefault={createAccount} class="space-y-4">
+                     <StylishInput 
+                        bind:value={createAccountName} 
+                        placeholder={createUserRole === 'teacher' 
+                          ? t('frontend/src/lib/AdminPanel.svelte::teacher_name_placeholder') 
+                          : t('frontend/src/lib/AdminPanel.svelte::student_name_placeholder')} 
+                        icon={Users2}
+                        required
+                        label={t('frontend/src/lib/AdminPanel.svelte::name_table_header')}
+                      />
+                      
+                      <StylishInput 
+                        bind:value={createAccountEmail} 
+                        placeholder={t('frontend/src/lib/AdminPanel.svelte::email_label')} 
+                        type="email" 
+                        required 
+                        icon={MailCheck}
+                        label={t('frontend/src/lib/AdminPanel.svelte::email_label')}
+                      />
+                      
+                      <div class="space-y-3">
+                        <StylishInput 
+                          bind:value={createAccountPassword} 
+                          placeholder={t('frontend/src/lib/AdminPanel.svelte::password_label')} 
+                          type="password" 
+                          required 
+                          icon={KeyRound}
+                          label={t('frontend/src/lib/AdminPanel.svelte::password_label')}
+                        />
+                         
+                         <StylishInput 
+                          bind:value={createAccountPasswordConfirm} 
+                          placeholder={t('frontend/src/lib/AdminPanel.svelte::password_confirm_label')} 
+                          type="password" 
+                          required 
+                          icon={KeyRound}
+                          label={t('frontend/src/lib/AdminPanel.svelte::password_confirm_label')}
+                        />
+                        
+                        <!-- Password Requirements -->
+                        <div class="bg-base-200/30 rounded-xl p-4 border border-base-200/50">
+                            <p class="text-[9px] font-black uppercase tracking-widest opacity-50 mb-3">{t('frontend/src/lib/AdminPanel.svelte::password_requirements_title')}</p>
+                            <div class="space-y-2">
+                                <div class="flex items-center gap-2 text-[10px] font-bold transition-all duration-300 {createAccountHasMinLength ? 'text-success' : 'opacity-30'}">
+                                    {#if createAccountHasMinLength}<CheckCircle2 size={12} class="shrink-0" />{:else}<div class="w-3 h-3 rounded-full border border-current opacity-30 shrink-0"></div>{/if}
+                                    <span>{t('frontend/src/lib/AdminPanel.svelte::password_requirement_length')}</span>
+                                </div>
+                                <div class="flex items-center gap-2 text-[10px] font-bold transition-all duration-300 {createAccountHasLetter ? 'text-success' : 'opacity-30'}">
+                                    {#if createAccountHasLetter}<CheckCircle2 size={12} class="shrink-0" />{:else}<div class="w-3 h-3 rounded-full border border-current opacity-30 shrink-0"></div>{/if}
+                                    <span>{t('frontend/src/lib/AdminPanel.svelte::password_requirement_letter')}</span>
+                                </div>
+                                <div class="flex items-center gap-2 text-[10px] font-bold transition-all duration-300 {createAccountHasNumber ? 'text-success' : 'opacity-30'}">
+                                    {#if createAccountHasNumber}<CheckCircle2 size={12} class="shrink-0" />{:else}<div class="w-3 h-3 rounded-full border border-current opacity-30 shrink-0"></div>{/if}
+                                    <span>{t('frontend/src/lib/AdminPanel.svelte::password_requirement_number')}</span>
+                                </div>
+                                <div class="flex items-center gap-2 text-[10px] font-bold transition-all duration-300 {createAccountPasswordConfirm.length > 0 ? (createAccountPasswordsMatch ? 'text-success' : 'text-error animate-pulse') : 'opacity-30'}">
+                                    {#if createAccountPasswordConfirm.length > 0 && createAccountPasswordsMatch}
+                                      <CheckCircle2 size={12} class="shrink-0" />
+                                    {:else if createAccountPasswordConfirm.length > 0}
+                                      <XCircle size={12} class="shrink-0" />
+                                    {:else}
+                                      <div class="w-3 h-3 rounded-full border border-current opacity-30 shrink-0"></div>
+                                    {/if}
+                                    <span>{t('frontend/src/lib/AdminPanel.svelte::passwords_match_requirement')}</span>
+                                </div>
+                            </div>
+                        </div>
+                      </div>
+
+                      <button 
+                        class="btn {createUserRole === 'teacher' ? 'btn-secondary' : 'btn-primary'} btn-sm w-full h-10 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-current/10 hover:shadow-current/20 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:shadow-none"
+                        disabled={!canCreateAccount}
+                      >
+                        {t('frontend/src/lib/AdminPanel.svelte::create_account_button')}
+                      </button>
+                   </form>
+                </div>
+              </div>
+            {/if}
           </div>
         {/if}
       </details>
 
-      <div class="bg-base-100 p-6 rounded-[2.5rem] border border-base-200 shadow-sm">
-        <h2 class="text-sm font-black uppercase tracking-widest opacity-40 mb-6 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 23 23" class="opacity-40">
-            <path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/><path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/>
-          </svg>
-          {t('frontend/src/lib/AdminPanel.svelte::whitelist_title')}
-        </h2>
-        
-        <p class="text-[10px] font-bold opacity-50 uppercase tracking-widest leading-relaxed mb-4">
-          {t('frontend/src/lib/AdminPanel.svelte::whitelist_description')}
-        </p>
-        
-        <form on:submit|preventDefault={addToWhitelist} class="flex gap-2 mb-6">
-          <div class="flex-1">
-             <StylishInput 
-              bind:value={whitelistEmail} 
-              placeholder={t('frontend/src/lib/AdminPanel.svelte::whitelist_placeholder')} 
-              required 
-              icon={MailCheck}
-            />
-          </div>
-          <button class="btn btn-primary h-[50px] aspect-square rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 hover:scale-105 transition-all">
-            <Plus size={20} />
-          </button>
-        </form>
-
-        <div class="bg-base-200/30 rounded-2xl border border-base-200/50 overflow-hidden">
-          <div class="overflow-y-auto max-h-60 custom-scrollbar p-2 space-y-1">
-             {#each whitelist as w}
-                <div class="flex items-center justify-between p-3 rounded-xl hover:bg-base-100 transition-colors group">
-                  <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-lg bg-success/10 text-success flex items-center justify-center">
-                       <Check size={14} />
+      {#if allowMicrosoftLogin}
+        <div class="bg-base-100 p-6 rounded-[2.5rem] border border-base-200 shadow-sm">
+          <h2 class="text-sm font-black uppercase tracking-widest mb-6 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 23 23">
+              <path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/><path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/>
+            </svg>
+            {t('frontend/src/lib/AdminPanel.svelte::whitelist_title')}
+          </h2>
+          
+          <p class="text-[10px] font-bold opacity-50 uppercase tracking-widest leading-relaxed mb-4">
+            {t('frontend/src/lib/AdminPanel.svelte::whitelist_description')}
+          </p>
+          
+          <form on:submit|preventDefault={addToWhitelist} class="flex gap-2 mb-6">
+            <div class="flex-1">
+               <StylishInput 
+                bind:value={whitelistEmail} 
+                placeholder={t('frontend/src/lib/AdminPanel.svelte::whitelist_placeholder')} 
+                required 
+                icon={MailCheck}
+              />
+            </div>
+            <button class="btn btn-primary h-[50px] aspect-square rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 hover:scale-105 transition-all">
+              <Plus size={20} />
+            </button>
+          </form>
+  
+          <div class="bg-base-200/30 rounded-2xl border border-base-200/50 overflow-hidden">
+            <div class="overflow-y-auto max-h-60 custom-scrollbar p-2 space-y-1">
+               {#each whitelist as w}
+                  <div class="flex items-center justify-between p-3 rounded-xl hover:bg-base-100 transition-colors group">
+                    <div class="flex items-center gap-3">
+                      <div class="w-8 h-8 rounded-lg bg-base-100 shadow-sm flex items-center justify-center">
+                         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 23 23">
+                           <path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/><path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/>
+                         </svg>
+                      </div>
+                      <span class="font-bold text-xs">{w.email}</span>
                     </div>
-                    <span class="font-bold text-xs">{w.email}</span>
+                    <button 
+                      class="w-8 h-8 rounded-lg bg-error/10 text-error flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-error hover:text-error-content" 
+                      on:click={() => removeFromWhitelist(w.email)}
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
-                  <button 
-                    class="w-8 h-8 rounded-lg bg-error/10 text-error flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-error hover:text-error-content" 
-                    on:click={() => removeFromWhitelist(w.email)}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              {:else}
-                <div class="text-center py-8 italic opacity-30 text-xs font-bold uppercase tracking-widest">
-                  {t('frontend/src/lib/AdminPanel.svelte::whitelist_empty')}
-                </div>
-              {/each}
+                {:else}
+                  <div class="text-center py-8 italic opacity-30 text-xs font-bold uppercase tracking-widest">
+                    {t('frontend/src/lib/AdminPanel.svelte::whitelist_empty')}
+                  </div>
+                {/each}
+            </div>
           </div>
         </div>
-      </div>
+      {/if}
     </div>
 
     <!-- Main Users List -->
@@ -1021,10 +1112,18 @@
                         <span class="badge badge-sm border-none font-black text-[9px] uppercase tracking-widest px-2 h-5 bg-base-200/50 text-base-content/60">{t('frontend/src/lib/AdminPanel.svelte::auth_email_label')}</span>
                       {/if}
                       {#if u.ms_oid}
-                        <span class="badge badge-sm border-none font-black text-[9px] uppercase tracking-widest px-2 h-5 bg-info/10 text-info">{t('frontend/src/lib/AdminPanel.svelte::auth_microsoft_label')}</span>
+                        <span class="badge badge-sm border-none font-black text-[9px] uppercase tracking-widest px-2 h-5 bg-info/10 text-info gap-1.5">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 23 23">
+                            <path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/><path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/>
+                          </svg>
+                          {t('frontend/src/lib/AdminPanel.svelte::auth_microsoft_label')}
+                        </span>
                       {/if}
                       {#if u.bk_uid}
-                        <span class="badge badge-sm border-none font-black text-[9px] uppercase tracking-widest px-2 h-5 bg-warning/10 text-warning">{t('frontend/src/lib/AdminPanel.svelte::auth_bakalari_label')}</span>
+                        <span class="badge badge-sm border-none font-black text-[9px] uppercase tracking-widest px-2 h-5 bg-warning/10 text-warning gap-1.5">
+                          <img src="/bakalari_logo_small.webp" alt="Bakaláři" class="w-3 h-3 object-contain" />
+                          {t('frontend/src/lib/AdminPanel.svelte::auth_bakalari_label')}
+                        </span>
                       {/if}
                       {#if u.role === 'teacher' && teacherIdToClassCount[u.id]}
                         <span class="badge badge-sm border-none font-black text-[9px] uppercase tracking-widest px-2 h-5 bg-primary/10 text-primary">
