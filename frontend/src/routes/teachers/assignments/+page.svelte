@@ -10,6 +10,7 @@
   import { goto } from "$app/navigation";
   import ConfirmModal from "$lib/components/ConfirmModal.svelte";
   import PromptModal from "$lib/components/PromptModal.svelte";
+  import CustomSelect from "$lib/components/CustomSelect.svelte";
   import { t, translator } from "$lib/i18n";
   import { 
     Search, Folder, FileText, Plus, FolderPlus, 
@@ -224,9 +225,19 @@
   let addErr = "";
   let addClasses: any[] = [];
   let selectedAddClassId = "";
+  $: addClassOptions = addClasses.map((c) => ({ value: String(c.id), label: c.name }));
   $: filteredAddAssignments = selectedAddClassId
     ? myAssignments.filter((a) => a.class_id === selectedAddClassId)
     : [];
+  $: filteredAddAssignmentOptions = filteredAddAssignments.map((a) => ({
+    value: String(a.id),
+    label: a.title,
+  }));
+  $: assignmentSelectPlaceholder = !selectedAddClassId
+    ? translate("frontend/src/routes/teachers/assignments/+page.svelte::select_class_first_placeholder")
+    : !filteredAddAssignments.length
+      ? translate("frontend/src/routes/teachers/assignments/+page.svelte::no_assignments_in_class_placeholder")
+      : translate("frontend/src/routes/teachers/assignments/+page.svelte::select_assignment_placeholder");
   $: if (!selectedAddClassId && selectedAssignmentId) {
     selectedAssignmentId = "";
   }
@@ -288,6 +299,7 @@
   // Copy to class modal
   let copyDialog: HTMLDialogElement;
   let myClasses: any[] = [];
+  $: copyClassOptions = myClasses.map((c) => ({ value: String(c.id), label: c.name }));
   let copyClassId: string | null = null;
   let copyErr = "";
   let copyItem: ClassFile | null = null;
@@ -701,18 +713,12 @@
                 >{translate("frontend/src/routes/teachers/assignments/+page.svelte::choose_class_label")}</span
               ></label
             >
-            <div class="relative group">
-              <select
-                class="select select-bordered w-full rounded-2xl bg-base-200/50 border-base-300 group-focus-within:border-primary/30 transition-all pl-10"
-                bind:value={selectedAddClassId}
-              >
-                <option value="" disabled>{translate("frontend/src/routes/teachers/assignments/+page.svelte::select_a_class_placeholder")}</option>
-                {#each addClasses as c}
-                  <option value={c.id}>{c.name}</option>
-                {/each}
-              </select>
-              <Users size={16} class="absolute left-4 top-1/2 -translate-y-1/2 opacity-30" />
-            </div>
+            <CustomSelect
+              options={addClassOptions}
+              bind:value={selectedAddClassId}
+              placeholder={translate("frontend/src/routes/teachers/assignments/+page.svelte::select_a_class_placeholder")}
+              icon={Users}
+            />
             {#if !addClasses.length && !addErr}
               <p class="mt-3 text-xs opacity-50 font-medium px-1 flex items-center gap-2">
                 <Info size={12} /> {translate("frontend/src/routes/teachers/assignments/+page.svelte::no_classes_yet")}
@@ -726,27 +732,13 @@
                 >{translate("frontend/src/routes/teachers/assignments/+page.svelte::choose_assignment_label")}</span
               ></label
             >
-            <div class="relative group">
-              <select
-                class="select select-bordered w-full rounded-2xl bg-base-200/50 border-base-300 group-focus-within:border-primary/30 transition-all pl-10"
-                bind:value={selectedAssignmentId}
-                disabled={!selectedAddClassId || !filteredAddAssignments.length}
-              >
-                <option value="" disabled
-                  >{!selectedAddClassId
-                    ? translate("frontend/src/routes/teachers/assignments/+page.svelte::select_class_first_placeholder")
-                    : !filteredAddAssignments.length
-                      ? translate("frontend/src/routes/teachers/assignments/+page.svelte::no_assignments_in_class_placeholder")
-                      : translate("frontend/src/routes/teachers/assignments/+page.svelte::select_assignment_placeholder")}</option
-                >
-                {#if selectedAddClassId}
-                  {#each filteredAddAssignments as a (a.id)}
-                    <option value={a.id}>{a.title}</option>
-                  {/each}
-                {/if}
-              </select>
-              <FileText size={16} class="absolute left-4 top-1/2 -translate-y-1/2 opacity-30" />
-            </div>
+            <CustomSelect
+              options={filteredAddAssignmentOptions}
+              bind:value={selectedAssignmentId}
+              placeholder={assignmentSelectPlaceholder}
+              icon={FileText}
+              disabled={!selectedAddClassId || !filteredAddAssignments.length}
+            />
           </div>
 
           <div class="form-control">
@@ -804,15 +796,12 @@
               >{translate("frontend/src/routes/teachers/assignments/+page.svelte::choose_class_label_short")}</span
             ></label
           >
-          <div class="relative group">
-            <select class="select select-bordered w-full rounded-2xl bg-base-200/50 border-base-300 group-focus-within:border-primary/30 transition-all pl-10" bind:value={copyClassId}>
-              <option value="" disabled selected>{translate("frontend/src/routes/teachers/assignments/+page.svelte::select_ellipsis_placeholder")}</option>
-              {#each myClasses as c}
-                <option value={c.id}>{c.name}</option>
-              {/each}
-            </select>
-            <Users size={16} class="absolute left-4 top-1/2 -translate-y-1/2 opacity-30" />
-          </div>
+          <CustomSelect
+            options={copyClassOptions}
+            bind:value={copyClassId}
+            placeholder={translate("frontend/src/routes/teachers/assignments/+page.svelte::select_ellipsis_placeholder")}
+            icon={Users}
+          />
         </div>
 
         {#if copyErr}

@@ -7,8 +7,9 @@
   import { marked } from "marked";
   import DOMPurify from "dompurify";
   import { formatDateTime } from "$lib/date";
+  import CustomSelect from "$lib/components/CustomSelect.svelte";
   import { t, translator } from "$lib/i18n";
-  import { FlaskConical, Code, Clock, Scale, Eye } from "lucide-svelte";
+  import { FlaskConical, Code, Clock, Scale, Eye, Users } from "lucide-svelte";
   import { extractMethodFromUnittest } from "$lib/unittests";
 
   let translate;
@@ -30,6 +31,7 @@
   // Copy (import) to class state
   let copyDialog: HTMLDialogDialogElement;
   let myClasses: any[] = [];
+  $: copyClassOptions = myClasses.map((c) => ({ value: String(c.id), label: c.name }));
   let copyClassId: string | null = null;
   let copyErr = "";
   let copyLoading = false;
@@ -569,16 +571,14 @@
           )}</span
         ></label
       >
-      <select class="select select-bordered w-full" bind:value={copyClassId}>
-        <option value="" disabled selected
-          >{translate(
-            "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::select_option_placeholder",
-          )}</option
-        >
-        {#each myClasses as c}
-          <option value={c.id}>{c.name}</option>
-        {/each}
-      </select>
+      <CustomSelect
+        options={copyClassOptions}
+        bind:value={copyClassId}
+        placeholder={translate(
+          "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::select_option_placeholder",
+        )}
+        icon={Users}
+      />
       {#if copyErr}<p class="text-error mt-2">{copyErr}</p>{/if}
       <div class="modal-action">
         <form method="dialog">
