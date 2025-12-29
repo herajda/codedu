@@ -754,6 +754,12 @@
   $: if (user) {
     prefersDark = user.theme === "dark";
     applyThemeFromPreference();
+  } else if (browser) {
+    const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if (prefersDark !== systemPrefersDark) {
+      prefersDark = systemPrefersDark;
+      applyThemeFromPreference();
+    }
   }
 
   onDestroy(() => {
