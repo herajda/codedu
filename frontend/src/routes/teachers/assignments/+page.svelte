@@ -466,7 +466,7 @@
     <div class="relative flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
       <div class="flex-1">
         <h1 class="text-3xl sm:text-4xl font-black tracking-tight mb-2">
-          {translate('frontend/src/routes/teachers/assignments/+page.svelte::assignments_heading')}
+          {translate('frontend/src/routes/teachers/assignments/+page.svelte::teachers_label')} <span class="text-primary/40">/</span> {translate('frontend/src/routes/teachers/assignments/+page.svelte::assignments_heading')}
         </h1>
         <p class="text-base-content/60 font-medium max-w-xl">
           {translate('frontend/src/routes/teachers/assignments/+page.svelte::assignments_description')}

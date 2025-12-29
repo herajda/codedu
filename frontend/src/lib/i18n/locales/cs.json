@@ -1496,7 +1496,7 @@
   "frontend/src/routes/teachers/+layout.svelte::forum_tab_label": "Fórum",
   "frontend/src/routes/teachers/+page.svelte::redirecting": "Přesměrování…",
   "frontend/src/routes/teachers/assignments/+page.svelte::activity_card_title": "Aktivita",
-  "frontend/src/routes/teachers/assignments/+page.svelte::assignments_heading": "Učitelský repozitář",
+  "frontend/src/routes/teachers/assignments/+page.svelte::assignments_heading": "Úkoly",
   "frontend/src/routes/teachers/assignments/+page.svelte::assignments_description": "Spravujte a prohlížejte sdílená zadání a osobní složky.",
   "frontend/src/routes/teachers/assignments/+page.svelte::copy_to_class": "Zkopírovat do třídy",
   "frontend/src/routes/teachers/assignments/+page.svelte::rename": "Přejmenovat",
@@ -1585,6 +1585,7 @@
   "frontend/src/routes/teachers/assignments/+page.svelte::updated_label": "Aktualizováno:",
   "frontend/src/routes/teachers/assignments/+page.svelte::weight_time_limit_label": "Váha: {weight} · Časový limit: {time_limit_sec}s",
   "frontend/src/routes/teachers/assignments/+page.svelte::yes_label": "Ano",
+  "frontend/src/routes/teachers/assignments/+page.svelte::teachers_label": "Učitelé",
   "frontend/src/routes/teachers/assignments/+page.svelte::grid_view_tooltip": "Mřížka",
   "frontend/src/routes/teachers/assignments/+page.svelte::list_view_tooltip": "Seznam",
   "frontend/src/routes/teachers/assignments/+page.svelte::add_assignment_subtitle": "Propojte zadání ze svých tříd",
@@ -1808,5 +1809,6 @@
   "frontend/src/routes/teachers/files/+page.svelte::delete_tooltip": "Smazat",
   "frontend/src/routes/teachers/files/+page.svelte::file_exceeds_limit": "Soubor překračuje limit 20 MB",
   "frontend/src/routes/teachers/files/+page.svelte::file_exceeds_limit_named": "Soubor {name} překračuje limit 20 MB",
-  "frontend/src/routes/teachers/files/+page.svelte::drop_files_to_upload_message": "Přetáhněte soubory pro nahrání"
+  "frontend/src/routes/teachers/files/+page.svelte::drop_files_to_upload_message": "Přetáhněte soubory pro nahrání",
+  "frontend/src/routes/teachers/files/+page.svelte::teachers_label": "Učitelé"
 }

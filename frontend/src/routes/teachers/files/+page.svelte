@@ -567,7 +567,7 @@ onMount(() => {
     <div class="relative flex flex-col md:flex-row items-center justify-between gap-6">
       <div class="flex-1 text-center md:text-left">
         <h1 class="text-3xl sm:text-4xl font-black tracking-tight mb-2">
-          Teachers <span class="text-primary/40">/</span> {translate('frontend/src/routes/teachers/files/+page.svelte::files_heading')}
+          {translate('frontend/src/routes/teachers/files/+page.svelte::teachers_label')} <span class="text-primary/40">/</span> {translate('frontend/src/routes/teachers/files/+page.svelte::files_heading')}
         </h1>
         <p class="text-base-content/60 font-medium max-w-xl mx-auto md:mx-0">
           {translate('frontend/src/routes/teachers/files/+page.svelte::files_description')}
