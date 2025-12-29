@@ -1859,6 +1859,8 @@
   "frontend/src/routes/files/+page.svelte::page_title": "My Files | CodEdu",
   "frontend/src/routes/files/+page.svelte::files_heading": "My Files",
   "frontend/src/routes/files/+page.svelte::files_description": "Store and manage your personal teaching resources.",
+  "frontend/src/routes/files/+page.svelte::moving_message": "Moving…",
+  "frontend/src/routes/files/+page.svelte::failed_to_move_error": "Failed to move file",
   "frontend/src/routes/files/[id]/+page.svelte::image_viewer": "Image Viewer",
   "frontend/src/routes/files/[id]/+page.svelte::preview_label": "Preview",
   "frontend/src/routes/files/[id]/+page.svelte::notebook_label": "Jupyter Notebook",

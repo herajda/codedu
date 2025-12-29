@@ -4322,7 +4322,8 @@ func renameClassFile(c *gin.Context) {
 		return
 	}
 	var req struct {
-		Name string `json:"name" binding:"required"`
+		Name     *string    `json:"name"`
+		ParentID *uuid.UUID `json:"parent_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -4353,10 +4354,48 @@ func renameClassFile(c *gin.Context) {
 			}
 		}
 	}
-	if err := RenameFile(fid, req.Name); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-		return
+	
+	// Handle moving to a different parent
+	if req.ParentID != nil {
+		// Validate the target parent exists and is a folder
+		var parent ClassFile
+		var query string
+		var args []interface{}
+		
+		if f.OwnerID != nil {
+			// For personal files, ensure parent belongs to same owner
+			query = `SELECT id,owner_id,is_dir FROM class_files WHERE id=$1 AND owner_id=$2`
+			args = []interface{}{*req.ParentID, *f.OwnerID}
+		} else {
+			// For class files, ensure parent is in same class
+			query = `SELECT id,class_id,is_dir FROM class_files WHERE id=$1 AND class_id=$2`
+			args = []interface{}{*req.ParentID, f.ClassID}
+		}
+		
+		if err := DB.Get(&parent, query, args...); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "parent not found"})
+			return
+		}
+		if !parent.IsDir {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "parent is not a folder"})
+			return
+		}
+		
+		// Move the file
+		if err := MoveFile(fid, req.ParentID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+			return
+		}
 	}
+	
+	// Handle renaming if name is provided
+	if req.Name != nil && strings.TrimSpace(*req.Name) != "" {
+		if err := RenameFile(fid, *req.Name); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+			return
+		}
+	}
+	
 	c.Status(http.StatusNoContent)
 }
 
