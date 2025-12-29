@@ -1585,7 +1585,6 @@
   "frontend/src/routes/teachers/assignments/+page.svelte::updated_label": "Aktualizováno:",
   "frontend/src/routes/teachers/assignments/+page.svelte::weight_time_limit_label": "Váha: {weight} · Časový limit: {time_limit_sec}s",
   "frontend/src/routes/teachers/assignments/+page.svelte::yes_label": "Ano",
-  "frontend/src/routes/teachers/assignments/+page.svelte::home_icon_label": "Domů",
   "frontend/src/routes/teachers/assignments/+page.svelte::grid_view_tooltip": "Mřížka",
   "frontend/src/routes/teachers/assignments/+page.svelte::list_view_tooltip": "Seznam",
   "frontend/src/routes/teachers/assignments/+page.svelte::add_assignment_subtitle": "Propojte zadání ze svých tříd",

@@ -47,9 +47,7 @@
   let breadcrumbs: { id: string | null; name: string }[] = [
     {
       id: null,
-      name: t(
-        "frontend/src/routes/teachers/assignments/+page.svelte::home_icon_label",
-      ),
+      name: "🏠",
     },
   ];
   let currentParent: string | null = null;
@@ -434,9 +432,20 @@
       const bc = sessionStorage.getItem("tassign_bc");
       if (bc) {
         try {
-          breadcrumbs = JSON.parse(bc);
+          const parsed = JSON.parse(bc);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            // Force the root breadcrumb to be the home icon
+            parsed[0].name = "🏠";
+            breadcrumbs = parsed;
+          }
         } catch {}
       }
+    }
+    // Ensure breadcrumbs is never empty and root is always the icon
+    if (breadcrumbs.length === 0) {
+      breadcrumbs = [{ id: null, name: "🏠" }];
+    } else {
+      breadcrumbs[0].name = "🏠";
     }
     load(storedParent);
   });
@@ -487,10 +496,16 @@
         <div class="flex items-center gap-1 shrink-0">
           <button 
             type="button" 
-            class={`btn btn-sm btn-ghost rounded-xl px-3 font-bold text-xs h-9 ${i === breadcrumbs.length - 1 ? 'bg-base-200/50' : 'opacity-60 hover:opacity-100'}`}
+            class={`btn btn-sm btn-ghost rounded-xl px-3 font-bold text-xs h-9 select-none ${i === breadcrumbs.length - 1 ? 'bg-base-200/50' : 'opacity-60 hover:opacity-100'}`}
             on:click={() => crumbTo(i)}
           >
-            {b.name}
+            <span class="pointer-events-none">
+              {#if b.id === null}
+                🏠
+              {:else}
+                {b.name}
+              {/if}
+            </span>
           </button>
           {#if i < breadcrumbs.length - 1}
             <ChevronRight size={14} class="opacity-20" />
