@@ -883,8 +883,8 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
 
   /* Highlighted message animation */
   .highlighted-message {
-    animation: highlight-pulse 2s ease-out;
-    background: hsl(var(--p) / 0.15) !important;
+    animation: highlight-pulse 2s ease-in-out;
+    background: hsl(var(--p) / 0.25) !important;
     margin-left: -1.5rem;
     margin-right: -1.5rem;
     padding-left: 1.5rem;
@@ -892,19 +892,32 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;
     border-radius: 1rem;
+    border-left: 4px solid hsl(var(--p));
+    box-shadow: 0 0 0 2px hsl(var(--p) / 0.3);
   }
 
   @keyframes highlight-pulse {
     0% {
-      background: hsl(var(--p) / 0.3);
-      transform: scale(1.01);
+      background: hsl(var(--p) / 0.5);
+      transform: scale(1.02);
+      box-shadow: 0 0 0 4px hsl(var(--p) / 0.5), 0 4px 12px hsl(var(--p) / 0.3);
+    }
+    25% {
+      background: hsl(var(--p) / 0.4);
+      box-shadow: 0 0 0 3px hsl(var(--p) / 0.4), 0 4px 12px hsl(var(--p) / 0.2);
     }
     50% {
-      background: hsl(var(--p) / 0.2);
+      background: hsl(var(--p) / 0.35);
+      transform: scale(1.01);
+      box-shadow: 0 0 0 2px hsl(var(--p) / 0.35);
+    }
+    75% {
+      background: hsl(var(--p) / 0.3);
     }
     100% {
-      background: hsl(var(--p) / 0.15);
+      background: hsl(var(--p) / 0.25);
       transform: scale(1);
+      box-shadow: 0 0 0 2px hsl(var(--p) / 0.3);
     }
   }
 </style>
