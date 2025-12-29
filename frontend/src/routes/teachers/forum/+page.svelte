@@ -3,16 +3,21 @@
   import { apiJSON, apiFetch } from '$lib/api';
   import { createEventSource } from '$lib/sse';
   import { auth } from '$lib/auth';
-  import { Paperclip, ImagePlus, Smile, Send, X, ChevronLeft, ChevronRight, MessageSquare, Trash2 } from 'lucide-svelte';
+  import { Paperclip, ImagePlus, Smile, Send, X, ChevronLeft, ChevronRight, MessageSquare, Trash2, Table, Plus, Download } from 'lucide-svelte';
+  import { renderMarkdown } from '$lib/markdown';
   import { compressImage } from '$lib/utils/compressImage';
   import { fade, scale } from 'svelte/transition';
   import { sidebarCollapsed } from '$lib/sidebar';
-  import { TEACHER_GROUP_ID } from '$lib/teacherGroup';
-  import { t } from '$lib/i18n';
+  import { t, translator, type Translator } from '$lib/i18n';
+  import MarkdownEditor from '$lib/MarkdownEditor.svelte';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
+  import { TEACHER_GROUP_ID } from '$lib/teacherGroup';
+
+  let translate: Translator;
+  $: translate = $translator;
 
   // Use fixed Teachers' group ID
-  let id = TEACHER_GROUP_ID;
+  const id = TEACHER_GROUP_ID;
 
   let msgs: any[] = [];
   let text = '';
@@ -30,8 +35,9 @@
   let esCtrl: { close: () => void } | null = null;
   let deleting: Record<string, boolean> = {};
   let confirmModal: InstanceType<typeof ConfirmModal>;
+  let structured = false;
 
-  // Pagination & scroll preservation
+  // Pagination & scroll preservation (mirrors chat behavior)
   const pageSize = 20;
   let offset = 0;
   let hasMore = true;
@@ -45,6 +51,7 @@
   let imageUrls: string[] = [];
   let currentImageIndex = -1;
 
+  // Common emojis for the picker
   const commonEmojis = [
     '😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇',
     '🙂','🙃','😉','😌','😍','🥰','😘','😗','😙','😚',
@@ -59,7 +66,7 @@
   ];
 
   function insertEmoji(emoji: string) {
-    const cursor = msgInput?.selectionStart || text.length;
+    const cursor = msgInput?.selectionStart ?? text.length;
     text = text.slice(0, cursor) + emoji + text.slice(cursor);
     setTimeout(() => {
       msgInput?.focus();
@@ -100,6 +107,7 @@
         prevTop = chatBox.scrollTop;
       }
       const list: any[] = await apiJSON(`/api/classes/${id}/forum?limit=${pageSize}&offset=${offset}`);
+      // Backend returns newest-first; reverse to show oldest->newest within chunk
       list.reverse();
       for (const m of list) {
         (m as any).showTime = false;
@@ -114,7 +122,7 @@
     }
     try {
       cls = await apiJSON(`/api/classes/${id}`);
-    } catch {}
+    } catch {} 
   }
 
   function connect() {
@@ -140,20 +148,20 @@
     });
   }
 
-  import { onDestroy } from 'svelte';
   onMount(() => {
     offset = 0; hasMore = true; msgs = [];
     load();
     connect();
     adjustHeight();
+    // Focus input on open to mirror chat UX
     setTimeout(() => msgInput?.focus(), 0);
     document.addEventListener('click', handleClickOutside);
     document.addEventListener('keydown', handleLightboxKeydown);
-  });
-  onDestroy(() => {
-    esCtrl?.close();
-    document.removeEventListener('click', handleClickOutside);
-    document.removeEventListener('keydown', handleLightboxKeydown);
+    return () => {
+      esCtrl?.close();
+      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('keydown', handleLightboxKeydown);
+    };
   });
 
   afterUpdate(() => {
@@ -176,41 +184,74 @@
     lightboxOpen = true;
   }
 
-  function closeLightbox() { lightboxOpen = false; modalImage = null; currentImageIndex = -1; }
-  function showPrevImage() { if (!imageUrls.length) return; currentImageIndex = (currentImageIndex - 1 + imageUrls.length) % imageUrls.length; modalImage = imageUrls[currentImageIndex]; }
-  function showNextImage() { if (!imageUrls.length) return; currentImageIndex = (currentImageIndex + 1) % imageUrls.length; modalImage = imageUrls[currentImageIndex]; }
-  function handleLightboxKeydown(e: KeyboardEvent) { if (!lightboxOpen) return; if (e.key === 'Escape') closeLightbox(); if (e.key === 'ArrowLeft') showPrevImage(); if (e.key === 'ArrowRight') showNextImage(); }
+  function closeLightbox() {
+    lightboxOpen = false;
+    modalImage = null;
+    currentImageIndex = -1;
+  }
+
+  function showPrevImage() {
+    if (!imageUrls.length) return;
+    currentImageIndex = (currentImageIndex - 1 + imageUrls.length) % imageUrls.length;
+    modalImage = imageUrls[currentImageIndex];
+  }
+
+  function showNextImage() {
+    if (!imageUrls.length) return;
+    currentImageIndex = (currentImageIndex + 1) % imageUrls.length;
+    modalImage = imageUrls[currentImageIndex];
+  }
+
+  function handleLightboxKeydown(e: KeyboardEvent) {
+    if (!lightboxOpen) return;
+    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'ArrowLeft') showPrevImage();
+    if (e.key === 'ArrowRight') showNextImage();
+  }
+
+  // Keyboard navigation is handled globally; handler checks lightboxOpen
 
   function formatTime(d: string | number | Date) {
     return new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
+
   function hyphenateLongWords(text: string, max = 20) {
-    return text.replace(new RegExp(`\S{${max},}`, 'g'), word => {
+    return text.replace(new RegExp(`\\S{${max},}`, 'g'), word => {
       const parts: string[] = [];
       for (let i = 0; i < word.length; i += max) parts.push(word.slice(i, i + max));
       return parts.join('\u00AD');
     });
   }
+
   function isEmojiOnly(text: string): boolean {
     const trimmed = text.trim();
     if (!trimmed) return false;
     const emojiOnly = /^(?:\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic})*)+$/u;
     return emojiOnly.test(trimmed);
   }
-  function displayName(m: any) { return m.name ?? m.email?.split('@')[0] ?? t('frontend/src/routes/teachers/forum/+page.svelte::unknown_user_fallback'); }
-  function placeholderAvatar(seed: string): string {
-    let h = 0; for (let i = 0; i < seed.length; i++) h = ((h << 5) - h + seed.charCodeAt(i)) >>> 0; const n = (h % 50) + 1; return `/avatars/a${n}.svg`;
+
+  function displayName(m: any) {
+    return m.name ?? m.email?.split('@')[0] ?? translate('frontend/src/routes/teachers/forum/+page.svelte::unknown_user_fallback');
   }
-  function avatarFor(m: any): string { return m.avatar ?? placeholderAvatar(String(m.user_id ?? m.email ?? 'x')); }
-  function choosePhoto() { photoInput?.click(); }
-  function chooseFile() { fileInput?.click(); }
-  async function photoChanged(e: Event) { const f = (e.target as HTMLInputElement).files?.[0]; if (!f) return; const compressed = await compressImage(f, 1280, 0.8); const r = new FileReader(); r.onload = () => { imageData = r.result as string; }; r.readAsDataURL(compressed); }
-  async function fileChanged(e: Event) { const f = (e.target as HTMLInputElement).files?.[0]; if (!f) return; const r = new FileReader(); r.onload = () => { fileData = r.result as string; fileName = f.name; }; r.readAsDataURL(f); }
+
+  // Deterministic placeholder avatar (avoid Math.random quirks on re-render)
+  function placeholderAvatar(seed: string): string {
+    let h = 0;
+    for (let i = 0; i < seed.length; i++) h = ((h << 5) - h + seed.charCodeAt(i)) >>> 0;
+    const n = (h % 50) + 1;
+    return `/avatars/a${n}.svg`;
+  }
+  function avatarFor(m: any): string {
+    return m.avatar ?? placeholderAvatar(String(m.user_id ?? m.email ?? 'x'));
+  }
 
   function canDelete(m: any): boolean {
     if (!$auth) return false;
     if (m.user_id === $auth.id) return true;
     if ($auth.role === 'admin') return true;
+    // For teachers forum, allow admins or the message author.
+    // Also arguably allow any teacher if they are "admin" of this "class", but TEACHER_GROUP_ID is special.
+    // The safest bet is: author or admin.
     return false;
   }
 
@@ -230,8 +271,8 @@
   async function deleteMessage(m: any) {
     if (!canDelete(m) || deleting[m.id]) return;
     const confirmed = await confirmModal?.open({
-      title: t('frontend/src/routes/teachers/forum/+page.svelte::delete_message_confirm'),
-      confirmLabel: t('frontend/src/routes/teachers/forum/+page.svelte::delete_message_label'),
+      title: translate('frontend/src/routes/teachers/forum/+page.svelte::delete_message_confirm'),
+      confirmLabel: translate('frontend/src/routes/teachers/forum/+page.svelte::delete_message_label'),
       confirmClass: 'btn btn-error',
       cancelClass: 'btn'
     });
@@ -241,15 +282,35 @@
       const res = await apiFetch(`/api/classes/${id}/forum/${m.id}`, { method: 'DELETE' });
       if (!res.ok) {
         const message = await res.text();
-        throw new Error(message || t('frontend/src/routes/teachers/forum/+page.svelte::delete_message_error'));
+        throw new Error(message || translate('frontend/src/routes/teachers/forum/+page.svelte::delete_message_error'));
       }
       removeLocalMessage(m.id);
     } catch (e: any) {
-      err = e?.message ?? t('frontend/src/routes/teachers/forum/+page.svelte::delete_message_error');
+      err = e?.message ?? translate('frontend/src/routes/teachers/forum/+page.svelte::delete_message_error');
     } finally {
       const { [m.id]: _removed, ...rest } = deleting;
       deleting = rest;
     }
+  }
+
+  function choosePhoto() { photoInput?.click(); }
+  function chooseFile() { fileInput?.click(); }
+
+  async function photoChanged(e: Event) {
+    const f = (e.target as HTMLInputElement).files?.[0];
+    if (!f) return;
+    const compressed = await compressImage(f, 1280, 0.8);
+    const r = new FileReader();
+    r.onload = () => { imageData = r.result as string; };
+    r.readAsDataURL(compressed);
+  }
+
+  async function fileChanged(e: Event) {
+    const f = (e.target as HTMLInputElement).files?.[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => { fileData = r.result as string; fileName = f.name; };
+    r.readAsDataURL(f);
   }
 
   async function send() {
@@ -259,182 +320,279 @@
       const res = await apiFetch(`/api/classes/${id}/forum`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: t, image: imageData, file: fileData, file_name: fileName })
+        body: JSON.stringify({ text: t, image: imageData, file: fileData, file_name: fileName, structured })
       });
       if (res.ok) {
-        text = ''; imageData = null; fileData = null; fileName = null; adjustHeight(); offset = 0; hasMore = true; await load();
-        setTimeout(() => { if (chatBox) chatBox.scrollTop = chatBox.scrollHeight; msgInput?.focus(); }, 0);
+        text = '';
+        imageData = null;
+        fileData = null;
+        fileName = null;
+        structured = false;
+        adjustHeight();
+        // Ensure the just-sent message appears immediately like chat
+        offset = 0; hasMore = true; await load();
+        // Jump to the newest message and keep typing
+        setTimeout(() => {
+          if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
+          msgInput?.focus();
+        }, 0);
       }
-    } catch (e) {}
+    }
+    catch (e) {
+      console.error('send failed', e);
+    }
   }
 </script>
 
-<div class={`chat-window fixed top-16 bottom-0 right-0 left-0 ${$sidebarCollapsed ? 'sm:left-0' : 'sm:left-60'} z-40 flex flex-col bg-gradient-to-br from-base-100/95 to-base-200/95 backdrop-blur-xl border-l border-base-300/30`}>
-  <div class="chat-header relative z-30 mx-2 sm:mx-4 mt-2 sm:mt-3 flex items-center justify-between p-2 sm:p-4 rounded-xl bg-base-100/80 backdrop-blur supports-[backdrop-filter]:bg-base-100/85 border border-base-300/30 shadow-lg">
-    <div class="flex items-center gap-3 min-w-0">
-      <div class="p-2 bg-primary/10 rounded-lg">
-        <MessageSquare class="w-5 h-5 text-primary" />
+<svelte:head>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap" rel="stylesheet">
+  <title>{translate('frontend/src/routes/teachers/forum/+page.svelte::teachers_forum_title')} | CodEdu</title>
+</svelte:head>
+
+<div class="teachers-forum-page flex flex-col h-[calc(100vh-7.5rem)] sm:h-[calc(100vh-9rem)] overflow-hidden">
+  <!-- Premium Header -->
+  <section class="relative overflow-hidden bg-base-100 rounded-3xl border border-base-200 shadow-xl shadow-base-300/30 mb-4 p-4 sm:p-6 shrink-0">
+    <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent pointer-events-none"></div>
+    <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="relative flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex-1 text-center md:text-left">
+        <h1 class="text-2xl sm:text-3xl font-black tracking-tight mb-1">
+          {translate('frontend/src/routes/teachers/files/+page.svelte::teachers_label')} <span class="text-primary/40">/</span> {translate('frontend/src/routes/teachers/forum/+page.svelte::teachers_forum_title')}
+        </h1>
+        <p class="text-xs sm:text-sm text-base-content/60 font-medium max-w-xl mx-auto md:mx-0">
+          {translate('frontend/src/routes/teachers/forum/+page.svelte::teachers_forum_description')}
+        </p>
       </div>
-      <div class="min-w-0">
-        <h2 class="font-semibold text-lg leading-tight">{t('frontend/src/routes/teachers/forum/+page.svelte::teachers_forum_title')}</h2>
-        <div class="text-sm text-base-content/60 truncate" title={cls?.class?.name ?? cls?.name ?? t('frontend/src/routes/teachers/forum/+page.svelte::teachers_forum_title')}>{cls?.class?.name ?? cls?.name ?? t('frontend/src/routes/teachers/forum/+page.svelte::teachers_forum_title')}</div>
+      
+      <div class="hidden md:flex items-center gap-4">
+        <div class="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/10">
+          <MessageSquare size={20} />
+        </div>
       </div>
     </div>
-  </div>
+  </section>
 
-  <div class="flex-1 overflow-hidden relative z-0">
-    <div class="h-full overflow-y-auto p-6 space-y-6" bind:this={chatBox}>
-      {#if hasMore}
-        <div class="text-center">
-          <button class="btn btn-outline btn-sm glass" on:click={() => load(true)}>
-            {t('frontend/src/routes/teachers/forum/+page.svelte::load_more_messages')}
-          </button>
+  <div class="flex flex-col flex-1 min-h-0 bg-base-100/50 rounded-[2.5rem] border border-base-200 shadow-sm overflow-hidden relative backdrop-blur-sm">
+  <!-- Messages Area -->
+  <div class="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth" bind:this={chatBox}>
+    {#if hasMore}
+      <div class="text-center py-4">
+        <button class="btn btn-ghost btn-sm rounded-xl gap-2 font-black uppercase tracking-widest text-[10px] border border-base-300 hover:bg-base-200" on:click={() => load(true)}>
+          <ChevronRight class="rotate-[-90deg] w-3 h-3" />
+          {translate('frontend/src/routes/teachers/forum/+page.svelte::load_more_messages')}
+        </button>
+      </div>
+    {/if}
+
+    {#if msgs.length === 0 && !hasMore}
+      <div class="h-full flex flex-col items-center justify-center text-center opacity-30 py-20">
+        <div class="w-20 h-20 rounded-full bg-base-200 flex items-center justify-center mb-4">
+          <MessageSquare size={40} />
         </div>
-      {/if}
-      {#each msgs as m, i (m.id)}
-        <div class={`flex ${m.user_id === $auth?.id ? 'justify-end' : 'justify-start'}`}>
-          <div class="flex gap-3 max-w-[85%] sm:max-w-[75%] items-end">
-            {#if m.user_id !== $auth?.id}
-              <div class="avatar flex-shrink-0">
-                <div class="w-8 h-8 rounded-full overflow-hidden ring-1 ring-base-300/50 shrink-0">
-                  <img src={avatarFor(m)} alt="" class="w-full h-full object-cover" />
-                </div>
-              </div>
-            {/if}
+        <p class="text-sm font-black uppercase tracking-[0.2em]">
+          {translate('frontend/src/routes/teachers/forum/+page.svelte::no_messages_yet')}
+        </p>
+      </div>
+    {/if}
 
-            <div class="relative flex flex-col">
-              <div class={`flex items-center gap-2 mb-1 ${m.user_id === $auth?.id ? 'justify-end text-right' : ''}`}>
-                <div class={`text-xs opacity-70 ${m.user_id === $auth?.id ? 'text-right' : ''}`}>
-                  {m.user_id === $auth?.id ? t('frontend/src/routes/teachers/forum/+page.svelte::you_label') : displayName(m)}
-                </div>
-                {#if canDelete(m)}
-                  <button
-                    type="button"
-                    class="btn btn-ghost btn-xs px-2 h-6 min-h-6 text-base-content/60 hover:text-error focus-visible:ring-2 focus-visible:ring-error/40"
-                    disabled={!!deleting[m.id]}
-                    title={t('frontend/src/routes/teachers/forum/+page.svelte::delete_message_label')}
-                    aria-label={t('frontend/src/routes/teachers/forum/+page.svelte::delete_message_label')}
-                    on:click|stopPropagation={() => deleteMessage(m)}
-                  >
-                    <Trash2 class="w-3.5 h-3.5" />
-                  </button>
-                {/if}
-              </div>
+    {#each msgs as m, i (m.id)}
+      <div class={`flex ${m.user_id === $auth?.id ? 'justify-end' : 'justify-start'}`} in:fade={{ duration: 200 }}>
+        <div class={`flex gap-3 max-w-[85%] sm:max-w-[70%] items-end ${m.user_id === $auth?.id ? 'flex-row-reverse' : 'flex-row'}`}>
+          <div class="avatar flex-shrink-0 mb-1">
+            <div class="w-10 h-10 rounded-2xl overflow-hidden ring-2 ring-base-200 shadow-sm shrink-0 bg-base-300">
+              <img src={avatarFor(m)} alt="" class="w-full h-full object-cover" />
+            </div>
+          </div>
 
+          <div class={`flex flex-col group/msg ${m.user_id === $auth?.id ? 'items-end' : 'items-start'}`}>
+            <div class="flex items-center gap-2 mb-1.5 px-1">
+              <span class="text-[10px] font-black uppercase tracking-widest opacity-40">
+                {m.user_id === $auth?.id ? translate('frontend/src/routes/teachers/forum/+page.svelte::you_label') : displayName(m)}
+              </span>
+              {#if canDelete(m)}
+                <button
+                  type="button"
+                  class="opacity-0 group-hover/msg:opacity-100 transition-opacity btn btn-ghost btn-xs w-6 h-6 min-h-0 p-0 rounded-lg hover:text-error"
+                  disabled={!!deleting[m.id]}
+                  on:click|stopPropagation={() => deleteMessage(m)}
+                >
+                  <Trash2 class="w-3 h-3" />
+                </button>
+              {/if}
+            </div>
+
+            <div class={`relative flex flex-col ${m.user_id === $auth?.id ? 'items-end' : 'items-start'}`}>
               {#if m.image}
-                <div class="mb-2">
-                  <button type="button" class="block p-0 m-0 bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-primary/50 rounded-2xl" on:click={() => openImage(m.image)} aria-label={t('frontend/src/routes/teachers/forum/+page.svelte::open_attachment_aria_label')}>
-                    <img src={m.image} alt="attachment" class="max-w-[70vw] sm:max-w-xs w-full max-h-96 object-contain rounded-2xl shadow" />
+                <div class="mb-3 rounded-3xl overflow-hidden shadow-xl border border-base-200 bg-base-200/50 group/img relative">
+                  <button type="button" class="block p-0 m-0 w-full" on:click={() => openImage(m.image)}>
+                    <img src={m.image} alt="" class="max-w-full sm:max-w-md max-h-96 object-contain hover:scale-[1.02] transition-transform duration-500" />
                   </button>
                 </div>
               {/if}
 
-              {#if m.file}
-                <a class="btn btn-sm btn-outline gap-2 mb-2" href={m.file} download={m.file_name || 'file'}>
-                  <Paperclip class="w-4 h-4" /> {m.file_name || t('frontend/src/routes/teachers/forum/+page.svelte::file_download_fallback_name')}
+              {#if m.file_name && m.file}
+                <a
+                  href={m.file}
+                  download={m.file_name}
+                  class="flex items-center gap-4 p-4 mb-3 bg-base-100/80 rounded-3xl border border-base-200 hover:border-primary/30 hover:shadow-lg transition-all group/file"
+                >
+                  <div class="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover/file:bg-primary group-hover/file:text-primary-content transition-colors">
+                    <Paperclip class="w-6 h-6" />
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-black truncate tracking-tight">{m.file_name}</p>
+                    <p class="text-[10px] font-bold uppercase tracking-widest opacity-40">{translate('frontend/src/routes/teachers/forum/+page.svelte::click_to_download')}</p>
+                  </div>
                 </a>
               {/if}
 
               {#if m.text}
-                <div class={`message-bubble px-3 py-2 rounded-2xl ${m.user_id === $auth?.id ? 'bg-primary text-primary-content' : 'bg-base-200 text-base-content'}`}>
-                  {#if isEmojiOnly(m.text)}
-                    <div class="text-3xl leading-tight">{m.text}</div>
-                  {:else}
-                    <div class="whitespace-pre-wrap break-words" style="word-break: break-word; hyphens: auto;">{@html hyphenateLongWords(m.text)}</div>
-                  {/if}
-                </div>
+                {#if isEmojiOnly(m.text)}
+                  <div class="text-6xl py-2 cursor-pointer transition-transform hover:scale-110 w-fit" on:click={() => { m.showTime = !m.showTime; msgs = [...msgs]; }} role="button" tabindex="0">
+                    {m.text}
+                  </div>
+                {:else}
+                  <div
+                    class={`relative rounded-[2rem] px-5 py-4 shadow-sm transition-all duration-300 group/bubble w-fit ${
+                      m.user_id === $auth?.id
+                        ? 'bg-primary text-primary-content rounded-br-lg shadow-primary/20 hover:shadow-primary/30 [&_a]:!text-primary-content'
+                        : 'bg-base-100 border border-base-200 text-base-content rounded-bl-lg hover:border-primary/20'
+                    }`}
+                    on:click={() => { m.showTime = !m.showTime; msgs = [...msgs]; }}
+                    role="button"
+                    tabindex="0"
+                  >
+                    {#if m.structured}
+                      <div class="markdown prose prose-sm max-w-none prose-headings:text-inherit prose-p:text-inherit prose-strong:text-inherit prose-code:text-inherit prose-pre:bg-black/10 prose-a:text-inherit prose-a:underline [&_a]:!text-primary-content">
+                        {@html renderMarkdown(m.text)}
+                      </div>
+                    {:else}
+                      <p class="text-sm font-medium leading-relaxed">{hyphenateLongWords(m.text)}</p>
+                    {/if}
+                  </div>
+                {/if}
               {/if}
 
-              <div class="text-[10px] opacity-60 mt-1">{formatTime(m.created_at)}</div>
+              {#if m.showTime}
+                <div class={`text-[9px] font-black uppercase tracking-widest opacity-40 mt-2 px-2 ${m.user_id === $auth?.id ? 'text-right' : 'text-left'}`} in:fade>
+                  {formatTime(m.created_at)}
+                </div>
+              {/if}
             </div>
           </div>
         </div>
-      {/each}
-    </div>
+      </div>
+    {/each}
+  </div>
 
-    <div class="sticky bottom-0 w-full p-4 bg-base-100/70 backdrop-blur chat-input-area border-t border-base-300/30">
-      {#if imageData}
-        <div class="mb-2 p-2 bg-base-200/60 rounded-lg flex items-center gap-3">
-          <div class="w-16 h-16 overflow-hidden rounded-lg">
-            <img src={imageData} alt={t('frontend/src/routes/teachers/forum/+page.svelte::image_preview_alt')} class="w-full h-full object-cover" />
+  <!-- Input Area -->
+  <div class="p-6 bg-base-100/50 border-t border-base-200 backdrop-blur-md">
+    {#if imageData || fileData}
+      <div class="flex flex-wrap gap-3 mb-4" in:fade>
+        {#if imageData}
+          <div class="relative group">
+            <img src={imageData} alt="" class="h-24 w-24 object-cover rounded-2xl border-4 border-base-100 shadow-lg" />
+            <button class="absolute -top-2 -right-2 btn btn-circle btn-xs btn-error shadow-lg" on:click={() => imageData = null}><X size={12} /></button>
           </div>
-          <button class="btn btn-circle btn-sm btn-ghost hover:bg-base-200/80" on:click={() => imageData = null}>
-            <X class="w-4 h-4" />
-          </button>
-        </div>
-      {/if}
-      {#if fileData}
-        <div class="mb-2 p-2 bg-base-200/60 rounded-lg flex items-center gap-3">
-          <div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Paperclip class="w-5 h-5 text-primary" />
+        {/if}
+        {#if fileData}
+          <div class="flex items-center gap-3 p-3 bg-base-100 rounded-2xl border-2 border-primary/20 shadow-sm max-w-xs">
+            <div class="w-8 h-8 bg-primary/10 text-primary rounded-xl flex items-center justify-center"><Paperclip size={14} /></div>
+            <span class="text-xs font-black truncate flex-1">{fileName}</span>
+            <button class="btn btn-ghost btn-xs btn-circle" on:click={() => {fileData=null; fileName=null;}}><X size={12} /></button>
           </div>
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium truncate">{fileName}</p>
-            <p class="text-xs text-base-content/60">{(fileData.length * 0.75 / 1024).toFixed(1)} KB</p>
-          </div>
-          <button class="btn btn-circle btn-sm btn-ghost hover:bg-base-200/80" on:click={() => { fileName = null; fileData = null; }}>
-            <X class="w-4 h-4" />
-          </button>
-        </div>
-      {/if}
+        {/if}
+      </div>
+    {/if}
 
-      <div class="flex items-end gap-3">
+    <div class="flex flex-col gap-3">
+      <div class="flex items-center gap-2">
         <input type="file" accept="image/*" class="hidden" bind:this={photoInput} on:change={photoChanged} />
         <input type="file" class="hidden" bind:this={fileInput} on:change={fileChanged} />
 
-        <div class="relative attachment-menu">
-          <button class="btn btn-circle btn-ghost hover:bg-base-200/80 transition-all duration-200" on:click={() => showAttachmentMenu = !showAttachmentMenu}>
-            <Paperclip class="w-4 h-4" />
+        <div class="attachment-menu dropdown dropdown-top">
+          <button class="btn btn-ghost btn-sm h-10 w-10 rounded-xl p-0 hover:bg-primary/10 hover:text-primary transition-all">
+            <Plus size={20} />
           </button>
-          {#if showAttachmentMenu}
-            <div class="absolute bottom-full left-0 mb-2 bg-base-100 rounded-lg shadow-lg border border-base-300/30 p-2 backdrop-blur-sm">
-              <button class="btn btn-ghost btn-sm gap-2 w-full justify-start" on:click={choosePhoto}><ImagePlus class="w-4 h-4" /> {t('frontend/src/routes/teachers/forum/+page.svelte::attachment_menu_photo')}</button>
-              <button class="btn btn-ghost btn-sm gap-2 w-full justify-start" on:click={chooseFile}><Paperclip class="w-4 h-4" /> {t('frontend/src/routes/teachers/forum/+page.svelte::attachment_menu_file')}</button>
-            </div>
-          {/if}
+          <ul class="dropdown-content menu p-2 shadow-2xl bg-base-100 rounded-2xl w-48 mb-2 border border-base-200">
+            <li><button on:click={choosePhoto} class="rounded-xl"><ImagePlus size={16} class="text-primary" /> {translate('frontend/src/routes/teachers/forum/+page.svelte::attachment_menu_photo')}</button></li>
+            <li><button on:click={chooseFile} class="rounded-xl"><Paperclip size={16} class="text-secondary" /> {translate('frontend/src/routes/teachers/forum/+page.svelte::attachment_menu_file')}</button></li>
+          </ul>
         </div>
 
-        <div class="relative emoji-picker">
-          <button class="btn btn-circle btn-ghost hover:bg-base-200/80 transition-all duration-200" on:click={() => showEmojiPicker = !showEmojiPicker}>
-            <Smile class="w-4 h-4" />
+        <div class="relative">
+          <button type="button" class={`emoji-picker btn btn-ghost btn-sm h-10 w-10 rounded-xl p-0 transition-all ${showEmojiPicker ? 'text-primary bg-primary/10' : ''}`} on:click={() => showEmojiPicker = !showEmojiPicker}>
+            <Smile size={20} />
           </button>
+
           {#if showEmojiPicker}
-            <div class="absolute bottom-full left-0 mb-2 bg-base-100 rounded-lg shadow-lg border border-base-300/30 p-3 backdrop-blur-sm w-64 max-h-48 overflow-y-auto">
-              <div class="grid grid-cols-8 gap-1">
+            <div class="emoji-picker absolute bottom-full left-0 mb-4 bg-base-100 p-4 rounded-[2rem] shadow-2xl border border-base-200 w-80 z-50 overflow-hidden" in:fade={{ duration: 150 }}>
+              <div class="grid grid-cols-7 gap-1 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
                 {#each commonEmojis as emoji}
-                  <button class="w-8 h-8 text-lg hover:bg-base-200 rounded transition-colors flex items-center justify-center" on:click={() => insertEmoji(emoji)}>{emoji}</button>
+                  <button type="button" class="w-9 h-9 flex items-center justify-center text-xl hover:bg-base-200 rounded-xl transition-colors" on:click={() => insertEmoji(emoji)}>{emoji}</button>
                 {/each}
               </div>
             </div>
           {/if}
         </div>
 
+        <button class={`btn btn-ghost btn-sm h-10 w-10 rounded-xl p-0 transition-all ${structured ? 'text-primary bg-primary/10' : ''}`} on:click={() => structured = !structured} title={translate('frontend/src/routes/teachers/forum/+page.svelte::structured_messaging')}>
+          <Table size={20} />
+        </button>
+      </div>
+
+      <div class="flex items-end gap-3 relative">
+
         <div class="flex-1 relative">
-          <textarea class="textarea textarea-bordered w-full resize-none overflow-hidden bg-base-200/50 backdrop-blur-sm border-base-300/50 focus:border-primary/50 focus:bg-base-100/80 transition-all duration-200 rounded-2xl" rows="1" style="min-height:0;height:auto" placeholder={t('frontend/src/routes/teachers/forum/+page.svelte::type_message_placeholder')} bind:value={text} bind:this={msgInput} on:input={adjustHeight} on:keydown={handleKeydown}></textarea>
+          {#if structured}
+            <div class="w-full bg-base-100 rounded-2xl border-2 border-base-200 focus-within:border-primary/30 shadow-sm overflow-hidden transition-all overflow-y-auto max-h-40" in:fade>
+              <MarkdownEditor 
+                bind:value={text} 
+                placeholder={translate('frontend/src/routes/teachers/forum/+page.svelte::type_message_placeholder')}
+                className="forum-md-editor"
+                showExtraButtons={false}
+              />
+            </div>
+          {:else}
+            <textarea
+              class="textarea w-full bg-base-200/50 focus:bg-base-100 border-2 border-transparent focus:border-primary/30 transition-all duration-300 rounded-[1.5rem] px-5 py-4 text-sm font-medium resize-none max-h-40 min-h-[56px] custom-scrollbar"
+              placeholder={translate('frontend/src/routes/teachers/forum/+page.svelte::type_message_placeholder')}
+              bind:value={text}
+              bind:this={msgInput}
+              on:input={adjustHeight}
+              on:keydown={handleKeydown}
+            ></textarea>
+          {/if}
         </div>
 
-        <button class="btn btn-circle btn-primary shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" on:click={send} disabled={!text.trim() && !imageData && !fileData} aria-label={t('frontend/src/routes/teachers/forum/+page.svelte::send_message_aria_label')}>
-          <Send class="w-4 h-4" />
+        <button
+          class="btn btn-primary h-14 w-14 rounded-2xl p-0 shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 shrink-0"
+          on:click={send}
+          disabled={!text.trim() && !imageData && !fileData}
+        >
+          <Send size={24} />
         </button>
       </div>
     </div>
   </div>
 </div>
+</div>
 
+<!-- Lightbox -->
 {#if lightboxOpen && modalImage}
-  <div class={`fixed top-0 bottom-0 right-0 left-0 ${$sidebarCollapsed ? 'sm:left-0' : 'sm:left-60'} z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center`} on:click|self={closeLightbox} in:fade={{ duration: 150 }} out:fade={{ duration: 150 }} role="dialog" aria-modal="true" aria-label={t('frontend/src/routes/teachers/forum/+page.svelte::image_viewer_aria_label')}>
-    <div class="absolute top-0 left-0 right-0 p-4 flex items-center justify-end gap-2">
-      <a class="btn btn-sm md:btn-md no-animation bg-white/20 hover:bg-white/30 text-white border-0" href={modalImage} download on:click|stopPropagation aria-label={t('frontend/src/routes/teachers/forum/+page.svelte::lightbox_download_button_aria_label')}>{t('frontend/src/routes/teachers/forum/+page.svelte::lightbox_download_button')}</a>
-      <button class="btn btn-circle no-animation bg-white/20 hover:bg-white/30 text-white border-0" on:click|stopPropagation={closeLightbox} aria-label={t('frontend/src/routes/teachers/forum/+page.svelte::lightbox_close_button_aria_label')}>
-        <X class="w-5 h-5" />
-      </button>
+  <div class="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4" in:fade={{ duration: 200 }} out:fade={{ duration: 200 }} on:click|self={closeLightbox}>
+    <div class="absolute top-6 right-6 flex items-center gap-4">
+      <a href={modalImage} download class="btn btn-ghost text-white font-black uppercase tracking-widest text-xs gap-2"><Download size={18}/> {translate('frontend/src/routes/teachers/forum/+page.svelte::lightbox_download_button')}</a>
+      <button class="btn btn-circle btn-ghost text-white" on:click={closeLightbox}><X size={24}/></button>
     </div>
-    <button type="button" class="bg-transparent p-0 m-0 border-0 focus:outline-none" on:click|stopPropagation aria-label={t('frontend/src/routes/teachers/forum/+page.svelte::lightbox_image_aria_label')}>
-      <img src={modalImage} alt="" class="max-h-[90vh] max-w-[90vw] object-contain rounded-xl shadow-2xl" transition:scale={{ duration: 200, start: 0.98 }} />
-    </button>
+
+    <img src={modalImage} alt="" class="max-w-full max-h-full object-contain rounded-xl shadow-2xl" transition:scale={{ duration: 300, start: 0.95 }} />
+
     {#if imageUrls.length > 1}
-      <button class="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 rounded-full p-2 md:p-3 bg-white/15 hover:bg-white/25 text-white shadow-sm border border-transparent focus:outline-none focus:ring-2 focus:ring-white/50" on:click|stopPropagation={showPrevImage} aria-label={t('frontend/src/routes/teachers/forum/+page.svelte::previous_image_aria_label')}><ChevronLeft class="w-6 h-6" /></button>
-      <button class="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 rounded-full p-2 md:p-3 bg-white/15 hover:bg-white/25 text-white shadow-sm border border-transparent focus:outline-none focus:ring-2 focus:ring-white/50" on:click|stopPropagation={showNextImage} aria-label={t('frontend/src/routes/teachers/forum/+page.svelte::next_image_aria_label')}><ChevronRight class="w-6 h-6" /></button>
+      <button class="absolute left-6 btn btn-circle btn-ghost text-white lg:btn-lg" on:click|stopPropagation={showPrevImage}><ChevronLeft size={32}/></button>
+      <button class="absolute right-6 btn btn-circle btn-ghost text-white lg:btn-lg" on:click|stopPropagation={showNextImage}><ChevronRight size={32}/></button>
     {/if}
   </div>
 {/if}
@@ -442,12 +600,35 @@
 <ConfirmModal bind:this={confirmModal} />
 
 <style>
-  .message-bubble { position: relative; transition: all 0.2s ease; }
-  .message-bubble:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); }
-  .chat-window { background: linear-gradient(135deg, hsl(var(--b1) / 0.95) 0%, hsl(var(--b2) / 0.95) 100%); }
-  .chat-input-area { background: linear-gradient(180deg, hsl(var(--b1) / 0.8) 0%, hsl(var(--b1) / 0.95) 100%); }
-  .overflow-y-auto::-webkit-scrollbar { width: 6px; }
-  .overflow-y-auto::-webkit-scrollbar-track { background: transparent; }
-  .overflow-y-auto::-webkit-scrollbar-thumb { background: hsl(var(--bc) / 0.2); border-radius: 3px; }
-  .overflow-y-auto::-webkit-scrollbar-thumb:hover { background: hsl(var(--bc) / 0.3); }
+  .teachers-forum-page {
+    font-family: 'Outfit', sans-serif;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: hsl(var(--bc) / 0.1);
+    border-radius: 10px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--bc) / 0.2);
+  }
+
+  :global(.token.operator), :global(.token.entity), :global(.token.url), :global(.language-css .token.string), :global(.style .token.string) {
+    background: transparent !important;
+  }
+
+  /* Force link visibility in sent messages (blue background) */
+  :global(.bg-primary a), :global(.bg-primary a *) {
+    color: white !important;
+    text-decoration: underline !important;
+    opacity: 1 !important;
+  }
+  :global(.bg-primary a:hover) {
+    color: rgba(255, 255, 255, 0.8) !important;
+  }
 </style>
