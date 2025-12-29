@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { createEventDispatcher, onMount, tick } from 'svelte';
   import { fade, fly, scale } from 'svelte/transition';
   import { ChevronDown, Check, Search } from 'lucide-svelte';
   import { translator } from '$lib/i18n';
@@ -58,9 +58,89 @@
   }
 
   onMount(() => {
+    const handleScroll = () => {
+      if (isOpen) updatePosition();
+    };
     window.addEventListener('click', handleClickOutside);
-    return () => window.removeEventListener('click', handleClickOutside);
+    window.addEventListener('scroll', handleScroll, true);
+    window.addEventListener('resize', handleScroll);
+    
+    return () => {
+      window.removeEventListener('click', handleClickOutside);
+      window.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('resize', handleScroll);
+    };
   });
+
+  function portal(node: HTMLElement) {
+    const dialog = container?.closest('dialog');
+    const target = dialog || document.body;
+    target.appendChild(node);
+    updatePosition();
+    return {
+      destroy() {
+        if (node.parentNode) node.parentNode.removeChild(node);
+      }
+    };
+  }
+
+  let dropdownStyle = "";
+
+  function updatePosition() {
+    if (!container || !isOpen) return;
+    const rect = container.getBoundingClientRect();
+    
+    // Position the dropdown relative to the trigger
+    // We want it to be above the dropdown container
+    const triggerHeight = rect.height;
+    const triggerWidth = rect.width;
+    const triggerTop = rect.top;
+    const triggerLeft = rect.left;
+
+    // Use current placement logic to determine if we show on top or bottom
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    
+    if (placement === 'auto') {
+      computedPlacement = spaceBelow < 250 && spaceAbove > spaceBelow ? 'top' : 'bottom';
+    } else {
+      computedPlacement = placement;
+    }
+
+    // Ensure dropdown doesn't overflow right edge of screen
+    let leftPos = triggerLeft;
+    const estimatedWidth = Math.max(triggerWidth, 200); // 200 is a safe min-width for dropdowns
+    if (leftPos + estimatedWidth > window.innerWidth - 10) {
+      leftPos = window.innerWidth - estimatedWidth - 10;
+    }
+    if (leftPos < 10) leftPos = 10;
+
+    const baseStyle = `
+      position: fixed;
+      left: ${leftPos}px;
+      min-width: ${triggerWidth}px;
+      width: max-content;
+      max-width: calc(100vw - 40px);
+      z-index: 9999;
+    `;
+
+    if (computedPlacement === 'bottom') {
+      dropdownStyle = `
+        ${baseStyle}
+        top: ${rect.bottom + 8}px;
+      `;
+    } else {
+      dropdownStyle = `
+        ${baseStyle}
+        bottom: ${window.innerHeight - rect.top + 8}px;
+      `;
+    }
+  }
+
+  $: if (isOpen) {
+    // Wait for Svelte to update the DOM before measuring
+    tick().then(updatePosition);
+  }
 </script>
 
 <div class="custom-select-container flex flex-col gap-1.5" bind:this={container}>
@@ -106,7 +186,9 @@
 
     {#if isOpen}
       <div
-        class="absolute z-[1000] w-full {computedPlacement === 'top' ? 'bottom-full mb-2 origin-bottom' : 'top-full mt-2 origin-top'} overflow-hidden bg-base-100 border border-primary/20 rounded-[2rem] shadow-2xl p-2"
+        use:portal
+        style={dropdownStyle}
+        class="w-full {computedPlacement === 'top' ? 'origin-bottom' : 'origin-top'} overflow-hidden bg-base-100 border border-primary/20 rounded-[2rem] shadow-2xl p-2"
         in:fly={{ y: computedPlacement === 'top' ? 10 : -10, duration: 300, opacity: 0 }}
         out:fade={{ duration: 150 }}
       >
@@ -133,11 +215,11 @@
                 {option.value === value ? 'bg-primary text-primary-content shadow-md shadow-primary/20' : 'hover:bg-primary/10 text-base-content/80 hover:text-primary'}"
               on:click={() => select(option)}
             >
-              <div class="flex items-center gap-3 overflow-hidden">
+              <div class="flex items-center gap-3">
                 {#if option.flag}
                   <span class="text-xl shrink-0">{option.flag}</span>
                 {/if}
-                <span class="truncate font-medium">{option.label}</span>
+                <span class="font-medium whitespace-nowrap">{option.label}</span>
               </div>
               
               {#if option.value === value}
