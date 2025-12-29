@@ -68,6 +68,10 @@
   let showCreateUsers = false;
   let showSystemVariables = false;
   let showLoginOptions = false;
+  let editUserTarget: User | null = null;
+  let editUserName = '';
+  let editUserEmail = '';
+  let savingUserEdit = false;
 
   // System variable form state
   let variableKey = '';
@@ -80,6 +84,10 @@
 
   function userSecondary(user?: User | null) {
     return user?.name ? user?.email : '';
+  }
+
+  function userDisplayName(user?: User | null) {
+    return (user?.name ?? '').trim() || t('frontend/src/lib/AdminPanel.svelte::no_name_label');
   }
 
   function hasEmailLogin(user: User) {
@@ -334,6 +342,7 @@
   $: createAccountPasswordValid = createAccountHasMinLength && createAccountHasLetter && createAccountHasNumber && createAccountPasswordsMatch;
   $: createAccountEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(createAccountEmail.trim());
   $: createAccountNameValid = createAccountName.trim().length > 0;
+  $: editUserEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editUserEmail.trim());
   
   $: canCreateAccount = createAccountNameValid && createAccountEmailValid && createAccountPasswordValid;
 
@@ -482,6 +491,54 @@
     } else {
       const data = await res.json().catch(() => ({}));
       err = data.error ?? t('frontend/src/lib/AdminPanel.svelte::set_password_failed');
+    }
+  }
+
+  function openEditUser(user: User) {
+    err = ok = '';
+    editUserTarget = user;
+    editUserName = user.name ?? '';
+    editUserEmail = user.email ?? '';
+  }
+
+  function closeEditUser() {
+    editUserTarget = null;
+    editUserName = '';
+    editUserEmail = '';
+    savingUserEdit = false;
+  }
+
+  async function saveUserEdit() {
+    if (!editUserTarget) return;
+    err = ok = '';
+    const email = editUserEmail.trim();
+    if (!editUserEmailValid) {
+      err = t('frontend/src/lib/AdminPanel.svelte::invalid_email_error');
+      return;
+    }
+    const nameValue = editUserName.trim();
+    const payload = {
+      email,
+      name: nameValue ? nameValue : null
+    };
+    savingUserEdit = true;
+    try {
+      const res = await apiFetch(`/api/users/${editUserTarget.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || t('frontend/src/lib/AdminPanel.svelte::user_update_failed'));
+      }
+      ok = t('frontend/src/lib/AdminPanel.svelte::user_updated_success');
+      await loadUsers();
+      closeEditUser();
+    } catch (e: any) {
+      err = e.message;
+    } finally {
+      savingUserEdit = false;
     }
   }
 
@@ -1069,6 +1126,7 @@
             <thead>
               <tr class="bg-base-100/50">
                 <th class="text-[10px] font-black uppercase tracking-widest opacity-40 border-b border-base-200 py-4 pl-6">{t('frontend/src/lib/AdminPanel.svelte::name_table_header')}</th>
+                <th class="text-[10px] font-black uppercase tracking-widest opacity-40 border-b border-base-200 py-4">{t('frontend/src/lib/AdminPanel.svelte::email_table_header')}</th>
                 <th class="text-[10px] font-black uppercase tracking-widest opacity-40 border-b border-base-200 py-4">{t('frontend/src/lib/AdminPanel.svelte::role_table_header')}</th>
                 <th class="text-[10px] font-black uppercase tracking-widest opacity-40 border-b border-base-200 py-4">{t('frontend/src/lib/AdminPanel.svelte::auth_table_header')}</th>
                 <th class="text-[10px] font-black uppercase tracking-widest opacity-40 border-b border-base-200 py-4">{t('frontend/src/lib/AdminPanel.svelte::created_table_header')}</th>
@@ -1089,12 +1147,12 @@
                         {/if}
                       </div>
                       <div class="flex flex-col min-w-0">
-                        <span class="font-black text-xs sm:text-sm truncate">{userPrimary(u)}</span>
-                        {#if userSecondary(u)}
-                          <span class="text-[10px] font-bold opacity-40 truncate">{userSecondary(u)}</span>
-                        {/if}
+                        <span class="font-black text-xs sm:text-sm truncate">{userDisplayName(u)}</span>
                       </div>
                     </div>
+                  </td>
+                  <td class="py-4 border-b border-base-100 group-hover:border-base-200/50">
+                    <span class="text-xs font-bold opacity-60 truncate block max-w-[220px]">{u.email}</span>
                   </td>
                   <td class="py-4 border-b border-base-100 group-hover:border-base-200/50">
                     <div class="w-32">
@@ -1137,6 +1195,13 @@
                   <td class="py-4 pr-6 border-b border-base-100 group-hover:border-base-200/50 text-right">
                     <div class="flex justify-end gap-1 opacity-10 group-hover:opacity-100 transition-opacity">
                       <button
+                        class="btn btn-ghost btn-xs w-8 h-8 rounded-lg text-primary hover:bg-primary/10"
+                        on:click={() => openEditUser(u)}
+                        aria-label={t('frontend/src/lib/AdminPanel.svelte::edit_user_button_label')}
+                      >
+                        <Edit size={14} />
+                      </button>
+                      <button
                         class="btn btn-ghost btn-xs w-8 h-8 rounded-lg text-info hover:bg-info/10"
                         title={u.bk_uid ? t('frontend/src/lib/AdminPanel.svelte::set_password_disabled_tooltip') : t('frontend/src/lib/AdminPanel.svelte::set_password_button_label')}
                         disabled={Boolean(u.bk_uid)}
@@ -1151,7 +1216,7 @@
                   </td>
                 </tr>
               {:else}
-                <tr><td colspan="5" class="text-center py-20 italic opacity-30 font-black uppercase tracking-widest text-xs">{t('frontend/src/lib/AdminPanel.svelte::no_users_message')}</td></tr>
+                <tr><td colspan="6" class="text-center py-20 italic opacity-30 font-black uppercase tracking-widest text-xs">{t('frontend/src/lib/AdminPanel.svelte::no_users_message')}</td></tr>
               {/each}
             </tbody>
           </table>
@@ -1159,6 +1224,48 @@
       </div>
     </div>
   </div>
+
+  {#if editUserTarget}
+    <dialog open class="modal">
+      <div class="modal-box bg-base-100 rounded-[2.5rem] border border-base-200 shadow-2xl p-8 max-w-md">
+        <div class="flex items-center gap-3 mb-6">
+          <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+            <Edit size={20} />
+          </div>
+          <h3 class="text-xl font-black tracking-tight">{t('frontend/src/lib/AdminPanel.svelte::edit_user_modal_title')}</h3>
+        </div>
+
+        <div class="space-y-4">
+          <StylishInput
+            bind:value={editUserName}
+            placeholder={t('frontend/src/lib/AdminPanel.svelte::name_placeholder')}
+            icon={Users2}
+            label={t('frontend/src/lib/AdminPanel.svelte::name_label')}
+          />
+          <StylishInput
+            bind:value={editUserEmail}
+            placeholder={t('frontend/src/lib/AdminPanel.svelte::email_label')}
+            icon={MailCheck}
+            label={t('frontend/src/lib/AdminPanel.svelte::email_label')}
+          />
+        </div>
+
+        <div class="modal-action gap-2 mt-8">
+          <button class="btn btn-ghost rounded-xl font-black uppercase tracking-widest text-[10px] h-11" on:click={closeEditUser}>
+            {t('frontend/src/lib/AdminPanel.svelte::cancel_button')}
+          </button>
+          <button
+            class="btn btn-primary rounded-xl px-8 font-black uppercase tracking-widest text-[10px] h-11 shadow-lg shadow-primary/20"
+            on:click={saveUserEdit}
+            disabled={!editUserEmailValid || savingUserEdit}
+          >
+            {savingUserEdit ? t('frontend/src/lib/AdminPanel.svelte::saving_button') : t('frontend/src/lib/AdminPanel.svelte::save_button')}
+          </button>
+        </div>
+      </div>
+      <form method="dialog" class="modal-backdrop bg-base-content/20 backdrop-blur-sm" on:click={closeEditUser}><button>close</button></form>
+    </dialog>
+  {/if}
 {/if}
 
 

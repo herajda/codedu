@@ -261,6 +261,7 @@ func main() {
 		api.POST("/teachers", RoleGuard("admin"), createTeacher)
 		api.POST("/students", RoleGuard("admin"), adminCreateStudent)
 		api.GET("/users", RoleGuard("admin"), listUsers)
+		api.PUT("/users/:id", RoleGuard("admin"), adminUpdateUser)
 		api.PUT("/users/:id/role", RoleGuard("admin"), updateUserRole)
 		api.PUT("/users/:id/password", RoleGuard("admin"), adminSetUserPassword)
 		api.POST("/admin/email-ping", RoleGuard("admin"), adminEmailPing)

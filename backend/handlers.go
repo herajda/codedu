@@ -3691,6 +3691,53 @@ func updateUserRole(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+func adminUpdateUser(c *gin.Context) {
+	uid, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var req struct {
+		Email string  `json:"email" binding:"required,email"`
+		Name  *string `json:"name"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	email := strings.TrimSpace(req.Email)
+	if email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid email"})
+		return
+	}
+	user, err := GetUser(uid)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	name := user.Name
+	if req.Name != nil {
+		if trimmed := strings.TrimSpace(*req.Name); trimmed != "" {
+			name = &trimmed
+		} else {
+			name = nil
+		}
+	}
+	if _, err := DB.Exec(`UPDATE users SET email=$1, name=$2, updated_at=now() WHERE id=$3`, email, name, uid); err != nil {
+		if strings.Contains(err.Error(), "duplicate") {
+			c.JSON(http.StatusConflict, gin.H{"error": "email already in use"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 func adminCreateStudent(c *gin.Context) {
 	var req struct {
 		Email    string  `json:"email" binding:"required,email"`
