@@ -6,7 +6,7 @@
   import { classesStore } from '$lib/stores/classes';
   import {
     Users2, GraduationCap, School, Plus, Trash2, RefreshCw,
-    Shield, Search, Edit, ArrowRightLeft, Check, KeyRound, MailCheck
+    Shield, Search, Edit, ArrowRightLeft, Check, KeyRound, MailCheck, ChevronDown
   } from 'lucide-svelte';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   import PromptModal from '$lib/components/PromptModal.svelte';
@@ -768,12 +768,15 @@
   <div class="grid gap-8 xl:grid-cols-12">
     <!-- Account Tools Side -->
     <div class="xl:col-span-4 space-y-6">
-      <div class="flex items-center justify-between px-2">
-        <h2 class="text-sm font-black uppercase tracking-[0.2em] opacity-40">{t('frontend/src/lib/AdminPanel.svelte::account_creation_title')}</h2>
-        <button class="btn btn-ghost btn-xs opacity-50 hover:opacity-100 transition-all font-black text-[10px] uppercase tracking-widest h-8" on:click={() => { showCreateUsers = !showCreateUsers; }}>
-          {showCreateUsers ? t('frontend/src/lib/AdminPanel.svelte::hide_account_tools_button') : t('frontend/src/lib/AdminPanel.svelte::show_account_tools_button')}
-        </button>
-      </div>
+      <button 
+        class="flex items-center gap-2 px-2 group hover:opacity-100 transition-all" 
+        on:click={() => { showCreateUsers = !showCreateUsers; }}
+      >
+        <h2 class="text-sm font-black uppercase tracking-[0.2em] opacity-40 group-hover:opacity-100 transition-all flex items-center gap-2">
+          {t('frontend/src/lib/AdminPanel.svelte::account_creation_title')}
+          <ChevronDown size={14} class="transition-transform duration-300 {showCreateUsers ? 'rotate-180 opacity-100' : 'opacity-40'}" />
+        </h2>
+      </button>
 
       {#if showCreateUsers}
         <div class="space-y-4">
@@ -1170,12 +1173,15 @@
 
     <!-- System Variables -->
     <section class="space-y-6">
-      <div class="flex items-center justify-between px-2">
-        <h2 class="text-sm font-black uppercase tracking-[0.2em] opacity-40">{t('frontend/src/lib/AdminPanel.svelte::system_variables_title')}</h2>
-        <button class="btn btn-ghost btn-xs opacity-50 hover:opacity-100 transition-all font-black text-[10px] uppercase tracking-widest h-8" on:click={() => { showSystemVariables = !showSystemVariables; }}>
-          {showSystemVariables ? t('frontend/src/lib/AdminPanel.svelte::hide_system_variables_button') : t('frontend/src/lib/AdminPanel.svelte::show_system_variables_button')}
-        </button>
-      </div>
+      <button 
+        class="flex items-center gap-2 px-2 group hover:opacity-100 transition-all" 
+        on:click={() => { showSystemVariables = !showSystemVariables; }}
+      >
+        <h2 class="text-sm font-black uppercase tracking-[0.2em] opacity-40 group-hover:opacity-100 transition-all flex items-center gap-2">
+          {t('frontend/src/lib/AdminPanel.svelte::system_variables_title')}
+          <ChevronDown size={14} class="transition-transform duration-300 {showSystemVariables ? 'rotate-180 opacity-100' : 'opacity-40'}" />
+        </h2>
+      </button>
 
       {#if showSystemVariables}
         <div class="bg-base-100 rounded-[2.5rem] border border-base-200 shadow-sm overflow-hidden">
