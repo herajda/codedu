@@ -690,7 +690,7 @@
 
 {#if tab === 'overview'}
   <!-- Platform Stats Grid -->
-  <section class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 sm:gap-6 mb-10">
+  <section class="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-10">
     <div class="bg-base-100 p-5 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 hover:border-primary/20 transition-all duration-300 group">
       <div class="flex flex-col h-full justify-between gap-4">
         <div class="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
@@ -738,35 +738,6 @@
         </div>
       </div>
     </div>
-
-    <div class="bg-base-100 p-5 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-success/5 hover:border-success/20 transition-all duration-300 group col-span-2 lg:col-span-1 xl:col-span-2">
-      <div class="flex items-center justify-between h-full">
-        <div class="flex flex-col justify-between h-full">
-           <div class="w-10 h-10 rounded-2xl bg-success/10 text-success flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-            <Users2 size={20} />
-          </div>
-          <div>
-            <div class="text-[32px] font-black tracking-tight text-base-content leading-none mb-1 group-hover:text-success transition-colors">{onlineUsers.length}</div>
-            <div class="text-[10px] font-bold uppercase tracking-widest opacity-40">{t('frontend/src/lib/AdminPanel.svelte::online_stat_title')}</div>
-          </div>
-        </div>
-        <div class="h-16 w-32 bg-success/5 rounded-xl flex items-center justify-center">
-          <div class="flex -space-x-2 overflow-hidden px-2">
-            {#each onlineUsers.slice(0, 4) as u}
-              <div class="inline-block h-8 w-8 rounded-full ring-2 ring-base-100 bg-success/20 text-success flex items-center justify-center text-[10px] font-black uppercase">
-                 {u.name.charAt(0)}
-              </div>
-            {/each}
-            {#if onlineUsers.length > 4}
-              <div class="inline-block h-8 w-8 rounded-full ring-2 ring-base-100 bg-base-200 text-base-content/40 flex items-center justify-center text-[8px] font-black">
-                +{onlineUsers.length - 4}
-              </div>
-            {/if}
-          </div>
-        </div>
-      </div>
-    </div>
-
   </section>
 
   <div class="grid gap-8 xl:grid-cols-12">
@@ -810,16 +781,7 @@
           </div>
         </button>
 
-        <a href="/dashboard" class="flex items-center gap-4 p-6 bg-base-100 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all text-left relative overflow-hidden group no-underline text-current">
-          <div class="absolute top-0 right-0 w-24 h-24 bg-info/5 rounded-bl-full pointer-events-none group-hover:scale-110 transition-transform"></div>
-          <div class="w-12 h-12 rounded-2xl bg-info/10 text-info flex items-center justify-center shrink-0">
-             <RefreshCw size={24} />
-          </div>
-          <div class="min-w-0">
-            <div class="font-black text-lg tracking-tight group-hover:text-info transition-colors">{t('frontend/src/lib/AdminPanel.svelte::go_to_dashboard_button')}</div>
-            <div class="text-xs opacity-50">{t('frontend/src/lib/AdminPanel.svelte::go_to_dashboard_desc')}</div>
-          </div>
-        </a>
+
       </div>
     </div>
 
@@ -832,7 +794,35 @@
         </button>
       </div>
 
-      <div class="bg-base-100 rounded-[2.5rem] border border-base-200 shadow-sm overflow-hidden p-3">
+      <div class="bg-base-100 rounded-[2.5rem] border border-base-200 shadow-sm overflow-hidden flex flex-col">
+        <!-- Joined Online Counter -->
+        <div class="p-6 bg-gradient-to-br from-success/10 via-success/5 to-transparent border-b border-base-200/50 flex items-center justify-between group">
+          <div class="flex flex-col">
+            <div class="w-10 h-10 rounded-2xl bg-success/10 text-success flex items-center justify-center group-hover:scale-110 transition-transform duration-300 mb-3">
+              <Users2 size={20} />
+            </div>
+            <div>
+              <div class="text-[32px] font-black tracking-tight text-base-content leading-none mb-1 group-hover:text-success transition-colors">{onlineUsers.length}</div>
+              <div class="text-[10px] font-bold uppercase tracking-widest opacity-40">{t('frontend/src/lib/AdminPanel.svelte::online_stat_title')}</div>
+            </div>
+          </div>
+          <div class="h-16 w-32 bg-success/5 rounded-xl flex items-center justify-center">
+            <div class="flex -space-x-2 overflow-hidden px-2">
+              {#each onlineUsers.slice(0, 4) as u}
+                <div class="inline-block h-8 w-8 rounded-full ring-2 ring-base-100 bg-success/20 text-success flex items-center justify-center text-[10px] font-black uppercase">
+                   {u.name.charAt(0)}
+                </div>
+              {/each}
+              {#if onlineUsers.length > 4}
+                <div class="inline-block h-8 w-8 rounded-full ring-2 ring-base-100 bg-base-200 text-base-content/40 flex items-center justify-center text-[8px] font-black">
+                  +{onlineUsers.length - 4}
+                </div>
+              {/if}
+            </div>
+          </div>
+        </div>
+
+        <div class="p-3">
         <div class="space-y-1 max-h-[400px] overflow-y-auto custom-scrollbar p-1">
           {#each onlineUsers as online}
             <div class="flex items-center gap-4 p-3 rounded-[1.5rem] hover:bg-base-200 transition-colors group">
@@ -867,6 +857,7 @@
       </div>
     </div>
   </div>
+</div>
 {/if}
 
 <ConfirmModal bind:this={confirmModal} />
