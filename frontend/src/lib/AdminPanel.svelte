@@ -252,14 +252,16 @@
   // System Settings
   let forceBakalariEmail = true;
   let allowMicrosoftLogin = true;
+  let allowBakalariLogin = true;
   async function loadSystemSettings() {
     try {
-      const s = await apiJSON<{force_bakalari_email: boolean, allow_microsoft_login: boolean}>('/api/admin/system-settings');
+      const s = await apiJSON<{force_bakalari_email: boolean, allow_microsoft_login: boolean, allow_bakalari_login: boolean}>('/api/admin/system-settings');
       forceBakalariEmail = s.force_bakalari_email;
       allowMicrosoftLogin = s.allow_microsoft_login;
+      allowBakalariLogin = s.allow_bakalari_login;
     } catch {}
   }
-  async function updateSetting(key: 'force_bakalari_email' | 'allow_microsoft_login', val: boolean) {
+  async function updateSetting(key: 'force_bakalari_email' | 'allow_microsoft_login' | 'allow_bakalari_login', val: boolean) {
     try {
       await apiFetch('/api/admin/system-settings', {
         method: 'PUT',
@@ -268,6 +270,7 @@
       });
       if (key === 'force_bakalari_email') forceBakalariEmail = val;
       if (key === 'allow_microsoft_login') allowMicrosoftLogin = val;
+      if (key === 'allow_bakalari_login') allowBakalariLogin = val;
       ok = t('frontend/src/lib/AdminPanel.svelte::settings_updated_success');
     } catch (e: any) {
       err = e.message;
@@ -1219,21 +1222,14 @@
 
 {#if tab === 'settings'}
   <div class="space-y-8">
-    <!-- General System Settings -->
+    <!-- Login Options -->
     <section class="space-y-6">
       <div class="flex items-center justify-between px-2">
-        <h2 class="text-sm font-black uppercase tracking-[0.2em] opacity-40">{t('frontend/src/lib/AdminPanel.svelte::system_settings_title')}</h2>
+        <h2 class="text-sm font-black uppercase tracking-[0.2em] opacity-40">{t('frontend/src/lib/AdminPanel.svelte::login_options_title')}</h2>
       </div>
       
-      <div class="grid gap-4 md:grid-cols-2">
-        <label class="bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm flex items-center justify-between gap-6 group hover:border-primary/30 transition-all cursor-pointer">
-          <div class="flex-1">
-            <span class="font-black text-sm uppercase tracking-widest block mb-1">{t('frontend/src/lib/AdminPanel.svelte::force_bakalari_email_label')}</span>
-            <span class="text-[10px] font-bold opacity-50 uppercase tracking-widest leading-relaxed">{t('frontend/src/lib/AdminPanel.svelte::force_bakalari_email_description')}</span>
-          </div>
-          <input type="checkbox" class="toggle toggle-primary toggle-lg scale-75" checked={forceBakalariEmail} on:change={(e) => updateSetting('force_bakalari_email', (e.target as HTMLInputElement).checked)} />
-        </label>
-
+      <div class="grid gap-4">
+        <!-- Microsoft Login -->
         <label class="bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm flex items-center justify-between gap-6 group hover:border-primary/30 transition-all cursor-pointer">
           <div class="flex-1">
             <span class="font-black text-sm uppercase tracking-widest block mb-1">{t('frontend/src/lib/AdminPanel.svelte::allow_microsoft_login_label')}</span>
@@ -1241,6 +1237,31 @@
           </div>
           <input type="checkbox" class="toggle toggle-primary toggle-lg scale-75" checked={allowMicrosoftLogin} on:change={(e) => updateSetting('allow_microsoft_login', (e.target as HTMLInputElement).checked)} />
         </label>
+
+        <!-- Bakalari Login -->
+        <div class="bg-base-100 rounded-[2rem] border border-base-200 shadow-sm overflow-hidden group hover:border-primary/30 transition-all">
+          <label class="p-6 flex items-center justify-between gap-6 cursor-pointer">
+            <div class="flex-1">
+              <span class="font-black text-sm uppercase tracking-widest block mb-1">{t('frontend/src/lib/AdminPanel.svelte::allow_bakalari_login_label')}</span>
+              <span class="text-[10px] font-bold opacity-50 uppercase tracking-widest leading-relaxed">{t('frontend/src/lib/AdminPanel.svelte::allow_bakalari_login_description')}</span>
+            </div>
+            <input type="checkbox" class="toggle toggle-primary toggle-lg scale-75" checked={allowBakalariLogin} on:change={(e) => updateSetting('allow_bakalari_login', (e.target as HTMLInputElement).checked)} />
+          </label>
+          
+          {#if allowBakalariLogin}
+            <div class="px-6 pb-6 pt-0">
+               <div class="bg-base-200/30 rounded-2xl p-4 border border-base-200/50">
+                  <label class="flex items-center justify-between gap-6 cursor-pointer">
+                    <div class="flex-1">
+                      <span class="font-black text-xs uppercase tracking-widest block mb-1">{t('frontend/src/lib/AdminPanel.svelte::force_bakalari_email_label')}</span>
+                      <span class="text-[9px] font-bold opacity-50 uppercase tracking-widest leading-relaxed">{t('frontend/src/lib/AdminPanel.svelte::force_bakalari_email_description')}</span>
+                    </div>
+                    <input type="checkbox" class="toggle toggle-primary toggle-md scale-90" checked={forceBakalariEmail} on:change={(e) => updateSetting('force_bakalari_email', (e.target as HTMLInputElement).checked)} />
+                  </label>
+               </div>
+            </div>
+          {/if}
+        </div>
       </div>
     </section>
 

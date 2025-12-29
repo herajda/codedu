@@ -156,6 +156,7 @@ func main() {
 	publicAPI.GET("/public-settings", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"allow_microsoft_login": GetSystemSetting("allow_microsoft_login", "true") == "true",
+			"allow_bakalari_login":  GetSystemSetting("allow_bakalari_login", "true") == "true",
 		})
 	})
 
