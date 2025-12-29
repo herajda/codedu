@@ -682,7 +682,7 @@ onMount(() => {
       <div class="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 mb-8">
         {#each visible as it (it.id)}
           <div 
-            class="group relative bg-base-100 border border-base-200 rounded-[2rem] p-4 flex flex-col items-center gap-3 hover:shadow-xl hover:shadow-primary/5 hover:border-primary/20 transition-all cursor-pointer overflow-hidden select-none"
+            class="group relative bg-base-200/50 dark:bg-base-200 hover:bg-base-100 dark:hover:bg-base-300 border border-base-200 dark:border-base-300 shadow-sm rounded-[2rem] p-4 flex flex-col items-center gap-3 hover:shadow-xl hover:shadow-primary/5 hover:border-primary/20 transition-all cursor-pointer overflow-hidden select-none backdrop-blur-sm"
             on:click={(e) => { e.stopPropagation(); open(it); }}
           >
             <div class="absolute top-0 right-0 w-12 h-12 bg-primary/5 rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>

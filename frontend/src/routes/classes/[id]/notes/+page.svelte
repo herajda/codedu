@@ -531,7 +531,7 @@
       <div class="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 mb-8">
         {#each displayedNotes as n (n.id)}
           <div 
-            class="group relative bg-base-100 border border-base-200 rounded-[2rem] p-4 flex flex-col items-center gap-3 hover:shadow-xl hover:shadow-secondary/5 hover:border-secondary/20 transition-all cursor-pointer overflow-hidden"
+            class="group relative bg-base-200/50 dark:bg-base-200 hover:bg-base-100 dark:hover:bg-base-300 border border-base-200 dark:border-base-300 shadow-sm rounded-[2rem] p-4 flex flex-col items-center gap-3 hover:shadow-xl hover:shadow-secondary/5 hover:border-secondary/20 transition-all cursor-pointer overflow-hidden backdrop-blur-sm"
             on:click={() => open(n)}
             on:keydown={(e)=> (e.key==='Enter'||e.key===' ') && open(n)}
             role="button"
