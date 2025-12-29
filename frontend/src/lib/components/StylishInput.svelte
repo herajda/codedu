@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { fade } from 'svelte/transition';
+  import { X } from 'lucide-svelte';
 
   export let value: string = "";
   export let placeholder: string = "";
@@ -70,7 +71,7 @@
           on:click={() => { value = ""; dispatch('input', value); }}
           transition:fade={{ duration: 150 }}
         >
-          <i class="fa-solid fa-circle-xmark"></i>
+          <X size={16} />
         </button>
       {/if}
     </div>
