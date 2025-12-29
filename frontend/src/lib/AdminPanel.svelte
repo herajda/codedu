@@ -43,7 +43,6 @@
 
   // Derived
   $: teachers = users.filter(u => u.role === 'teacher');
-  $: admins = users.filter(u => u.role === 'admin');
   $: students = users.filter(u => u.role === 'student');
   $: teacherIdToClassCount = classes.reduce<Record<string, number>>((m, c) => { m[c.teacher_id] = (m[c.teacher_id] || 0) + 1; return m; }, {});
   $: teacherLookup = teachers.reduce<Record<string, User>>((m, t_user) => { m[t_user.id] = t_user; return m; }, {});
@@ -66,6 +65,7 @@
   let sendingEmailPing = false;
   let showEmailTools = false;
   let showCreateUsers = false;
+  let showSystemVariables = false;
 
   // System variable form state
   let variableKey = '';
@@ -659,15 +659,6 @@
       </div>
     </div>
 
-    <div class="bg-base-100 p-5 rounded-3xl border border-base-200 shadow-sm group hover:border-info/30 transition-all">
-      <div class="text-[10px] font-black uppercase tracking-widest opacity-40 mb-3">{t('frontend/src/lib/AdminPanel.svelte::role_filter_admins')}</div>
-      <div class="flex items-center gap-4">
-        <div class="w-10 h-10 rounded-xl bg-info/10 text-info flex items-center justify-center group-hover:bg-info group-hover:text-info-content transition-all duration-300">
-          <Shield size={20} />
-        </div>
-        <div class="text-2xl font-black tabular-nums">{admins.length}</div>
-      </div>
-    </div>
   </section>
 
   <div class="grid gap-8 xl:grid-cols-12">
@@ -1181,80 +1172,85 @@
     <section class="space-y-6">
       <div class="flex items-center justify-between px-2">
         <h2 class="text-sm font-black uppercase tracking-[0.2em] opacity-40">{t('frontend/src/lib/AdminPanel.svelte::system_variables_title')}</h2>
+        <button class="btn btn-ghost btn-xs opacity-50 hover:opacity-100 transition-all font-black text-[10px] uppercase tracking-widest h-8" on:click={() => { showSystemVariables = !showSystemVariables; }}>
+          {showSystemVariables ? t('frontend/src/lib/AdminPanel.svelte::hide_system_variables_button') : t('frontend/src/lib/AdminPanel.svelte::show_system_variables_button')}
+        </button>
       </div>
 
-      <div class="bg-base-100 rounded-[2.5rem] border border-base-200 shadow-sm overflow-hidden">
-        <div class="p-6 border-b border-base-200 bg-base-200/20">
-          <p class="text-[10px] font-bold opacity-50 uppercase tracking-widest leading-relaxed mb-6">
-            {t('frontend/src/lib/AdminPanel.svelte::system_variables_description')}
-          </p>
-          
-          <form on:submit|preventDefault={saveSystemVariable} class="grid gap-4 md:grid-cols-[1fr_2fr_auto] items-end">
-            <div class="space-y-1.5">
-              <label class="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1" for="var-key">{t('frontend/src/lib/AdminPanel.svelte::system_variable_key_label')}</label>
-              <input 
-                id="var-key"
-                class="input input-sm bg-base-100 border-base-200 w-full rounded-xl focus:ring-1 focus:ring-primary h-11 font-bold px-4" 
-                placeholder={t('frontend/src/lib/AdminPanel.svelte::system_variable_key_placeholder')} 
-                bind:value={variableKey} 
-                disabled={Boolean(editingVariableKey)}
-                required
-              />
-            </div>
-            <div class="space-y-1.5">
-              <label class="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1" for="var-val">{t('frontend/src/lib/AdminPanel.svelte::system_variable_value_label')}</label>
-              <input 
-                id="var-val"
-                class="input input-sm bg-base-100 border-base-200 w-full rounded-xl focus:ring-1 focus:ring-primary h-11 font-bold px-4" 
-                placeholder={t('frontend/src/lib/AdminPanel.svelte::system_variable_value_placeholder')} 
-                bind:value={variableValue} 
-              />
-            </div>
-            <div class="flex gap-2">
-              <button class="btn btn-primary h-11 rounded-xl px-6 font-black uppercase tracking-widest text-[10px]" type="submit">
-                {editingVariableKey ? t('frontend/src/lib/AdminPanel.svelte::save_button') : t('frontend/src/lib/AdminPanel.svelte::add_button')}
-              </button>
-              {#if editingVariableKey}
-                <button class="btn btn-ghost h-11 rounded-xl font-black uppercase tracking-widest text-[10px]" type="button" on:click={resetVariableForm}>
-                  {t('frontend/src/lib/AdminPanel.svelte::cancel_button')}
+      {#if showSystemVariables}
+        <div class="bg-base-100 rounded-[2.5rem] border border-base-200 shadow-sm overflow-hidden">
+          <div class="p-6 border-b border-base-200 bg-base-200/20">
+            <p class="text-[10px] font-bold opacity-50 uppercase tracking-widest leading-relaxed mb-6">
+              {t('frontend/src/lib/AdminPanel.svelte::system_variables_description')}
+            </p>
+            
+            <form on:submit|preventDefault={saveSystemVariable} class="grid gap-4 md:grid-cols-[1fr_2fr_auto] items-end">
+              <div class="space-y-1.5">
+                <label class="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1" for="var-key">{t('frontend/src/lib/AdminPanel.svelte::system_variable_key_label')}</label>
+                <input 
+                  id="var-key"
+                  class="input input-sm bg-base-100 border-base-200 w-full rounded-xl focus:ring-1 focus:ring-primary h-11 font-bold px-4" 
+                  placeholder={t('frontend/src/lib/AdminPanel.svelte::system_variable_key_placeholder')} 
+                  bind:value={variableKey} 
+                  disabled={Boolean(editingVariableKey)}
+                  required
+                />
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1" for="var-val">{t('frontend/src/lib/AdminPanel.svelte::system_variable_value_label')}</label>
+                <input 
+                  id="var-val"
+                  class="input input-sm bg-base-100 border-base-200 w-full rounded-xl focus:ring-1 focus:ring-primary h-11 font-bold px-4" 
+                  placeholder={t('frontend/src/lib/AdminPanel.svelte::system_variable_value_placeholder')} 
+                  bind:value={variableValue} 
+                />
+              </div>
+              <div class="flex gap-2">
+                <button class="btn btn-primary h-11 rounded-xl px-6 font-black uppercase tracking-widest text-[10px]" type="submit">
+                  {editingVariableKey ? t('frontend/src/lib/AdminPanel.svelte::save_button') : t('frontend/src/lib/AdminPanel.svelte::add_button')}
                 </button>
-              {/if}
-            </div>
-          </form>
-        </div>
+                {#if editingVariableKey}
+                  <button class="btn btn-ghost h-11 rounded-xl font-black uppercase tracking-widest text-[10px]" type="button" on:click={resetVariableForm}>
+                    {t('frontend/src/lib/AdminPanel.svelte::cancel_button')}
+                  </button>
+                {/if}
+              </div>
+            </form>
+          </div>
 
-        <div class="overflow-x-auto custom-scrollbar">
-          <table class="table table-zebra table-md">
-            <thead>
-              <tr class="border-base-200 bg-base-100/50">
-                <th class="text-[10px] font-black uppercase tracking-widest opacity-40">{t('frontend/src/lib/AdminPanel.svelte::system_variable_key_label')}</th>
-                <th class="text-[10px] font-black uppercase tracking-widest opacity-40">{t('frontend/src/lib/AdminPanel.svelte::system_variable_value_label')}</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {#if loadingVariables}
-                <tr><td colspan="3" class="text-center py-12"><span class="loading loading-dots loading-md text-primary/30"></span></td></tr>
-              {:else}
-                {#each systemVariables as variable}
-                  <tr class="border-base-200 group hover:bg-base-200/30 transition-colors">
-                    <td class="font-mono text-xs py-4 font-bold">{variable.key}</td>
-                    <td class="font-mono text-xs py-4 text-base-content/60 max-w-[22rem] truncate" title={variable.value}>{variable.value}</td>
-                    <td class="text-right">
-                      <div class="flex justify-end gap-1 opacity-20 group-hover:opacity-100 transition-opacity">
-                        <button class="btn btn-ghost btn-xs text-info hover:bg-info/10" on:click={() => startEditVariable(variable)} aria-label={t('frontend/src/lib/AdminPanel.svelte::edit_button')}><Edit size={14} /></button>
-                        <button class="btn btn-ghost btn-xs text-error hover:bg-error/10" on:click={() => deleteSystemVariable(variable.key)} aria-label={t('frontend/src/lib/AdminPanel.svelte::delete_button')}><Trash2 size={14} /></button>
-                      </div>
-                    </td>
-                  </tr>
+          <div class="overflow-x-auto custom-scrollbar">
+            <table class="table table-zebra table-md">
+              <thead>
+                <tr class="border-base-200 bg-base-100/50">
+                  <th class="text-[10px] font-black uppercase tracking-widest opacity-40">{t('frontend/src/lib/AdminPanel.svelte::system_variable_key_label')}</th>
+                  <th class="text-[10px] font-black uppercase tracking-widest opacity-40">{t('frontend/src/lib/AdminPanel.svelte::system_variable_value_label')}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {#if loadingVariables}
+                  <tr><td colspan="3" class="text-center py-12"><span class="loading loading-dots loading-md text-primary/30"></span></td></tr>
                 {:else}
-                  <tr><td colspan="3" class="text-center py-20 italic opacity-30 font-black uppercase tracking-widest text-xs">{t('frontend/src/lib/AdminPanel.svelte::system_variables_empty')}</td></tr>
-                {/each}
-              {/if}
-            </tbody>
-          </table>
+                  {#each systemVariables as variable}
+                    <tr class="border-base-200 group hover:bg-base-200/30 transition-colors">
+                      <td class="font-mono text-xs py-4 font-bold">{variable.key}</td>
+                      <td class="font-mono text-xs py-4 text-base-content/60 max-w-[22rem] truncate" title={variable.value}>{variable.value}</td>
+                      <td class="text-right">
+                        <div class="flex justify-end gap-1 opacity-20 group-hover:opacity-100 transition-opacity">
+                          <button class="btn btn-ghost btn-xs text-info hover:bg-info/10" on:click={() => startEditVariable(variable)} aria-label={t('frontend/src/lib/AdminPanel.svelte::edit_button')}><Edit size={14} /></button>
+                          <button class="btn btn-ghost btn-xs text-error hover:bg-error/10" on:click={() => deleteSystemVariable(variable.key)} aria-label={t('frontend/src/lib/AdminPanel.svelte::delete_button')}><Trash2 size={14} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  {:else}
+                    <tr><td colspan="3" class="text-center py-20 italic opacity-30 font-black uppercase tracking-widest text-xs">{t('frontend/src/lib/AdminPanel.svelte::system_variables_empty')}</td></tr>
+                  {/each}
+                {/if}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      {/if}
     </section>
 
     <!-- Email Tools Section -->
@@ -1321,4 +1317,3 @@
     <form method="dialog" class="modal-backdrop bg-base-content/20 backdrop-blur-sm" on:click={() => { showEmailTools = false; }}><button>close</button></form>
   </dialog>
 {/if}
-
