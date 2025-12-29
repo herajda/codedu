@@ -1407,6 +1407,7 @@
   "frontend/src/routes/messages/[id]/+page.svelte::yourself": "sebe",
   "frontend/src/routes/messages/[id]/+page.svelte::you": "Vy",
   "frontend/src/routes/messages/[id]/+page.svelte::cancel_reply": "Zrušit odpověď",
+  "frontend/src/routes/messages/[id]/+page.svelte::click_to_view_original": "Klikněte pro zobrazení původní zprávy",
   "frontend/src/routes/messages/[id]/+page.svelte::image_message": "📷 Obrázek",
   "frontend/src/routes/messages/[id]/+page.svelte::file_message": "📎 Soubor",
   "frontend/src/routes/messages/search/+page.svelte::new_message": "Nová zpráva",

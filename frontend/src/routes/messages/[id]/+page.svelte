@@ -78,6 +78,7 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
 
   // Reply feature state
   let replyToMessage: any = null; // The message being replied to
+  let highlightedMessageId: number | null = null; // ID of message to highlight
   
   function setReplyTo(message: any) {
     replyToMessage = message;
@@ -87,6 +88,27 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
   
   function clearReply() {
     replyToMessage = null;
+  }
+  
+  function scrollToMessage(messageId: number) {
+    // Find the index of the message in the conversation
+    const messageIndex = convo.findIndex(m => m.id === messageId);
+    if (messageIndex === -1) return;
+    
+    // Get the message element
+    const messageEl = msgEls[messageIndex];
+    if (!messageEl) return;
+    
+    // Scroll to the message
+    messageEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    
+    // Highlight the message
+    highlightedMessageId = messageId;
+    
+    // Remove highlight after 2 seconds
+    setTimeout(() => {
+      highlightedMessageId = null;
+    }, 2000);
   }
 
   function registerMsgEl(node: HTMLDivElement, idx: number) {
@@ -532,7 +554,7 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
         {/if}
         
         <div
-          class="{`flex ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'} group ${searchResults.includes(index) ? 'bg-primary/10 -mx-6 px-6 py-2' : ''}`}"
+          class="{`flex ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'} group ${searchResults.includes(index) ? 'bg-primary/10 -mx-6 px-6 py-2' : ''} ${highlightedMessageId === m.id ? 'highlighted-message' : ''}`}"
           use:registerMsgEl={index}
           in:fade={{ duration: 200 }}
         >
@@ -555,12 +577,15 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
               <div class="relative flex flex-col">
                 <!-- Reply preview (if this message is a reply) -->
                 {#if m.reply_to_id && m.reply_text}
-                  <div 
-                    class={`flex items-start gap-2 mb-2 px-3 py-2 rounded-xl text-xs border-l-2 ${
+                  <button
+                    type="button"
+                    class={`flex items-start gap-2 mb-2 px-3 py-2 rounded-xl text-xs border-l-2 w-full text-left transition-all hover:scale-[1.02] cursor-pointer ${
                       m.sender_id === $auth?.id 
-                        ? 'bg-primary-content/10 border-primary-content/30' 
-                        : 'bg-base-200/50 border-primary/30'
+                        ? 'bg-primary-content/10 border-primary-content/30 hover:bg-primary-content/20' 
+                        : 'bg-base-200/50 border-primary/30 hover:bg-base-200/70'
                     }`}
+                    on:click|stopPropagation={() => scrollToMessage(m.reply_to_id)}
+                    title={t('frontend/src/routes/messages/[id]/+page.svelte::click_to_view_original')}
                   >
                     <CornerDownRight size={12} class="mt-0.5 shrink-0 opacity-50" />
                     <div class="flex-1 min-w-0">
@@ -571,7 +596,7 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
                       </p>
                       <p class="opacity-70 line-clamp-2">{m.reply_text}</p>
                     </div>
-                  </div>
+                  </button>
                 {/if}
                 
                 {#if m.image}
@@ -854,5 +879,32 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
   /* Specific message bubble tweaks */
   :global(.group\/bubble .markdown a) {
     color: inherit !important;
+  }
+
+  /* Highlighted message animation */
+  .highlighted-message {
+    animation: highlight-pulse 2s ease-out;
+    background: hsl(var(--p) / 0.15) !important;
+    margin-left: -1.5rem;
+    margin-right: -1.5rem;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-radius: 1rem;
+  }
+
+  @keyframes highlight-pulse {
+    0% {
+      background: hsl(var(--p) / 0.3);
+      transform: scale(1.01);
+    }
+    50% {
+      background: hsl(var(--p) / 0.2);
+    }
+    100% {
+      background: hsl(var(--p) / 0.15);
+      transform: scale(1);
+    }
   }
 </style>
