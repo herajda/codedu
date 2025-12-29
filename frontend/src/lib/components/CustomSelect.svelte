@@ -211,7 +211,7 @@
           {#each filteredOptions as option}
             <button
               type="button"
-              class="group flex items-center justify-between w-full px-4 py-3 rounded-xl transition-all duration-200 text-left
+              class="group flex items-center justify-between gap-4 w-full px-4 py-3 rounded-xl transition-all duration-200 text-left
                 {option.value === value ? 'bg-primary text-primary-content shadow-md shadow-primary/20' : 'hover:bg-primary/10 text-base-content/80 hover:text-primary'}"
               on:click={() => select(option)}
             >
