@@ -472,12 +472,16 @@
   async function promptSetPassword(user: User) {
     if (!promptModal) return;
     const password = await promptModal.open({
-      title: t('frontend/src/lib/AdminPanel.svelte::set_password_modal_title', { email: user.email }),
+      title: t('frontend/src/lib/AdminPanel.svelte::set_password_modal_title', { 
+        identity: user.name ? `${user.name} (${user.email})` : user.email 
+      }),
       label: t('frontend/src/lib/AdminPanel.svelte::set_password_modal_label'),
-      helpText: t('frontend/src/lib/AdminPanel.svelte::set_password_modal_help'),
+      icon: KeyRound,
       inputType: 'password',
+      withConfirmation: true,
+      confirmationLabel: t('frontend/src/routes/+layout.svelte::repeat_password_label'),
+      showPasswordRequirements: true,
       confirmLabel: t('frontend/src/lib/AdminPanel.svelte::set_password_confirm_label'),
-      validate: (value) => value.trim().length >= 6 ? null : t('frontend/src/lib/AdminPanel.svelte::set_password_validation_error')
     });
     if (!password) return;
     err = ok = '';
@@ -569,7 +573,7 @@
       label: t('frontend/src/lib/AdminPanel.svelte::class_name_modal_label'),
       initialValue: current,
       confirmLabel: t('frontend/src/lib/AdminPanel.svelte::save_button'),
-      icon: 'fa-solid fa-school text-primary',
+      icon: School,
       validate: (value) => value.trim() ? null : t('frontend/src/lib/AdminPanel.svelte::class_name_required_validation'),
       transform: (value) => value.trim()
     });

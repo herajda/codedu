@@ -157,7 +157,7 @@
   "frontend/src/lib/AdminPanel.svelte::teachers_tab": "Učitelé",
   "frontend/src/lib/AdminPanel.svelte::title_table_header": "Název",
   "frontend/src/lib/AdminPanel.svelte::set_password_button_label": "Nastavit heslo",
-  "frontend/src/lib/AdminPanel.svelte::set_password_modal_title": "Nastavit heslo pro ${email}",
+  "frontend/src/lib/AdminPanel.svelte::set_password_modal_title": "Nastavit heslo pro {identity}",
   "frontend/src/lib/AdminPanel.svelte::set_password_modal_label": "Nové heslo",
   "frontend/src/lib/AdminPanel.svelte::set_password_modal_help": "Alespoň 6 znaků. Lze použít jen pro lokální účty.",
   "frontend/src/lib/AdminPanel.svelte::set_password_confirm_label": "Aktualizovat heslo",

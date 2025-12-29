@@ -157,7 +157,7 @@
   "frontend/src/lib/AdminPanel.svelte::teachers_tab": "Teachers",
   "frontend/src/lib/AdminPanel.svelte::title_table_header": "Title",
   "frontend/src/lib/AdminPanel.svelte::set_password_button_label": "Set password",
-  "frontend/src/lib/AdminPanel.svelte::set_password_modal_title": "Set password for ${email}",
+  "frontend/src/lib/AdminPanel.svelte::set_password_modal_title": "Set password for {identity}",
   "frontend/src/lib/AdminPanel.svelte::set_password_modal_label": "New password",
   "frontend/src/lib/AdminPanel.svelte::set_password_modal_help": "At least 6 characters. Only local accounts can use this action.",
   "frontend/src/lib/AdminPanel.svelte::set_password_confirm_label": "Update password",
