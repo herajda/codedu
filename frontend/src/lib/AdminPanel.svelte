@@ -522,188 +522,248 @@
       classesStore.updateClass(classId, { teacher_id: teacherId });
     } catch (e: any) { err = e.message; }
   }
+  // ───────────────────────────
+  // Helper for tab styling
+  // ───────────────────────────
+  $: tabId = (t: string) => `admin-tab-${t}`;
 </script>
 
-<h1 class="text-2xl font-bold mb-4 flex items-center gap-2"><Shield class="w-6 h-6" aria-hidden="true" /> {t('frontend/src/lib/AdminPanel.svelte::admin')}</h1>
-
-<div class="mb-6 flex flex-wrap items-center gap-2 rounded-full bg-base-200/70 p-2" role="tablist">
-  <button
-    type="button"
-    role="tab"
-    class="btn btn-sm rounded-full"
-    class:btn-primary={tab === 'overview'}
-    class:btn-ghost={tab !== 'overview'}
-    aria-selected={tab === 'overview'}
-    on:click={() => tab='overview'}
-  >
-    {t('frontend/src/lib/AdminPanel.svelte::overview_tab')}
-  </button>
-  <button
-    type="button"
-    role="tab"
-    class="btn btn-sm rounded-full"
-    class:btn-primary={tab === 'people'}
-    class:btn-ghost={tab !== 'people'}
-    aria-selected={tab === 'people'}
-    on:click={() => tab='people'}
-  >
-    {t('frontend/src/lib/AdminPanel.svelte::people_tab')}
-    <span class="badge badge-sm ml-2">{users.length}</span>
-  </button>
-  <button
-    type="button"
-    role="tab"
-    class="btn btn-sm rounded-full"
-    class:btn-primary={tab === 'classes'}
-    class:btn-ghost={tab !== 'classes'}
-    aria-selected={tab === 'classes'}
-    on:click={() => tab='classes'}
-  >
-    {t('frontend/src/lib/AdminPanel.svelte::classes_tab')}
-    <span class="badge badge-sm ml-2">{classes.length}</span>
-  </button>
-  <button
-    type="button"
-    role="tab"
-    class="btn btn-sm rounded-full"
-    class:btn-primary={tab === 'settings'}
-    class:btn-ghost={tab !== 'settings'}
-    aria-selected={tab === 'settings'}
-    on:click={() => tab='settings'}
-  >
-    {t('frontend/src/lib/AdminPanel.svelte::settings_tab')}
-  </button>
-</div>
+<!-- Premium Header -->
+<section class="relative overflow-hidden bg-base-100 rounded-3xl border border-base-200 shadow-xl shadow-base-300/30 mb-8 p-6 sm:p-10">
+  <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent pointer-events-none"></div>
+  <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
+  <div class="relative flex flex-col md:flex-row items-center gap-6">
+    <div class="flex-1 text-center md:text-left">
+      <div class="flex items-center justify-center md:justify-start gap-3 mb-2">
+        <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shadow-inner">
+          <Shield size={20} />
+        </div>
+        <h1 class="text-3xl sm:text-4xl font-black tracking-tight">
+          {t('frontend/src/lib/AdminPanel.svelte::admin')}
+        </h1>
+      </div>
+      <p class="text-base-content/60 font-medium max-w-xl mx-auto md:mx-0">
+        {t('frontend/src/lib/AdminPanel.svelte::admin_subtitle')}
+      </p>
+    </div>
+    
+    <!-- Tab Navigation integrated into header area -->
+    <div class="flex flex-wrap items-center justify-center gap-2 bg-base-200/50 p-1.5 rounded-[1.5rem] border border-base-200/50 backdrop-blur-sm">
+      <button
+        type="button"
+        role="tab"
+        class="px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all {tab === 'overview' ? 'bg-primary text-primary-content shadow-lg shadow-primary/20 scale-105' : 'hover:bg-base-200'}"
+        aria-selected={tab === 'overview'}
+        on:click={() => tab='overview'}
+      >
+        {t('frontend/src/lib/AdminPanel.svelte::overview_tab')}
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all {tab === 'people' ? 'bg-primary text-primary-content shadow-lg shadow-primary/20 scale-105' : 'hover:bg-base-200'}"
+        aria-selected={tab === 'people'}
+        on:click={() => tab='people'}
+      >
+        {t('frontend/src/lib/AdminPanel.svelte::people_tab')}
+        <span class="ml-1.5 opacity-60">({users.length})</span>
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all {tab === 'classes' ? 'bg-primary text-primary-content shadow-lg shadow-primary/20 scale-105' : 'hover:bg-base-200'}"
+        aria-selected={tab === 'classes'}
+        on:click={() => tab='classes'}
+      >
+        {t('frontend/src/lib/AdminPanel.svelte::classes_tab')}
+        <span class="ml-1.5 opacity-60">({classes.length})</span>
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all {tab === 'settings' ? 'bg-primary text-primary-content shadow-lg shadow-primary/20 scale-105' : 'hover:bg-base-200'}"
+        aria-selected={tab === 'settings'}
+        on:click={() => tab='settings'}
+      >
+        {t('frontend/src/lib/AdminPanel.svelte::settings_tab')}
+      </button>
+    </div>
+  </div>
+</section>
 
 {#if ok}
-  <div class="alert alert-success mb-4"><Check class="w-4 h-4" aria-hidden="true" /> {ok}</div>
+  <div class="alert alert-success bg-success/10 border-success/20 text-success rounded-2xl mb-8 shadow-sm">
+    <Check class="w-5 h-5 shrink-0" aria-hidden="true" /> 
+    <span class="font-bold">{ok}</span>
+  </div>
 {/if}
 {#if err}
-  <div class="alert alert-error mb-4">{err}</div>
+  <div class="alert alert-error bg-error/10 border-error/20 text-error rounded-2xl mb-8 shadow-sm">
+    <div class="flex-1 flex gap-2 items-center">
+      <span class="font-bold">{err}</span>
+    </div>
+  </div>
 {/if}
 
+
 {#if tab === 'overview'}
-  <div class="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-    <div class="space-y-6">
-      <div class="card bg-base-100 shadow">
-        <div class="card-body space-y-4">
-          <div class="flex items-center justify-between">
-            <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::platform_stats_title')}</h2>
-            <button class="btn btn-ghost btn-sm" on:click={refreshUsers} aria-label={t('frontend/src/lib/AdminPanel.svelte::refresh_online_users_button')}>
-              <RefreshCw class="w-4 h-4" />
-            </button>
-          </div>
-          <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <div class="rounded-box border border-base-200/60 bg-base-100 p-4">
-              <div class="flex items-start justify-between gap-3">
-                <div>
-                  <div class="text-sm text-base-content/60">{t('frontend/src/lib/AdminPanel.svelte::users_stat_title')}</div>
-                  <div class="text-2xl font-semibold">{users.length}</div>
-                </div>
-                <Users2 class="w-5 h-5 text-primary" aria-hidden="true" />
-              </div>
-            </div>
-            <div class="rounded-box border border-base-200/60 bg-base-100 p-4">
-              <div class="flex items-start justify-between gap-3">
-                <div>
-                  <div class="text-sm text-base-content/60">{t('frontend/src/lib/AdminPanel.svelte::teachers_stat_title')}</div>
-                  <div class="text-2xl font-semibold">{teachers.length}</div>
-                </div>
-                <GraduationCap class="w-5 h-5 text-primary" aria-hidden="true" />
-              </div>
-            </div>
-            <div class="rounded-box border border-base-200/60 bg-base-100 p-4">
-              <div class="flex items-start justify-between gap-3">
-                <div>
-                  <div class="text-sm text-base-content/60">{t('frontend/src/lib/AdminPanel.svelte::students_stat_title')}</div>
-                  <div class="text-2xl font-semibold">{students.length}</div>
-                </div>
-                <Users2 class="w-5 h-5 text-primary" aria-hidden="true" />
-              </div>
-            </div>
-            <div class="rounded-box border border-base-200/60 bg-base-100 p-4">
-              <div class="flex items-start justify-between gap-3">
-                <div>
-                  <div class="text-sm text-base-content/60">{t('frontend/src/lib/AdminPanel.svelte::classes_stat_title')}</div>
-                  <div class="text-2xl font-semibold">{classes.length}</div>
-                </div>
-                <School class="w-5 h-5 text-primary" aria-hidden="true" />
-              </div>
-            </div>
-            <div class="rounded-box border border-base-200/60 bg-base-100 p-4">
-              <div class="flex items-start justify-between gap-3">
-                <div>
-                  <div class="text-sm text-base-content/60">{t('frontend/src/lib/AdminPanel.svelte::online_stat_title')}</div>
-                  <div class="text-2xl font-semibold">{onlineUsers.length}</div>
-                </div>
-                <Users2 class="w-5 h-5 text-primary" aria-hidden="true" />
-              </div>
-            </div>
-            <div class="rounded-box border border-base-200/60 bg-base-100 p-4">
-              <div class="flex items-start justify-between gap-3">
-                <div>
-                  <div class="text-sm text-base-content/60">{t('frontend/src/lib/AdminPanel.svelte::role_filter_admins')}</div>
-                  <div class="text-2xl font-semibold">{admins.length}</div>
-                </div>
-                <Shield class="w-5 h-5 text-primary" aria-hidden="true" />
-              </div>
-            </div>
-          </div>
+  <!-- Platform Stats Grid -->
+  <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 mb-8">
+    <div class="bg-base-100 p-5 rounded-3xl border border-base-200 shadow-sm group hover:border-primary/30 transition-all">
+      <div class="text-[10px] font-black uppercase tracking-widest opacity-40 mb-3">{t('frontend/src/lib/AdminPanel.svelte::users_stat_title')}</div>
+      <div class="flex items-center gap-4">
+        <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-primary-content transition-all duration-300">
+          <Users2 size={20} />
         </div>
-      </div>
-      <div class="card bg-base-100 shadow">
-        <div class="card-body gap-3">
-          <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::quick_actions_title')}</h2>
-          <div class="flex flex-wrap gap-2">
-            <button class="btn btn-primary btn-sm" on:click={() => { tab='people'; showCreateUsers = true; }}>{t('frontend/src/lib/AdminPanel.svelte::add_teacher_button')}</button>
-            <button class="btn btn-sm" on:click={() => { tab='people'; showCreateUsers = true; }}>{t('frontend/src/lib/AdminPanel.svelte::add_student_card_title')}</button>
-            <button class="btn btn-sm" on:click={() => { tab='classes'; showCreateClass = true; }}>{t('frontend/src/lib/AdminPanel.svelte::create_class_button')}</button>
-            <button class="btn btn-sm" on:click={() => { tab='settings'; }}>{t('frontend/src/lib/AdminPanel.svelte::settings_tab')}</button>
-            <button class="btn btn-sm" on:click={() => { showEmailTools = true; }}>
-              <MailCheck class="w-4 h-4" aria-hidden="true" />
-              {t('frontend/src/lib/AdminPanel.svelte::email_ping_card_title')}
-            </button>
-            <a class="btn btn-ghost btn-sm" href="/dashboard">{t('frontend/src/lib/AdminPanel.svelte::go_to_dashboard_button')}</a>
-          </div>
-        </div>
+        <div class="text-2xl font-black tabular-nums">{users.length}</div>
       </div>
     </div>
-    <div class="space-y-6">
-      <div class="card bg-base-100 shadow">
-        <div class="card-body space-y-3">
-          <div class="flex items-center justify-between">
-            <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::online_users_card_title')}</h2>
-            <button class="btn btn-ghost btn-xs" on:click={loadOnlineUsers} aria-label={t('frontend/src/lib/AdminPanel.svelte::refresh_online_users_button')}>
-              <RefreshCw class="w-4 h-4" />
-            </button>
+
+    <div class="bg-base-100 p-5 rounded-3xl border border-base-200 shadow-sm group hover:border-primary/30 transition-all">
+      <div class="text-[10px] font-black uppercase tracking-widest opacity-40 mb-3">{t('frontend/src/lib/AdminPanel.svelte::teachers_stat_title')}</div>
+      <div class="flex items-center gap-4">
+        <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-primary-content transition-all duration-300">
+          <GraduationCap size={20} />
+        </div>
+        <div class="text-2xl font-black tabular-nums">{teachers.length}</div>
+      </div>
+    </div>
+
+    <div class="bg-base-100 p-5 rounded-3xl border border-base-200 shadow-sm group hover:border-primary/30 transition-all">
+      <div class="text-[10px] font-black uppercase tracking-widest opacity-40 mb-3">{t('frontend/src/lib/AdminPanel.svelte::students_stat_title')}</div>
+      <div class="flex items-center gap-4">
+        <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-primary-content transition-all duration-300">
+          <Users2 size={20} />
+        </div>
+        <div class="text-2xl font-black tabular-nums">{students.length}</div>
+      </div>
+    </div>
+
+    <div class="bg-base-100 p-5 rounded-3xl border border-base-200 shadow-sm group hover:border-primary/30 transition-all">
+      <div class="text-[10px] font-black uppercase tracking-widest opacity-40 mb-3">{t('frontend/src/lib/AdminPanel.svelte::classes_stat_title')}</div>
+      <div class="flex items-center gap-4">
+        <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-primary-content transition-all duration-300">
+          <School size={20} />
+        </div>
+        <div class="text-2xl font-black tabular-nums">{classes.length}</div>
+      </div>
+    </div>
+
+    <div class="bg-base-100 p-5 rounded-3xl border border-base-200 shadow-sm group hover:border-success/30 transition-all">
+      <div class="text-[10px] font-black uppercase tracking-widest opacity-40 mb-3">{t('frontend/src/lib/AdminPanel.svelte::online_stat_title')}</div>
+      <div class="flex items-center gap-4">
+        <div class="w-10 h-10 rounded-xl bg-success/10 text-success flex items-center justify-center group-hover:bg-success group-hover:text-success-content transition-all duration-300">
+          <Users2 size={20} />
+        </div>
+        <div class="text-2xl font-black tabular-nums">{onlineUsers.length}</div>
+      </div>
+    </div>
+
+    <div class="bg-base-100 p-5 rounded-3xl border border-base-200 shadow-sm group hover:border-info/30 transition-all">
+      <div class="text-[10px] font-black uppercase tracking-widest opacity-40 mb-3">{t('frontend/src/lib/AdminPanel.svelte::role_filter_admins')}</div>
+      <div class="flex items-center gap-4">
+        <div class="w-10 h-10 rounded-xl bg-info/10 text-info flex items-center justify-center group-hover:bg-info group-hover:text-info-content transition-all duration-300">
+          <Shield size={20} />
+        </div>
+        <div class="text-2xl font-black tabular-nums">{admins.length}</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="grid gap-8 xl:grid-cols-12">
+    <!-- Quick Actions -->
+    <div class="xl:col-span-8 space-y-6">
+      <div class="flex items-center justify-between px-2">
+        <h2 class="text-sm font-black uppercase tracking-[0.2em] opacity-40">{t('frontend/src/lib/AdminPanel.svelte::quick_actions_title')}</h2>
+      </div>
+      
+      <div class="grid gap-4 sm:grid-cols-2">
+        <button on:click={() => { tab='people'; showCreateUsers = true; }} class="flex items-center gap-4 p-6 bg-base-100 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all text-left relative overflow-hidden group">
+          <div class="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-bl-full pointer-events-none group-hover:scale-110 transition-transform"></div>
+          <div class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+             <Plus size={24} />
           </div>
-          <ul class="space-y-3 max-h-72 overflow-auto">
-            {#if onlineUsers.length}
-              {#each onlineUsers as online}
-                <li class="flex items-center gap-3">
-                  <div class="avatar">
-                    {#if online.avatar}
-                      <div class="w-10 rounded-full">
-                        <img src={online.avatar} alt={t('frontend/src/lib/AdminPanel.svelte::online_user_avatar_alt', { name: online.name || online.email })} loading="lazy" />
-                      </div>
-                    {:else}
-                      <div class="placeholder w-10 rounded-full bg-primary/10 text-primary font-semibold flex items-center justify-center">
-                        {(online.name || online.email || '?').charAt(0).toUpperCase()}
-                      </div>
-                    {/if}
-                  </div>
-                  <div class="flex flex-col leading-tight">
-                    <span class="font-medium">{online.name || online.email || '?'}</span>
-                    {#if online.name}
-                      <span class="text-xs text-base-content/60">{online.email}</span>
-                    {/if}
-                  </div>
-                </li>
-              {/each}
-            {:else}
-              <li class="text-sm text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::no_online_users_message')}</li>
-            {/if}
-          </ul>
+          <div class="min-w-0">
+            <div class="font-black text-lg tracking-tight group-hover:text-primary transition-colors">{t('frontend/src/lib/AdminPanel.svelte::add_teacher_button')}</div>
+            <div class="text-xs opacity-50">{t('frontend/src/lib/AdminPanel.svelte::add_teacher_desc')}</div>
+          </div>
+        </button>
+
+        <button on:click={() => { tab='classes'; showCreateClass = true; }} class="flex items-center gap-4 p-6 bg-base-100 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all text-left relative overflow-hidden group">
+          <div class="absolute top-0 right-0 w-24 h-24 bg-success/5 rounded-bl-full pointer-events-none group-hover:scale-110 transition-transform"></div>
+          <div class="w-12 h-12 rounded-2xl bg-success/10 text-success flex items-center justify-center shrink-0">
+             <School size={24} />
+          </div>
+          <div class="min-w-0">
+            <div class="font-black text-lg tracking-tight group-hover:text-success transition-colors">{t('frontend/src/lib/AdminPanel.svelte::create_class_button')}</div>
+            <div class="text-xs opacity-50">{t('frontend/src/lib/AdminPanel.svelte::create_class_desc')}</div>
+          </div>
+        </button>
+
+        <button on:click={() => { showEmailTools = true; tab = 'settings'; }} class="flex items-center gap-4 p-6 bg-base-100 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all text-left relative overflow-hidden group">
+          <div class="absolute top-0 right-0 w-24 h-24 bg-warning/5 rounded-bl-full pointer-events-none group-hover:scale-110 transition-transform"></div>
+          <div class="w-12 h-12 rounded-2xl bg-warning/10 text-warning flex items-center justify-center shrink-0">
+             <MailCheck size={24} />
+          </div>
+          <div class="min-w-0">
+            <div class="font-black text-lg tracking-tight group-hover:text-warning transition-colors">{t('frontend/src/lib/AdminPanel.svelte::email_ping_card_title')}</div>
+            <div class="text-xs opacity-50">{t('frontend/src/lib/AdminPanel.svelte::email_ping_desc')}</div>
+          </div>
+        </button>
+
+        <a href="/dashboard" class="flex items-center gap-4 p-6 bg-base-100 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all text-left relative overflow-hidden group no-underline text-current">
+          <div class="absolute top-0 right-0 w-24 h-24 bg-info/5 rounded-bl-full pointer-events-none group-hover:scale-110 transition-transform"></div>
+          <div class="w-12 h-12 rounded-2xl bg-info/10 text-info flex items-center justify-center shrink-0">
+             <RefreshCw size={24} />
+          </div>
+          <div class="min-w-0">
+            <div class="font-black text-lg tracking-tight group-hover:text-info transition-colors">{t('frontend/src/lib/AdminPanel.svelte::go_to_dashboard_button')}</div>
+            <div class="text-xs opacity-50">{t('frontend/src/lib/AdminPanel.svelte::go_to_dashboard_desc')}</div>
+          </div>
+        </a>
+      </div>
+    </div>
+
+    <!-- Online Users Sidebar -->
+    <div class="xl:col-span-4 space-y-6">
+      <div class="flex items-center justify-between px-2">
+        <h2 class="text-sm font-black uppercase tracking-[0.2em] opacity-40">{t('frontend/src/lib/AdminPanel.svelte::online_users_card_title')}</h2>
+        <button class="btn btn-ghost btn-xs opacity-50 hover:opacity-100 transition-all font-black text-[10px] uppercase tracking-widest h-8" on:click={loadOnlineUsers} aria-label={t('frontend/src/lib/AdminPanel.svelte::refresh_online_users_button')}>
+          <RefreshCw class="w-3.5 h-3.5 mr-1" /> {t('frontend/src/lib/AdminPanel.svelte::refresh_button')}
+        </button>
+      </div>
+
+      <div class="bg-base-100 rounded-[2.5rem] border border-base-200 shadow-sm overflow-hidden p-3">
+        <div class="space-y-1 max-h-[400px] overflow-y-auto custom-scrollbar p-1">
+          {#each onlineUsers as online}
+            <div class="flex items-center gap-4 p-3 rounded-[1.5rem] hover:bg-base-200 transition-colors group">
+              <div class="relative shrink-0">
+                <div class="w-10 h-10 rounded-xl overflow-hidden ring-2 ring-base-200">
+                  {#if online.avatar}
+                    <img src={online.avatar} alt={online.name} class="w-full h-full object-cover" />
+                  {:else}
+                    <div class="w-full h-full bg-primary/10 text-primary flex items-center justify-center font-black text-sm">
+                      {(online.name || online.email || '?').charAt(0).toUpperCase()}
+                    </div>
+                  {/if}
+                </div>
+                <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-success rounded-full border-2 border-base-100"></div>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="font-black text-sm truncate group-hover:text-primary transition-colors">{online.name || online.email || '?'}</div>
+                {#if online.name}
+                  <div class="text-[10px] font-bold opacity-40 truncate">{online.email}</div>
+                {/if}
+              </div>
+            </div>
+          {:else}
+            <div class="py-10 text-center space-y-3">
+              <div class="w-10 h-10 rounded-full bg-base-200 flex items-center justify-center mx-auto opacity-30">
+                 <Users2 size={18} />
+              </div>
+              <p class="text-[10px] font-black opacity-30 uppercase tracking-widest">{t('frontend/src/lib/AdminPanel.svelte::no_online_users_message')}</p>
+            </div>
+          {/each}
         </div>
       </div>
     </div>
@@ -714,157 +774,153 @@
 <PromptModal bind:this={promptModal} />
 
 {#if tab === 'people'}
-  <div class="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-    <div class="space-y-6">
-      <div class="card bg-base-100 shadow">
-        <div class="card-body space-y-4">
-          <div class="flex items-center justify-between gap-3">
-            <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::account_creation_title')}</h2>
-            <button class="btn btn-ghost btn-sm" on:click={() => { showCreateUsers = !showCreateUsers; }}>
-              {showCreateUsers ? t('frontend/src/lib/AdminPanel.svelte::hide_account_tools_button') : t('frontend/src/lib/AdminPanel.svelte::show_account_tools_button')}
-            </button>
-          </div>
-          {#if showCreateUsers}
-            <div class="grid gap-4 md:grid-cols-2">
-              <div class="rounded-box border border-base-200/60 bg-base-100 p-4 space-y-3">
-                <h3 class="font-semibold">{t('frontend/src/lib/AdminPanel.svelte::add_teacher_card_title')}</h3>
-                <form on:submit|preventDefault={addTeacher} class="space-y-3">
-                  <input type="email" bind:value={teacherEmail} placeholder={t('frontend/src/lib/AdminPanel.svelte::email_label')} required class="input input-bordered w-full" />
-                  <input type="password" bind:value={teacherPassword} placeholder={t('frontend/src/lib/AdminPanel.svelte::password_label')} required class="input input-bordered w-full" />
-                  <button class="btn btn-primary btn-sm">{t('frontend/src/lib/AdminPanel.svelte::add_button')}</button>
-                </form>
-              </div>
-              <div class="rounded-box border border-base-200/60 bg-base-100 p-4 space-y-3">
-                <h3 class="font-semibold">{t('frontend/src/lib/AdminPanel.svelte::add_student_card_title')}</h3>
-                <form on:submit|preventDefault={addStudent} class="space-y-3">
-                  <input type="text" bind:value={studentName} placeholder={t('frontend/src/lib/AdminPanel.svelte::student_name_placeholder')} class="input input-bordered w-full" />
-                  <input type="email" bind:value={studentEmail} placeholder={t('frontend/src/lib/AdminPanel.svelte::email_label')} required class="input input-bordered w-full" />
-                  <input type="password" bind:value={studentPassword} placeholder={t('frontend/src/lib/AdminPanel.svelte::password_label')} required class="input input-bordered w-full" />
-                  <button class="btn btn-primary btn-sm">{t('frontend/src/lib/AdminPanel.svelte::add_button')}</button>
-                </form>
-              </div>
-            </div>
-          {/if}
-        </div>
+  <div class="grid gap-8 xl:grid-cols-12">
+    <!-- Account Tools Side -->
+    <div class="xl:col-span-4 space-y-6">
+      <div class="flex items-center justify-between px-2">
+        <h2 class="text-sm font-black uppercase tracking-[0.2em] opacity-40">{t('frontend/src/lib/AdminPanel.svelte::account_creation_title')}</h2>
+        <button class="btn btn-ghost btn-xs opacity-50 hover:opacity-100 transition-all font-black text-[10px] uppercase tracking-widest h-8" on:click={() => { showCreateUsers = !showCreateUsers; }}>
+          {showCreateUsers ? t('frontend/src/lib/AdminPanel.svelte::hide_account_tools_button') : t('frontend/src/lib/AdminPanel.svelte::show_account_tools_button')}
+        </button>
       </div>
-      <div class="card bg-base-100 shadow">
-        <div class="card-body space-y-4">
-          <div class="flex items-center justify-between">
-            <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::teachers_card_title')}</h2>
-            <button class="btn btn-ghost btn-sm" on:click={loadUsers}><RefreshCw class="w-4 h-4" /></button>
+
+      {#if showCreateUsers}
+        <div class="space-y-4">
+          <div class="bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm space-y-4">
+            <h3 class="font-black text-sm uppercase tracking-widest opacity-40 flex items-center gap-2">
+              <GraduationCap size={16} /> {t('frontend/src/lib/AdminPanel.svelte::add_teacher_card_title')}
+            </h3>
+            <form on:submit|preventDefault={addTeacher} class="space-y-3">
+              <input type="email" bind:value={teacherEmail} placeholder={t('frontend/src/lib/AdminPanel.svelte::email_label')} required class="input input-sm bg-base-200/50 w-full rounded-xl focus:outline-none focus:ring-1 focus:ring-primary h-10 font-bold" />
+              <input type="password" bind:value={teacherPassword} placeholder={t('frontend/src/lib/AdminPanel.svelte::password_label')} required class="input input-sm bg-base-200/50 w-full rounded-xl focus:outline-none focus:ring-1 focus:ring-primary h-10 font-bold" />
+              <button class="btn btn-primary btn-sm w-full h-10 rounded-xl font-black uppercase tracking-widest text-[10px]">{t('frontend/src/lib/AdminPanel.svelte::add_button')}</button>
+            </form>
           </div>
-          <div class="overflow-x-auto">
-            <table class="table table-zebra table-sm">
-              <thead>
-                <tr>
-                  <th>{t('frontend/src/lib/AdminPanel.svelte::name_table_header')}</th>
-                  <th>{t('frontend/src/lib/AdminPanel.svelte::classes_table_header')}</th>
-                  <th>{t('frontend/src/lib/AdminPanel.svelte::created_table_header')}</th>
+
+          <div class="bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm space-y-4">
+            <h3 class="font-black text-sm uppercase tracking-widest opacity-40 flex items-center gap-2">
+              <Users2 size={16} /> {t('frontend/src/lib/AdminPanel.svelte::add_student_card_title')}
+            </h3>
+            <form on:submit|preventDefault={addStudent} class="space-y-3">
+              <input type="text" bind:value={studentName} placeholder={t('frontend/src/lib/AdminPanel.svelte::student_name_placeholder')} class="input input-sm bg-base-200/50 w-full rounded-xl focus:outline-none focus:ring-1 focus:ring-primary h-10 font-bold" />
+              <input type="email" bind:value={studentEmail} placeholder={t('frontend/src/lib/AdminPanel.svelte::email_label')} required class="input input-sm bg-base-200/50 w-full rounded-xl focus:outline-none focus:ring-1 focus:ring-primary h-10 font-bold" />
+              <input type="password" bind:value={studentPassword} placeholder={t('frontend/src/lib/AdminPanel.svelte::password_label')} required class="input input-sm bg-base-200/50 w-full rounded-xl focus:outline-none focus:ring-1 focus:ring-primary h-10 font-bold" />
+              <button class="btn btn-primary btn-sm w-full h-10 rounded-xl font-black uppercase tracking-widest text-[10px]">{t('frontend/src/lib/AdminPanel.svelte::add_button')}</button>
+            </form>
+          </div>
+        </div>
+      {/if}
+
+      <div class="flex items-center justify-between px-2 mt-8">
+        <h2 class="text-sm font-black uppercase tracking-[0.2em] opacity-40">{t('frontend/src/lib/AdminPanel.svelte::whitelist_title')}</h2>
+      </div>
+      <div class="bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm space-y-4">
+        <p class="text-[10px] font-bold opacity-50 uppercase tracking-widest leading-relaxed">
+          {t('frontend/src/lib/AdminPanel.svelte::whitelist_description')}
+        </p>
+        <form on:submit|preventDefault={addToWhitelist} class="flex gap-2">
+          <input type="email" bind:value={whitelistEmail} placeholder={t('frontend/src/lib/AdminPanel.svelte::whitelist_placeholder')} required class="input input-sm bg-base-200/50 flex-1 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary h-10 font-bold" />
+          <button class="btn btn-primary btn-sm h-10 rounded-xl font-black uppercase tracking-widest text-[10px] px-4">{t('frontend/src/lib/AdminPanel.svelte::add_button')}</button>
+        </form>
+        <div class="overflow-x-auto max-h-60 custom-scrollbar mt-4 bg-base-200/20 rounded-2xl border border-base-200/50">
+          <table class="table table-sm">
+            <tbody>
+              {#each whitelist as w}
+                <tr class="hover:bg-base-200/50 transition-colors border-base-300/30">
+                  <td class="font-bold text-xs py-3">{w.email}</td>
+                  <td class="text-right py-3">
+                    <button class="btn btn-ghost btn-xs text-error opacity-40 hover:opacity-100 transition-opacity" on:click={() => removeFromWhitelist(w.email)} aria-label={t('frontend/src/lib/AdminPanel.svelte::remove_button')}>
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {#each teachers as t_user}
-                  <tr>
-                    <td>
-                      <div class="flex flex-col">
-                        <span class="font-medium">{userPrimary(t_user)}</span>
-                        {#if userSecondary(t_user)}
-                          <span class="text-xs text-base-content/60">{userSecondary(t_user)}</span>
-                        {/if}
-                      </div>
-                    </td>
-                    <td>{teacherIdToClassCount[t_user.id] ?? 0}</td>
-                    <td>{formatDate(t_user.created_at)}</td>
-                  </tr>
-                {/each}
-                {#if !teachers.length}
-                  <tr><td colspan="3"><i>{t('frontend/src/lib/AdminPanel.svelte::no_teachers_message')}</i></td></tr>
-                {/if}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      <div class="card bg-base-100 shadow">
-        <div class="card-body space-y-4">
-          <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::whitelist_title')}</h2>
-          <p class="text-sm text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::whitelist_description')}</p>
-          <form on:submit|preventDefault={addToWhitelist} class="flex flex-col sm:flex-row gap-2 max-w-lg">
-            <input type="email" bind:value={whitelistEmail} placeholder={t('frontend/src/lib/AdminPanel.svelte::whitelist_placeholder')} required class="input input-bordered w-full" />
-            <button class="btn btn-primary btn-sm">{t('frontend/src/lib/AdminPanel.svelte::add_button')}</button>
-          </form>
-          <div class="overflow-x-auto max-h-60 border rounded-box">
-            <table class="table table-compact w-full">
-              <thead><tr><th>{t('frontend/src/lib/AdminPanel.svelte::email_table_header')}</th><th></th></tr></thead>
-              <tbody>
-                {#each whitelist as w}
-                  <tr>
-                    <td>{w.email}</td>
-                    <td class="text-right">
-                      <button class="btn btn-ghost btn-xs text-error" on:click={() => removeFromWhitelist(w.email)}><Trash2 class="w-4 h-4" /></button>
-                    </td>
-                  </tr>
-                {/each}
-                {#if !whitelist.length}
-                  <tr><td colspan="2" class="text-center italic opacity-70">{t('frontend/src/lib/AdminPanel.svelte::whitelist_empty')}</td></tr>
-                {/if}
-              </tbody>
-            </table>
-          </div>
+              {:else}
+                <tr><td colspan="2" class="text-center py-8 italic opacity-30 text-xs font-bold uppercase tracking-widest">{t('frontend/src/lib/AdminPanel.svelte::whitelist_empty')}</td></tr>
+              {/each}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
-    <div class="card bg-base-100 shadow">
-      <div class="card-body space-y-4">
-        <div class="flex items-start justify-between flex-wrap gap-3">
-          <div>
-            <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::users_card_title')}</h2>
-            <p class="text-sm text-base-content/60">{onlineUsers.length} {t('frontend/src/lib/AdminPanel.svelte::online_stat_title')}</p>
-          </div>
-          <div class="flex items-center gap-2 flex-wrap">
-            <label class="input input-bordered input-sm flex items-center gap-2">
-              <Search class="w-4 h-4" aria-hidden="true" />
-              <input class="grow" placeholder={t('frontend/src/lib/AdminPanel.svelte::search_users_placeholder')} bind:value={userQuery} />
-            </label>
-            <button class="btn btn-sm" on:click={exportUsersCSV}>{t('frontend/src/lib/AdminPanel.svelte::export_csv_button')}</button>
-            <button class="btn btn-ghost btn-sm" on:click={refreshUsers}><RefreshCw class="w-4 h-4" /></button>
-          </div>
+
+    <!-- Main Users List -->
+    <div class="xl:col-span-8 space-y-6">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-2">
+        <h2 class="text-sm font-black uppercase tracking-[0.2em] opacity-40">{t('frontend/src/lib/AdminPanel.svelte::users_card_title')}</h2>
+        <div class="flex items-center gap-2">
+          <label class="relative group">
+            <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30 group-focus-within:opacity-100 transition-opacity" />
+            <input 
+              class="input input-sm bg-base-100 border-base-200 rounded-xl pl-10 focus:ring-1 focus:ring-primary w-full sm:w-64 h-9 font-bold text-xs" 
+              placeholder={t('frontend/src/lib/AdminPanel.svelte::search_users_placeholder')} 
+              bind:value={userQuery} 
+            />
+          </label>
+          <button class="btn btn-ghost btn-xs opacity-50 hover:opacity-100 transition-all font-black text-[10px] uppercase tracking-widest h-9 border border-base-200 rounded-xl px-3" on:click={exportUsersCSV}>
+             {t('frontend/src/lib/AdminPanel.svelte::export_csv_button')}
+          </button>
+          <button class="btn btn-ghost btn-xs opacity-50 hover:opacity-100 transition-all font-black text-[10px] uppercase tracking-widest h-9 border border-base-200 rounded-xl" on:click={refreshUsers} aria-label={t('frontend/src/lib/AdminPanel.svelte::refresh_online_users_button')}>
+             <RefreshCw size={14} />
+          </button>
         </div>
-        <div class="flex flex-wrap items-center gap-2">
-          <button class="btn btn-xs" class:btn-primary={userRoleFilter === 'all'} class:btn-ghost={userRoleFilter !== 'all'} on:click={() => userRoleFilter = 'all'}>
+      </div>
+
+      <div class="bg-base-100 rounded-[2.5rem] border border-base-200 shadow-sm overflow-hidden">
+        <div class="p-4 border-b border-base-200 bg-base-200/20 flex flex-wrap items-center gap-1.5">
+          <button 
+            class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all {userRoleFilter === 'all' ? 'bg-primary text-primary-content' : 'hover:bg-base-200 text-base-content/60'}" 
+            on:click={() => userRoleFilter = 'all'}
+          >
             {t('frontend/src/lib/AdminPanel.svelte::all_filter_option')}
           </button>
-          <button class="btn btn-xs" class:btn-primary={userRoleFilter === 'student'} class:btn-ghost={userRoleFilter !== 'student'} on:click={() => userRoleFilter = 'student'}>
+          <button 
+            class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all {userRoleFilter === 'student' ? 'bg-primary text-primary-content' : 'hover:bg-base-200 text-base-content/60'}" 
+            on:click={() => userRoleFilter = 'student'}
+          >
             {t('frontend/src/lib/AdminPanel.svelte::role_filter_students')}
           </button>
-          <button class="btn btn-xs" class:btn-primary={userRoleFilter === 'teacher'} class:btn-ghost={userRoleFilter !== 'teacher'} on:click={() => userRoleFilter = 'teacher'}>
+          <button 
+            class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all {userRoleFilter === 'teacher' ? 'bg-primary text-primary-content' : 'hover:bg-base-200 text-base-content/60'}" 
+            on:click={() => userRoleFilter = 'teacher'}
+          >
             {t('frontend/src/lib/AdminPanel.svelte::role_filter_teachers')}
           </button>
-          <button class="btn btn-xs" class:btn-primary={userRoleFilter === 'admin'} class:btn-ghost={userRoleFilter !== 'admin'} on:click={() => userRoleFilter = 'admin'}>
+          <button 
+            class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all {userRoleFilter === 'admin' ? 'bg-primary text-primary-content' : 'hover:bg-base-200 text-base-content/60'}" 
+            on:click={() => userRoleFilter = 'admin'}
+          >
             {t('frontend/src/lib/AdminPanel.svelte::role_filter_admins')}
           </button>
         </div>
-        <div class="overflow-x-auto">
-          <table class="table table-zebra">
+
+        <div class="overflow-x-auto custom-scrollbar">
+          <table class="table table-zebra table-md">
             <thead>
-              <tr>
-                <th>{t('frontend/src/lib/AdminPanel.svelte::name_table_header')}</th>
-                <th>{t('frontend/src/lib/AdminPanel.svelte::role_table_header')}</th>
-                <th>{t('frontend/src/lib/AdminPanel.svelte::auth_table_header')}</th>
-                <th>{t('frontend/src/lib/AdminPanel.svelte::created_table_header')}</th>
+              <tr class="border-base-200 bg-base-100/50">
+                <th class="text-[10px] font-black uppercase tracking-widest opacity-40">{t('frontend/src/lib/AdminPanel.svelte::name_table_header')}</th>
+                <th class="text-[10px] font-black uppercase tracking-widest opacity-40">{t('frontend/src/lib/AdminPanel.svelte::role_table_header')}</th>
+                <th class="text-[10px] font-black uppercase tracking-widest opacity-40">{t('frontend/src/lib/AdminPanel.svelte::auth_table_header')}</th>
+                <th class="text-[10px] font-black uppercase tracking-widest opacity-40">{t('frontend/src/lib/AdminPanel.svelte::created_table_header')}</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {#each filteredUsers as u}
-                <tr>
-                  <td>
-                    <div class="flex items-center gap-3">
-                      <span class={`h-2.5 w-2.5 rounded-full ${onlineIds.has(u.id) ? 'bg-success' : 'bg-base-300'}`} />
-                      <div class="flex flex-col">
-                        <span class="font-medium">{userPrimary(u)}</span>
+                <tr class="border-base-200 group hover:bg-base-200/30 transition-colors">
+                  <td class="py-4">
+                    <div class="flex items-center gap-4">
+                      <div class="relative">
+                        <div class="w-10 h-10 rounded-xl bg-primary/5 flex items-center justify-center font-black text-primary border border-primary/10">
+                           {(u.name || u.email || '?').charAt(0).toUpperCase()}
+                        </div>
+                        {#if onlineIds.has(u.id)}
+                          <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-success rounded-full border-2 border-base-100 shadow-sm animate-pulse"></div>
+                        {/if}
+                      </div>
+                      <div class="flex flex-col min-w-0">
+                        <span class="font-black text-sm truncate">{userPrimary(u)}</span>
                         {#if userSecondary(u)}
-                          <span class="text-xs text-base-content/60">{userSecondary(u)}</span>
+                          <span class="text-[10px] font-bold opacity-40 truncate">{userSecondary(u)}</span>
                         {/if}
                       </div>
                     </div>
@@ -880,37 +936,44 @@
                     </div>
                   </td>
                   <td>
-                    <div class="flex flex-wrap gap-1">
+                    <div class="flex flex-wrap gap-1.5">
                       {#if hasEmailLogin(u)}
-                        <span class="badge badge-outline">{t('frontend/src/lib/AdminPanel.svelte::auth_email_label')}</span>
+                        <span class="badge badge-ghost border-none font-black text-[9px] uppercase tracking-widest px-2 h-5 bg-base-200/50 text-base-content/60">{t('frontend/src/lib/AdminPanel.svelte::auth_email_label')}</span>
                       {/if}
                       {#if u.ms_oid}
-                        <span class="badge badge-outline">{t('frontend/src/lib/AdminPanel.svelte::auth_microsoft_label')}</span>
+                        <span class="badge badge-info border-none font-black text-[9px] uppercase tracking-widest px-2 h-5 bg-info/10 text-info">{t('frontend/src/lib/AdminPanel.svelte::auth_microsoft_label')}</span>
                       {/if}
                       {#if u.bk_uid}
-                        <span class="badge badge-outline">{t('frontend/src/lib/AdminPanel.svelte::auth_bakalari_label')}</span>
+                        <span class="badge badge-warning border-none font-black text-[9px] uppercase tracking-widest px-2 h-5 bg-warning/10 text-warning">{t('frontend/src/lib/AdminPanel.svelte::auth_bakalari_label')}</span>
+                      {/if}
+                      {#if u.role === 'teacher' && teacherIdToClassCount[u.id]}
+                        <span class="badge badge-primary border-none font-black text-[9px] uppercase tracking-widest px-2 h-5 bg-primary/10 text-primary">
+                          {teacherIdToClassCount[u.id]} {t('frontend/src/lib/AdminPanel.svelte::classes_table_header')}
+                        </span>
                       {/if}
                     </div>
                   </td>
-                  <td>{formatDate(u.created_at)}</td>
+                  <td class="text-xs font-bold opacity-50 whitespace-nowrap">{formatDate(u.created_at)}</td>
+
                   <td class="text-right">
-                    <div class="flex justify-end gap-1">
+                    <div class="flex justify-end gap-1 opacity-20 group-hover:opacity-100 transition-opacity">
                       <button
-                        class="btn btn-ghost btn-xs"
+                        class="btn btn-ghost btn-xs text-info hover:bg-info/10"
                         title={u.bk_uid ? t('frontend/src/lib/AdminPanel.svelte::set_password_disabled_tooltip') : t('frontend/src/lib/AdminPanel.svelte::set_password_button_label')}
                         disabled={Boolean(u.bk_uid)}
                         on:click={() => { if (!u.bk_uid) promptSetPassword(u); }}
                       >
-                        <KeyRound class="w-4 h-4" />
+                        <KeyRound size={14} />
                       </button>
-                      <button class="btn btn-ghost btn-xs text-error" on:click={()=>deleteUser(u.id)}><Trash2 class="w-4 h-4" /></button>
+                      <button class="btn btn-ghost btn-xs text-error hover:bg-error/10" on:click={()=>deleteUser(u.id)} aria-label={t('frontend/src/lib/AdminPanel.svelte::delete_button')}>
+                        <Trash2 size={14} />
+                      </button>
                     </div>
                   </td>
                 </tr>
+              {:else}
+                <tr><td colspan="5" class="text-center py-20 italic opacity-30 font-black uppercase tracking-widest text-xs">{t('frontend/src/lib/AdminPanel.svelte::no_users_message')}</td></tr>
               {/each}
-              {#if !filteredUsers.length}
-                <tr><td colspan="5"><i>{t('frontend/src/lib/AdminPanel.svelte::no_users_message')}</i></td></tr>
-              {/if}
             </tbody>
           </table>
         </div>
@@ -919,57 +982,86 @@
   </div>
 {/if}
 
+
 {#if tab === 'classes'}
-  <div class="card bg-base-100 shadow">
-    <div class="card-body">
-      <div class="flex items-center gap-2 justify-between flex-wrap mb-3">
-        <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::classes_card_title')}</h2>
-        <div class="flex items-center gap-2">
-          <label class="input input-bordered input-sm flex items-center gap-2">
-            <Search class="w-4 h-4" aria-hidden="true" />
-            <input class="grow" placeholder={t('frontend/src/lib/AdminPanel.svelte::search_classes_placeholder')} bind:value={classQuery} />
-          </label>
-          <button class="btn btn-sm" on:click={() => showCreateClass = true}><Plus class="w-4 h-4" /> {t('frontend/src/lib/AdminPanel.svelte::new_button')}</button>
-          <button class="btn btn-ghost btn-sm" on:click={loadClasses}><RefreshCw class="w-4 h-4" /></button>
-        </div>
+  <div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-2">
+      <h2 class="text-sm font-black uppercase tracking-[0.2em] opacity-40">{t('frontend/src/lib/AdminPanel.svelte::classes_tab')}</h2>
+      <div class="flex items-center gap-2">
+        <label class="relative group">
+          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30 group-focus-within:opacity-100 transition-opacity" />
+          <input 
+            class="input input-sm bg-base-100 border-base-200 rounded-xl pl-10 focus:ring-1 focus:ring-primary w-full sm:w-64 h-9 font-bold text-xs" 
+            placeholder={t('frontend/src/lib/AdminPanel.svelte::search_classes_placeholder')} 
+            bind:value={classQuery} 
+          />
+        </label>
+        <button class="btn btn-primary btn-sm h-9 rounded-xl font-black uppercase tracking-widest text-[10px] px-4 gap-2" on:click={() => showCreateClass = true}>
+           <Plus size={14} /> {t('frontend/src/lib/AdminPanel.svelte::new_button')}
+        </button>
+        <button class="btn btn-ghost btn-xs opacity-50 hover:opacity-100 transition-all font-black text-[10px] uppercase tracking-widest h-9 border border-base-200 rounded-xl" on:click={loadClasses} aria-label={t('frontend/src/lib/AdminPanel.svelte::refresh_online_users_button')}>
+           <RefreshCw size={14} />
+        </button>
       </div>
-      <div class="overflow-x-auto">
-        <table class="table table-zebra">
+    </div>
+
+    <div class="bg-base-100 rounded-[2.5rem] border border-base-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto custom-scrollbar">
+        <table class="table table-zebra table-md">
           <thead>
-            <tr>
-              <th>{t('frontend/src/lib/AdminPanel.svelte::class_table_header')}</th>
-              <th>{t('frontend/src/lib/AdminPanel.svelte::teacher_table_header')}</th>
-              <th>{t('frontend/src/lib/AdminPanel.svelte::created_table_header')}</th>
+            <tr class="border-base-200 bg-base-100/50">
+              <th class="text-[10px] font-black uppercase tracking-widest opacity-40">{t('frontend/src/lib/AdminPanel.svelte::class_table_header')}</th>
+              <th class="text-[10px] font-black uppercase tracking-widest opacity-40">{t('frontend/src/lib/AdminPanel.svelte::teacher_table_header')}</th>
+              <th class="text-[10px] font-black uppercase tracking-widest opacity-40">{t('frontend/src/lib/AdminPanel.svelte::created_table_header')}</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {#each filteredClasses as c}
-              <tr>
-                <td><a href={`/classes/${c.id}`} class="link link-primary">{c.name}</a></td>
+              <tr class="border-base-200 group hover:bg-base-200/30 transition-colors">
+                <td class="py-4">
+                  <div class="flex items-center gap-4">
+                    <div class="w-10 h-10 rounded-xl bg-primary/5 flex items-center justify-center text-primary border border-primary/10">
+                       <School size={18} />
+                    </div>
+                    <a href={`/classes/${c.id}`} class="font-black text-sm hover:text-primary transition-colors no-underline text-current">{c.name}</a>
+                  </div>
+                </td>
                 <td>
                   {#if teacherLookup[c.teacher_id]}
-                    <div class="flex flex-col">
-                      <span class="font-medium">{userPrimary(teacherLookup[c.teacher_id])}</span>
-                      {#if userSecondary(teacherLookup[c.teacher_id])}
-                        <span class="text-xs text-base-content/60">{userSecondary(teacherLookup[c.teacher_id])}</span>
-                      {/if}
+                    <div class="flex items-center gap-3">
+                      <div class="w-7 h-7 rounded-lg bg-base-200 flex items-center justify-center font-black text-[10px] text-base-content/40">
+                         {(userPrimary(teacherLookup[c.teacher_id])).charAt(0).toUpperCase()}
+                      </div>
+                      <div class="flex flex-col min-w-0">
+                        <span class="font-bold text-xs truncate">{userPrimary(teacherLookup[c.teacher_id])}</span>
+                        {#if userSecondary(teacherLookup[c.teacher_id])}
+                          <span class="text-[9px] font-bold opacity-40 truncate">{userSecondary(teacherLookup[c.teacher_id])}</span>
+                        {/if}
+                      </div>
                     </div>
                   {:else}
-                    <span class="text-sm text-base-content/60">{t('frontend/src/lib/AdminPanel.svelte::unassigned_teacher_label')}</span>
+                    <span class="text-[10px] font-black uppercase tracking-widest opacity-30 italic">{t('frontend/src/lib/AdminPanel.svelte::unassigned_teacher_label')}</span>
                   {/if}
                 </td>
-                <td>{formatDate(c.created_at)}</td>
+                <td class="text-xs font-bold opacity-50">{formatDate(c.created_at)}</td>
                 <td class="text-right whitespace-nowrap">
-                  <button class="btn btn-ghost btn-xs" on:click={()=>renameClass(c.id)}><Edit class="w-4 h-4" /></button>
-                  <button class="btn btn-ghost btn-xs" on:click={()=>transferTarget={ id: c.id, name: c.name, to: null }}><ArrowRightLeft class="w-4 h-4" /></button>
-                  <button class="btn btn-ghost btn-xs text-error" on:click={()=>deleteClassAction(c.id)}><Trash2 class="w-4 h-4" /></button>
+                  <div class="flex justify-end gap-1 opacity-20 group-hover:opacity-100 transition-opacity">
+                    <button class="btn btn-ghost btn-xs text-info hover:bg-info/10" on:click={()=>renameClass(c.id)} aria-label={t('frontend/src/lib/AdminPanel.svelte::rename_button')}>
+                      <Edit size={14} />
+                    </button>
+                    <button class="btn btn-ghost btn-xs text-primary hover:bg-primary/10" on:click={()=>transferTarget={ id: c.id, name: c.name, to: null }} aria-label={t('frontend/src/lib/AdminPanel.svelte::transfer_button')}>
+                      <ArrowRightLeft size={14} />
+                    </button>
+                    <button class="btn btn-ghost btn-xs text-error hover:bg-error/10" on:click={()=>deleteClassAction(c.id)} aria-label={t('frontend/src/lib/AdminPanel.svelte::delete_button')}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </td>
               </tr>
+            {:else}
+              <tr><td colspan="4" class="text-center py-20 italic opacity-30 font-black uppercase tracking-widest text-xs">{t('frontend/src/lib/AdminPanel.svelte::no_classes_message')}</td></tr>
             {/each}
-            {#if !filteredClasses.length}
-              <tr><td colspan="4"><i>{t('frontend/src/lib/AdminPanel.svelte::no_classes_message')}</i></td></tr>
-            {/if}
           </tbody>
         </table>
       </div>
@@ -978,177 +1070,255 @@
 
   {#if showCreateClass}
     <dialog open class="modal">
-      <div class="modal-box space-y-4">
-        <h3 class="font-semibold">{t('frontend/src/lib/AdminPanel.svelte::create_class_modal_title')}</h3>
-        <input class="input input-bordered w-full" placeholder={t('frontend/src/lib/AdminPanel.svelte::class_name_placeholder')} bind:value={newClassName} />
-        <CustomSelect 
-          searchable
-          options={teacherOptions} 
-          bind:value={newClassTeacherId} 
-          placeholder={t('frontend/src/lib/AdminPanel.svelte::select_teacher_option')}
-        />
-        <div class="modal-action">
-          <button class="btn" on:click={createClass}><Plus class="w-4 h-4" /> {t('frontend/src/lib/AdminPanel.svelte::create_button')}</button>
-          <button class="btn btn-ghost" on:click={() => { showCreateClass = false; }}>{t('frontend/src/lib/AdminPanel.svelte::cancel_button')}</button>
+      <div class="modal-box bg-base-100 rounded-[2.5rem] border border-base-200 shadow-2xl p-8 max-w-md">
+        <div class="flex items-center gap-3 mb-6">
+          <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+            <Plus size={20} />
+          </div>
+          <h3 class="text-xl font-black tracking-tight">{t('frontend/src/lib/AdminPanel.svelte::create_class_modal_title')}</h3>
+        </div>
+        
+        <div class="space-y-5">
+          <div class="space-y-2">
+            <label class="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1" for="new-class-name">{t('frontend/src/lib/AdminPanel.svelte::class_name_placeholder')}</label>
+            <input 
+              id="new-class-name"
+              class="input input-sm bg-base-200/50 w-full rounded-xl focus:outline-none focus:ring-1 focus:ring-primary h-12 font-bold px-4" 
+              placeholder={t('frontend/src/lib/AdminPanel.svelte::class_name_placeholder')} 
+              bind:value={newClassName} 
+            />
+          </div>
+
+          <div class="space-y-2">
+            <label class="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">{t('frontend/src/lib/AdminPanel.svelte::teacher_table_header')}</label>
+            <div class="relative">
+              <CustomSelect 
+                searchable
+                options={teacherOptions} 
+                bind:value={newClassTeacherId} 
+                placeholder={t('frontend/src/lib/AdminPanel.svelte::select_teacher_option')}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-action gap-2 mt-8">
+          <button class="btn btn-ghost rounded-xl font-black uppercase tracking-widest text-[10px] h-11" on:click={() => { showCreateClass = false; }}>{t('frontend/src/lib/AdminPanel.svelte::cancel_button')}</button>
+          <button class="btn btn-primary rounded-xl px-8 font-black uppercase tracking-widest text-[10px] h-11 shadow-lg shadow-primary/20" on:click={createClass} disabled={!newClassName.trim() || !newClassTeacherId}>
+            {t('frontend/src/lib/AdminPanel.svelte::create_button')}
+          </button>
         </div>
       </div>
-      <form method="dialog" class="modal-backdrop" on:click={() => showCreateClass = false}><button>close</button></form>
+      <form method="dialog" class="modal-backdrop bg-base-content/20 backdrop-blur-sm" on:click={() => showCreateClass = false}><button>close</button></form>
     </dialog>
   {/if}
 
   {#if transferTarget}
     <dialog open class="modal">
-      <div class="modal-box space-y-4">
-        <h3 class="font-semibold">{t('frontend/src/lib/AdminPanel.svelte::transfer_ownership_modal_title')}</h3>
-        <p>{t('frontend/src/lib/AdminPanel.svelte::transfer_ownership_modal_body', { className: transferTarget.name || t('frontend/src/lib/AdminPanel.svelte::class_table_header') })}</p>
-        <CustomSelect 
-          searchable
-          options={teacherOptions} 
-          bind:value={transferTarget.to} 
-          placeholder={t('frontend/src/lib/AdminPanel.svelte::select_teacher_option')}
-        />
-        <div class="modal-action">
-          <button class="btn" on:click={transferClass}><ArrowRightLeft class="w-4 h-4" /> {t('frontend/src/lib/AdminPanel.svelte::transfer_button')}</button>
-          <button class="btn btn-ghost" on:click={() => transferTarget = null}>{t('frontend/src/lib/AdminPanel.svelte::cancel_button')}</button>
+      <div class="modal-box bg-base-100 rounded-[2.5rem] border border-base-200 shadow-2xl p-8 max-w-md">
+        <div class="flex items-center gap-3 mb-6">
+          <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+            <ArrowRightLeft size={20} />
+          </div>
+          <h3 class="text-xl font-black tracking-tight">{t('frontend/src/lib/AdminPanel.svelte::transfer_ownership_modal_title')}</h3>
+        </div>
+
+        <p class="text-sm font-medium opacity-60 mb-6 leading-relaxed">
+           {t('frontend/src/lib/AdminPanel.svelte::transfer_ownership_modal_body', { className: transferTarget.name || t('frontend/src/lib/AdminPanel.svelte::class_table_header') })}
+        </p>
+        
+        <div class="space-y-2">
+          <label class="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">{t('frontend/src/lib/AdminPanel.svelte::select_teacher_option')}</label>
+          <CustomSelect 
+            searchable
+            options={teacherOptions} 
+            bind:value={transferTarget.to} 
+            placeholder={t('frontend/src/lib/AdminPanel.svelte::select_teacher_option')}
+          />
+        </div>
+
+        <div class="modal-action gap-2 mt-8">
+          <button class="btn btn-ghost rounded-xl font-black uppercase tracking-widest text-[10px] h-11" on:click={() => transferTarget = null}>{t('frontend/src/lib/AdminPanel.svelte::cancel_button')}</button>
+          <button class="btn btn-primary rounded-xl px-8 font-black uppercase tracking-widest text-[10px] h-11 shadow-lg shadow-primary/20" on:click={transferClass} disabled={!transferTarget.to}>
+            {t('frontend/src/lib/AdminPanel.svelte::transfer_button')}
+          </button>
         </div>
       </div>
-      <form method="dialog" class="modal-backdrop" on:click={() => transferTarget = null}><button>close</button></form>
+      <form method="dialog" class="modal-backdrop bg-base-content/20 backdrop-blur-sm" on:click={() => transferTarget = null}><button>close</button></form>
     </dialog>
   {/if}
 {/if}
 
-{#if tab === 'settings'}
-  <div class="space-y-6">
-    <div class="card bg-base-100 shadow">
-      <div class="card-body space-y-4">
-        <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::system_settings_title')}</h2>
-        <div class="grid gap-4 md:grid-cols-2">
-          <label class="rounded-box border border-base-200/60 bg-base-100 p-4 flex items-start justify-between gap-4">
-            <div class="flex flex-col">
-              <span class="font-medium">{t('frontend/src/lib/AdminPanel.svelte::force_bakalari_email_label')}</span>
-              <span class="text-sm text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::force_bakalari_email_description')}</span>
-            </div>
-            <input type="checkbox" class="toggle toggle-primary mt-1" checked={forceBakalariEmail} on:change={(e) => updateSetting('force_bakalari_email', (e.target as HTMLInputElement).checked)} />
-          </label>
-          <label class="rounded-box border border-base-200/60 bg-base-100 p-4 flex items-start justify-between gap-4">
-            <div class="flex flex-col">
-              <span class="font-medium">{t('frontend/src/lib/AdminPanel.svelte::allow_microsoft_login_label')}</span>
-              <span class="text-sm text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::allow_microsoft_login_description')}</span>
-            </div>
-            <input type="checkbox" class="toggle toggle-primary mt-1" checked={allowMicrosoftLogin} on:change={(e) => updateSetting('allow_microsoft_login', (e.target as HTMLInputElement).checked)} />
-          </label>
-        </div>
-      </div>
-    </div>
 
-    <div class="card bg-base-100 shadow">
-      <div class="card-body space-y-4">
-        <div>
-          <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::system_variables_title')}</h2>
-          <p class="text-sm text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::system_variables_description')}</p>
-        </div>
-        <form on:submit|preventDefault={saveSystemVariable} class="grid gap-3 md:grid-cols-[1fr_2fr_auto] items-end">
-          <label class="form-control">
-            <span class="label-text">{t('frontend/src/lib/AdminPanel.svelte::system_variable_key_label')}</span>
-            <input
-              class="input input-bordered"
-              placeholder={t('frontend/src/lib/AdminPanel.svelte::system_variable_key_placeholder')}
-              bind:value={variableKey}
-              disabled={Boolean(editingVariableKey)}
-              required
-            />
-          </label>
-          <label class="form-control">
-            <span class="label-text">{t('frontend/src/lib/AdminPanel.svelte::system_variable_value_label')}</span>
-            <input
-              class="input input-bordered"
-              placeholder={t('frontend/src/lib/AdminPanel.svelte::system_variable_value_placeholder')}
-              bind:value={variableValue}
-            />
-          </label>
-          <div class="flex gap-2">
-            <button class="btn btn-primary btn-sm" type="submit">
-              {editingVariableKey ? t('frontend/src/lib/AdminPanel.svelte::save_button') : t('frontend/src/lib/AdminPanel.svelte::add_button')}
-            </button>
-            {#if editingVariableKey}
-              <button class="btn btn-ghost btn-sm" type="button" on:click={resetVariableForm}>
-                {t('frontend/src/lib/AdminPanel.svelte::cancel_button')}
-              </button>
-            {/if}
+{#if tab === 'settings'}
+  <div class="space-y-8">
+    <!-- General System Settings -->
+    <section class="space-y-6">
+      <div class="flex items-center justify-between px-2">
+        <h2 class="text-sm font-black uppercase tracking-[0.2em] opacity-40">{t('frontend/src/lib/AdminPanel.svelte::system_settings_title')}</h2>
+      </div>
+      
+      <div class="grid gap-4 md:grid-cols-2">
+        <label class="bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm flex items-center justify-between gap-6 group hover:border-primary/30 transition-all cursor-pointer">
+          <div class="flex-1">
+            <span class="font-black text-sm uppercase tracking-widest block mb-1">{t('frontend/src/lib/AdminPanel.svelte::force_bakalari_email_label')}</span>
+            <span class="text-[10px] font-bold opacity-50 uppercase tracking-widest leading-relaxed">{t('frontend/src/lib/AdminPanel.svelte::force_bakalari_email_description')}</span>
           </div>
-        </form>
-        <div class="overflow-x-auto">
-          <table class="table table-zebra">
+          <input type="checkbox" class="toggle toggle-primary toggle-lg scale-75" checked={forceBakalariEmail} on:change={(e) => updateSetting('force_bakalari_email', (e.target as HTMLInputElement).checked)} />
+        </label>
+
+        <label class="bg-base-100 p-6 rounded-[2rem] border border-base-200 shadow-sm flex items-center justify-between gap-6 group hover:border-primary/30 transition-all cursor-pointer">
+          <div class="flex-1">
+            <span class="font-black text-sm uppercase tracking-widest block mb-1">{t('frontend/src/lib/AdminPanel.svelte::allow_microsoft_login_label')}</span>
+            <span class="text-[10px] font-bold opacity-50 uppercase tracking-widest leading-relaxed">{t('frontend/src/lib/AdminPanel.svelte::allow_microsoft_login_description')}</span>
+          </div>
+          <input type="checkbox" class="toggle toggle-primary toggle-lg scale-75" checked={allowMicrosoftLogin} on:change={(e) => updateSetting('allow_microsoft_login', (e.target as HTMLInputElement).checked)} />
+        </label>
+      </div>
+    </section>
+
+    <!-- System Variables -->
+    <section class="space-y-6">
+      <div class="flex items-center justify-between px-2">
+        <h2 class="text-sm font-black uppercase tracking-[0.2em] opacity-40">{t('frontend/src/lib/AdminPanel.svelte::system_variables_title')}</h2>
+      </div>
+
+      <div class="bg-base-100 rounded-[2.5rem] border border-base-200 shadow-sm overflow-hidden">
+        <div class="p-6 border-b border-base-200 bg-base-200/20">
+          <p class="text-[10px] font-bold opacity-50 uppercase tracking-widest leading-relaxed mb-6">
+            {t('frontend/src/lib/AdminPanel.svelte::system_variables_description')}
+          </p>
+          
+          <form on:submit|preventDefault={saveSystemVariable} class="grid gap-4 md:grid-cols-[1fr_2fr_auto] items-end">
+            <div class="space-y-1.5">
+              <label class="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1" for="var-key">{t('frontend/src/lib/AdminPanel.svelte::system_variable_key_label')}</label>
+              <input 
+                id="var-key"
+                class="input input-sm bg-base-100 border-base-200 w-full rounded-xl focus:ring-1 focus:ring-primary h-11 font-bold px-4" 
+                placeholder={t('frontend/src/lib/AdminPanel.svelte::system_variable_key_placeholder')} 
+                bind:value={variableKey} 
+                disabled={Boolean(editingVariableKey)}
+                required
+              />
+            </div>
+            <div class="space-y-1.5">
+              <label class="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1" for="var-val">{t('frontend/src/lib/AdminPanel.svelte::system_variable_value_label')}</label>
+              <input 
+                id="var-val"
+                class="input input-sm bg-base-100 border-base-200 w-full rounded-xl focus:ring-1 focus:ring-primary h-11 font-bold px-4" 
+                placeholder={t('frontend/src/lib/AdminPanel.svelte::system_variable_value_placeholder')} 
+                bind:value={variableValue} 
+              />
+            </div>
+            <div class="flex gap-2">
+              <button class="btn btn-primary h-11 rounded-xl px-6 font-black uppercase tracking-widest text-[10px]" type="submit">
+                {editingVariableKey ? t('frontend/src/lib/AdminPanel.svelte::save_button') : t('frontend/src/lib/AdminPanel.svelte::add_button')}
+              </button>
+              {#if editingVariableKey}
+                <button class="btn btn-ghost h-11 rounded-xl font-black uppercase tracking-widest text-[10px]" type="button" on:click={resetVariableForm}>
+                  {t('frontend/src/lib/AdminPanel.svelte::cancel_button')}
+                </button>
+              {/if}
+            </div>
+          </form>
+        </div>
+
+        <div class="overflow-x-auto custom-scrollbar">
+          <table class="table table-zebra table-md">
             <thead>
-              <tr>
-                <th>{t('frontend/src/lib/AdminPanel.svelte::system_variable_key_label')}</th>
-                <th>{t('frontend/src/lib/AdminPanel.svelte::system_variable_value_label')}</th>
+              <tr class="border-base-200 bg-base-100/50">
+                <th class="text-[10px] font-black uppercase tracking-widest opacity-40">{t('frontend/src/lib/AdminPanel.svelte::system_variable_key_label')}</th>
+                <th class="text-[10px] font-black uppercase tracking-widest opacity-40">{t('frontend/src/lib/AdminPanel.svelte::system_variable_value_label')}</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {#if loadingVariables}
-                <tr><td colspan="3"><i>{t('frontend/src/lib/AdminPanel.svelte::system_variables_loading')}</i></td></tr>
+                <tr><td colspan="3" class="text-center py-12"><span class="loading loading-dots loading-md text-primary/30"></span></td></tr>
               {:else}
                 {#each systemVariables as variable}
-                  <tr>
-                    <td class="font-mono text-sm">{variable.key}</td>
-                    <td class="font-mono text-sm max-w-[22rem] truncate" title={variable.value}>{variable.value}</td>
+                  <tr class="border-base-200 group hover:bg-base-200/30 transition-colors">
+                    <td class="font-mono text-xs py-4 font-bold">{variable.key}</td>
+                    <td class="font-mono text-xs py-4 text-base-content/60 max-w-[22rem] truncate" title={variable.value}>{variable.value}</td>
                     <td class="text-right">
-                      <div class="flex justify-end gap-1">
-                        <button class="btn btn-ghost btn-xs" on:click={() => startEditVariable(variable)}><Edit class="w-4 h-4" /></button>
-                        <button class="btn btn-ghost btn-xs text-error" on:click={() => deleteSystemVariable(variable.key)}><Trash2 class="w-4 h-4" /></button>
+                      <div class="flex justify-end gap-1 opacity-20 group-hover:opacity-100 transition-opacity">
+                        <button class="btn btn-ghost btn-xs text-info hover:bg-info/10" on:click={() => startEditVariable(variable)} aria-label={t('frontend/src/lib/AdminPanel.svelte::edit_button')}><Edit size={14} /></button>
+                        <button class="btn btn-ghost btn-xs text-error hover:bg-error/10" on:click={() => deleteSystemVariable(variable.key)} aria-label={t('frontend/src/lib/AdminPanel.svelte::delete_button')}><Trash2 size={14} /></button>
                       </div>
                     </td>
                   </tr>
+                {:else}
+                  <tr><td colspan="3" class="text-center py-20 italic opacity-30 font-black uppercase tracking-widest text-xs">{t('frontend/src/lib/AdminPanel.svelte::system_variables_empty')}</td></tr>
                 {/each}
-                {#if !systemVariables.length}
-                  <tr><td colspan="3"><i>{t('frontend/src/lib/AdminPanel.svelte::system_variables_empty')}</i></td></tr>
-                {/if}
               {/if}
             </tbody>
           </table>
         </div>
       </div>
-    </div>
+    </section>
 
-    <div class="card bg-base-100 shadow">
-      <div class="card-body space-y-3">
-        <h2 class="card-title">{t('frontend/src/lib/AdminPanel.svelte::email_ping_card_title')}</h2>
-        <p class="text-sm text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::email_ping_description')}</p>
-        <button class="btn btn-primary btn-sm" on:click={() => { showEmailTools = true; }}>
-          <MailCheck class="w-4 h-4" aria-hidden="true" />
-          {t('frontend/src/lib/AdminPanel.svelte::email_ping_card_title')}
+    <!-- Email Tools Section -->
+    <section class="space-y-6">
+      <div class="flex items-center justify-between px-2">
+        <h2 class="text-sm font-black uppercase tracking-[0.2em] opacity-40">{t('frontend/src/lib/AdminPanel.svelte::email_ping_card_title')}</h2>
+      </div>
+      
+      <div class="bg-base-100 p-8 rounded-[2rem] border border-base-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6 group hover:border-primary/30 transition-all">
+        <div class="flex items-center gap-6">
+          <div class="w-14 h-14 rounded-2xl bg-warning/10 text-warning flex items-center justify-center shrink-0">
+             <MailCheck size={28} />
+          </div>
+          <div class="text-center md:text-left">
+            <div class="font-black text-lg tracking-tight mb-1">{t('frontend/src/lib/AdminPanel.svelte::email_ping_card_title')}</div>
+            <div class="text-xs font-bold opacity-50 uppercase tracking-widest leading-relaxed">{t('frontend/src/lib/AdminPanel.svelte::email_ping_description')}</div>
+          </div>
+        </div>
+        <button class="btn btn-primary h-12 rounded-xl px-8 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20" on:click={() => { showEmailTools = true; }}>
+          <MailCheck size={16} class="mr-2" />
+          {t('frontend/src/lib/AdminPanel.svelte::email_ping_button')}
         </button>
       </div>
-    </div>
+    </section>
   </div>
 {/if}
 
+
 {#if showEmailTools}
   <dialog open class="modal">
-    <div class="modal-box space-y-4">
-      <div class="flex items-center justify-between">
-        <h3 class="font-semibold flex items-center gap-2">
-          <MailCheck class="w-5 h-5" aria-hidden="true" />
-          {t('frontend/src/lib/AdminPanel.svelte::email_ping_card_title')}
-        </h3>
-        <button class="btn btn-ghost btn-xs" on:click={() => { showEmailTools = false; }}>
-          <span class="sr-only">{t('frontend/src/lib/AdminPanel.svelte::cancel_button')}</span>
-          x
-        </button>
+    <div class="modal-box bg-base-100 rounded-[2.5rem] border border-base-200 shadow-2xl p-8 max-w-md">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-10 h-10 rounded-xl bg-warning/10 text-warning flex items-center justify-center">
+          <MailCheck size={20} />
+        </div>
+        <h3 class="text-xl font-black tracking-tight">{t('frontend/src/lib/AdminPanel.svelte::email_ping_card_title')}</h3>
       </div>
-      <p class="text-sm text-base-content/70">{t('frontend/src/lib/AdminPanel.svelte::email_ping_description')}</p>
-      <form class="space-y-2" on:submit|preventDefault={sendEmailPing}>
-        <input type="email" class="input input-bordered w-full" placeholder={t('frontend/src/lib/AdminPanel.svelte::email_ping_placeholder')} bind:value={emailPingTarget} required />
-        <button class="btn btn-primary btn-sm" disabled={sendingEmailPing}>
-          {sendingEmailPing ? t('frontend/src/lib/AdminPanel.svelte::sending_button') : t('frontend/src/lib/AdminPanel.svelte::email_ping_button')}
-        </button>
+      
+      <p class="text-sm font-medium opacity-60 mb-6 leading-relaxed">
+         {t('frontend/src/lib/AdminPanel.svelte::email_ping_description')}
+      </p>
+      
+      <form class="space-y-4" on:submit|preventDefault={sendEmailPing}>
+        <div class="space-y-1.5">
+          <label class="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1" for="ping-email">{t('frontend/src/lib/AdminPanel.svelte::email_label')}</label>
+          <input 
+            id="ping-email"
+            type="email" 
+            class="input input-sm bg-base-200/50 w-full rounded-xl focus:outline-none focus:ring-1 focus:ring-primary h-12 font-bold px-4" 
+            placeholder={t('frontend/src/lib/AdminPanel.svelte::email_ping_placeholder')} 
+            bind:value={emailPingTarget} 
+            required 
+          />
+        </div>
+        
+        <div class="modal-action gap-2 mt-4">
+          <button type="button" class="btn btn-ghost rounded-xl font-black uppercase tracking-widest text-[10px] h-11" on:click={() => { showEmailTools = false; }}>{t('frontend/src/lib/AdminPanel.svelte::cancel_button')}</button>
+          <button type="submit" class="btn btn-primary rounded-xl px-8 font-black uppercase tracking-widest text-[10px] h-11 shadow-lg shadow-primary/20" disabled={sendingEmailPing}>
+            {sendingEmailPing ? t('frontend/src/lib/AdminPanel.svelte::sending_button') : t('frontend/src/lib/AdminPanel.svelte::email_ping_button')}
+          </button>
+        </div>
       </form>
-      <div class="modal-action">
-        <button class="btn btn-ghost" on:click={() => { showEmailTools = false; }}>{t('frontend/src/lib/AdminPanel.svelte::cancel_button')}</button>
-      </div>
     </div>
-    <form method="dialog" class="modal-backdrop" on:click={() => { showEmailTools = false; }}><button>close</button></form>
+    <form method="dialog" class="modal-backdrop bg-base-content/20 backdrop-blur-sm" on:click={() => { showEmailTools = false; }}><button>close</button></form>
   </dialog>
 {/if}
+
