@@ -552,6 +552,7 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
       {/if}
       
       {#each convo as m, index (m.id)}
+        {@const isMe = m.sender_id === $auth?.id}
         {#if index === 0 || !sameDate(m.created_at, convo[index-1].created_at)}
           <div class="flex justify-center my-4">
             <div class="bg-base-200/60 backdrop-blur-sm px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-base-content/50 border border-base-200">
@@ -561,12 +562,12 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
         {/if}
         
         <div
-          class="{`flex ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'} group ${searchResults.includes(index) ? 'bg-primary/10 -mx-6 px-6 py-2' : ''} ${highlightedMessageId === m.id ? 'highlighted-message' : ''}`}"
+          class="{`flex ${isMe ? 'justify-end' : 'justify-start'} group ${searchResults.includes(index) ? 'bg-primary/10 -mx-6 px-6 py-2' : ''} ${highlightedMessageId === m.id ? 'highlighted-message' : ''}`}"
           use:registerMsgEl={index}
           in:fade={{ duration: 200 }}
         >
-          <div class={`flex gap-3 max-w-[85%] sm:max-w-[70%] items-end ${m.sender_id === $auth?.id ? 'flex-row-reverse' : 'flex-row'}`}>
-            {#if m.sender_id !== $auth?.id}
+          <div class={`flex gap-3 max-w-[85%] sm:max-w-[70%] items-end ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+            {#if !isMe}
               <div class="avatar flex-shrink-0 mb-1">
                 <div class="w-10 h-10 rounded-full overflow-hidden shrink-0 bg-base-300">
                   {#if contactAvatar}
@@ -580,8 +581,8 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
               </div>
             {/if}
             
-            <div class={`flex flex-col group/msg ${m.sender_id === $auth?.id ? 'items-end' : 'items-start'}`}>
-              <div class="relative flex flex-col">
+            <div class={`flex flex-col group/msg ${isMe ? 'items-end' : 'items-start'}`}>
+              <div class={`relative flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                 <!-- Reply preview (if this message is a reply) -->
                 {#if m.reply_to_id && m.reply_text}
                   <button
@@ -597,11 +598,11 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
                     <CornerDownRight size={12} class="mt-0.5 shrink-0 opacity-50" />
                     <div class="flex-1 min-w-0">
                       <p class={`text-[9px] font-black uppercase tracking-wider mb-0.5 ${
-                        m.sender_id === $auth?.id ? 'opacity-60' : 'text-primary opacity-80'
+                        isMe ? 'opacity-60 text-right' : 'text-primary opacity-80'
                       }`}>
                         {m.reply_sender_id === $auth?.id ? t('frontend/src/routes/messages/[id]/+page.svelte::you') : name}
                       </p>
-                      <p class="opacity-70 line-clamp-2">{m.reply_text}</p>
+                      <p class={`opacity-70 line-clamp-2 ${isMe ? 'text-right' : 'text-left'}`}>{m.reply_text}</p>
                     </div>
                   </button>
                 {/if}
@@ -644,7 +645,7 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
                   {:else}
                     <div 
                       class={`relative rounded-[2rem] px-5 py-4 shadow-sm transition-all duration-300 group/bubble message-bubble w-fit ${
-                        m.sender_id === $auth?.id
+                        isMe
                           ? 'bg-primary text-primary-content rounded-br-lg shadow-primary/20 hover:shadow-primary/30 [&_a]:text-primary-content'
                           : 'bg-base-200 border border-base-300 shadow-sm text-base-content rounded-bl-lg hover:border-primary/20'
                       }`}
@@ -662,7 +663,7 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
                       {/if}
 
                       <!-- Message Status Overlay for sent messages -->
-                      {#if m.sender_id === $auth?.id}
+                      {#if isMe}
                         <div class="absolute -bottom-1 -left-2 flex items-center gap-1 opacity-0 group-hover/bubble:opacity-100 transition-opacity">
                           {#if m.is_read}
                             <CheckCheck size={12} class="text-primary" />
@@ -676,9 +677,9 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
                 {/if}
 
                 {#if m.showTime}
-                  <div class={`text-[9px] font-black uppercase tracking-widest opacity-40 mt-2 px-2 flex items-center gap-2 ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'}`} in:fade>
+                  <div class={`text-[9px] font-black uppercase tracking-widest opacity-40 mt-2 px-2 flex items-center gap-2 ${isMe ? 'justify-end' : 'justify-start'}`} in:fade>
                     {formatTime(m.created_at)}
-                    {#if m.sender_id === $auth?.id}
+                    {#if isMe}
                       <span class="inline-flex">
                         {#if m.is_read}
                           <CheckCheck size={10} class="text-primary" />
@@ -692,7 +693,7 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
 
                 <!-- Reply button - appears on hover -->
                 <button
-                  class={`btn btn-ghost btn-xs h-7 px-2 rounded-lg gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity mt-1 text-base-content/50 hover:text-primary hover:bg-primary/10 ${m.sender_id === $auth?.id ? 'self-end' : 'self-start'}`}
+                  class={`btn btn-ghost btn-xs h-7 px-2 rounded-lg gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity mt-1 text-base-content/50 hover:text-primary hover:bg-primary/10 ${isMe ? 'self-end' : 'self-start'}`}
                   on:click|stopPropagation={() => setReplyTo(m)}
                   title={t('frontend/src/routes/messages/[id]/+page.svelte::reply_button')}
                 >
