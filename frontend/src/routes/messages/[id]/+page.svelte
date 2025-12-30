@@ -454,7 +454,7 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
 
 <div class="messages-page flex flex-col h-[calc(100vh-6rem)] sm:h-[calc(100vh-7.1rem)] overflow-hidden">
   <!-- Premium Profile Header -->
-  <section class="relative overflow-hidden bg-base-100 rounded-3xl border border-base-200 shadow-xl shadow-base-300/30 mt-4 sm:mt-8 mb-4 p-4 sm:p-6 shrink-0">
+  <section class="relative overflow-hidden bg-base-100 rounded-3xl border border-base-300 shadow-md mt-4 sm:mt-8 mb-4 p-4 sm:p-6 shrink-0">
     <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent pointer-events-none"></div>
     <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
     <div class="relative flex items-center justify-between gap-4">
@@ -526,7 +526,7 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
     </div>
   {/if}
 
-  <div class="flex-1 min-h-0 bg-base-100 rounded-[2.5rem] border border-base-200 shadow-2xl shadow-base-300/20 overflow-hidden relative mb-4">
+  <div class="flex-1 min-h-0 bg-base-100 rounded-[2.5rem] border border-base-300 shadow-md overflow-hidden relative mb-4 flex flex-col">
     <!-- Messages Area -->
     <div class="flex-1 h-full overflow-y-auto p-6 space-y-6 scroll-smooth custom-scrollbar" bind:this={chatBox}>
       {#if hasMore}
@@ -703,10 +703,8 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
         </div>
       {/each}
     </div>
-  </div>
-
-  <!-- Input Area -->
-  <div class="p-4 sm:p-5 bg-base-100 rounded-[2rem] border border-base-200 shadow-[0_20px_50px_rgba(0,0,0,0.1)] backdrop-blur-md relative z-10">
+    <!-- Input Area -->
+    <div class="p-4 sm:p-5 border-t border-base-200 bg-base-100 relative z-10">
       {#if imageData || fileData}
         <div class="flex flex-wrap gap-3 mb-4" in:fade>
           {#if imageData}
@@ -821,6 +819,7 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
           </div>
         {/if}
       </div>
+    </div>
     </div>
   </div>
 
