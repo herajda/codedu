@@ -715,6 +715,7 @@
   "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_heading": "Submit solution",
   "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_or": "or",
   "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_upload_button": "Upload",
+  "frontend/src/routes/assignments/[id]/+page.svelte::uploading_status": "Uploading...",
   "frontend/src/routes/assignments/[id]/+page.svelte::tab_instructor": "Student progress",
   "frontend/src/routes/assignments/[id]/+page.svelte::tab_overview": "Overview",
   "frontend/src/routes/assignments/[id]/+page.svelte::tab_results": "Results",
