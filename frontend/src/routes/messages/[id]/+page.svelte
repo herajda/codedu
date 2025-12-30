@@ -90,6 +90,7 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
     replyToMessage = null;
   }
   
+  let highlightTimeout: any = null;
   function scrollToMessage(messageId: number) {
     // Find the index of the message in the conversation
     const messageIndex = convo.findIndex(m => m.id === messageId);
@@ -105,10 +106,14 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
     // Highlight the message
     highlightedMessageId = messageId;
     
-    // Remove highlight after 2 seconds
-    setTimeout(() => {
+    // Clear previous timeout if any
+    if (highlightTimeout) clearTimeout(highlightTimeout);
+    
+    // Remove highlight after 3 seconds
+    highlightTimeout = setTimeout(() => {
       highlightedMessageId = null;
-    }, 2000);
+      highlightTimeout = null;
+    }, 3000);
   }
 
   function registerMsgEl(node: HTMLDivElement, idx: number) {
@@ -636,7 +641,7 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
                     </div>
                   {:else}
                     <div 
-                      class={`relative rounded-[2rem] px-5 py-4 shadow-sm transition-all duration-300 group/bubble w-fit ${
+                      class={`relative rounded-[2rem] px-5 py-4 shadow-sm transition-all duration-300 group/bubble message-bubble w-fit ${
                         m.sender_id === $auth?.id
                           ? 'bg-primary text-primary-content rounded-br-lg shadow-primary/20 hover:shadow-primary/30 [&_a]:text-primary-content'
                           : 'bg-base-100 border border-base-200 text-base-content rounded-bl-lg hover:border-primary/20'
@@ -881,43 +886,81 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
     color: inherit !important;
   }
 
-  /* Highlighted message animation */
+  /* Improved High-Visibility Highlighted message row style */
   .highlighted-message {
-    animation: highlight-pulse 2s ease-in-out;
-    background: hsl(var(--p) / 0.25) !important;
-    margin-left: -1.5rem;
-    margin-right: -1.5rem;
-    padding-left: 1.5rem;
-    padding-right: 1.5rem;
-    padding-top: 0.5rem;
-    padding-bottom: 0.5rem;
-    border-radius: 1rem;
-    border-left: 4px solid hsl(var(--p));
-    box-shadow: 0 0 0 2px hsl(var(--p) / 0.3);
+    position: relative;
+    z-index: 10;
+    transition: background-color 0.3s ease;
   }
 
-  @keyframes highlight-pulse {
-    0% {
-      background: hsl(var(--p) / 0.5);
-      transform: scale(1.02);
-      box-shadow: 0 0 0 4px hsl(var(--p) / 0.5), 0 4px 12px hsl(var(--p) / 0.3);
+  .highlighted-message::before {
+    content: '';
+    position: absolute;
+    inset: -0.5rem -1.5rem;
+    background: linear-gradient(90deg, 
+      hsl(var(--p) / 0.3) 0%, 
+      hsl(var(--p) / 0.1) 40%, 
+      transparent 100%
+    );
+    border-left: 6px solid hsl(var(--p));
+    pointer-events: none;
+    animation: highlight-row-entrance 4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    z-index: -1;
+  }
+
+  @keyframes highlight-row-entrance {
+    0% { opacity: 0; transform: translateX(-20px); }
+    5% { opacity: 1; transform: translateX(0); }
+    80% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  /* Intense Pop effect for the message bubble */
+  .highlighted-message :global(.message-bubble) {
+    animation: bubble-highlight-intense 4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
+    position: relative;
+    z-index: 20;
+  }
+
+  @keyframes bubble-highlight-intense {
+    0% { 
+      transform: scale(1); 
+      box-shadow: 0 0 0 0 hsl(var(--p) / 0);
     }
-    25% {
-      background: hsl(var(--p) / 0.4);
-      box-shadow: 0 0 0 3px hsl(var(--p) / 0.4), 0 4px 12px hsl(var(--p) / 0.2);
+    5% { 
+      transform: scale(1.15); 
+      background-color: hsl(var(--p)) !important;
+      color: hsl(var(--pc)) !important;
+      box-shadow: 0 0 0 15px hsl(var(--p) / 0.4), 0 30px 60px -15px hsl(var(--p) / 0.6);
+      border-color: white !important;
+      filter: saturate(1.8) brightness(1.3) contrast(1.1);
+      z-index: 50;
     }
-    50% {
-      background: hsl(var(--p) / 0.35);
-      transform: scale(1.01);
-      box-shadow: 0 0 0 2px hsl(var(--p) / 0.35);
+    20% {
+      transform: scale(1.1);
+      background-color: hsl(var(--p)) !important;
+      color: hsl(var(--pc)) !important;
+      box-shadow: 0 0 0 10px hsl(var(--p) / 0.3), 0 20px 40px -12px hsl(var(--p) / 0.5);
+      filter: saturate(1.5) brightness(1.2);
     }
-    75% {
-      background: hsl(var(--p) / 0.3);
+    80% { 
+      transform: scale(1.08); 
+      background-color: hsl(var(--p) / 0.9) !important;
+      color: hsl(var(--pc)) !important;
+      opacity: 1; 
+      box-shadow: 0 0 0 6px hsl(var(--p) / 0.2), 0 15px 30px -8px hsl(var(--p) / 0.4);
+      filter: brightness(1.1);
     }
-    100% {
-      background: hsl(var(--p) / 0.25);
-      transform: scale(1);
-      box-shadow: 0 0 0 2px hsl(var(--p) / 0.3);
+    100% { 
+      transform: scale(1); 
+      box-shadow: 0 0 0 0 hsl(var(--p) / 0);
+      filter: brightness(1);
     }
+  }
+
+  /* If it's an image, also highlight it */
+  .highlighted-message :global(.group\/img) {
+    animation: bubble-highlight-intense 4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
+    border: 3px solid hsl(var(--p)) !important;
   }
 </style>
