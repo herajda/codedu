@@ -509,7 +509,7 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
             <MoreVertical size={20} />
           </button>
           <ul class="dropdown-content menu p-2 shadow-2xl bg-base-100 rounded-2xl w-52 border border-base-200 mt-2 z-50">
-            <li><button class="rounded-xl font-medium" on:click={openProfile}>{translate('frontend/src/routes/messages/[id]/+page.svelte::view_profile')}</button></li>
+            <li><a class="rounded-xl font-medium" href="/profile/{id}">{translate('frontend/src/routes/messages/[id]/+page.svelte::view_profile')}</a></li>
             <li><button class="rounded-xl font-medium text-error" on:click={blockThisUser}>{translate('frontend/src/routes/messages/[id]/+page.svelte::block_user')}</button></li>
           </ul>
         </div>

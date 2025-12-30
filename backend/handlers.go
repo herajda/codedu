@@ -5025,11 +5025,42 @@ func getUserPublic(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
+
+	currentUserID := getUserID(c)
+	currentUser, _ := GetUser(currentUserID)
+
+	type SharedClass struct {
+		ID   uuid.UUID `json:"id"`
+		Name string    `json:"name"`
+	}
+	sharedClasses := []SharedClass{}
+
+	// If one is teacher and other is student (or vice versa), find shared classes
+	if (currentUser.Role == "teacher" && u.Role == "student") || (currentUser.Role == "student" && u.Role == "teacher") {
+		teacherID := currentUserID
+		studentID := id
+		if currentUser.Role == "student" {
+			teacherID = id
+			studentID = currentUserID
+		}
+
+		err = DB.Select(&sharedClasses, `
+            SELECT c.id, c.name FROM classes c
+            JOIN class_students cs ON c.id = cs.class_id
+            WHERE c.teacher_id = $1 AND cs.student_id = $2
+        `, teacherID, studentID)
+		if err != nil {
+			log.Printf("Error fetching shared classes: %v", err)
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"id":     u.ID,
-		"name":   u.Name,
-		"avatar": u.Avatar,
-		"email":  u.Email,
+		"id":             u.ID,
+		"name":           u.Name,
+		"avatar":         u.Avatar,
+		"email":          u.Email,
+		"role":           u.Role,
+		"shared_classes": sharedClasses,
 	})
 }
 
