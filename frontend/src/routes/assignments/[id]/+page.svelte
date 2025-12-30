@@ -1944,7 +1944,21 @@
                     </div>
                   </div>
                   <div class="flex-1 space-y-2.5 text-center md:text-left">
-                     <h4 class="font-black text-xl tracking-tight">{t("frontend/src/routes/assignments/[id]/+page.svelte::good_job_message", { name: ($auth as any)?.display_name ?? ($auth as any)?.name ?? 'there' })}</h4>
+                     <h4 class="font-black text-xl tracking-tight">
+                       {#if latestSub && assignment.deadline && new Date(latestSub.created_at) > new Date(assignment.deadline)}
+                         {t("frontend/src/routes/assignments/[id]/+page.svelte::late_submission_message", { name: ($auth as any)?.display_name ?? ($auth as any)?.name ?? 'there' })}
+                       {:else if percent >= 90}
+                         {t("frontend/src/routes/assignments/[id]/+page.svelte::excellent_work_message", { name: ($auth as any)?.display_name ?? ($auth as any)?.name ?? 'there' })}
+                       {:else if percent >= 70}
+                         {t("frontend/src/routes/assignments/[id]/+page.svelte::good_job_message", { name: ($auth as any)?.display_name ?? ($auth as any)?.name ?? 'there' })}
+                       {:else if percent >= 50}
+                         {t("frontend/src/routes/assignments/[id]/+page.svelte::keep_going_message", { name: ($auth as any)?.display_name ?? ($auth as any)?.name ?? 'there' })}
+                       {:else if percent > 0}
+                         {t("frontend/src/routes/assignments/[id]/+page.svelte::keep_trying_message", { name: ($auth as any)?.display_name ?? ($auth as any)?.name ?? 'there' })}
+                       {:else}
+                         {t("frontend/src/routes/assignments/[id]/+page.svelte::get_started_message", { name: ($auth as any)?.display_name ?? ($auth as any)?.name ?? 'there' })}
+                       {/if}
+                     </h4>
                      <p class="text-sm text-base-content/60 leading-relaxed font-medium max-w-xl">
                         {t("frontend/src/routes/assignments/[id]/+page.svelte::overview_progress_desc", { points: pointsEarned, max: assignment.max_points })}
                      </p>
