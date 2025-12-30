@@ -18,6 +18,23 @@
   let resizeObserver: ResizeObserver | null = null;
   let lastProjectRef: Uint8Array | ArrayBuffer | null = null;
   let pointerIsDown = false;
+  let monitors: MonitorView[] = [];
+  let visibleMonitors: MonitorView[] = [];
+  let monitorListener: ((monitorList: any) => void) | null = null;
+
+  const MONITORS_UPDATE_EVENT = "MONITORS_UPDATE";
+  const MONITOR_OPCODES = new Set(["data_variable", "data_listcontents"]);
+
+  type MonitorView = {
+    id: string;
+    opcode: string;
+    mode: string;
+    value: any;
+    params: Record<string, any> | null;
+    spriteName: string | null;
+    visible: boolean;
+    label: string;
+  };
 
   let translate = t;
   $: translate = $translator;
@@ -36,6 +53,68 @@
       }
     }
     return candidates.find((c) => typeof c === "function") ?? null;
+  }
+
+  function getMonitorLabel(monitor: any) {
+    const params = monitor?.params ?? {};
+    const name =
+      typeof params.VARIABLE === "string"
+        ? params.VARIABLE
+        : typeof params.LIST === "string"
+          ? params.LIST
+          : monitor?.id ?? "";
+    if (monitor?.spriteName && monitor.spriteName !== "Stage") {
+      return `${name} (${monitor.spriteName})`;
+    }
+    return name;
+  }
+
+  function normalizeMonitor(monitor: any): MonitorView | null {
+    if (!monitor) return null;
+    const data = typeof monitor.toJS === "function" ? monitor.toJS() : monitor;
+    if (!data?.id || !data?.opcode) return null;
+    return {
+      id: data.id,
+      opcode: data.opcode,
+      mode: data.mode ?? "default",
+      value: data.value,
+      params: data.params ?? null,
+      spriteName: data.spriteName ?? null,
+      visible: data.visible !== false,
+      label: getMonitorLabel(data),
+    };
+  }
+
+  function handleMonitorsUpdate(monitorList: any) {
+    if (!monitorList) {
+      monitors = [];
+      return;
+    }
+    let list: any[] = [];
+    if (typeof monitorList.valueSeq === "function") {
+      list = monitorList.valueSeq().toArray();
+    } else if (Array.isArray(monitorList)) {
+      list = monitorList;
+    } else if (typeof monitorList.values === "function") {
+      list = Array.from(monitorList.values());
+    }
+    const next: MonitorView[] = [];
+    for (const monitor of list) {
+      const normalized = normalizeMonitor(monitor);
+      if (!normalized) continue;
+      if (!MONITOR_OPCODES.has(normalized.opcode)) continue;
+      next.push(normalized);
+    }
+    monitors = next;
+  }
+
+  function isListValue(value: any): value is any[] {
+    return Array.isArray(value);
+  }
+
+  function formatMonitorValue(value: any) {
+    if (value === null || value === undefined) return "";
+    return typeof value === "string" ? value : String(value);
   }
 
   async function setupVM() {
@@ -69,6 +148,11 @@
     vm.start();
     ready = true;
     resizeStage();
+
+    monitorListener = (monitorList) => {
+      handleMonitorsUpdate(monitorList);
+    };
+    vm.on?.(MONITORS_UPDATE_EVENT, monitorListener);
   }
 
   function resizeStage() {
@@ -201,9 +285,15 @@
 
   onDestroy(() => {
     try {
+      if (vm && monitorListener) {
+        vm.off?.(MONITORS_UPDATE_EVENT, monitorListener);
+        vm.removeListener?.(MONITORS_UPDATE_EVENT, monitorListener);
+      }
       vm?.stopAll();
       vm?.clear();
     } catch {}
+    monitorListener = null;
+    monitors = [];
     vm = null;
     renderer = null;
     audioEngine = null;
@@ -213,6 +303,8 @@
   $: if (ready && projectData) {
     loadProject();
   }
+
+  $: visibleMonitors = monitors.filter((monitor) => monitor.visible);
 </script>
 
 <div class="space-y-4">
@@ -253,6 +345,35 @@
 
   <div class="w-full max-w-3xl">
     <div class="relative w-full aspect-[4/3] rounded-2xl overflow-hidden border border-base-300 bg-base-200/60">
+      {#if visibleMonitors.length}
+        <div class="absolute left-3 top-3 z-10 flex flex-col gap-2 pointer-events-none">
+          {#each visibleMonitors as monitor (monitor.id)}
+            {#if monitor.mode === "list" || monitor.opcode === "data_listcontents"}
+              <div class="pointer-events-auto rounded-xl border border-base-300 bg-base-100/90 shadow-sm p-2 text-xs min-w-[160px] max-w-[220px]">
+                <div class="text-[10px] font-black uppercase tracking-widest opacity-70">{monitor.label}</div>
+                {#if isListValue(monitor.value)}
+                  <div class="mt-1 max-h-40 overflow-auto text-[11px] leading-snug space-y-1">
+                    {#each monitor.value as item, index (index)}
+                      <div class="flex gap-2">
+                        <span class="opacity-50">{index + 1}.</span>
+                        <span class="break-words">{formatMonitorValue(item)}</span>
+                      </div>
+                    {/each}
+                  </div>
+                {:else}
+                  <div class="mt-1 text-[11px]">{formatMonitorValue(monitor.value)}</div>
+                {/if}
+              </div>
+            {:else}
+              <div class="pointer-events-auto rounded-full border border-base-300 bg-base-100/90 shadow-sm px-3 py-1 text-xs flex items-center gap-2">
+                <span class="font-semibold">{monitor.label}</span>
+                <span class="opacity-70">=</span>
+                <span class="font-mono text-[11px]">{formatMonitorValue(monitor.value)}</span>
+              </div>
+            {/if}
+          {/each}
+        </div>
+      {/if}
       <canvas
         bind:this={canvas}
         class="w-full h-full outline-none"
