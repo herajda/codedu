@@ -17,7 +17,7 @@ import {
   Filter, ArrowRight, FileQuestion
 } from 'lucide-svelte';
 
-import { formatDateTime } from "$lib/date";
+import { formatDateTime, formatShortDateTime } from "$lib/date";
 let role = '';
 $: role = $auth?.role ?? '';
 const storageKey = 'personal_files';
@@ -408,21 +408,35 @@ function toggleView() {
   let dropping = false;
   let dropErr = '';
 
-  function onDragEnter() {
+  // Drag & drop file/folder move support
+  let draggedItem: any = null;
+  let dragOverFolder: any = null;
+  let movingFile = false;
+
+  function onDragEnter(e: DragEvent) {
+    // Only show upload overlay if dragging external files (not internal items)
+    if (draggedItem) return;
     dragDepth += 1;
     isDragging = true;
   }
-  function onDragLeave() {
+  function onDragLeave(e: DragEvent) {
+    if (draggedItem) return;
     dragDepth -= 1;
     if (dragDepth <= 0) {
       isDragging = false;
       dragDepth = 0;
     }
   }
-  function onDragOver() {
-    // allow drop
+  function onDragOver(e: DragEvent) {
+    // Prevent default to allow drop, but only for external files
+    if (!draggedItem) {
+      e.preventDefault();
+    }
   }
   async function onDrop(e: DragEvent) {
+    // Only handle file upload if not dragging internal items
+    if (draggedItem) return;
+    
     dragDepth = 0;
     isDragging = false;
     dropErr = '';
@@ -458,6 +472,86 @@ function toggleView() {
       }
     }
   }
+
+  // Drag & drop file/folder move handlers
+  function onItemDragStart(e: DragEvent, item: any) {
+    if (!e.dataTransfer) return;
+    draggedItem = item;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', item.id);
+    // Add a slight delay to allow the drag image to be created
+    setTimeout(() => {
+      if (e.target instanceof HTMLElement) {
+        e.target.style.opacity = '0.5';
+      }
+    }, 0);
+  }
+
+  function onItemDragEnd(e: DragEvent) {
+    if (e.target instanceof HTMLElement) {
+      e.target.style.opacity = '1';
+    }
+    draggedItem = null;
+    dragOverFolder = null;
+  }
+
+  function onFolderDragOver(e: DragEvent, folder: any) {
+    if (!draggedItem || draggedItem.id === folder.id) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragOverFolder = folder;
+  }
+
+  function onFolderDragLeave(e: DragEvent, folder: any) {
+    if (dragOverFolder?.id === folder.id) {
+      dragOverFolder = null;
+    }
+  }
+
+  async function onFolderDrop(e: DragEvent, targetFolder: any) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragOverFolder = null;
+    
+    if (!draggedItem || draggedItem.id === targetFolder.id) {
+      draggedItem = null;
+      return;
+    }
+
+    // Don't allow moving a folder into itself
+    if (draggedItem.is_dir && targetFolder.id === draggedItem.id) {
+      draggedItem = null;
+      return;
+    }
+
+    try {
+      movingFile = true;
+      dropErr = '';
+      
+      const res = await apiFetch(`/api/files/${draggedItem.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent_id: targetFolder.id })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(errorData.error || t('frontend/src/routes/files/+page.svelte::failed_to_move_error'));
+      }
+      
+      await load(currentParent);
+    } catch (e: any) {
+      let msg = e?.message ?? t('frontend/src/routes/files/+page.svelte::failed_to_move_error');
+      if (msg.includes('idx_class_files_class_path_unique')) {
+        msg = t('frontend/src/routes/files/+page.svelte::file_already_exists_error');
+      }
+      dropErr = msg;
+    } finally {
+      movingFile = false;
+      draggedItem = null;
+    }
+  }
+
 function fmtSize(bytes: number | null | undefined, decimals = 1) {
   if (bytes == null) return '';
   if (bytes < 1024) return `${bytes} B`;
@@ -556,8 +650,11 @@ onMount(() => {
         <div class="flex items-center gap-1 shrink-0">
           <button 
             type="button" 
-            class={`btn btn-sm btn-ghost rounded-xl px-3 font-bold text-xs h-9 ${i === breadcrumbs.length - 1 ? 'bg-base-200/50' : 'opacity-60 hover:opacity-100'}`}
+            class={`btn btn-sm btn-ghost rounded-xl px-3 font-bold text-xs h-9 transition-all duration-200 ${i === breadcrumbs.length - 1 ? 'bg-base-200/50' : 'opacity-60 hover:opacity-100'} ${dragOverFolder === 'crumb-' + i ? 'ring-2 ring-primary bg-primary/10 opacity-100' : ''}`}
             on:click={() => crumbTo(i)}
+            on:dragover={(e) => { if (draggedItem && i < breadcrumbs.length - 1) { e.preventDefault(); e.stopPropagation(); dragOverFolder = 'crumb-' + i; } }}
+            on:dragleave={() => { if (dragOverFolder === 'crumb-' + i) dragOverFolder = null; }}
+            on:drop={(e) => { if (draggedItem && i < breadcrumbs.length - 1) onFolderDrop(e, { id: b.id }); }}
           >
             {b.name}
           </button>
@@ -631,12 +728,36 @@ onMount(() => {
       </div>
     {/if}
 
+    {#if draggedItem && currentParent !== null}
+      <!-- Move to parent folder target -->
+      <div 
+        class="mb-4 p-8 border-2 border-dashed border-primary/30 rounded-[2.5rem] flex flex-col items-center justify-center gap-3 bg-primary/5 transition-all duration-300 animate-in fade-in slide-in-from-top-4 {dragOverFolder === 'parent' ? 'ring-4 ring-primary/20 bg-primary/10 scale-[1.01] border-primary/50' : ''}"
+        on:dragover|preventDefault={(e) => { e.preventDefault(); e.stopPropagation(); dragOverFolder = 'parent'; }}
+        on:dragleave={() => { if (dragOverFolder === 'parent') dragOverFolder = null; }}
+        on:drop={(e) => { if (breadcrumbs.length > 1) onFolderDrop(e, { id: breadcrumbs[breadcrumbs.length - 2].id }); }}
+      >
+        <div class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shadow-sm">
+          <ArrowRight class="-rotate-90" size={24} />
+        </div>
+        <div class="text-center">
+          <p class="font-black text-sm tracking-tight text-primary uppercase tracking-widest">Move to {breadcrumbs[breadcrumbs.length - 2].name}</p>
+          <p class="text-[10px] font-bold opacity-40 uppercase tracking-widest mt-1">Drop here to move item up one level</p>
+        </div>
+      </div>
+    {/if}
+
     {#if viewMode === 'grid'}
       <!-- ── GRID VIEW ── -->
       <div class="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 mb-8">
         {#each visible as it (it.id)}
           <div 
-            class="group relative bg-base-200/50 dark:bg-base-200 hover:bg-gradient-to-br hover:from-base-200/50 hover:to-base-100 dark:hover:from-base-200 dark:hover:to-base-300 border border-base-200/60 dark:border-base-300 shadow-sm rounded-[2.5rem] p-5 flex flex-col items-center gap-4 hover:shadow-xl hover:shadow-primary/5 hover:border-primary/20 hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden backdrop-blur-sm"
+            class="group relative bg-base-200/50 dark:bg-base-200 hover:bg-gradient-to-br hover:from-base-200/50 hover:to-base-100 dark:hover:from-base-200 dark:hover:to-base-300 border border-base-200/60 dark:border-base-300 shadow-sm rounded-[2.5rem] p-5 flex flex-col items-center gap-4 hover:shadow-xl hover:shadow-primary/5 hover:border-primary/20 hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden backdrop-blur-sm {dragOverFolder?.id === it.id ? 'ring-4 ring-primary/40 scale-105 bg-primary/5' : ''} {draggedItem?.id === it.id ? 'opacity-50' : ''}"
+            draggable={role === 'teacher' || role === 'admin'}
+            on:dragstart={(e) => onItemDragStart(e, it)}
+            on:dragend={onItemDragEnd}
+            on:dragover={(e) => it.is_dir && onFolderDragOver(e, it)}
+            on:dragleave={(e) => it.is_dir && onFolderDragLeave(e, it)}
+            on:drop={(e) => it.is_dir && onFolderDrop(e, it)}
             on:click={() => open(it)}
           >
             <!-- Decorative background blob -->
@@ -672,7 +793,7 @@ onMount(() => {
                   {/if}
                  </span>
                  <span class="w-0.5 h-0.5 rounded-full bg-base-content"></span>
-                 <span class="text-[10px] font-bold uppercase tracking-wider">{formatDateTime(it.updated_at).split(' ')[0]}</span>
+                 <span class="text-[10px] font-bold uppercase tracking-wider">{formatShortDateTime(it.updated_at)}</span>
               </div>
             </div>
 
@@ -722,7 +843,16 @@ onMount(() => {
           </thead>
           <tbody class="divide-y divide-base-100">
             {#each visible as it (it.id)}
-              <tr class="hover:bg-base-50 transition-colors cursor-pointer group" on:click={() => open(it)}>
+              <tr 
+                class="hover:bg-base-50 transition-colors cursor-pointer group {dragOverFolder?.id === it.id ? 'bg-primary/10 ring-2 ring-inset ring-primary/40' : ''} {draggedItem?.id === it.id ? 'opacity-50' : ''}"
+                draggable={role === 'teacher' || role === 'admin'}
+                on:dragstart={(e) => onItemDragStart(e, it)}
+                on:dragend={onItemDragEnd}
+                on:dragover={(e) => it.is_dir && onFolderDragOver(e, it)}
+                on:dragleave={(e) => it.is_dir && onFolderDragLeave(e, it)}
+                on:drop={(e) => it.is_dir && onFolderDrop(e, it)}
+                on:click={() => open(it)}
+              >
                 <td class="py-4 pl-8">
                   <div class="flex items-center gap-5">
                     <div class={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-110 duration-300 ${it.is_dir ? 'bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 text-amber-600' : 'bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 text-blue-600'}`}>
@@ -801,6 +931,15 @@ onMount(() => {
       <div class="bg-primary text-primary-content px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3">
         <span class="loading loading-spinner loading-sm"></span>
         <span class="text-sm font-black uppercase tracking-widest">{translate('frontend/src/routes/classes/[id]/files/+page.svelte::uploading_message')}</span>
+      </div>
+    </div>
+  {/if}
+
+  {#if movingFile}
+    <div class="fixed bottom-8 right-8 z-[100] animate-in slide-in-from-bottom-10 fade-in duration-500">
+      <div class="bg-secondary text-secondary-content px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3">
+        <span class="loading loading-spinner loading-sm"></span>
+        <span class="text-sm font-black uppercase tracking-widest">{translate('frontend/src/routes/files/+page.svelte::moving_message')}</span>
       </div>
     </div>
   {/if}

@@ -1920,6 +1920,65 @@ func RenameFile(id uuid.UUID, newName string) error {
 	return tx.Commit()
 }
 
+func MoveFile(id uuid.UUID, newParentID *uuid.UUID) error {
+	var f ClassFile
+	if err := DB.Get(&f, `SELECT id,class_id,owner_id,parent_id,name,path FROM class_files WHERE id=$1`, id); err != nil {
+		return err
+	}
+	
+	// Build new path with the new parent
+	var newPath string
+	var err error
+	if f.OwnerID != nil {
+		newPath, err = buildOwnedFilePath(newParentID, *f.OwnerID, f.Name)
+	} else {
+		newPath, err = buildFilePath(newParentID, f.Name)
+	}
+	if err != nil {
+		return err
+	}
+	
+	tx, err := DB.Beginx()
+	if err != nil {
+		return err
+	}
+	
+	// Update the file's parent_id and path
+	if _, err := tx.Exec(`UPDATE class_files SET parent_id=$1, path=$2 WHERE id=$3`, newParentID, newPath, id); err != nil {
+		tx.Rollback()
+		return err
+	}
+	
+	// Update paths for all descendants (if it's a directory)
+	oldPrefix := f.Path + "/"
+	newPrefix := newPath + "/"
+	rows := []ClassFile{}
+	
+	if f.OwnerID == nil {
+		if err := tx.Select(&rows, `SELECT id,path FROM class_files WHERE class_id=$1 AND owner_id IS NULL AND path LIKE $2`, f.ClassID, oldPrefix+"%"); err == nil {
+			for _, r := range rows {
+				np := newPrefix + r.Path[len(oldPrefix):]
+				if _, err := tx.Exec(`UPDATE class_files SET path=$1 WHERE id=$2`, np, r.ID); err != nil {
+					tx.Rollback()
+					return err
+				}
+			}
+		}
+	} else {
+		if err := tx.Select(&rows, `SELECT id,path FROM class_files WHERE owner_id=$1 AND path LIKE $2`, *f.OwnerID, oldPrefix+"%"); err == nil {
+			for _, r := range rows {
+				np := newPrefix + r.Path[len(oldPrefix):]
+				if _, err := tx.Exec(`UPDATE class_files SET path=$1 WHERE id=$2`, np, r.ID); err != nil {
+					tx.Rollback()
+					return err
+				}
+			}
+		}
+	}
+	
+	return tx.Commit()
+}
+
 func DeleteFile(id uuid.UUID) error {
 	var f ClassFile
 	if err := DB.Get(&f, `SELECT class_id,owner_id,path FROM class_files WHERE id=$1`, id); err != nil {
