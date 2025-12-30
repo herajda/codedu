@@ -241,7 +241,9 @@
             class="btn btn-sm btn-secondary"
             disabled={!fileName}
             on:click={addStagedFile}
-            >Add Staged File to List</button
+            >{translate(
+              "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_staged_file_to_list",
+            )}</button
           >
         {:else}
           <div><!-- Spacer --></div>

@@ -14,6 +14,7 @@
   export let readOnly: boolean = false;
 
   function isDark(): boolean {
+    if (typeof document === 'undefined') return false;
     return document.documentElement.getAttribute('data-theme') === 'dark';
   }
 
