@@ -17,7 +17,8 @@
     ArrowRight, Pencil, Trash2, Eye, Copy,
     ExternalLink, Link, ArrowUpDown, ChevronRight,
     Users, LayoutGrid, List, MoreVertical, Clock,
-    Info, CheckCircle2, AlertTriangle, RefreshCw
+    Info, CheckCircle2, AlertTriangle, RefreshCw,
+    Image, BookOpen, FileCode, FileType
   } from 'lucide-svelte';
   
   let translate;
@@ -65,6 +66,28 @@
     displayed = filterItems(items);
   }
 
+  function isImage(name: string) {
+    const ext = name.split('.').pop()?.toLowerCase();
+    return ['png','jpg','jpeg','gif','webp','svg'].includes(ext ?? '');
+  }
+
+  function displayName(name: string | null | undefined) {
+    if (!name) return '';
+    const lastDot = name.lastIndexOf('.');
+    if (lastDot <= 0) return name;
+    return name.slice(0, lastDot);
+  }
+
+  function getIcon(name: string, isDir: boolean) {
+    if (isDir) return Folder;
+    const ext = name.split('.').pop()?.toLowerCase();
+    if (isImage(name)) return Image;
+    if (ext === 'ipynb') return BookOpen;
+    if (['js','ts','svelte','py','go','java','cpp'].includes(ext ?? '')) return FileCode;
+    if (ext === 'pdf') return FileType;
+    return FileText;
+  }
+  
   function filterItems(list: ClassFile[]): ClassFile[] {
     // Only folders and assignment references
     return list.filter((it) => it.is_dir || !!it.assignment_id);
@@ -424,6 +447,90 @@
     }
   }
 
+  // Drag & drop file/folder move handlers
+  let draggedItem: any = null;
+  let dragOverFolder: any = null;
+  let movingFile = false;
+  let dropErr = '';
+
+  function onItemDragStart(e: DragEvent, item: any) {
+    if (!e.dataTransfer) return;
+    draggedItem = item;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', item.id);
+    // Add a slight delay to allow the drag image to be created
+    setTimeout(() => {
+      if (e.target instanceof HTMLElement) {
+        e.target.style.opacity = '0.5';
+      }
+    }, 0);
+  }
+
+  function onItemDragEnd(e: DragEvent) {
+    if (e.target instanceof HTMLElement) {
+      e.target.style.opacity = '1';
+    }
+    draggedItem = null;
+    dragOverFolder = null;
+  }
+
+  function onFolderDragOver(e: DragEvent, folder: any) {
+    if (!draggedItem || draggedItem.id === folder.id) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragOverFolder = folder;
+  }
+
+  function onFolderDragLeave(e: DragEvent, folder: any) {
+    if (dragOverFolder?.id === folder.id || dragOverFolder === folder) {
+      dragOverFolder = null;
+    }
+  }
+
+  async function onFolderDrop(e: DragEvent, targetFolder: any) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragOverFolder = null;
+    
+    if (!draggedItem || draggedItem.id === targetFolder.id) {
+      draggedItem = null;
+      return;
+    }
+
+    // Don't allow moving a folder into itself
+    if (draggedItem.is_dir && targetFolder.id === draggedItem.id) {
+      draggedItem = null;
+      return;
+    }
+
+    try {
+      movingFile = true;
+      dropErr = '';
+      
+      const res = await apiFetch(`/api/files/${draggedItem.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent_id: targetFolder.id })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(errorData.error || t('frontend/src/routes/teachers/assignments/+page.svelte::failed_to_move_error'));
+      }
+      
+      await load(currentParent);
+    } catch (e: any) {
+      let msg = e?.message ?? t('frontend/src/routes/teachers/assignments/+page.svelte::failed_to_move_error');
+      if (msg.includes('idx_class_files_class_path_unique')) {
+        msg = t('frontend/src/routes/files/+page.svelte::file_already_exists_error');
+      }
+      dropErr = msg;
+    } finally {
+      movingFile = false;
+      draggedItem = null;
+    }
+  }
+
   onMount(() => {
     let storedParent: string | null = null;
     if (typeof sessionStorage !== "undefined") {
@@ -496,8 +603,11 @@
         <div class="flex items-center gap-1 shrink-0">
           <button 
             type="button" 
-            class={`btn btn-sm btn-ghost rounded-xl px-3 font-bold text-xs h-9 select-none ${i === breadcrumbs.length - 1 ? 'bg-base-200/50' : 'opacity-60 hover:opacity-100'}`}
+            class={`btn btn-sm btn-ghost rounded-xl px-3 font-bold text-xs h-9 select-none ${i === breadcrumbs.length - 1 ? 'bg-base-200/50' : 'opacity-60 hover:opacity-100'} ${dragOverFolder === 'crumb-' + i ? 'ring-2 ring-primary bg-primary/10 opacity-100' : ''}`}
             on:click={() => crumbTo(i)}
+            on:dragover={(e) => { if (draggedItem && i < breadcrumbs.length - 1) { e.preventDefault(); e.stopPropagation(); dragOverFolder = 'crumb-' + i; } }}
+            on:dragleave={() => { if (dragOverFolder === 'crumb-' + i) dragOverFolder = null; }}
+            on:drop={(e) => { if (draggedItem && i < breadcrumbs.length - 1) onFolderDrop(e, { id: b.id }); }}
           >
             <span class="pointer-events-none">
               {#if b.id === null}
@@ -559,53 +669,82 @@
   {:else}
     {#if viewMode === 'grid'}
       <!-- GRID VIEW -->
+
+      {#if draggedItem && currentParent !== null}
+        <!-- Move to parent folder target -->
+        <div 
+          class="mb-4 p-8 border-2 border-dashed border-primary/30 rounded-[2.5rem] flex flex-col items-center justify-center gap-3 bg-primary/5 transition-all duration-300 animate-in fade-in slide-in-from-top-4 {dragOverFolder === 'parent' ? 'ring-4 ring-primary/20 bg-primary/10 scale-[1.01] border-primary/50' : ''}"
+          on:dragover|preventDefault={(e) => { e.preventDefault(); e.stopPropagation(); dragOverFolder = 'parent'; }}
+          on:dragleave={() => { if (dragOverFolder === 'parent') dragOverFolder = null; }}
+          on:drop={(e) => { if (breadcrumbs.length > 1) onFolderDrop(e, { id: breadcrumbs[breadcrumbs.length - 2].id }); }}
+        >
+          <div class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shadow-sm">
+            <ArrowRight class="-rotate-90" size={24} />
+          </div>
+          <div class="text-center">
+            <p class="font-black text-sm tracking-tight text-primary uppercase tracking-widest">Move to {breadcrumbs[breadcrumbs.length - 2].name}</p>
+            <p class="text-[10px] font-bold opacity-40 uppercase tracking-widest mt-1">Drop here to move item up one level</p>
+          </div>
+        </div>
+      {/if}
+
+      <!-- GRID VIEW -->
       <div class="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 mb-8">
         {#each displayed as it (it.id)}
           <div 
-            class="group relative bg-base-200/50 dark:bg-base-200 hover:bg-base-100 dark:hover:bg-base-300 border border-base-200 dark:border-base-300 shadow-sm rounded-[2rem] p-4 flex flex-col items-center gap-3 hover:shadow-xl hover:shadow-primary/5 hover:border-primary/20 transition-all cursor-pointer overflow-hidden select-none backdrop-blur-sm"
+            class="group relative bg-base-200/50 dark:bg-base-200 hover:bg-gradient-to-br hover:from-base-200/50 hover:to-base-100 dark:hover:from-base-200 dark:hover:to-base-300 border border-base-200/60 dark:border-base-300 shadow-sm rounded-[2.5rem] p-5 flex flex-col items-center gap-4 hover:shadow-xl hover:shadow-primary/5 hover:border-primary/20 hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden backdrop-blur-sm {dragOverFolder?.id === it.id || dragOverFolder === it ? 'ring-4 ring-primary/40 scale-105 bg-primary/5' : ''} {draggedItem?.id === it.id ? 'opacity-50' : ''}"
+            draggable={role === 'teacher' || role === 'admin'}
+            on:dragstart={(e) => onItemDragStart(e, it)}
+            on:dragend={onItemDragEnd}
+            on:dragover={(e) => it.is_dir && onFolderDragOver(e, it)}
+            on:dragleave={(e) => it.is_dir && onFolderDragLeave(e, it)}
+            on:drop={(e) => it.is_dir && onFolderDrop(e, it)}
             on:click={() => it.is_dir ? openDir(it) : openPreview(it)}
           >
-            <div class="absolute top-0 right-0 w-12 h-12 bg-primary/5 rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+            <!-- Decorative background blob -->
+            <div class={`absolute top-0 right-0 w-24 h-24 rounded-bl-full transition-all duration-500 opacity-0 group-hover:opacity-100 ${it.is_dir ? 'bg-amber-400/10' : 'bg-blue-500/10'}`}></div>
             
-            <div class="w-16 h-16 flex items-center justify-center relative">
+            <div class="w-20 h-20 flex items-center justify-center relative z-10">
               {#if it.is_dir}
-                <div class="text-warning group-hover:scale-110 transition-transform duration-300">
-                  <Folder size={48} fill="currentColor" fill-opacity="0.1" />
+                <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 text-amber-600 dark:text-amber-500 flex items-center justify-center shadow-sm group-hover:scale-110 group-hover:shadow-amber-500/20 transition-all duration-300">
+                  <Folder size={32} fill="currentColor" fill-opacity="0.2" />
                 </div>
               {:else}
-                <div class="text-primary group-hover:scale-110 transition-transform duration-300">
-                  <FileText size={40} />
+                <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shadow-sm group-hover:scale-110 group-hover:shadow-blue-500/20 transition-all duration-300">
+                  <FileText size={32} strokeWidth={1.5} />
                 </div>
               {/if}
             </div>
 
-            <div class="text-center w-full min-w-0">
-              <h3 class="font-black text-xs tracking-tight truncate px-1 group-hover:text-primary transition-colors" title={it.name}>
+            <div class="text-center w-full min-w-0 z-10">
+              <h3 class="font-bold text-sm tracking-tight truncate px-2 text-base-content/90 group-hover:text-primary transition-colors" title={it.name}>
                 {it.name}
               </h3>
-              <div class="text-[9px] font-bold uppercase tracking-widest opacity-40 mt-1 whitespace-nowrap">
-                {it.is_dir ? translate('frontend/src/routes/teachers/assignments/+page.svelte::type_folder') : translate('frontend/src/routes/teachers/assignments/+page.svelte::type_assignment')}
-                •
-                {formatShortDateTime(it.updated_at)}
+              <div class="flex items-center justify-center gap-2 mt-1.5 opacity-50 group-hover:opacity-70 transition-opacity">
+                 <span class="text-[10px] font-bold uppercase tracking-wider">
+                  {it.is_dir ? translate('frontend/src/routes/teachers/assignments/+page.svelte::type_folder') : translate('frontend/src/routes/teachers/assignments/+page.svelte::type_assignment')}
+                 </span>
+                 <span class="w-0.5 h-0.5 rounded-full bg-base-content"></span>
+                 <span class="text-[10px] font-bold uppercase tracking-wider">{formatShortDateTime(it.updated_at)}</span>
               </div>
             </div>
 
             {#if search.trim() !== ''}
-              <div class="text-[8px] opacity-30 truncate w-full text-center mt-1">{it.path}</div>
+              <div class="text-[8px] opacity-30 truncate w-full text-center mt-1 z-10">{it.path}</div>
             {/if}
 
             {#if role === "teacher" || role === "admin"}
-              <div class="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div class="absolute top-3 right-3 flex flex-col gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-2 group-hover:translate-x-0">
                 {#if it.assignment_id}
-                  <button class="btn btn-xs btn-circle bg-base-100 border-base-200 shadow-sm hover:text-primary" title={translate('frontend/src/routes/teachers/assignments/+page.svelte::copy_to_class')} on:click|stopPropagation={() => openCopy(it)}>
-                    <Copy size={10} />
+                  <button class="btn btn-xs btn-circle bg-white/80 dark:bg-black/50 backdrop-blur border-none hover:bg-primary hover:text-primary-content shadow-sm transition-colors" title={translate('frontend/src/routes/teachers/assignments/+page.svelte::copy_to_class')} on:click|stopPropagation={() => openCopy(it)}>
+                    <Copy size={12} />
                   </button>
                 {/if}
-                <button class="btn btn-xs btn-circle bg-base-100 border-base-200 shadow-sm hover:text-primary" title={translate('frontend/src/routes/teachers/assignments/+page.svelte::rename')} on:click|stopPropagation={() => rename(it)}>
-                  <Pencil size={10} />
+                <button class="btn btn-xs btn-circle bg-white/80 dark:bg-black/50 backdrop-blur border-none hover:bg-primary hover:text-primary-content shadow-sm transition-colors" title={translate('frontend/src/routes/teachers/assignments/+page.svelte::rename')} on:click|stopPropagation={() => rename(it)}>
+                  <Pencil size={12} />
                 </button>
-                <button class="btn btn-xs btn-circle btn-error btn-outline border-none bg-base-100 shadow-sm" title={translate('frontend/src/routes/teachers/assignments/+page.svelte::delete')} on:click|stopPropagation={() => del(it)}>
-                  <Trash2 size={10} />
+                <button class="btn btn-xs btn-circle bg-white/80 dark:bg-black/50 backdrop-blur border-none hover:bg-error hover:text-error-content shadow-sm transition-colors" title={translate('frontend/src/routes/teachers/assignments/+page.svelte::delete')} on:click|stopPropagation={() => del(it)}>
+                  <Trash2 size={12} />
                 </button>
               </div>
             {/if}
@@ -627,6 +766,7 @@
           </div>
         {/each}
       </div>
+
     {:else}
       <!-- LIST VIEW -->
       <div class="bg-base-100 rounded-[2rem] border border-base-200 shadow-sm overflow-hidden mb-8">

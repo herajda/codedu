@@ -541,7 +541,11 @@ function toggleView() {
       
       await load(currentParent);
     } catch (e: any) {
-      dropErr = e?.message ?? t('frontend/src/routes/files/+page.svelte::failed_to_move_error');
+      let msg = e?.message ?? t('frontend/src/routes/files/+page.svelte::failed_to_move_error');
+      if (msg.includes('idx_class_files_class_path_unique')) {
+        msg = t('frontend/src/routes/files/+page.svelte::file_already_exists_error');
+      }
+      dropErr = msg;
     } finally {
       movingFile = false;
       draggedItem = null;

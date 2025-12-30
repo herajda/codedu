@@ -415,10 +415,12 @@ function toggleView() {
   let dropErr = '';
 
   function onDragEnter() {
+    if (draggedItem) return;
     dragDepth += 1;
     isDragging = true;
   }
   function onDragLeave() {
+    if (draggedItem) return;
     dragDepth -= 1;
     if (dragDepth <= 0) {
       isDragging = false;
@@ -426,10 +428,9 @@ function toggleView() {
     }
   }
   function onDragOver(e: DragEvent) {
+    if (draggedItem) return;
     // Prevent default to allow drop, but only for external files
-    if (!draggedItem) {
-      e.preventDefault();
-    }
+    e.preventDefault();
   }
 
   // Drag & drop file/folder move handlers
@@ -504,13 +505,18 @@ function toggleView() {
       
       await load(currentParent);
     } catch (e: any) {
-      dropErr = e?.message ?? t('frontend/src/routes/files/+page.svelte::failed_to_move_error');
+      let msg = e?.message ?? t('frontend/src/routes/files/+page.svelte::failed_to_move_error');
+      if (msg.includes('idx_class_files_class_path_unique')) {
+        msg = t('frontend/src/routes/files/+page.svelte::file_already_exists_error');
+      }
+      dropErr = msg;
     } finally {
       movingFile = false;
       draggedItem = null;
     }
   }
   async function onDrop(e: DragEvent) {
+    if (draggedItem) return;
     dragDepth = 0;
     isDragging = false;
     dropErr = '';
@@ -746,7 +752,7 @@ onMount(() => {
       <div class="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 mb-8">
         {#each visible as it (it.id)}
           <div 
-            class="group relative bg-base-200/50 dark:bg-base-200 hover:bg-base-100 dark:hover:bg-base-300 border border-base-200 dark:border-base-300 shadow-sm rounded-[2rem] p-4 flex flex-col items-center gap-3 hover:shadow-xl hover:shadow-primary/5 hover:border-primary/20 transition-all cursor-pointer overflow-hidden select-none backdrop-blur-sm {dragOverFolder?.id === it.id ? 'ring-4 ring-primary/40 scale-105 bg-primary/5' : ''} {draggedItem?.id === it.id ? 'opacity-50' : ''}"
+            class="group relative bg-base-200/50 dark:bg-base-200 hover:bg-gradient-to-br hover:from-base-200/50 hover:to-base-100 dark:hover:from-base-200 dark:hover:to-base-300 border border-base-200/60 dark:border-base-300 shadow-sm rounded-[2.5rem] p-5 flex flex-col items-center gap-4 hover:shadow-xl hover:shadow-primary/5 hover:border-primary/20 hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden backdrop-blur-sm {dragOverFolder?.id === it.id || dragOverFolder === it ? 'ring-4 ring-primary/40 scale-105 bg-primary/5' : ''} {draggedItem?.id === it.id ? 'opacity-50' : ''}"
             draggable={role === 'teacher' || role === 'admin'}
             on:dragstart={(e) => onItemDragStart(e, it)}
             on:dragend={onItemDragEnd}
@@ -755,54 +761,60 @@ onMount(() => {
             on:drop={(e) => it.is_dir && onFolderDrop(e, it)}
             on:click={(e) => { e.stopPropagation(); open(it); }}
           >
-            <div class="absolute top-0 right-0 w-12 h-12 bg-primary/5 rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+            <!-- Decorative background blob -->
+            <div class={`absolute top-0 right-0 w-24 h-24 rounded-bl-full transition-all duration-500 opacity-0 group-hover:opacity-100 ${it.is_dir ? 'bg-amber-400/10' : isImage(it.name) ? 'bg-purple-500/10' : 'bg-blue-500/10'}`}></div>
             
-            <div class="w-16 h-16 flex items-center justify-center relative">
+            <div class="w-20 h-20 flex items-center justify-center relative z-10">
               {#if it.is_dir}
-                <div class="text-warning group-hover:scale-110 transition-transform duration-300">
-                  <Folder size={48} fill="currentColor" fill-opacity="0.1" />
+                <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 text-amber-600 dark:text-amber-500 flex items-center justify-center shadow-sm group-hover:scale-110 group-hover:shadow-amber-500/20 transition-all duration-300">
+                  <Folder size={32} fill="currentColor" fill-opacity="0.2" />
                 </div>
               {:else if isImage(it.name)}
-                <div class="w-14 h-14 rounded-xl overflow-hidden shadow-sm group-hover:scale-110 transition-transform duration-300 ring-4 ring-base-200 group-hover:ring-primary/10 transition-all">
+                <div class="w-16 h-16 rounded-2xl overflow-hidden shadow-sm group-hover:scale-110 transition-transform duration-300 ring-2 ring-base-200 group-hover:ring-purple-500/30 relative">
                   <img src={`/api/files/${it.id}`} alt={it.name} class="w-full h-full object-cover" />
+                  <div class="absolute inset-0 ring-1 ring-inset ring-black/5 rounded-2xl"></div>
                 </div>
               {:else}
-                <div class="text-primary group-hover:scale-110 transition-transform duration-300">
-                  <svelte:component this={getIcon(it.name, it.is_dir)} size={40} />
+                <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shadow-sm group-hover:scale-110 group-hover:shadow-blue-500/20 transition-all duration-300">
+                  <svelte:component this={getIcon(it.name, it.is_dir)} size={32} strokeWidth={1.5} />
                 </div>
               {/if}
             </div>
 
-            <div class="text-center w-full min-w-0">
-              <h3 class="font-black text-xs tracking-tight truncate px-1 group-hover:text-primary transition-colors" title={it.name}>
+            <div class="text-center w-full min-w-0 z-10">
+              <h3 class="font-bold text-sm tracking-tight truncate px-2 text-base-content/90 group-hover:text-primary transition-colors" title={it.name}>
                 {it.is_dir ? it.name : displayName(it.name)}
               </h3>
-              <div class="text-[9px] font-bold uppercase tracking-widest opacity-40 mt-1 whitespace-nowrap">
-                {#if !it.is_dir}
-                  {fmtSize(it.size)} •
-                {/if}
-                {formatShortDateTime(it.updated_at)}
+              <div class="flex items-center justify-center gap-2 mt-1.5 opacity-50 group-hover:opacity-70 transition-opacity">
+                 <span class="text-[10px] font-bold uppercase tracking-wider">
+                  {#if !it.is_dir}
+                    {fmtSize(it.size)}
+                  {:else}
+                    Folder
+                  {/if}
+                 </span>
+                 <span class="w-0.5 h-0.5 rounded-full bg-base-content"></span>
+                 <span class="text-[10px] font-bold uppercase tracking-wider">{formatShortDateTime(it.updated_at)}</span>
               </div>
             </div>
 
             {#if role === 'teacher' || role === 'admin'}
-              <div class="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div class="absolute top-3 right-3 flex flex-col gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-2 group-hover:translate-x-0">
                 {#if !it.is_dir}
-                  <button class="btn btn-xs btn-circle bg-base-100 border-base-200 shadow-sm hover:text-primary" title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::copy_to_teachers_group')} on:click|stopPropagation={() => openCopyToTeachers(it)}>
-                    <Copy size={10} />
+                  <button class="btn btn-xs btn-circle bg-white/80 dark:bg-black/50 backdrop-blur border-none hover:bg-primary hover:text-primary-content shadow-sm transition-colors" title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::copy_to_teachers_group')} on:click|stopPropagation={() => openCopyToTeachers(it)}>
+                    <Copy size={12} />
                   </button>
                 {/if}
-                <button class="btn btn-xs btn-circle bg-base-100 border-base-200 shadow-sm hover:text-primary" title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::rename_tooltip')} on:click|stopPropagation={() => rename(it)}>
-                  <Pencil size={10} />
-                </button>
-                <button class="btn btn-xs btn-circle btn-error btn-outline border-none bg-base-100 shadow-sm" title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::delete_tooltip')} on:click|stopPropagation={() => del(it)}>
-                  <Trash2 size={10} />
+                <button class="btn btn-xs btn-circle bg-white/80 dark:bg-black/50 backdrop-blur border-none hover:bg-primary hover:text-primary-content shadow-sm transition-colors" title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::rename_tooltip')} on:click|stopPropagation={() => rename(it)}>
+                  <Pencil size={12} />
+                  </button>
+                <button class="btn btn-xs btn-circle bg-white/80 dark:bg-black/50 backdrop-blur border-none hover:bg-error hover:text-error-content shadow-sm transition-colors" title={translate('frontend/src/routes/classes/[id]/files/+page.svelte::delete_tooltip')} on:click|stopPropagation={() => del(it)}>
+                  <Trash2 size={12} />
                 </button>
               </div>
             {/if}
-
             {#if search.trim() !== ''}
-              <div class="text-[8px] opacity-30 truncate w-full text-center mt-1">{it.path}</div>
+               <div class="absolute bottom-2 text-[9px] font-medium opacity-40 truncate max-w-[90%] bg-base-100/80 px-2 py-0.5 rounded-full">{it.path}</div>
             {/if}
           </div>
         {:else}

@@ -1836,6 +1836,7 @@
   "frontend/src/routes/files/+page.svelte::files_description": "Ukládejte a spravujte své osobní výukové materiály.",
   "frontend/src/routes/files/+page.svelte::moving_message": "Přesouvám…",
   "frontend/src/routes/files/+page.svelte::failed_to_move_error": "Nepodařilo se přesunout soubor",
+  "frontend/src/routes/files/+page.svelte::file_already_exists_error": "Soubor nebo složka s tímto názvem již v cílové složce existuje.",
   "frontend/src/routes/files/[id]/+page.svelte::image_viewer": "Prohlížeč obrázků",
   "frontend/src/routes/files/[id]/+page.svelte::preview_label": "Náhled",
   "frontend/src/routes/files/[id]/+page.svelte::notebook_label": "Jupyter Notebook",
