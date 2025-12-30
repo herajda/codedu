@@ -715,6 +715,7 @@
   "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_heading": "Odevzdat řešení",
   "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_or": "nebo",
   "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_upload_button": "Nahrát",
+  "frontend/src/routes/assignments/[id]/+page.svelte::uploading_status": "Nahrávám...",
   "frontend/src/routes/assignments/[id]/+page.svelte::tab_instructor": "Pokrok studentů",
   "frontend/src/routes/assignments/[id]/+page.svelte::tab_overview": "Přehled",
   "frontend/src/routes/assignments/[id]/+page.svelte::tab_results": "Výsledky",

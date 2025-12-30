@@ -90,6 +90,8 @@
   let subStats: Record<string, { passed: number; total: number }> = {};
   // removed test creation inputs (moved to tests page)
   let files: File[] = [];
+  let isUploading = false;
+  let uploadProgress = 0;
   let templateFile: File | null = null;
 
   let confirmModal: InstanceType<typeof ConfirmModal>;
@@ -852,22 +854,57 @@
 
   async function submit() {
     if (files.length === 0) return;
+    
+    isUploading = true;
+    uploadProgress = 0;
+    
     const fd = new FormData();
     for (const f of files) {
       fd.append("files", f);
     }
+    
     try {
-      await apiFetch(`/api/assignments/${id}/submissions`, {
-        method: "POST",
-        body: fd,
+      // Use XMLHttpRequest to track upload progress
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const url = assignment.id ? `/api/assignments/${id}/submissions` : `/api/assignments/${id}/submissions`; 
+        // Note: id is derived from $page.params.id at line 60
+        
+        xhr.open("POST", `/api/assignments/${id}/submissions`);
+        xhr.withCredentials = true;
+        
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            uploadProgress = Math.round((event.loaded / event.total) * 100);
+          }
+        };
+        
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(xhr.response);
+          } else {
+            try {
+              const errorData = JSON.parse(xhr.responseText);
+              reject(new Error(errorData.error || xhr.statusText));
+            } catch {
+              reject(new Error(xhr.statusText));
+            }
+          }
+        };
+        
+        xhr.onerror = () => reject(new Error("Network error"));
+        xhr.send(fd);
       });
+
       files = [];
       if (fileInput) fileInput.value = "";
       submitDialog.close();
-
       await load();
     } catch (e: any) {
       err = e.message;
+    } finally {
+      isUploading = false;
+      uploadProgress = 0;
     }
   }
 
@@ -2514,15 +2551,19 @@
               )}
             </h3>
             <button
-              class="btn btn-primary w-full"
+              class="btn btn-primary w-full shadow-lg shadow-primary/20 hover:shadow-primary/30 group transition-all duration-300 h-14 rounded-2xl gap-3 border-none"
               on:click={openSubmitModal}
               disabled={assignment.second_deadline &&
                 new Date() > assignment.deadline &&
                 new Date() > assignment.second_deadline}
-              >{t(
-                "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_button",
-              )}</button
             >
+              <div class="p-2 bg-white/20 rounded-xl group-hover:rotate-12 transition-transform">
+                <Send size={18} />
+              </div>
+              <span class="font-black uppercase tracking-widest text-[11px]">
+                {t("frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_button")}
+              </span>
+            </button>
             {#if assignment.template_path}
               <div class="divider my-1"></div>
               <div class="text-sm opacity-70">
@@ -2618,108 +2659,181 @@
 
   <!-- tests list moved to modal -->
 
-  <dialog bind:this={submitDialog} class="modal">
-    <div class="modal-box w-11/12 max-w-lg space-y-4">
-      <h3 class="font-bold text-lg">
-        {t(
-          "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_heading",
-        )}
-      </h3>
-      {#if assignment.second_deadline && new Date() > assignment.deadline && new Date() <= assignment.second_deadline}
-        <div class="alert alert-warning">
-          <span>
-            <strong
-              >{t(
-                "frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_period_info_strong",
-              )}</strong
-            >
-            {t(
-              "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_alert_body",
-              { penalty: Math.round(assignment.late_penalty_ratio * 100) },
-            )}
-          </span>
+  <dialog bind:this={submitDialog} class="modal modal-bottom sm:modal-middle">
+    <div class="modal-box sm:w-11/12 sm:max-w-lg p-0 overflow-hidden bg-base-100 rounded-[2rem] shadow-2xl border border-base-300">
+      <!-- Modal Header -->
+      <div class="p-6 pb-4 flex items-center justify-between border-b border-base-200 bg-base-200/30">
+        <div class="flex items-center gap-3">
+          <div class="p-2.5 bg-primary/10 rounded-xl text-primary">
+            <FileUp size={20} />
+          </div>
+          <h3 class="font-black text-xl tracking-tight">
+            {t("frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_heading")}
+          </h3>
         </div>
-      {:else if assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}
-        <div class="alert alert-error">
-          <span>
-            <strong
-              >{t(
-                "frontend/src/routes/assignments/[id]/+page.svelte::all_deadlines_passed_alert_strong",
-              )}</strong
-            >
-            {t(
-              "frontend/src/routes/assignments/[id]/+page.svelte::all_deadlines_passed_alert_body",
-            )}
-          </span>
-        </div>
-      {/if}
-      <div
-        role="group"
-        aria-label="Upload dropzone"
-        class={`border-2 border-dashed rounded-xl p-6 text-center transition ${isDragging ? "bg-base-200" : "bg-base-100"}`}
-        on:dragover|preventDefault={() => (isDragging = true)}
-        on:dragleave={() => (isDragging = false)}
-        on:drop|preventDefault={(e) => {
-          isDragging = false;
-          const dt = (e as DragEvent).dataTransfer;
-          if (dt) {
-            files = [...files, ...Array.from(dt.files)].filter((f) =>
-              f.name.endsWith(".py"),
-            );
-          }
-        }}
-      >
-        <div class="text-sm opacity-70 mb-2">
-          {t(
-            "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_dropzone_text",
-          )}
-        </div>
-        <div class="mb-3">
-          {t(
-            "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_or",
-          )}
-        </div>
-        <input
-          bind:this={fileInput}
-          type="file"
-          accept=".py"
-          multiple
-          class="file-input file-input-bordered w-full"
-          on:change={(e) =>
-            (files = Array.from((e.target as HTMLInputElement).files || []))}
-        />
+        <form method="dialog">
+          <button class="btn btn-circle btn-ghost btn-sm opacity-40 hover:opacity-100">
+            <X size={20} />
+          </button>
+        </form>
       </div>
-      {#if files.length}
-        <div class="text-sm opacity-70">
-          {translate(
-            files.length === 1
-              ? "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_files_selected_singular"
-              : "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_files_selected_plural",
-            { count: files.length },
-          )}
+
+      <div class="p-6 space-y-6">
+        {#if assignment.second_deadline && new Date() > assignment.deadline && new Date() <= assignment.second_deadline}
+          <div class="alert bg-warning/10 border-warning/20 text-warning-content rounded-2xl flex items-start gap-3 py-3">
+            <AlertTriangle size={18} class="mt-0.5 shrink-0" />
+            <div class="text-xs">
+              <strong class="font-black uppercase tracking-widest text-[9px] block mb-0.5">
+                {t("frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_period_info_strong")}
+              </strong>
+              {t("frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_alert_body", { penalty: Math.round(assignment.late_penalty_ratio * 100) })}
+            </div>
+          </div>
+        {:else if assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}
+          <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl flex items-start gap-3 py-3">
+            <AlertCircle size={18} class="mt-0.5 shrink-0" />
+            <div class="text-xs">
+              <strong class="font-black uppercase tracking-widest text-[9px] block mb-0.5">
+                {t("frontend/src/routes/assignments/[id]/+page.svelte::all_deadlines_passed_alert_strong")}
+              </strong>
+              {t("frontend/src/routes/assignments/[id]/+page.svelte::all_deadlines_passed_alert_body")}
+            </div>
+          </div>
+        {/if}
+
+        <div
+          role="group"
+          aria-label="Upload dropzone"
+          class={`relative group/drop border-2 border-dashed rounded-3xl p-10 text-center transition-all duration-300 ${isDragging ? "border-primary bg-primary/5 scale-[0.99]" : "border-base-300 bg-base-200/30 hover:bg-base-200/50 hover:border-base-400"}`}
+          on:dragover|preventDefault={() => (isDragging = true)}
+          on:dragleave={() => (isDragging = false)}
+          on:drop|preventDefault={(e) => {
+            isDragging = false;
+            const dt = (e as DragEvent).dataTransfer;
+            if (dt) {
+              const newFiles = Array.from(dt.files).filter((f) => f.name.endsWith(".py"));
+              files = [...files, ...newFiles];
+            }
+          }}
+        >
+          <div class="flex flex-col items-center gap-4">
+            <div class={`p-5 rounded-2xl transition-all duration-300 ${isDragging ? "bg-primary text-primary-content scale-110 shadow-xl shadow-primary/20" : "bg-base-100 text-base-content/30 group-hover/drop:text-primary group-hover/drop:scale-110 shadow-sm"}`}>
+              <Upload size={32} strokeWidth={1.5} />
+            </div>
+            <div>
+              <div class="font-black text-sm mb-1">
+                {t("frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_dropzone_text")}
+              </div>
+              <div class="text-[10px] font-bold opacity-40 uppercase tracking-widest">
+                {t("frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_or")}
+              </div>
+            </div>
+            <button 
+              class="btn btn-sm bg-base-100 hover:bg-base-300 border-base-300 rounded-xl px-6 font-black uppercase tracking-widest text-[9px]"
+              on:click={() => fileInput.click()}
+            >
+              {t("frontend/src/routes/+layout.2svelte::select_image_button").replace("image", "files")}
+            </button>
+          </div>
+          
+          <input
+            bind:this={fileInput}
+            type="file"
+            accept=".py"
+            multiple
+            class="hidden"
+            on:change={(e) =>
+              (files = [...files, ...Array.from((e.target as HTMLInputElement).files || [])])}
+          />
         </div>
-      {/if}
-      <div class="modal-action">
+
+        {#if files.length > 0}
+          <div class="space-y-2 animate-in fade-in slide-in-from-top-2">
+            <div class="flex items-center justify-between px-1">
+              <span class="text-[10px] font-black uppercase tracking-widest opacity-40">
+                {translate(
+                  files.length === 1
+                    ? "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_files_selected_singular"
+                    : "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_files_selected_plural",
+                  { count: files.length },
+                )}
+              </span>
+              <button 
+                class="text-[10px] font-black uppercase tracking-widest text-error hover:underline"
+                on:click={() => { files = []; if(fileInput) fileInput.value = ""; }}
+              >
+                {t("frontend/src/routes/assignments/[id]/+page.svelte::extend_deadline_modal_clear_button")}
+              </button>
+            </div>
+            <div class="max-h-32 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
+              {#each files as f, i}
+                <div class="flex items-center justify-between p-2.5 bg-base-200/50 rounded-xl border border-base-300/50">
+                  <div class="flex items-center gap-2.5 truncate">
+                    <div class="p-1.5 bg-base-100 rounded-lg text-primary/70">
+                      <FileCode size={14} />
+                    </div>
+                    <span class="text-xs font-mono font-medium truncate">{f.name}</span>
+                  </div>
+                  <button 
+                    class="btn btn-ghost btn-circle btn-xs text-error/40 hover:text-error hover:bg-error/10"
+                    on:click={() => files = files.filter((_, idx) => idx !== i)}
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
+
+        {#if isUploading}
+          <div class="space-y-3 animate-in fade-in zoom-in-95">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div class="loading loading-spinner loading-xs text-primary"></div>
+                <span class="text-xs font-black uppercase tracking-widest text-primary">
+                  {t("frontend/src/routes/assignments/[id]/+page.svelte::uploading_status")}
+                </span>
+              </div>
+              <span class="font-mono text-xs font-black text-primary">{uploadProgress}%</span>
+            </div>
+            <div class="w-full bg-base-200 rounded-full h-2.5 overflow-hidden border border-base-300 shadow-inner">
+              <div 
+                class="bg-primary h-full transition-all duration-300 relative overflow-hidden" 
+                style="width: {uploadProgress}%"
+              >
+                <div class="absolute inset-0 bg-white/20 animate-pulse"></div>
+              </div>
+            </div>
+          </div>
+        {/if}
+      </div>
+
+      <div class="p-6 pt-0 flex gap-3">
+        <form method="dialog" class="flex-1">
+          <button class="btn btn-ghost w-full rounded-2xl font-black uppercase tracking-widest text-[10px] h-12">
+            {t("frontend/src/routes/assignments/[id]/+page.svelte::cancel_button")}
+          </button>
+        </form>
         <button
-          class="btn"
+          class="btn btn-primary flex-[2] rounded-2xl h-12 shadow-lg shadow-primary/20 gap-2 font-black uppercase tracking-widest text-[11px]"
           on:click={submit}
-          disabled={!files.length ||
+          disabled={!files.length || isUploading ||
             (assignment.second_deadline &&
               new Date() > assignment.deadline &&
               new Date() > assignment.second_deadline)}
-          >{t(
-            "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_upload_button",
-          )}</button
         >
+          {#if isUploading}
+            <div class="loading loading-spinner loading-xs"></div>
+          {:else}
+            <div class="p-1.5 bg-white/20 rounded-lg">
+              <Check size={14} />
+            </div>
+          {/if}
+          {t("frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_upload_button")}
+        </button>
       </div>
     </div>
-    <form method="dialog" class="modal-backdrop">
-      <button
-        >{t(
-          "frontend/src/routes/assignments/[id]/+page.svelte::modal_close_button",
-        )}</button
-      >
-    </form>
   </dialog>
 
   <!-- Extend deadline dialog (teacher) -->
