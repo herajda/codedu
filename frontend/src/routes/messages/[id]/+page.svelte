@@ -454,7 +454,7 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
 
 <div class="messages-page flex flex-col h-[calc(100vh-6rem)] sm:h-[calc(100vh-7.1rem)] overflow-hidden">
   <!-- Premium Profile Header -->
-  <section class="relative overflow-hidden bg-base-100 rounded-3xl border border-base-300 shadow-md mt-4 sm:mt-8 mb-4 p-4 sm:p-6 shrink-0">
+  <section class="relative overflow-hidden bg-base-100 rounded-3xl border border-base-300 shadow-md mt-0 sm:mt-0 mb-2 p-4 sm:p-6 shrink-0">
     <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent pointer-events-none"></div>
     <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
     <div class="relative flex items-center justify-between gap-4">
@@ -526,7 +526,7 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
     </div>
   {/if}
 
-  <div class="flex-1 min-h-0 bg-base-100 rounded-[2.5rem] border border-base-300 shadow-md overflow-hidden relative mb-4 flex flex-col">
+  <div class="flex-1 min-h-0 bg-base-100 rounded-[2.5rem] border border-base-300 shadow-md overflow-hidden relative mb-2 flex flex-col">
     <!-- Messages Area -->
     <div class="flex-1 h-full overflow-y-auto p-6 space-y-6 scroll-smooth custom-scrollbar" bind:this={chatBox}>
       {#if hasMore}
