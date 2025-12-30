@@ -4354,7 +4354,7 @@ func renameClassFile(c *gin.Context) {
 			}
 		}
 	}
-	
+
 	// Handle moving to a different parent (including moving to root with explicit null)
 	if req.ParentID != nil {
 		var newParentID *uuid.UUID
@@ -4373,7 +4373,7 @@ func renameClassFile(c *gin.Context) {
 			var parent ClassFile
 			var query string
 			var args []interface{}
-			
+
 			if f.OwnerID != nil {
 				// For personal files, ensure parent belongs to same owner
 				query = `SELECT id,owner_id,is_dir FROM class_files WHERE id=$1 AND owner_id=$2`
@@ -4383,7 +4383,7 @@ func renameClassFile(c *gin.Context) {
 				query = `SELECT id,class_id,is_dir FROM class_files WHERE id=$1 AND class_id=$2`
 				args = []interface{}{*newParentID, f.ClassID}
 			}
-			
+
 			if err := DB.Get(&parent, query, args...); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "target folder not found or inaccessible"})
 				return
@@ -4398,14 +4398,14 @@ func renameClassFile(c *gin.Context) {
 				return
 			}
 		}
-		
+
 		// Move the file
 		if err := MoveFile(fid, newParentID); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to move file: " + err.Error()})
 			return
 		}
 	}
-	
+
 	// Handle renaming if name is provided
 	if req.Name != nil && strings.TrimSpace(*req.Name) != "" {
 		if err := RenameFile(fid, *req.Name); err != nil {
@@ -4413,7 +4413,7 @@ func renameClassFile(c *gin.Context) {
 			return
 		}
 	}
-	
+
 	c.Status(http.StatusNoContent)
 }
 
