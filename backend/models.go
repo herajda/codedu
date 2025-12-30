@@ -1964,16 +1964,19 @@ func IsStudentOfClass(cid, studentID uuid.UUID) (bool, error) {
 // ──────────────────────────────────────────────────────
 
 type Message struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	SenderID    uuid.UUID `db:"sender_id" json:"sender_id"`
-	RecipientID uuid.UUID `db:"recipient_id" json:"recipient_id"`
-	Text        string    `db:"content" json:"text"`
-	Image       *string   `db:"image" json:"image,omitempty"`
-	FileName    *string   `db:"file_name" json:"file_name,omitempty"`
-	File        *string   `db:"file" json:"file,omitempty"`
-	IsRead      bool      `db:"is_read" json:"is_read"`
-	Structured  bool      `db:"structured" json:"structured"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	ID            uuid.UUID  `db:"id" json:"id"`
+	SenderID      uuid.UUID  `db:"sender_id" json:"sender_id"`
+	RecipientID   uuid.UUID  `db:"recipient_id" json:"recipient_id"`
+	Text          string     `db:"content" json:"text"`
+	Image         *string    `db:"image" json:"image,omitempty"`
+	FileName      *string    `db:"file_name" json:"file_name,omitempty"`
+	File          *string    `db:"file" json:"file,omitempty"`
+	IsRead        bool       `db:"is_read" json:"is_read"`
+	Structured    bool       `db:"structured" json:"structured"`
+	ReplyToID     *uuid.UUID `db:"reply_to_id" json:"reply_to_id,omitempty"`
+	ReplyText     *string    `db:"-" json:"reply_text,omitempty"`
+	ReplySenderID *uuid.UUID `db:"-" json:"reply_sender_id,omitempty"`
+	CreatedAt     time.Time  `db:"created_at" json:"created_at"`
 }
 
 func CreateMessage(m *Message) error {
@@ -1984,12 +1987,23 @@ func CreateMessage(m *Message) error {
 	if blocked {
 		return ErrBlocked
 	}
-	const q = `INSERT INTO messages (sender_id, recipient_id, content, image, file_name, file, structured)
-                    VALUES ($1,$2,$3,$4,$5,$6,$7)
+	const q = `INSERT INTO messages (sender_id, recipient_id, content, image, file_name, file, structured, reply_to_id)
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
                     RETURNING id, created_at, is_read`
-	err = DB.QueryRow(q, m.SenderID, m.RecipientID, m.Text, m.Image, m.FileName, m.File, m.Structured).
+	err = DB.QueryRow(q, m.SenderID, m.RecipientID, m.Text, m.Image, m.FileName, m.File, m.Structured, m.ReplyToID).
 		Scan(&m.ID, &m.CreatedAt, &m.IsRead)
 	if err == nil {
+		// Populate reply preview data if this is a reply
+		if m.ReplyToID != nil {
+			var replyMsg struct {
+				Content  string    `db:"content"`
+				SenderID uuid.UUID `db:"sender_id"`
+			}
+			if err2 := DB.Get(&replyMsg, `SELECT content, sender_id FROM messages WHERE id=$1`, *m.ReplyToID); err2 == nil {
+				m.ReplyText = &replyMsg.Content
+				m.ReplySenderID = &replyMsg.SenderID
+			}
+		}
 		broadcastMsg(sse.Event{Event: "message", Data: m})
 	}
 	return err
@@ -1997,14 +2011,32 @@ func CreateMessage(m *Message) error {
 
 func ListMessages(userID, otherID uuid.UUID, limit, offset int) ([]Message, error) {
 	msgs := []Message{}
-	err := DB.Select(&msgs, `SELECT id,sender_id,recipient_id,content,image,file_name,file,created_at,is_read,structured
+	err := DB.Select(&msgs, `SELECT id,sender_id,recipient_id,content,image,file_name,file,created_at,is_read,structured,reply_to_id
                                  FROM messages
                                 WHERE (sender_id=$1 AND recipient_id=$2)
                                    OR (sender_id=$2 AND recipient_id=$1)
                                 ORDER BY created_at DESC
                                 LIMIT $3 OFFSET $4`,
 		userID, otherID, limit, offset)
-	return msgs, err
+	if err != nil {
+		return nil, err
+	}
+
+	// Populate reply preview data
+	for i := range msgs {
+		if msgs[i].ReplyToID != nil {
+			var replyMsg struct {
+				Content  string    `db:"content"`
+				SenderID uuid.UUID `db:"sender_id"`
+			}
+			if err2 := DB.Get(&replyMsg, `SELECT content, sender_id FROM messages WHERE id=$1`, *msgs[i].ReplyToID); err2 == nil {
+				msgs[i].ReplyText = &replyMsg.Content
+				msgs[i].ReplySenderID = &replyMsg.SenderID
+			}
+		}
+	}
+
+	return msgs, nil
 }
 
 func MarkMessagesRead(userID, otherID uuid.UUID) error {

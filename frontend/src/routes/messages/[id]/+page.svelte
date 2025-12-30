@@ -23,7 +23,9 @@
     Smile,
     Table,
     MessageSquare,
-    Download
+    Download,
+    Reply,
+    CornerDownRight
   } from 'lucide-svelte';
 import { renderMarkdown } from '$lib/markdown';
 import MarkdownEditor from '$lib/MarkdownEditor.svelte';
@@ -73,6 +75,46 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
   let searchPos = 0;
   let searchInput: HTMLInputElement | null = null;
   let msgEls: HTMLDivElement[] = [];
+
+  // Reply feature state
+  let replyToMessage: any = null; // The message being replied to
+  let highlightedMessageId: number | null = null; // ID of message to highlight
+  
+  function setReplyTo(message: any) {
+    replyToMessage = message;
+    // Focus the input after setting reply
+    setTimeout(() => msgInput?.focus(), 0);
+  }
+  
+  function clearReply() {
+    replyToMessage = null;
+  }
+  
+  let highlightTimeout: any = null;
+  function scrollToMessage(messageId: number) {
+    // Find the index of the message in the conversation
+    const messageIndex = convo.findIndex(m => m.id === messageId);
+    if (messageIndex === -1) return;
+    
+    // Get the message element
+    const messageEl = msgEls[messageIndex];
+    if (!messageEl) return;
+    
+    // Scroll to the message
+    messageEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    
+    // Highlight the message
+    highlightedMessageId = messageId;
+    
+    // Clear previous timeout if any
+    if (highlightTimeout) clearTimeout(highlightTimeout);
+    
+    // Remove highlight after 3 seconds
+    highlightTimeout = setTimeout(() => {
+      highlightedMessageId = null;
+      highlightTimeout = null;
+    }, 3000);
+  }
 
   function registerMsgEl(node: HTMLDivElement, idx: number) {
     msgEls[idx] = node;
@@ -243,11 +285,15 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
   async function send() {
     err = '';
     if (!msg.trim() && !imageData && !fileData) return;
+    const payload: any = { to: id, text: msg, image: imageData, file_name: fileName, file: fileData, structured };
+    if (replyToMessage) {
+      payload.reply_to = replyToMessage.id;
+    }
     const res = await apiFetch('/api/messages', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ to: id, text: msg, image: imageData, file_name: fileName, file: fileData, structured })
+      body: JSON.stringify(payload)
     });
-    if (res.ok) { msg=''; imageData=null; fileData=null; fileName=null; structured=false; offset=0; await load(); }
+    if (res.ok) { msg=''; imageData=null; fileData=null; fileName=null; structured=false; replyToMessage=null; offset=0; await load(); }
     else { err = (await res.json()).error; }
   }
 
@@ -513,7 +559,7 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
         {/if}
         
         <div
-          class="{`flex ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'} group ${searchResults.includes(index) ? 'bg-primary/10 -mx-6 px-6 py-2' : ''}`}"
+          class="{`flex ${m.sender_id === $auth?.id ? 'justify-end' : 'justify-start'} group ${searchResults.includes(index) ? 'bg-primary/10 -mx-6 px-6 py-2' : ''} ${highlightedMessageId === m.id ? 'highlighted-message' : ''}`}"
           use:registerMsgEl={index}
           in:fade={{ duration: 200 }}
         >
@@ -534,6 +580,30 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
             
             <div class={`flex flex-col group/msg ${m.sender_id === $auth?.id ? 'items-end' : 'items-start'}`}>
               <div class="relative flex flex-col">
+                <!-- Reply preview (if this message is a reply) -->
+                {#if m.reply_to_id && m.reply_text}
+                  <button
+                    type="button"
+                    class={`flex items-start gap-2 mb-2 px-3 py-2 rounded-xl text-xs border-l-2 w-full text-left transition-all hover:scale-[1.02] cursor-pointer ${
+                      m.sender_id === $auth?.id 
+                        ? 'bg-primary-content/10 border-primary-content/30 hover:bg-primary-content/20' 
+                        : 'bg-base-200/50 border-primary/30 hover:bg-base-200/70'
+                    }`}
+                    on:click|stopPropagation={() => scrollToMessage(m.reply_to_id)}
+                    title={t('frontend/src/routes/messages/[id]/+page.svelte::click_to_view_original')}
+                  >
+                    <CornerDownRight size={12} class="mt-0.5 shrink-0 opacity-50" />
+                    <div class="flex-1 min-w-0">
+                      <p class={`text-[9px] font-black uppercase tracking-wider mb-0.5 ${
+                        m.sender_id === $auth?.id ? 'opacity-60' : 'text-primary opacity-80'
+                      }`}>
+                        {m.reply_sender_id === $auth?.id ? t('frontend/src/routes/messages/[id]/+page.svelte::you') : name}
+                      </p>
+                      <p class="opacity-70 line-clamp-2">{m.reply_text}</p>
+                    </div>
+                  </button>
+                {/if}
+                
                 {#if m.image}
                   <div class="mb-3 rounded-3xl overflow-hidden shadow-xl border border-base-200 bg-base-200/50 group/img relative">
                     <button type="button" class="block p-0 m-0 w-full" on:click={() => openImage(m.image)}>
@@ -571,7 +641,7 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
                     </div>
                   {:else}
                     <div 
-                      class={`relative rounded-[2rem] px-5 py-4 shadow-sm transition-all duration-300 group/bubble w-fit ${
+                      class={`relative rounded-[2rem] px-5 py-4 shadow-sm transition-all duration-300 group/bubble message-bubble w-fit ${
                         m.sender_id === $auth?.id
                           ? 'bg-primary text-primary-content rounded-br-lg shadow-primary/20 hover:shadow-primary/30 [&_a]:text-primary-content'
                           : 'bg-base-100 border border-base-200 text-base-content rounded-bl-lg hover:border-primary/20'
@@ -617,6 +687,16 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
                     {/if}
                   </div>
                 {/if}
+
+                <!-- Reply button - appears on hover -->
+                <button
+                  class={`btn btn-ghost btn-xs h-7 px-2 rounded-lg gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity mt-1 text-base-content/50 hover:text-primary hover:bg-primary/10 ${m.sender_id === $auth?.id ? 'self-end' : 'self-start'}`}
+                  on:click|stopPropagation={() => setReplyTo(m)}
+                  title={t('frontend/src/routes/messages/[id]/+page.svelte::reply_button')}
+                >
+                  <Reply size={12} />
+                  <span class="text-[9px] font-bold uppercase tracking-wider">{t('frontend/src/routes/messages/[id]/+page.svelte::reply_button')}</span>
+                </button>
               </div>
             </div>
           </div>
@@ -641,6 +721,28 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
               <button class="btn btn-ghost btn-xs btn-circle" on:click={() => {fileData=null; fileName=null;}}><X size={12} /></button>
             </div>
           {/if}
+        </div>
+      {/if}
+
+      <!-- Reply composer preview -->
+      {#if replyToMessage}
+        <div class="flex items-start gap-3 mb-4 p-3 bg-base-200/50 rounded-2xl border-l-4 border-primary" in:fade>
+          <Reply size={16} class="text-primary shrink-0 mt-0.5" />
+          <div class="flex-1 min-w-0">
+            <p class="text-[10px] font-black text-primary uppercase tracking-widest mb-1">
+              {t('frontend/src/routes/messages/[id]/+page.svelte::replying_to')} {replyToMessage.sender_id === $auth?.id ? t('frontend/src/routes/messages/[id]/+page.svelte::yourself') : name}
+            </p>
+            <p class="text-sm text-base-content/70 line-clamp-2">
+              {replyToMessage.text || (replyToMessage.image ? t('frontend/src/routes/messages/[id]/+page.svelte::image_message') : t('frontend/src/routes/messages/[id]/+page.svelte::file_message'))}
+            </p>
+          </div>
+          <button 
+            class="btn btn-ghost btn-xs btn-circle shrink-0" 
+            on:click={clearReply}
+            title={t('frontend/src/routes/messages/[id]/+page.svelte::cancel_reply')}
+          >
+            <X size={14} />
+          </button>
         </div>
       {/if}
 
@@ -782,5 +884,83 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
   /* Specific message bubble tweaks */
   :global(.group\/bubble .markdown a) {
     color: inherit !important;
+  }
+
+  /* Improved High-Visibility Highlighted message row style */
+  .highlighted-message {
+    position: relative;
+    z-index: 10;
+    transition: background-color 0.3s ease;
+  }
+
+  .highlighted-message::before {
+    content: '';
+    position: absolute;
+    inset: -0.5rem -1.5rem;
+    background: linear-gradient(90deg, 
+      hsl(var(--p) / 0.3) 0%, 
+      hsl(var(--p) / 0.1) 40%, 
+      transparent 100%
+    );
+    border-left: 6px solid hsl(var(--p));
+    pointer-events: none;
+    animation: highlight-row-entrance 4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    z-index: -1;
+  }
+
+  @keyframes highlight-row-entrance {
+    0% { opacity: 0; transform: translateX(-20px); }
+    5% { opacity: 1; transform: translateX(0); }
+    80% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  /* Intense Pop effect for the message bubble */
+  .highlighted-message :global(.message-bubble) {
+    animation: bubble-highlight-intense 4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
+    position: relative;
+    z-index: 20;
+  }
+
+  @keyframes bubble-highlight-intense {
+    0% { 
+      transform: scale(1); 
+      box-shadow: 0 0 0 0 hsl(var(--p) / 0);
+    }
+    5% { 
+      transform: scale(1.15); 
+      background-color: hsl(var(--p)) !important;
+      color: hsl(var(--pc)) !important;
+      box-shadow: 0 0 0 15px hsl(var(--p) / 0.4), 0 30px 60px -15px hsl(var(--p) / 0.6);
+      border-color: white !important;
+      filter: saturate(1.8) brightness(1.3) contrast(1.1);
+      z-index: 50;
+    }
+    20% {
+      transform: scale(1.1);
+      background-color: hsl(var(--p)) !important;
+      color: hsl(var(--pc)) !important;
+      box-shadow: 0 0 0 10px hsl(var(--p) / 0.3), 0 20px 40px -12px hsl(var(--p) / 0.5);
+      filter: saturate(1.5) brightness(1.2);
+    }
+    80% { 
+      transform: scale(1.08); 
+      background-color: hsl(var(--p) / 0.9) !important;
+      color: hsl(var(--pc)) !important;
+      opacity: 1; 
+      box-shadow: 0 0 0 6px hsl(var(--p) / 0.2), 0 15px 30px -8px hsl(var(--p) / 0.4);
+      filter: brightness(1.1);
+    }
+    100% { 
+      transform: scale(1); 
+      box-shadow: 0 0 0 0 hsl(var(--p) / 0);
+      filter: brightness(1);
+    }
+  }
+
+  /* If it's an image, also highlight it */
+  .highlighted-message :global(.group\/img) {
+    animation: bubble-highlight-intense 4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
+    border: 3px solid hsl(var(--p)) !important;
   }
 </style>

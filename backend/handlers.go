@@ -5035,12 +5035,13 @@ func getUserPublic(c *gin.Context) {
 
 func createMessage(c *gin.Context) {
 	var req struct {
-		To         uuid.UUID `json:"to" binding:"required"`
-		Text       string    `json:"text"`
-		Image      *string   `json:"image"`
-		FileName   *string   `json:"file_name"`
-		File       *string   `json:"file"`
-		Structured bool      `json:"structured"`
+		To         uuid.UUID  `json:"to" binding:"required"`
+		Text       string     `json:"text"`
+		Image      *string    `json:"image"`
+		FileName   *string    `json:"file_name"`
+		File       *string    `json:"file"`
+		Structured bool       `json:"structured"`
+		ReplyTo    *uuid.UUID `json:"reply_to"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -5058,7 +5059,7 @@ func createMessage(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "file too large"})
 		return
 	}
-	msg := &Message{SenderID: getUserID(c), RecipientID: req.To, Text: req.Text, Image: req.Image, FileName: req.FileName, File: req.File, Structured: req.Structured}
+	msg := &Message{SenderID: getUserID(c), RecipientID: req.To, Text: req.Text, Image: req.Image, FileName: req.FileName, File: req.File, Structured: req.Structured, ReplyToID: req.ReplyTo}
 	if err := CreateMessage(msg); err != nil {
 		if errors.Is(err, ErrBlocked) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "blocked"})
