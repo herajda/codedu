@@ -137,6 +137,8 @@ type Submission struct {
 	AttemptNumber              *int      `db:"attempt_number" json:"attempt_number,omitempty"`
 	StudentName                *string   `db:"student_name" json:"student_name,omitempty"`
 	AllTestsFailureExplanation *string   `db:"all_tests_failure_explanation" json:"all_tests_failure_explanation,omitempty"`
+	PassedTests                *int      `db:"passed_tests" json:"passed_tests,omitempty"`
+	TotalTests                 *int      `db:"total_tests" json:"total_tests,omitempty"`
 }
 
 type TestCase struct {
@@ -1138,7 +1140,9 @@ func ListSubmissionsForStudent(studentID uuid.UUID) ([]Submission, error) {
 	subs := []Submission{}
 	err := DB.Select(&subs, `
                SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at,
-                      ROW_NUMBER() OVER (PARTITION BY assignment_id, student_id ORDER BY created_at ASC, id ASC) AS attempt_number
+                      ROW_NUMBER() OVER (PARTITION BY assignment_id, student_id ORDER BY created_at ASC, id ASC) AS attempt_number,
+                      (SELECT COUNT(*) FROM results r WHERE r.submission_id = submissions.id AND r.status = 'passed') AS passed_tests,
+                      (SELECT COUNT(*) FROM results r WHERE r.submission_id = submissions.id) AS total_tests
                  FROM submissions
                 WHERE student_id = $1
                 ORDER BY created_at DESC`, studentID)
@@ -1178,7 +1182,9 @@ func ListSubmissionsForAssignmentAndStudent(aid, sid uuid.UUID) ([]SubmissionWit
                       ROW_NUMBER() OVER (PARTITION BY assignment_id, student_id ORDER BY created_at ASC, id ASC) AS attempt_number,
                       (SELECT r.status FROM results r
                          WHERE r.submission_id = submissions.id AND r.status <> 'passed'
-                         ORDER BY r.id LIMIT 1) AS failure_reason
+                         ORDER BY r.id LIMIT 1) AS failure_reason,
+                      (SELECT COUNT(*) FROM results r WHERE r.submission_id = submissions.id AND r.status = 'passed') AS passed_tests,
+                      (SELECT COUNT(*) FROM results r WHERE r.submission_id = submissions.id) AS total_tests
                  FROM submissions
                 WHERE assignment_id=$1 AND student_id=$2
                 ORDER BY created_at DESC`, aid, sid)
@@ -1195,7 +1201,9 @@ func ListSubmissionsForAssignment(aid uuid.UUID) ([]SubmissionWithStudent, error
                      u.email, u.name,
                      (SELECT r.status FROM results r
                         WHERE r.submission_id = s.id AND r.status <> 'passed'
-                         ORDER BY r.id LIMIT 1) AS failure_reason
+                         ORDER BY r.id LIMIT 1) AS failure_reason,
+                     (SELECT COUNT(*) FROM results r WHERE r.submission_id = s.id AND r.status = 'passed') AS passed_tests,
+                     (SELECT COUNT(*) FROM results r WHERE r.submission_id = s.id) AS total_tests
                  FROM submissions s
                  JOIN users u ON u.id = s.student_id
                 WHERE s.assignment_id = $1
@@ -1646,6 +1654,7 @@ type ScoreCell struct {
 	StudentID    uuid.UUID `db:"student_id" json:"student_id"`
 	AssignmentID uuid.UUID `db:"assignment_id" json:"assignment_id"`
 	Points       *float64  `db:"points" json:"points"`
+	PassedTests  *int      `db:"passed_tests" json:"passed_tests"`
 }
 
 type ClassProgress struct {
@@ -1686,7 +1695,8 @@ func GetClassProgress(classID uuid.UUID) (*ClassProgress, error) {
 	var cells []ScoreCell
 	if err := DB.Select(&cells, `
                 SELECT cs.student_id, a.id AS assignment_id,
-                       MAX(COALESCE(s.override_points, s.points)) AS points
+                       MAX(COALESCE(s.override_points, s.points)) AS points,
+                       MAX((SELECT COUNT(*) FROM results r WHERE r.submission_id=s.id AND r.status='passed')) AS passed_tests
                   FROM class_students cs
                   JOIN assignments a ON a.class_id=cs.class_id
                   LEFT JOIN submissions s ON s.assignment_id=a.id AND s.student_id=cs.student_id
