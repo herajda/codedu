@@ -17,7 +17,8 @@
     Undo, 
     Redo,
     Maximize,
-    Minimize
+    Minimize,
+    Terminal
   } from 'lucide-svelte';
   import { Editor } from '@tiptap/core';
   import StarterKit from '@tiptap/starter-kit';
@@ -131,6 +132,7 @@
   const toggleBulletList = () => editor?.chain().focus().toggleBulletList().run();
   const toggleOrderedList = () => editor?.chain().focus().toggleOrderedList().run();
   const toggleCodeBlock = () => editor?.chain().focus().toggleCodeBlock().run();
+  const toggleCode = () => editor?.chain().focus().toggleCode().run();
   // const toggleBlockquote = () => editor?.chain().focus().toggleBlockquote().run();
   
   const openLinkModal = () => {
@@ -224,8 +226,11 @@
 
         <div class="w-px h-4 bg-base-300 mx-1"></div>
 
-        <button class="btn btn-square btn-sm btn-ghost {editor.isActive('codeBlock') ? 'bg-base-200 text-primary' : ''}" on:click={toggleCodeBlock} title="Code Block">
+        <button class="btn btn-square btn-sm btn-ghost {editor.isActive('code') ? 'bg-base-200 text-primary' : ''}" on:click={toggleCode} title="Inline Code">
           <Code class="w-4 h-4" />
+        </button>
+        <button class="btn btn-square btn-sm btn-ghost {editor.isActive('codeBlock') ? 'bg-base-200 text-primary' : ''}" on:click={toggleCodeBlock} title="Code Block">
+          <Terminal class="w-4 h-4" />
         </button>
         <!-- <button class="btn btn-square btn-sm btn-ghost {editor.isActive('blockquote') ? 'bg-base-200 text-primary' : ''}" on:click={toggleBlockquote} title="Quote">
           <Quote class="w-4 h-4" />
