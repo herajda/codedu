@@ -17,6 +17,7 @@
   let running = false;
   let resizeObserver: ResizeObserver | null = null;
   let lastProjectRef: Uint8Array | ArrayBuffer | null = null;
+  let pointerIsDown = false;
 
   let translate = t;
   $: translate = $translator;
@@ -80,21 +81,11 @@
     renderer.resize(width, height);
   }
 
-  function normalizeKey(key: string) {
-    if (key === " ") return "space";
-    if (key === "ArrowUp") return "up arrow";
-    if (key === "ArrowDown") return "down arrow";
-    if (key === "ArrowLeft") return "left arrow";
-    if (key === "ArrowRight") return "right arrow";
-    if (key.length === 1) return key.toLowerCase();
-    return key.toLowerCase();
-  }
-
   function postMouse(event: PointerEvent, isDown: boolean) {
     if (!vm || !canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * 480 - 240;
-    const y = 180 - ((event.clientY - rect.top) / rect.height) * 360;
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
     vm.postIOData("mouse", {
       x,
       y,
@@ -106,27 +97,50 @@
 
   function handlePointerDown(event: PointerEvent) {
     if (!canvas) return;
+    pointerIsDown = true;
     canvas.focus();
+    canvas.setPointerCapture?.(event.pointerId);
     postMouse(event, true);
   }
 
   function handlePointerMove(event: PointerEvent) {
-    postMouse(event, event.buttons === 1);
+    postMouse(event, pointerIsDown);
   }
 
   function handlePointerUp(event: PointerEvent) {
+    pointerIsDown = false;
+    canvas?.releasePointerCapture?.(event.pointerId);
     postMouse(event, false);
+  }
+
+  function handlePointerCancel(event: PointerEvent) {
+    pointerIsDown = false;
+    canvas?.releasePointerCapture?.(event.pointerId);
+    postMouse(event, false);
+  }
+
+  function handlePointerLeave(event: PointerEvent) {
+    if (!pointerIsDown) {
+      postMouse(event, false);
+      return;
+    }
+    if (!canvas?.hasPointerCapture?.(event.pointerId)) {
+      pointerIsDown = false;
+      postMouse(event, false);
+    }
   }
 
   function handleKeyDown(event: KeyboardEvent) {
     if (!vm) return;
-    vm.postIOData("keyboard", { key: normalizeKey(event.key), isDown: true });
+    if (!event.key) return;
+    vm.postIOData("keyboard", { key: event.key, isDown: true });
     event.preventDefault();
   }
 
   function handleKeyUp(event: KeyboardEvent) {
     if (!vm) return;
-    vm.postIOData("keyboard", { key: normalizeKey(event.key), isDown: false });
+    if (!event.key) return;
+    vm.postIOData("keyboard", { key: event.key, isDown: false });
     event.preventDefault();
   }
 
@@ -153,6 +167,7 @@
 
   function runProject() {
     if (!vm || loading) return;
+    canvas?.focus();
     vm.greenFlag();
     running = true;
   }
@@ -246,7 +261,8 @@
         on:pointerdown={handlePointerDown}
         on:pointermove={handlePointerMove}
         on:pointerup={handlePointerUp}
-        on:pointerleave={handlePointerUp}
+        on:pointercancel={handlePointerCancel}
+        on:pointerleave={handlePointerLeave}
         on:keydown={handleKeyDown}
         on:keyup={handleKeyUp}
       ></canvas>
