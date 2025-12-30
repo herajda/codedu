@@ -367,10 +367,12 @@
   }
 
   :global(.ProseMirror pre) {
-    background-color: var(--assignment-code-bg);
+    background-color: var(--assignment-code-bg, oklch(0.95 0 0)); /* oklch fallback or #f2f2f2 */
+    /* Fallback to legacy hex if oklch fails or variable missing */
+    background-color: var(--assignment-code-bg, #f2f2f2);
     padding: 0.85rem 1rem;
     border-radius: 0.75rem;
-    border: 1px solid var(--assignment-code-border);
+    border: 1px solid var(--assignment-code-border, transparent);
     margin: 1rem 0;
   }
 
@@ -379,5 +381,6 @@
     padding: 0;
     font-size: 0.9em;
     border: none;
+    color: inherit;
   }
 </style>
