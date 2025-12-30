@@ -3586,11 +3586,11 @@ class MyTests(unittest.TestCase):
                         </label>
                         <div class="relative flex items-center">
                           <input
-                            class="input input-bordered rounded-lg input-xs w-24 font-bold bg-base-200/30 transition-all focus:w-28"
+                            class="input input-bordered rounded-lg input-xs w-28 pr-8 font-bold bg-base-200/30 transition-all focus:w-32"
                             placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::seconds")}
                             bind:value={t.time_limit_sec}
                           />
-                          <span class="absolute right-2 text-[8px] font-black opacity-30 pointer-events-none">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::sec_unit")}</span>
+                          <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-black opacity-30 pointer-events-none">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::sec_unit")}</span>
                         </div>
                       </div>
                       
@@ -3604,11 +3604,11 @@ class MyTests(unittest.TestCase):
                           </label>
                           <div class="relative flex items-center">
                             <input
-                              class="input input-bordered rounded-lg input-xs w-24 font-bold bg-base-200/30 transition-all focus:w-28"
+                              class="input input-bordered rounded-lg input-xs w-28 pr-8 font-bold bg-base-200/30 transition-all focus:w-32"
                               placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::points_placeholder")}
                               bind:value={t.weight}
                             />
-                            <span class="absolute right-2 text-[8px] font-black opacity-30 pointer-events-none">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::pts_unit")}</span>
+                            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-black opacity-30 pointer-events-none">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::pts_unit")}</span>
                           </div>
                         </div>
                       {/if}
@@ -3960,11 +3960,11 @@ class MyTests(unittest.TestCase):
                     </label>
                     <div class="relative flex items-center">
                       <input
-                        class="input input-bordered rounded-lg input-xs w-24 font-bold bg-base-200/30 transition-all focus:w-28"
+                        class="input input-bordered rounded-lg input-xs w-28 pr-8 font-bold bg-base-200/30 transition-all focus:w-32"
                         placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::seconds")}
                         bind:value={tLimit}
                       />
-                      <span class="absolute right-2 text-[8px] font-black opacity-30 pointer-events-none">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::sec_unit")}</span>
+                      <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-black opacity-30 pointer-events-none">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::sec_unit")}</span>
                     </div>
                   </div>
 
@@ -3978,11 +3978,11 @@ class MyTests(unittest.TestCase):
                       </label>
                       <div class="relative flex items-center">
                         <input
-                          class="input input-bordered rounded-lg input-xs w-24 font-bold bg-base-200/30 transition-all focus:w-28"
+                          class="input input-bordered rounded-lg input-xs w-28 pr-8 font-bold bg-base-200/30 transition-all focus:w-32"
                           placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::points_placeholder")}
                           bind:value={tWeight}
                         />
-                        <span class="absolute right-2 text-[8px] font-black opacity-30 pointer-events-none">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::pts_unit")}</span>
+                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-black opacity-30 pointer-events-none">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::pts_unit")}</span>
                       </div>
                     </div>
                   {/if}
@@ -4217,16 +4217,16 @@ class MyTests(unittest.TestCase):
                         <div class="form-control">
                           <span class="text-[9px] font-black uppercase tracking-widest opacity-40 mb-1 flex items-center gap-1.5"><Clock size={10} class="text-warning" /> {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::time_limit_s")}</span>
                           <div class="relative flex items-center">
-                            <input class="input input-bordered rounded-lg input-xs w-24 font-bold" bind:value={ut.timeLimit} />
-                            <span class="absolute right-2 text-[7px] font-black opacity-30">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::sec_unit")}</span>
+                            <input class="input input-bordered rounded-lg input-xs w-28 pr-8 font-bold" bind:value={ut.timeLimit} />
+                            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[7px] font-black opacity-30 pointer-events-none">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::sec_unit")}</span>
                           </div>
                         </div>
                         {#if assignment?.grading_policy === "weighted"}
                           <div class="form-control">
                             <span class="text-[9px] font-black uppercase tracking-widest opacity-40 mb-1 flex items-center gap-1.5"><Scale size={10} class="text-error" /> {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::points")}</span>
                             <div class="relative flex items-center">
-                              <input class="input input-bordered rounded-lg input-xs w-24 font-bold" bind:value={ut.weight} />
-                              <span class="absolute right-2 text-[7px] font-black opacity-30">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::pts_unit")}</span>
+                              <input class="input input-bordered rounded-lg input-xs w-28 pr-8 font-bold" bind:value={ut.weight} />
+                              <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[7px] font-black opacity-30 pointer-events-none">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::pts_unit")}</span>
                             </div>
                           </div>
                         {/if}
@@ -4616,16 +4616,16 @@ class MyTests(unittest.TestCase):
                               <div class="form-control space-y-1.5">
                                 <span class="text-[9px] font-black uppercase tracking-widest opacity-40 px-1 flex items-center gap-1.5"><Clock size={10} class="text-warning" /> {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::time_limit_s")}</span>
                                 <div class="relative flex items-center">
-                                  <input class="input input-bordered input-xs w-20 font-bold bg-base-200/30 focus:bg-base-100 transition-all" bind:value={fc.timeLimit} />
-                                  <span class="absolute right-2 text-[7px] font-black opacity-30">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::sec_unit")}</span>
+                                  <input class="input input-bordered input-xs w-28 pr-8 font-bold bg-base-200/30 focus:bg-base-100 transition-all" bind:value={fc.timeLimit} />
+                                  <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[7px] font-black opacity-30 pointer-events-none">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::sec_unit")}</span>
                                 </div>
                               </div>
                               {#if assignment?.grading_policy === "weighted"}
                                 <div class="form-control space-y-1.5">
                                   <span class="text-[9px] font-black uppercase tracking-widest opacity-40 px-1 flex items-center gap-1.5"><Scale size={10} class="text-error" /> {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::points")}</span>
                                   <div class="relative flex items-center">
-                                    <input class="input input-bordered input-xs w-20 font-bold bg-base-200/30 focus:bg-base-100 transition-all" bind:value={fc.weight} />
-                                    <span class="absolute right-2 text-[7px] font-black opacity-30">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::pts_unit")}</span>
+                                    <input class="input input-bordered input-xs w-28 pr-8 font-bold bg-base-200/30 focus:bg-base-100 transition-all" bind:value={fc.weight} />
+                                    <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[7px] font-black opacity-30 pointer-events-none">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::pts_unit")}</span>
                                   </div>
                                 </div>
                               {/if}
