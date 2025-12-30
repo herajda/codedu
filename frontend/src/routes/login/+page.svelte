@@ -36,6 +36,7 @@
     let mode: 'local' | 'bakalari' = 'local'
     let allowMicrosoftLogin = true
     let allowBakalariLogin = true
+    let passwordInput: HTMLInputElement | null = null
     
     onMount(async () => {
       try {
@@ -192,7 +193,7 @@
   </div>
 
   <div class="flex-1 flex items-center justify-center p-4 min-h-[calc(100vh-4rem)]">
-      <div class="w-full max-w-[460px] relative -mt-16" in:scale={{duration: 600, start: 0.98, opacity: 0}}>
+      <div class="w-full max-w-[460px] relative" in:scale={{duration: 600, start: 0.98, opacity: 0}}>
         
         <!-- Header Section -->
         <div class="text-center mb-6">
@@ -228,6 +229,12 @@
                                     placeholder="your@email.com" 
                                     required 
                                     class="w-full bg-base-200/50 dark:bg-white/5 border-2 border-transparent focus:border-primary/20 focus:bg-white dark:focus:bg-base-100 pl-14 pr-6 h-16 rounded-2xl font-bold transition-all outline-none text-lg dark:text-white placeholder:opacity-30" 
+                                    on:keydown={(event) => {
+                                      if (event.key === 'Tab' && !event.shiftKey) {
+                                        event.preventDefault()
+                                        passwordInput?.focus()
+                                      }
+                                    }}
                                 />
                             </div>
                         </div>
@@ -252,6 +259,7 @@
                                     placeholder="••••••••" 
                                     required 
                                     class="w-full bg-base-200/50 dark:bg-white/5 border-2 border-transparent focus:border-primary/20 focus:bg-white dark:focus:bg-base-100 pl-14 pr-6 h-16 rounded-2xl font-bold transition-all outline-none text-lg dark:text-white placeholder:opacity-30" 
+                                    bind:this={passwordInput}
                                 />
                             </div>
                         </div>
