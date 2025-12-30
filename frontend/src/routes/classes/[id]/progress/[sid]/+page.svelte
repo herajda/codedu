@@ -467,14 +467,6 @@
               {/each}
             </ul>
           </div>
-
-          {#if recent.length > 0}
-            <div class="pt-2">
-              <button class="btn btn-ghost btn-sm w-full rounded-xl text-base-content/40 hover:text-primary transition-colors">
-                {t("frontend/src/routes/classes/[id]/progress/[sid]/+page.svelte::view_all_activity")}
-              </button>
-            </div>
-          {/if}
         </div>
       </aside>
     </div>
