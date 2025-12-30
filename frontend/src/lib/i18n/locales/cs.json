@@ -1861,5 +1861,6 @@
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::output_source_teacher": "Z učitelského řešení",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_expected_hint": "Nechte builder zachytit očekávané hodnoty z vašeho referenčního kódu nebo je zadejte sami.",
   "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_assertion_button": "Přidat aserce",
-  "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_staged_file_to_list": "Přidat připravený soubor do seznamu"
+  "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_staged_file_to_list": "Přidat připravený soubor do seznamu",
+  "frontend/src/routes/assignments/[id]/tests/+page.svelte::manage_existing_tests_button": "Spravovat existující testy"
 }
