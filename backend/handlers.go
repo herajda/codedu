@@ -262,15 +262,25 @@ func createAssignment(c *gin.Context) {
 	}
 
 	var req struct {
-		Title           string `json:"title" binding:"required"`
-		Description     string `json:"description"`
-		ShowTraceback   bool   `json:"show_traceback"`
-		ShowTestDetails bool   `json:"show_test_details"`
-		ManualReview    bool   `json:"manual_review"`
+		Title               string `json:"title" binding:"required"`
+		Description         string `json:"description"`
+		ShowTraceback       bool   `json:"show_traceback"`
+		ShowTestDetails     bool   `json:"show_test_details"`
+		ManualReview        bool   `json:"manual_review"`
+		ProgrammingLanguage string `json:"programming_language"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+	lang, err := normalizeProgrammingLanguage(req.ProgrammingLanguage)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	manualReview := req.ManualReview
+	if lang == "scratch" {
+		manualReview = true
 	}
 
 	a := &Assignment{
@@ -283,7 +293,8 @@ func createAssignment(c *gin.Context) {
 		Published:        false,
 		ShowTraceback:    req.ShowTraceback,
 		ShowTestDetails:  req.ShowTestDetails,
-		ManualReview:     req.ManualReview,
+		ProgrammingLanguage: lang,
+		ManualReview:     manualReview,
 		CreatedBy:        getUserID(c),
 		SecondDeadline:   nil,
 		LatePenaltyRatio: 0.5,
@@ -303,6 +314,19 @@ func listAssignments(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, list)
+}
+
+func normalizeProgrammingLanguage(raw string) (string, error) {
+	lang := strings.ToLower(strings.TrimSpace(raw))
+	if lang == "" {
+		return "python", nil
+	}
+	switch lang {
+	case "python", "scratch":
+		return lang, nil
+	default:
+		return "", fmt.Errorf("invalid programming_language")
+	}
 }
 
 // getAssignment: GET /api/assignments/:id
@@ -404,24 +428,25 @@ func updateAssignment(c *gin.Context) {
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	var req struct {
-		Title              string   `json:"title" binding:"required"`
-		Description        string   `json:"description"`
-		Deadline           string   `json:"deadline" binding:"required"`
-		MaxPoints          int      `json:"max_points" binding:"required"`
-		GradingPolicy      string   `json:"grading_policy" binding:"required"`
-		ShowTraceback      bool     `json:"show_traceback"`
-		ShowTestDetails    bool     `json:"show_test_details"`
-		ManualReview       bool     `json:"manual_review"`
-		LLMInteractive     bool     `json:"llm_interactive"`
-		LLMFeedback        bool     `json:"llm_feedback"`
-		LLMAutoAward       bool     `json:"llm_auto_award"`
-		LLMScenariosRaw    *string  `json:"llm_scenarios_json"`
-		LLMStrictness      *int     `json:"llm_strictness"`
-		LLMRubric          *string  `json:"llm_rubric"`
-		LLMTeacherBaseline *string  `json:"llm_teacher_baseline_json"`
-		LLMHelpWhyFailed   bool     `json:"llm_help_why_failed"`
-		SecondDeadline     *string  `json:"second_deadline"`
-		LatePenaltyRatio   *float64 `json:"late_penalty_ratio"`
+		Title               string   `json:"title" binding:"required"`
+		Description         string   `json:"description"`
+		Deadline            string   `json:"deadline" binding:"required"`
+		MaxPoints           int      `json:"max_points" binding:"required"`
+		GradingPolicy       string   `json:"grading_policy" binding:"required"`
+		ShowTraceback       bool     `json:"show_traceback"`
+		ShowTestDetails     bool     `json:"show_test_details"`
+		ManualReview        bool     `json:"manual_review"`
+		ProgrammingLanguage *string  `json:"programming_language"`
+		LLMInteractive      bool     `json:"llm_interactive"`
+		LLMFeedback         bool     `json:"llm_feedback"`
+		LLMAutoAward        bool     `json:"llm_auto_award"`
+		LLMScenariosRaw     *string  `json:"llm_scenarios_json"`
+		LLMStrictness       *int     `json:"llm_strictness"`
+		LLMRubric           *string  `json:"llm_rubric"`
+		LLMTeacherBaseline  *string  `json:"llm_teacher_baseline_json"`
+		LLMHelpWhyFailed    bool     `json:"llm_help_why_failed"`
+		SecondDeadline      *string  `json:"second_deadline"`
+		LatePenaltyRatio    *float64 `json:"late_penalty_ratio"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -447,6 +472,16 @@ func updateAssignment(c *gin.Context) {
 	a.ShowTraceback = req.ShowTraceback
 	a.ShowTestDetails = req.ShowTestDetails
 	a.ManualReview = req.ManualReview
+	if req.ProgrammingLanguage != nil {
+		lang, err := normalizeProgrammingLanguage(*req.ProgrammingLanguage)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		a.ProgrammingLanguage = lang
+	} else if strings.TrimSpace(a.ProgrammingLanguage) == "" {
+		a.ProgrammingLanguage = "python"
+	}
 	a.LLMInteractive = req.LLMInteractive
 	a.LLMFeedback = req.LLMFeedback
 	a.LLMAutoAward = req.LLMAutoAward
@@ -477,6 +512,17 @@ func updateAssignment(c *gin.Context) {
 	}
 	if req.LatePenaltyRatio != nil {
 		a.LatePenaltyRatio = *req.LatePenaltyRatio
+	}
+	if a.ProgrammingLanguage == "scratch" {
+		a.GradingPolicy = "all_or_nothing"
+		a.ManualReview = true
+		a.LLMInteractive = false
+		a.LLMFeedback = false
+		a.LLMAutoAward = false
+		a.LLMScenariosRaw = nil
+		a.LLMRubric = nil
+		a.LLMTeacherBaseline = nil
+		a.LLMHelpWhyFailed = false
 	}
 	if err := UpdateAssignment(a); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not update"})
@@ -529,6 +575,7 @@ func syncTeachersGroupAssignment(c *gin.Context) {
 		clone.GradingPolicy = source.GradingPolicy
 		clone.ShowTraceback = source.ShowTraceback
 		clone.ShowTestDetails = source.ShowTestDetails
+		clone.ProgrammingLanguage = source.ProgrammingLanguage
 		clone.ManualReview = source.ManualReview
 		clone.LLMInteractive = source.LLMInteractive
 		clone.LLMFeedback = source.LLMFeedback

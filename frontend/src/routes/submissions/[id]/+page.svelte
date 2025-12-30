@@ -5,6 +5,7 @@
   import { page } from "$app/stores";
   import JSZip from "jszip";
   import { FileTree, RunConsole } from "$lib";
+  import ScratchPlayer from "$lib/components/ScratchPlayer.svelte";
   import { formatDateTime } from "$lib/date";
   import { goto } from "$app/navigation";
   import { auth } from "$lib/auth";
@@ -43,7 +44,8 @@
     Search,
     Shield,
     Eye,
-    Save
+    Save,
+    Gamepad2
   } from "lucide-svelte";
   let manualConsoleVisible = false;
   let esCtrl: { close: () => void } | null = null;
@@ -55,6 +57,11 @@
   let assignmentShowTestDetails = false;
   let assignmentShowTraceback = false;
   let assignmentLLMHelpWhyFailed = false;
+  let assignmentLanguage: string = "python";
+  let scratchProject: Uint8Array | null = null;
+  let scratchProjectName = "";
+  let scratchProjectError = "";
+  let scratchLoading = false;
   let allTestsFailed = false;
   let sid: number = 0;
   let role = "";
@@ -67,7 +74,7 @@
   let fileDialog: HTMLDialogElement;
 
   let llm: any = null;
-  let activeTab: "results" | "files" | "review" = "results";
+  let activeTab: "results" | "files" | "review" | "scratch" = "results";
   // Derived visibility flags
 
   // Inline teacher points override component
@@ -101,13 +108,20 @@
     children?: FileNode[];
   }
 
-  async function parseFiles(b64: string) {
-    let bytes: Uint8Array;
+  function decodeBase64(b64: string): Uint8Array | null {
     try {
       const bin = atob(b64);
-      bytes = new Uint8Array(bin.length);
+      const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return bytes;
     } catch {
+      return null;
+    }
+  }
+
+  async function parseFiles(b64: string) {
+    const bytes = decodeBase64(b64);
+    if (!bytes) {
       return [{ name: "code", content: b64 }];
     }
 
@@ -116,6 +130,15 @@
       const list: { name: string; content: string }[] = [];
       for (const file of Object.values(zip.files)) {
         if (file.dir) continue;
+        if (file.name.toLowerCase().endsWith(".sb3")) {
+          list.push({
+            name: file.name,
+            content: t(
+              "frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_file_placeholder",
+            ),
+          });
+          continue;
+        }
         const content = await file.async("string");
         list.push({ name: file.name, content });
       }
@@ -123,6 +146,44 @@
     } catch {
       const text = new TextDecoder().decode(bytes);
       return [{ name: "code", content: text }];
+    }
+  }
+
+  async function extractScratchProject(b64: string) {
+    scratchProject = null;
+    scratchProjectName = "";
+    scratchProjectError = "";
+    const bytes = decodeBase64(b64);
+    if (!bytes) {
+      scratchProjectError = t(
+        "frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_decode_error",
+      );
+      return;
+    }
+    try {
+      scratchLoading = true;
+      const zip = await JSZip.loadAsync(bytes);
+      const candidates = Object.values(zip.files).filter(
+        (file) =>
+          !file.dir && file.name.toLowerCase().endsWith(".sb3"),
+      );
+      if (!candidates.length) {
+        scratchProjectError = t(
+          "frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_missing",
+        );
+        return;
+      }
+      const file = candidates[0];
+      scratchProject = await file.async("uint8array");
+      scratchProjectName = file.name;
+    } catch (e: any) {
+      scratchProjectError =
+        e?.message ||
+        t(
+          "frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_load_error",
+        );
+    } finally {
+      scratchLoading = false;
     }
   }
 
@@ -156,6 +217,7 @@
           assignmentShowTestDetails = !!ad.assignment?.show_test_details;
           assignmentShowTraceback = !!ad.assignment?.show_traceback;
           assignmentLLMHelpWhyFailed = !!ad.assignment?.llm_help_why_failed;
+          assignmentLanguage = ad.assignment?.programming_language ?? "python";
           // Prefer aggregate tests_count when present (student view), fallback to tests array (teacher/admin)
           try {
             assignmentTestsCount =
@@ -166,6 +228,14 @@
                   : 0;
           } catch {
             assignmentTestsCount = 0;
+          }
+          if (assignmentLanguage === "scratch") {
+            await extractScratchProject(submission.code_content);
+            if (activeTab === "results") activeTab = "scratch";
+          } else {
+            scratchProject = null;
+            scratchProjectName = "";
+            scratchProjectError = "";
           }
         } catch {}
       }
@@ -226,12 +296,18 @@
   $: allowLLMDetails = role !== "student" || assignmentLLMFeedback;
   $: allowTestDetails = role !== "student" || assignmentShowTestDetails;
   $: allowTraceback = role !== "student" || assignmentShowTraceback;
+  $: isScratchSubmission = assignmentLanguage === "scratch";
   // Show Auto-tests only when NOT LLM mode and there are tests configured
-  $: showAutoUI = !assignmentLLMInteractive && assignmentTestsCount > 0;
+  $: showAutoUI =
+    !isScratchSubmission &&
+    !assignmentLLMInteractive &&
+    assignmentTestsCount > 0;
   // Keep legacy meaning of hideAutoUI: specifically, when no auto tests exist
-  $: hideAutoUI = assignmentTestsCount === 0;
-  $: forceManualConsole = assignmentManual || hideAutoUI;
+  $: hideAutoUI = assignmentTestsCount === 0 || isScratchSubmission;
+  $: forceManualConsole =
+    (assignmentManual || hideAutoUI) && !isScratchSubmission;
   $: if (forceManualConsole) manualConsoleVisible = true;
+  $: if (isScratchSubmission) manualConsoleVisible = false;
 
   function bgFromBadge(badgeClass: string) {
     return badgeClass.replace("badge", "bg");
@@ -667,15 +743,29 @@
 
     <!-- Tab Navigation -->
     <div class="flex flex-wrap items-center gap-1 p-1 bg-base-200/50 backdrop-blur-sm rounded-xl border border-base-300/50 mb-0 max-w-fit shadow-inner">
-      <button 
-        class={`px-3 py-1.5 rounded-[0.6rem] text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'results' ? 'bg-base-100 text-primary shadow-md' : 'hover:bg-base-300/50 opacity-50 hover:opacity-100'}`}
-        on:click={() => activeTab = 'results'}
-      >
-        <div class="flex items-center gap-2 text-[11px]">
-          <FlaskConical size={12} />
-          {t("frontend/src/routes/submissions/[id]/+page.svelte::results_title")}
-        </div>
-      </button>
+      {#if !isScratchSubmission}
+        <button 
+          class={`px-3 py-1.5 rounded-[0.6rem] text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'results' ? 'bg-base-100 text-primary shadow-md' : 'hover:bg-base-300/50 opacity-50 hover:opacity-100'}`}
+          on:click={() => activeTab = 'results'}
+        >
+          <div class="flex items-center gap-2 text-[11px]">
+            <FlaskConical size={12} />
+            {t("frontend/src/routes/submissions/[id]/+page.svelte::results_title")}
+          </div>
+        </button>
+      {/if}
+
+      {#if isScratchSubmission}
+        <button 
+          class={`px-3 py-1.5 rounded-[0.6rem] text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'scratch' ? 'bg-base-100 text-primary shadow-md' : 'hover:bg-base-300/50 opacity-50 hover:opacity-100'}`}
+          on:click={() => activeTab = 'scratch'}
+        >
+          <div class="flex items-center gap-2 text-[11px]">
+            <Gamepad2 size={12} />
+            {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_tab")}
+          </div>
+        </button>
+      {/if}
       
       <button 
         class={`px-3 py-1.5 rounded-[0.6rem] text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'files' ? 'bg-base-100 text-primary shadow-md' : 'hover:bg-base-300/50 opacity-50 hover:opacity-100'}`}
@@ -943,7 +1033,7 @@
             </div>
 
             <!-- Manual Console Section -->
-            {#if (role === "teacher" || role === "admin")}
+            {#if (role === "teacher" || role === "admin") && !isScratchSubmission}
               <div class="bg-base-200/40 rounded-3xl border border-base-200 shadow-lg shadow-base-300/20 overflow-hidden">
                 <div class="px-6 py-4 border-b border-base-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-base-100/50 backdrop-blur-sm">
                   <div class="flex items-center gap-3">
@@ -976,6 +1066,44 @@
             {/if}
           </div>
         {/if}
+      {/if}
+
+      {#if activeTab === 'scratch'}
+        <div class="bg-base-100 rounded-3xl border border-base-200 shadow-lg shadow-base-300/30 overflow-hidden">
+          <div class="px-6 py-4 border-b border-base-200 flex flex-wrap items-center justify-between gap-3 bg-base-100/50 backdrop-blur-sm">
+            <div class="flex items-center gap-3">
+              <div class="p-2 bg-secondary/10 text-secondary rounded-lg">
+                <Gamepad2 size={18} />
+              </div>
+              <h2 class="text-lg font-black tracking-tight">{t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_title")}</h2>
+            </div>
+            {#if scratchProjectName}
+              <span class="text-xs font-mono font-bold opacity-60">{scratchProjectName}</span>
+            {/if}
+          </div>
+          <div class="p-6">
+            {#if scratchLoading}
+              <div class="flex items-center gap-2 text-sm opacity-70">
+                <span class="loading loading-spinner loading-sm"></span>
+                {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_loading")}
+              </div>
+            {:else if scratchProjectError}
+              <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl">
+                <AlertCircle size={18} />
+                <span class="font-medium text-sm">{scratchProjectError}</span>
+              </div>
+            {:else if scratchProject}
+              <ScratchPlayer projectData={scratchProject} projectName={scratchProjectName} />
+            {:else}
+              <div class="alert bg-warning/10 border-warning/20 text-warning-content rounded-2xl">
+                <AlertTriangle size={18} />
+                <span class="font-medium text-sm">
+                  {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_empty")}
+                </span>
+              </div>
+            {/if}
+          </div>
+        </div>
       {/if}
 
       {#if activeTab === 'files'}

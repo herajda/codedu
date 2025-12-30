@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS assignments (
   published BOOLEAN NOT NULL DEFAULT FALSE,
   show_traceback BOOLEAN NOT NULL DEFAULT FALSE,
   show_test_details BOOLEAN NOT NULL DEFAULT FALSE,
+  programming_language TEXT NOT NULL DEFAULT 'python' CHECK (programming_language IN ('python','scratch')),
   manual_review BOOLEAN NOT NULL DEFAULT FALSE,
   banned_functions TEXT[] NOT NULL DEFAULT '{}',
   banned_modules TEXT[] NOT NULL DEFAULT '{}',
@@ -72,6 +73,7 @@ CREATE TABLE IF NOT EXISTS assignments (
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS template_path TEXT;
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS show_traceback BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS show_test_details BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS programming_language TEXT NOT NULL DEFAULT 'python' CHECK (programming_language IN ('python','scratch'));
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS manual_review BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS banned_functions TEXT[] NOT NULL DEFAULT '{}';
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS banned_modules TEXT[] NOT NULL DEFAULT '{}';

@@ -50,6 +50,7 @@ type Assignment struct {
 	Published       bool           `db:"published" json:"published"`
 	ShowTraceback   bool           `db:"show_traceback" json:"show_traceback"`
 	ShowTestDetails bool           `db:"show_test_details" json:"show_test_details"`
+	ProgrammingLanguage string     `db:"programming_language" json:"programming_language"`
 	ManualReview    bool           `db:"manual_review" json:"manual_review"`
 	BannedFunctions pq.StringArray `db:"banned_functions" json:"banned_functions"`
 	BannedModules   pq.StringArray `db:"banned_modules" json:"banned_modules"`
@@ -269,12 +270,12 @@ func ListAllClasses() ([]Class, error) {
 // ──────────────────────────────────────────────────────────────────────────────
 func CreateAssignment(a *Assignment) error {
 	const q = `
-          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, show_test_details, manual_review, banned_functions, banned_modules, banned_tool_rules, template_path, class_id, second_deadline, late_penalty_ratio, llm_help_why_failed)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+          INSERT INTO assignments (title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, show_test_details, programming_language, manual_review, banned_functions, banned_modules, banned_tool_rules, template_path, class_id, second_deadline, late_penalty_ratio, llm_help_why_failed)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
           RETURNING id, created_at, updated_at`
 	return DB.QueryRow(q,
 		a.Title, a.Description, a.CreatedBy, a.Deadline,
-		a.MaxPoints, a.GradingPolicy, a.Published, a.ShowTraceback, a.ShowTestDetails, a.ManualReview,
+		a.MaxPoints, a.GradingPolicy, a.Published, a.ShowTraceback, a.ShowTestDetails, a.ProgrammingLanguage, a.ManualReview,
 		pq.Array(copyStringArray(a.BannedFunctions)), pq.Array(copyStringArray(a.BannedModules)),
 		a.BannedToolRules,
 		a.TemplatePath, a.ClassID,
@@ -313,7 +314,8 @@ func ListAssignments(role string, userID uuid.UUID) ([]Assignment, error) {
 	var args []any
 	query := `
     SELECT a.id, a.title, a.description, a.created_by, ` + deadlineExpr + ` AS deadline,
-           a.max_points, a.grading_policy, a.published, a.show_traceback, a.show_test_details, a.manual_review,
+           a.max_points, a.grading_policy, a.published, a.show_traceback, a.show_test_details,
+           COALESCE(a.programming_language,'python') AS programming_language, a.manual_review,
            COALESCE(a.banned_functions,'{}') AS banned_functions,
            COALESCE(a.banned_modules,'{}')   AS banned_modules,
            a.banned_tool_rules,
@@ -342,7 +344,8 @@ func ListAssignments(role string, userID uuid.UUID) ([]Assignment, error) {
 		// rebuild query with override-aware deadline
 		query = `
     SELECT a.id, a.title, a.description, a.created_by, COALESCE(ado.new_deadline, a.deadline) AS deadline,
-           a.max_points, a.grading_policy, a.published, a.show_traceback, a.show_test_details, a.manual_review,
+           a.max_points, a.grading_policy, a.published, a.show_traceback, a.show_test_details,
+           COALESCE(a.programming_language,'python') AS programming_language, a.manual_review,
            COALESCE(a.banned_functions,'{}') AS banned_functions,
            COALESCE(a.banned_modules,'{}')   AS banned_modules,
            a.banned_tool_rules,
@@ -432,7 +435,8 @@ func DeleteDeadlineOverride(aid, studentID uuid.UUID) error {
 func GetAssignment(id uuid.UUID) (*Assignment, error) {
 	var a Assignment
 	err := DB.Get(&a, `
-    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, show_test_details, manual_review,
+    SELECT id, title, description, created_by, deadline, max_points, grading_policy, published, show_traceback, show_test_details,
+           COALESCE(programming_language,'python') AS programming_language, manual_review,
            COALESCE(banned_functions,'{}') AS banned_functions,
            COALESCE(banned_modules,'{}')   AS banned_modules,
            banned_tool_rules,
@@ -460,7 +464,8 @@ func GetAssignmentForSubmission(subID uuid.UUID) (*Assignment, error) {
 	var a Assignment
 	err := DB.Get(&a, `
         SELECT a.id, a.title, a.description, a.created_by, a.deadline,
-               a.max_points, a.grading_policy, a.published, a.show_traceback, a.show_test_details, a.manual_review,
+               a.max_points, a.grading_policy, a.published, a.show_traceback, a.show_test_details,
+               COALESCE(a.programming_language,'python') AS programming_language, a.manual_review,
                COALESCE(a.banned_functions,'{}') AS banned_functions,
                COALESCE(a.banned_modules,'{}')   AS banned_modules,
                a.banned_tool_rules,
@@ -491,15 +496,15 @@ func UpdateAssignment(a *Assignment) error {
 	res, err := DB.Exec(`
     UPDATE assignments
        SET title=$1, description=$2, deadline=$3,
-           max_points=$4, grading_policy=$5, show_traceback=$6, show_test_details=$7, manual_review=$8,
-           banned_functions=$9, banned_modules=$10, banned_tool_rules=$11,
-           llm_interactive=$12, llm_feedback=$13, llm_auto_award=$14, llm_scenarios_json=$15,
-           llm_strictness=$16, llm_rubric=$17, llm_teacher_baseline_json=$18,
-           second_deadline=$19, late_penalty_ratio=$20, llm_help_why_failed=$21,
+           max_points=$4, grading_policy=$5, show_traceback=$6, show_test_details=$7, programming_language=$8, manual_review=$9,
+           banned_functions=$10, banned_modules=$11, banned_tool_rules=$12,
+           llm_interactive=$13, llm_feedback=$14, llm_auto_award=$15, llm_scenarios_json=$16,
+           llm_strictness=$17, llm_rubric=$18, llm_teacher_baseline_json=$19,
+           second_deadline=$20, late_penalty_ratio=$21, llm_help_why_failed=$22,
            updated_at=now()
-     WHERE id=$22`,
+     WHERE id=$23`,
 		a.Title, a.Description, a.Deadline,
-		a.MaxPoints, a.GradingPolicy, a.ShowTraceback, a.ShowTestDetails, a.ManualReview,
+		a.MaxPoints, a.GradingPolicy, a.ShowTraceback, a.ShowTestDetails, a.ProgrammingLanguage, a.ManualReview,
 		pq.Array(copyStringArray(a.BannedFunctions)), pq.Array(copyStringArray(a.BannedModules)), a.BannedToolRules,
 		a.LLMInteractive, a.LLMFeedback, a.LLMAutoAward, a.LLMScenariosRaw,
 		a.LLMStrictness, a.LLMRubric, a.LLMTeacherBaseline,
@@ -565,6 +570,7 @@ func CloneAssignmentWithTests(sourceID, targetClassID, createdBy uuid.UUID) (uui
 		Published:        false,
 		ShowTraceback:    src.ShowTraceback,
 		ShowTestDetails:  src.ShowTestDetails,
+		ProgrammingLanguage: src.ProgrammingLanguage,
 		ManualReview:     src.ManualReview,
 		BannedFunctions:  append(pq.StringArray(nil), src.BannedFunctions...),
 		BannedModules:    append(pq.StringArray(nil), src.BannedModules...),
@@ -1390,6 +1396,7 @@ func teacherGroupCloneDiffers(src, clone *Assignment, srcTests, cloneTests []Tes
 		src.MaxPoints != clone.MaxPoints ||
 		src.ShowTraceback != clone.ShowTraceback ||
 		src.ShowTestDetails != clone.ShowTestDetails ||
+		src.ProgrammingLanguage != clone.ProgrammingLanguage ||
 		src.ManualReview != clone.ManualReview ||
 		src.LLMInteractive != clone.LLMInteractive ||
 		src.LLMFeedback != clone.LLMFeedback ||

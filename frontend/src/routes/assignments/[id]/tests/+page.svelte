@@ -2941,6 +2941,19 @@ class MyTests(unittest.TestCase):
       )}
     </p>
   </div>
+{:else if assignment?.programming_language === "scratch"}
+  <div class="alert bg-info/10 border-info/20 text-info-content rounded-2xl shadow-sm">
+    <AlertCircle size={18} />
+    <span class="font-medium text-sm">
+      {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::scratch_tests_disabled")}
+    </span>
+  </div>
+  <div class="mt-4">
+    <a class="btn btn-ghost btn-sm rounded-xl gap-2 font-black uppercase tracking-widest text-[10px] h-10 px-4 select-none hover:bg-base-200 transition-all" href={`/assignments/${id}`}>
+      <CornerDownRight size={16} class="rotate-180" />
+      {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::back_to_assignment")}
+    </a>
+  </div>
 {:else}
 
   <!-- Premium Header -->

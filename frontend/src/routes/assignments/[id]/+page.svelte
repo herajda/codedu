@@ -93,11 +93,34 @@
   let isUploading = false;
   let uploadProgress = 0;
   let templateFile: File | null = null;
+  type ProgrammingLanguage = "python" | "scratch";
+  const pythonFileExt = ".py";
+  const scratchFileExt = ".sb3";
+  let eProgrammingLanguage: ProgrammingLanguage = "python";
 
   let confirmModal: InstanceType<typeof ConfirmModal>;
   // removed unittest file input (moved to tests page)
   let submitDialog: HTMLDialogElement;
   let fileInput: HTMLInputElement | null = null;
+  $: isScratchAssignment =
+    (editing ? eProgrammingLanguage : assignment?.programming_language) ===
+    "scratch";
+  $: submissionExtension = isScratchAssignment ? scratchFileExt : pythonFileExt;
+  $: submissionExtLabel = submissionExtension;
+
+  function addSubmissionFiles(incoming: File[]) {
+    const ext = submissionExtension.toLowerCase();
+    const allowed = incoming.filter((f) =>
+      f.name.toLowerCase().endsWith(ext),
+    );
+    if (!allowed.length) return;
+    if (isScratchAssignment) {
+      files = [allowed[allowed.length - 1]];
+      if (fileInput) fileInput.value = "";
+      return;
+    }
+    files = [...files, ...allowed];
+  }
   // removed tests dialog (moved to tests page)
   $: percent = assignment
     ? Math.round((pointsEarned / assignment.max_points) * 100)
@@ -157,7 +180,11 @@
   type TestMode = "automatic" | "manual" | "ai";
   let testMode: TestMode = "automatic";
   $: {
-    if (testMode === "manual") {
+    if (eProgrammingLanguage === "scratch") {
+      testMode = "manual";
+      eManualReview = true;
+      eLLMInteractive = false;
+    } else if (testMode === "manual") {
       eManualReview = true;
       eLLMInteractive = false;
     } else if (testMode === "ai") {
@@ -171,6 +198,9 @@
 
   // Auto-switch to automatic testing when weighted policy is selected
   $: {
+    if (eProgrammingLanguage === "scratch" && ePolicy === "weighted") {
+      ePolicy = "all_or_nothing";
+    }
     if (ePolicy === "weighted" && testMode !== "automatic") {
       testMode = "automatic";
       eManualReview = false;
@@ -557,6 +587,7 @@
     eLatePenaltyRatio = assignment.late_penalty_ratio ?? 0.5;
     eShowTraceback = assignment.show_traceback;
     eShowTestDetails = !!assignment.show_test_details;
+    eProgrammingLanguage = assignment.programming_language ?? "python";
     eManualReview = assignment.manual_review;
     eLLMInteractive = !!assignment.llm_interactive;
     eLLMFeedback = !!assignment.llm_feedback;
@@ -655,6 +686,7 @@
           show_traceback: eShowTraceback,
           show_test_details: eShowTestDetails,
           manual_review: eManualReview,
+          programming_language: eProgrammingLanguage,
           llm_interactive: eLLMInteractive,
           llm_feedback: eLLMFeedback,
           llm_help_why_failed: eLLMHelpWhyFailed,
@@ -928,7 +960,8 @@
       if (!assignment?.manual_review) allowed.push("results");
     }
     if (role === "teacher" || role === "admin") {
-      allowed.push("instructor", "teacher-runs");
+      allowed.push("instructor");
+      if (!isScratchAssignment) allowed.push("teacher-runs");
     }
     return allowed.includes(key as TabKey);
   }
@@ -1187,7 +1220,11 @@
                     </option>
                     <option
                       value="weighted"
-                      disabled={testMode === "manual" || testMode === "ai"}
+                      disabled={
+                        testMode === "manual" ||
+                        testMode === "ai" ||
+                        eProgrammingLanguage === "scratch"
+                      }
                     >
                       {t("frontend/src/routes/assignments/[id]/+page.svelte::policyLabel_weighted")}
                     </option>
@@ -1362,12 +1399,33 @@
 
               <div class="bg-base-200/40 rounded-2xl p-5 border border-base-300/30 space-y-5">
                 <div class="flex flex-wrap items-center gap-4">
+                  <div class="form-control min-w-[220px]">
+                    <span class="label-text font-bold text-[10px] uppercase opacity-40 mb-1.5 ml-1">
+                      {t("frontend/src/routes/assignments/[id]/+page.svelte::programming_language_label")}
+                    </span>
+                    <select class="select select-bordered select-sm bg-base-100" bind:value={eProgrammingLanguage}>
+                      <option value="python">
+                        {t("frontend/src/routes/assignments/[id]/+page.svelte::programming_language_python")}
+                      </option>
+                      <option value="scratch">
+                        {t("frontend/src/routes/assignments/[id]/+page.svelte::programming_language_scratch")}
+                      </option>
+                    </select>
+                  </div>
+                  {#if eProgrammingLanguage === "scratch"}
+                    <div class="flex-1 text-[11px] text-info/80 font-medium">
+                      {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_manual_review_note")}
+                    </div>
+                  {/if}
+                </div>
+
+                <div class="flex flex-wrap items-center gap-4">
                   <div class="form-control min-w-[200px]">
                     <span class="label-text font-bold text-[10px] uppercase opacity-40 mb-1.5 ml-1">Mode</span>
                     <select
                       class="select select-bordered select-sm bg-base-100"
                       bind:value={testMode}
-                      disabled={ePolicy === "weighted"}
+                      disabled={ePolicy === "weighted" || eProgrammingLanguage === "scratch"}
                     >
                       <option value="automatic">
                         {t("frontend/src/routes/assignments/[id]/+page.svelte::automatic_tests_option")}
@@ -1669,6 +1727,13 @@
                   {t("frontend/src/routes/assignments/[id]/+page.svelte::max_points_badge", { maxPoints: assignment.max_points })}
                 </div>
 
+                {#if assignment.programming_language === "scratch"}
+                  <div class="badge h-7 gap-2 px-2.5 font-black text-[9px] uppercase tracking-wider bg-secondary text-secondary-content border-none shadow-sm">
+                    <span class="font-black">S</span>
+                    {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_badge")}
+                  </div>
+                {/if}
+
                 {#if assignment.manual_review}
                   <div class="badge h-7 gap-2 px-2.5 font-black text-[9px] uppercase tracking-wider bg-info text-info-content border-none shadow-sm">
                     <GraduationCap size={12} />
@@ -1718,10 +1783,12 @@
                    {t("frontend/src/routes/assignments/[id]/+page.svelte::publish_button")}
                  </button>
                {/if}
-               <button class="btn btn-primary shadow-lg shadow-primary/20 font-black uppercase tracking-widest text-[10px] gap-2 h-10 px-4" on:click={openTestsModal}>
-                 <FlaskConical size={14} />
-                 {t("frontend/src/routes/assignments/[id]/+page.svelte::manage_tests_button")}
-               </button>
+               {#if !isScratchAssignment}
+                 <button class="btn btn-primary shadow-lg shadow-primary/20 font-black uppercase tracking-widest text-[10px] gap-2 h-10 px-4" on:click={openTestsModal}>
+                   <FlaskConical size={14} />
+                   {t("frontend/src/routes/assignments/[id]/+page.svelte::manage_tests_button")}
+                 </button>
+               {/if}
                <button class="btn bg-base-100 hover:bg-base-200 border-base-300 font-black uppercase tracking-widest text-[10px] gap-2 h-10 px-4 shadow-sm" on:click={startEdit}>
                  <Settings2 size={14} />
                  {t("frontend/src/routes/assignments/[id]/+page.svelte::edit_button")}
@@ -1834,13 +1901,15 @@
               <GraduationCap size={12} />
               {t("frontend/src/routes/assignments/[id]/+page.svelte::tab_instructor")}
             </button>
-            <button
-              class={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${activeTab === "teacher-runs" ? "bg-base-100 text-primary shadow-lg shadow-base-300 scale-[1.02] border border-base-300" : "hover:bg-base-300/50 opacity-50 hover:opacity-100"}`}
-              on:click={() => setTab("teacher-runs")}
-            >
-              <FlaskConical size={12} />
-              {t("frontend/src/routes/assignments/[id]/+page.svelte::tab_teacher_runs")}
-            </button>
+            {#if !isScratchAssignment}
+              <button
+                class={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${activeTab === "teacher-runs" ? "bg-base-100 text-primary shadow-lg shadow-base-300 scale-[1.02] border border-base-300" : "hover:bg-base-300/50 opacity-50 hover:opacity-100"}`}
+                on:click={() => setTab("teacher-runs")}
+              >
+                <FlaskConical size={12} />
+                {t("frontend/src/routes/assignments/[id]/+page.svelte::tab_teacher_runs")}
+              </button>
+            {/if}
           {/if}
         </div>
 
@@ -2473,7 +2542,7 @@
           </section>
         {/if}
 
-        {#if activeTab === "teacher-runs" && (role === "teacher" || role === "admin")}
+        {#if activeTab === "teacher-runs" && (role === "teacher" || role === "admin") && !isScratchAssignment}
           <section class="card-elevated p-8 sm:p-10 bg-base-100 rounded-[2rem] border border-base-200">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-10">
               <div class="flex items-center gap-4">
@@ -2725,8 +2794,7 @@
             isDragging = false;
             const dt = (e as DragEvent).dataTransfer;
             if (dt) {
-              const newFiles = Array.from(dt.files).filter((f) => f.name.endsWith(".py"));
-              files = [...files, ...newFiles];
+              addSubmissionFiles(Array.from(dt.files));
             }
           }}
         >
@@ -2736,7 +2804,7 @@
             </div>
             <div>
               <div class="font-black text-sm mb-1">
-                {t("frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_dropzone_text")}
+                {t("frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_dropzone_text", { ext: submissionExtLabel })}
               </div>
               <div class="text-[10px] font-bold opacity-40 uppercase tracking-widest">
                 {t("frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_or")}
@@ -2753,11 +2821,11 @@
           <input
             bind:this={fileInput}
             type="file"
-            accept=".py"
-            multiple
+            accept={submissionExtension}
+            multiple={!isScratchAssignment}
             class="hidden"
             on:change={(e) =>
-              (files = [...files, ...Array.from((e.target as HTMLInputElement).files || [])])}
+              addSubmissionFiles(Array.from((e.target as HTMLInputElement).files || []))}
           />
         </div>
 
