@@ -71,19 +71,7 @@ body {
   background-color: transparent;
 }
 
-/* Fallback background layer to ensure visibility even if component fails */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(1000px 500px at 80% -10%, var(--bg-2), transparent 70%),
-    radial-gradient(900px 450px at 10% 10%, var(--bg-3), transparent 60%),
-    radial-gradient(800px 500px at 50% 120%, var(--bg-4), transparent 60%),
-    linear-gradient(180deg, var(--bg-1), transparent 60%);
-}
+
 
 /* Smooth surfaces and better defaults */
 .surface {
