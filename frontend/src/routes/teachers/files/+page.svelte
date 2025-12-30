@@ -5,7 +5,7 @@ import { auth } from '$lib/auth';
 import { classesStore } from '$lib/stores/classes';
 import { apiJSON, apiFetch } from '$lib/api';
 import { compressImage } from '$lib/utils/compressImage';
-import { formatDateTime } from "$lib/date";
+import { formatDateTime, formatShortDateTime } from "$lib/date";
 import { TEACHER_GROUP_ID } from '$lib/teacherGroup';
 import ConfirmModal from '$lib/components/ConfirmModal.svelte';
 import PromptModal from '$lib/components/PromptModal.svelte';
@@ -820,7 +820,7 @@ onMount(() => {
                 {#if !it.is_dir}
                   {fmtSize(it.size)} •
                 {/if}
-                {formatDateTime(it.updated_at).split(' ')[0]}
+                {formatShortDateTime(it.updated_at)}
               </div>
             </div>
 

@@ -17,7 +17,7 @@ import {
   Filter, ArrowRight, FileQuestion
 } from 'lucide-svelte';
 
-import { formatDateTime } from "$lib/date";
+import { formatDateTime, formatShortDateTime } from "$lib/date";
 let role = '';
 $: role = $auth?.role ?? '';
 const storageKey = 'personal_files';
@@ -789,7 +789,7 @@ onMount(() => {
                   {/if}
                  </span>
                  <span class="w-0.5 h-0.5 rounded-full bg-base-content"></span>
-                 <span class="text-[10px] font-bold uppercase tracking-wider">{formatDateTime(it.updated_at).split(' ')[0]}</span>
+                 <span class="text-[10px] font-bold uppercase tracking-wider">{formatShortDateTime(it.updated_at)}</span>
               </div>
             </div>
 

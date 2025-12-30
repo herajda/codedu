@@ -18,7 +18,7 @@ import {
   Filter, ArrowRight, FileQuestion
 } from 'lucide-svelte';
 
-import { formatDateTime } from "$lib/date";
+import { formatDateTime, formatShortDateTime } from "$lib/date";
 let id = $page.params.id;
 $: if ($page.params.id !== id) { id = $page.params.id; load(currentParent); }
 let role = '';
@@ -781,7 +781,7 @@ onMount(() => {
                 {#if !it.is_dir}
                   {fmtSize(it.size)} •
                 {/if}
-                {formatDateTime(it.updated_at).split(' ')[0]}
+                {formatShortDateTime(it.updated_at)}
               </div>
             </div>
 

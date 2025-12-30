@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { apiJSON, apiFetch } from '$lib/api';
   import { page } from '$app/stores';
-  import { formatDateTime } from "$lib/date";
+  import { formatDateTime, formatShortDateTime } from "$lib/date";
   import { goto } from '$app/navigation';
   import { auth } from '$lib/auth';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
@@ -552,7 +552,7 @@
               </h3>
               <div class="text-[9px] font-bold uppercase tracking-widest opacity-40 mt-1 whitespace-nowrap">
                 {fmtSize(n.size)} •
-                {formatDateTime(n.updated_at).split(' ')[0]}
+                {formatShortDateTime(n.updated_at)}
               </div>
             </div>
 

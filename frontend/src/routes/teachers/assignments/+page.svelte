@@ -3,7 +3,7 @@
   import { onMount } from "svelte";
   import { auth } from "$lib/auth";
   import { apiJSON, apiFetch } from "$lib/api";
-  import { formatDateTime } from "$lib/date";
+  import { formatDateTime, formatShortDateTime } from "$lib/date";
   import { TEACHER_GROUP_ID } from "$lib/teacherGroup";
   import { marked } from "marked";
   import DOMPurify from "dompurify";
@@ -586,7 +586,7 @@
               <div class="text-[9px] font-bold uppercase tracking-widest opacity-40 mt-1 whitespace-nowrap">
                 {it.is_dir ? translate('frontend/src/routes/teachers/assignments/+page.svelte::type_folder') : translate('frontend/src/routes/teachers/assignments/+page.svelte::type_assignment')}
                 •
-                {formatDateTime(it.updated_at).split(' ')[0]}
+                {formatShortDateTime(it.updated_at)}
               </div>
             </div>
 
