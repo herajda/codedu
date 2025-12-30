@@ -3336,7 +3336,7 @@ class MyTests(unittest.TestCase):
           </div>
         </div>
         <form method="dialog" class="modal-backdrop backdrop-blur-sm bg-base-900/40">
-          <button>close</button>
+          <button>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::close")}</button>
         </form>
       </dialog>
 
@@ -3391,7 +3391,7 @@ class MyTests(unittest.TestCase):
                 <div class="flex items-center justify-between p-3 bg-base-200/30 border-b border-base-200 gap-3">
                   <div class="flex items-center gap-3">
                     <div class="flex flex-col">
-                      <span class="text-[9px] uppercase tracking-widest font-bold opacity-40 mb-0.5">Test Case</span>
+                      <span class="text-[9px] uppercase tracking-widest font-bold opacity-40 mb-0.5">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_case_label")}</span>
                       <div class="flex items-center gap-1.5">
                         <span class="text-base font-black opacity-20">#{i + 1}</span>
                         <div class="flex items-center gap-1.5">
@@ -3502,14 +3502,14 @@ class MyTests(unittest.TestCase):
                               <input
                                 class="input input-bordered rounded-lg input-xs w-28 bg-base-100 font-mono text-[10px] font-bold transition-all focus:ring-1 focus:ring-info"
                                 class:text-info={!arg.is_pos}
-                                placeholder={arg.is_pos ? "Arg name" : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_name")}
+                                placeholder={arg.is_pos ? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::arg_name_placeholder") : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_name")}
                                 bind:value={arg.key}
                               />
                               <span class="opacity-30 font-bold text-xs">=</span>
                               <div class="flex-1 flex items-center gap-1">
                                 <input
                                   class="input input-bordered rounded-lg input-xs flex-1 bg-base-100 transition-all focus:ring-1 focus:ring-info text-[10px]"
-                                  placeholder="Value"
+                                  placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder")}
                                   bind:value={arg.value}
                                 />
                                 <button
@@ -3590,7 +3590,7 @@ class MyTests(unittest.TestCase):
                             placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::seconds")}
                             bind:value={t.time_limit_sec}
                           />
-                          <span class="absolute right-2 text-[8px] font-black opacity-30 pointer-events-none">SEC</span>
+                          <span class="absolute right-2 text-[8px] font-black opacity-30 pointer-events-none">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::sec_unit")}</span>
                         </div>
                       </div>
                       
@@ -3608,7 +3608,7 @@ class MyTests(unittest.TestCase):
                               placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::points_placeholder")}
                               bind:value={t.weight}
                             />
-                            <span class="absolute right-2 text-[8px] font-black opacity-30 pointer-events-none">PTS</span>
+                            <span class="absolute right-2 text-[8px] font-black opacity-30 pointer-events-none">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::pts_unit")}</span>
                           </div>
                         </div>
                       {/if}
@@ -3740,7 +3740,7 @@ class MyTests(unittest.TestCase):
                           <label class="label pt-0"><span class="label-text font-bold text-[10px] uppercase opacity-50">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_name")}</span></label>
                           <input
                             class="input input-bordered input-sm w-full bg-base-100 font-mono"
-                            placeholder="data.txt"
+                            placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_file_name_example")}
                             value={t.file_create_name ?? ""}
                             on:input={(e) => {
                               t.file_create_name = (e.target as HTMLInputElement).value;
@@ -3786,7 +3786,7 @@ class MyTests(unittest.TestCase):
           <div class="p-6 bg-base-200/50 border-t border-base-300/50 flex items-center justify-between">
             <div class="flex items-center gap-2 opacity-40 hover:opacity-100 transition-opacity">
               <Shield size={16} />
-              <span class="text-[10px] font-black uppercase tracking-widest leading-none">Safe Test Mode Active</span>
+              <span class="text-[10px] font-black uppercase tracking-widest leading-none">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::safe_test_mode_active")}</span>
             </div>
             <button
               class="btn btn-error btn-outline btn-sm font-black tracking-tighter hover:scale-105 transition-transform"
@@ -3799,7 +3799,7 @@ class MyTests(unittest.TestCase):
           </div>
         </div>
         <form method="dialog" class="modal-backdrop backdrop-blur-sm bg-base-900/40">
-          <button>close</button>
+          <button>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::close")}</button>
         </form>
       </dialog>
 
@@ -3824,7 +3824,7 @@ class MyTests(unittest.TestCase):
             <div class="flex flex-wrap items-center justify-between p-2.5 bg-base-200/30 border-b border-base-200 gap-2.5">
               <div class="flex items-center gap-2.5">
                 <div class="flex flex-col">
-                  <span class="text-[8px] uppercase tracking-widest font-black opacity-30 mb-0.5">New Test Case</span>
+                  <span class="text-[8px] uppercase tracking-widest font-black opacity-30 mb-0.5">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::new_test_case_label")}</span>
                   <div class="flex items-center gap-2">
                     <div class="w-7 h-7 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center">
                       <Code size={14} />
@@ -3964,7 +3964,7 @@ class MyTests(unittest.TestCase):
                         placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::seconds")}
                         bind:value={tLimit}
                       />
-                      <span class="absolute right-2 text-[8px] font-black opacity-30 pointer-events-none">SEC</span>
+                      <span class="absolute right-2 text-[8px] font-black opacity-30 pointer-events-none">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::sec_unit")}</span>
                     </div>
                   </div>
 
@@ -3982,7 +3982,7 @@ class MyTests(unittest.TestCase):
                           placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::points_placeholder")}
                           bind:value={tWeight}
                         />
-                        <span class="absolute right-2 text-[8px] font-black opacity-30 pointer-events-none">PTS</span>
+                        <span class="absolute right-2 text-[8px] font-black opacity-30 pointer-events-none">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::pts_unit")}</span>
                       </div>
                     </div>
                   {/if}
@@ -4048,7 +4048,7 @@ class MyTests(unittest.TestCase):
             <div class="flex flex-wrap items-center justify-between p-3 bg-base-200/30 border-b border-base-200 gap-3">
               <div class="flex items-center gap-3">
                 <div class="flex flex-col">
-                  <span class="text-[9px] uppercase tracking-widest font-bold opacity-40 mb-0.5">Advanced Testing</span>
+                  <span class="text-[9px] uppercase tracking-widest font-bold opacity-40 mb-0.5">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::advanced_testing_label")}</span>
                   <div class="flex items-center gap-2">
                     <div class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
                       <FlaskConical size={16} />
@@ -4218,7 +4218,7 @@ class MyTests(unittest.TestCase):
                           <span class="text-[9px] font-black uppercase tracking-widest opacity-40 mb-1 flex items-center gap-1.5"><Clock size={10} class="text-warning" /> {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::time_limit_s")}</span>
                           <div class="relative flex items-center">
                             <input class="input input-bordered rounded-lg input-xs w-24 font-bold" bind:value={ut.timeLimit} />
-                            <span class="absolute right-2 text-[7px] font-black opacity-30">SEC</span>
+                            <span class="absolute right-2 text-[7px] font-black opacity-30">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::sec_unit")}</span>
                           </div>
                         </div>
                         {#if assignment?.grading_policy === "weighted"}
@@ -4226,7 +4226,7 @@ class MyTests(unittest.TestCase):
                             <span class="text-[9px] font-black uppercase tracking-widest opacity-40 mb-1 flex items-center gap-1.5"><Scale size={10} class="text-error" /> {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::points")}</span>
                             <div class="relative flex items-center">
                               <input class="input input-bordered rounded-lg input-xs w-24 font-bold" bind:value={ut.weight} />
-                              <span class="absolute right-2 text-[7px] font-black opacity-30">PTS</span>
+                              <span class="absolute right-2 text-[7px] font-black opacity-30">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::pts_unit")}</span>
                             </div>
                           </div>
                         {/if}
@@ -4254,7 +4254,7 @@ class MyTests(unittest.TestCase):
                             </div>
                             <div class="dropdown dropdown-end">
                               <label tabindex="0" class="btn btn-primary btn-xs font-bold gap-1 px-2 h-6 min-h-0 rounded-lg">
-                                <Plus size={10} /> Add Assertion
+                                <Plus size={10} /> {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::add_assertion_button")}
                               </label>
                               <ul tabindex="0" class="dropdown-content z-[20] menu p-1.5 shadow-xl bg-base-100 rounded-box w-48 border border-base-200 mt-1">
                                 <li><button class="py-1.5 text-xs" type="button" on:click={() => addUTAssertion(ti, "equals")}>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::equals")}</button></li>
@@ -4300,7 +4300,7 @@ class MyTests(unittest.TestCase):
                                              </div>
                                              <div class="form-control space-y-1">
                                                 <span class="text-[9px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::exception_type_e_g_valueerror")}</span>
-                                                <input class="input input-bordered input-sm w-full font-mono text-xs bg-base-200/20" value={getException(a)} on:input={(e) => setException(a, e.target.value)} placeholder="ValueError" />
+                                                 <input class="input input-bordered input-sm w-full font-mono text-xs bg-base-200/20" value={getException(a)} on:input={(e) => setException(a, e.target.value)} placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::exception_valueerror_placeholder")} />
                                              </div>
                                          </div>
                                      {:else}
@@ -4398,7 +4398,7 @@ class MyTests(unittest.TestCase):
             <div class="flex flex-wrap items-center justify-between p-3 bg-base-200/30 border-b border-base-200 gap-3">
               <div class="flex items-center gap-3">
                 <div class="flex flex-col">
-                  <span class="text-[9px] uppercase tracking-widest font-bold opacity-40 mb-0.5">Function Setup</span>
+                   <span class="text-[9px] uppercase tracking-widest font-bold opacity-40 mb-0.5">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::function_setup_label")}</span>
                   <div class="flex items-center gap-2">
                     <div class="w-8 h-8 rounded-lg bg-info/10 text-info flex items-center justify-center shadow-sm border border-info/20">
                       <Code size={16} />
@@ -4604,7 +4604,7 @@ class MyTests(unittest.TestCase):
 
                         <div class="flex flex-wrap items-end justify-between gap-4">
                            <div class="form-control flex-1 min-w-[150px] space-y-1.5 group">
-                              <span class="text-[9px] font-black uppercase tracking-widest opacity-40 px-1 transition-opacity group-focus-within:opacity-100">Test Case Name</span>
+                               <span class="text-[9px] font-black uppercase tracking-widest opacity-40 px-1 transition-opacity group-focus-within:opacity-100">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_case_name_label")}</span>
                               <input
                                 class="input input-bordered input-sm w-full font-bold bg-base-200/30 focus:bg-base-100 transition-all border-base-300/50"
                                 bind:value={fc.name}
@@ -4617,7 +4617,7 @@ class MyTests(unittest.TestCase):
                                 <span class="text-[9px] font-black uppercase tracking-widest opacity-40 px-1 flex items-center gap-1.5"><Clock size={10} class="text-warning" /> {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::time_limit_s")}</span>
                                 <div class="relative flex items-center">
                                   <input class="input input-bordered input-xs w-20 font-bold bg-base-200/30 focus:bg-base-100 transition-all" bind:value={fc.timeLimit} />
-                                  <span class="absolute right-2 text-[7px] font-black opacity-30">SEC</span>
+                                  <span class="absolute right-2 text-[7px] font-black opacity-30">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::sec_unit")}</span>
                                 </div>
                               </div>
                               {#if assignment?.grading_policy === "weighted"}
@@ -4625,7 +4625,7 @@ class MyTests(unittest.TestCase):
                                   <span class="text-[9px] font-black uppercase tracking-widest opacity-40 px-1 flex items-center gap-1.5"><Scale size={10} class="text-error" /> {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::points")}</span>
                                   <div class="relative flex items-center">
                                     <input class="input input-bordered input-xs w-20 font-bold bg-base-200/30 focus:bg-base-100 transition-all" bind:value={fc.weight} />
-                                    <span class="absolute right-2 text-[7px] font-black opacity-30">PTS</span>
+                                    <span class="absolute right-2 text-[7px] font-black opacity-30">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::pts_unit")}</span>
                                   </div>
                                 </div>
                               {/if}
@@ -4714,7 +4714,7 @@ class MyTests(unittest.TestCase):
                                         <div class="form-control space-y-1">
                                           <input
                                             class="input input-bordered rounded-lg input-xs w-full font-mono font-bold"
-                                            placeholder="key"
+                                             placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::key_placeholder")}
                                             value={kw.key}
                                             on:input={(e) => updateFnKwargKey(fi, ki, (e.target as HTMLInputElement).value)}
                                           />
@@ -4722,7 +4722,7 @@ class MyTests(unittest.TestCase):
                                         <div class="form-control space-y-1">
                                           <input
                                             class="input input-bordered rounded-lg input-xs w-full font-mono"
-                                            placeholder="value"
+                                             placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::value_lower_placeholder")}
                                             value={kw.value}
                                             on:input={(e) => updateFnKwargValue(fi, ki, (e.target as HTMLInputElement).value)}
                                           />
@@ -4842,7 +4842,7 @@ class MyTests(unittest.TestCase):
                          <div class="w-12 h-12 rounded-full bg-base-200 flex items-center justify-center mb-3 transition-transform hover:scale-110 duration-500 shadow-inner"><FlaskConical size={24} class="opacity-20" /></div>
                          <h5 class="text-[10px] font-black opacity-30 uppercase tracking-widest mb-1">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::no_function_cases_yet")}</h5>
                          <button class="btn btn-ghost btn-xs font-bold text-info" on:click={addFnCase}>
-                            <Plus size={14} /> Add your first case
+                            <Plus size={14} /> {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::add_first_case_button")}
                          </button>
                     </div>
                   {/if}
@@ -4868,9 +4868,9 @@ class MyTests(unittest.TestCase):
           <div class="group relative bg-base-100 rounded-xl border border-base-300/50 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 border-l-secondary">
             <!-- Premium Header -->
             <div class="p-3 bg-gradient-to-br from-secondary/10 via-transparent to-transparent border-b border-base-200">
-              <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div class="flex flex-col gap-3 md:flex-row md::items-center md:justify-between">
                 <div class="flex flex-col">
-                  <span class="text-[9px] uppercase tracking-widest font-bold opacity-40 mb-0.5">AI Generation</span>
+                   <span class="text-[9px] uppercase tracking-widest font-bold opacity-40 mb-0.5">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_generation_label")}</span>
                   <div class="flex items-center gap-2">
                     <div class="w-8 h-8 rounded-lg bg-secondary/20 text-secondary flex items-center justify-center shadow-lg shadow-secondary/10 border border-secondary/20 transition-transform group-hover:scale-110 duration-500">
                       <Sparkles size={16} />
@@ -5093,7 +5093,7 @@ class MyTests(unittest.TestCase):
                     <div class="card bg-base-100 border border-base-300/50 shadow-sm p-4 space-y-3 animate-in zoom-in-95 duration-300">
                       <div class="flex items-center justify-between">
                          <h5 class="text-[9px] font-black uppercase tracking-widest opacity-60">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::optional_test_on_teacher_solution")}</h5>
-                         <span class="badge badge-xs badge-outline opacity-40">Teacher Sim</span>
+                          <span class="badge badge-xs badge-outline opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::teacher_sim_badge")}</span>
                       </div>
                       <div class="grid gap-2">
                         <input
@@ -5123,7 +5123,7 @@ class MyTests(unittest.TestCase):
                              <div class="flex items-center justify-between p-1.5 rounded bg-base-200/50 border border-base-300/30 text-[9px]">
                                <div class="flex items-center gap-1.5 truncate">
                                   <span class="badge {r.status === 'passed' ? 'badge-success' : 'badge-error'} badge-xs w-1.5 h-1.5 p-0"></span>
-                                  <span class="font-mono opacity-70 truncate">{r.unittest_name || 'Test Case'}</span>
+                                   <span class="font-mono opacity-70 truncate">{r.unittest_name || translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_case_label")}</span>
                                </div>
                                <span class="font-bold {r.status === 'passed' ? 'text-success' : 'text-error'} uppercase tracking-tight">{r.status}</span>
                              </div>
@@ -5225,7 +5225,7 @@ class MyTests(unittest.TestCase):
             <div class="p-3 bg-gradient-to-br from-accent/10 via-transparent to-transparent border-b border-base-200">
               <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div class="flex flex-col">
-                  <span class="text-[9px] uppercase tracking-widest font-bold opacity-40 mb-0.5">Unittest Upload</span>
+                   <span class="text-[9px] uppercase tracking-widest font-bold opacity-40 mb-0.5">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_label")}</span>
                   <div class="flex items-center gap-2">
                     <div class="w-8 h-8 rounded-lg bg-accent/20 text-accent flex items-center justify-center shadow-lg shadow-accent/10 border border-accent/20 transition-transform group-hover:scale-110 duration-500">
                       <FileUp size={16} />
@@ -5336,7 +5336,7 @@ class MyTests(unittest.TestCase):
                          </div>
                          <h4 class="font-bold uppercase tracking-widest text-[10px] opacity-60">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_upload_example_code")}</h4>
                       </div>
-                      <span class="badge badge-accent badge-outline font-black text-[9px] tracking-tighter uppercase px-1.5 h-4">Python 3.10+</span>
+                       <span class="badge badge-accent badge-outline font-black text-[9px] tracking-tighter uppercase px-1.5 h-4">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::python_version_badge")}</span>
                    </div>
                    
                    <div class="relative group/code">
@@ -5346,13 +5346,13 @@ class MyTests(unittest.TestCase):
 
 <span class="text-purple-400">class</span> <span class="text-blue-400">MyTests</span>(unittest.TestCase):
     <span class="text-purple-400">def</span> <span class="text-blue-400">test_hello</span>(self):
-        <span class="opacity-40"># Run student's program with multiple inputs</span>
+         <span class="opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_example_comment_1")}</span>
         output = student_code(<span class="text-emerald-400">"John"</span>, <span class="text-emerald-400">"Doe"</span>)
         self.assertIn(<span class="text-emerald-400">"John"</span>, output)
         self.assertIn(<span class="text-emerald-400">"Doe"</span>, output)
 
     <span class="text-purple-400">def</span> <span class="text-blue-400">test_add</span>(self):
-        <span class="opacity-40"># Import and call specific function</span>
+         <span class="opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_example_comment_2")}</span>
         add = student_function(<span class="text-emerald-400">"add"</span>)
         self.assertEqual(add(<span class="text-orange-300">2</span>, <span class="text-orange-300">3</span>), <span class="text-orange-300">5</span>)</pre>
                    </div>
