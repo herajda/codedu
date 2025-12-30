@@ -2916,6 +2916,14 @@ class MyTests(unittest.TestCase):
   }
 </script>
 
+<svelte:head>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap" rel="stylesheet">
+  <title>{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::manage_tests")} | {assignment?.title || 'CodEdu'}</title>
+</svelte:head>
+
+
 {#if role !== "teacher" && role !== "admin"}
   <div class="alert alert-error">
     <span
@@ -2934,42 +2942,50 @@ class MyTests(unittest.TestCase):
     </p>
   </div>
 {:else}
-  <div class="mb-4 flex items-center justify-between">
-    <div>
-      <h1 class="text-xl font-bold tracking-tight">
-        {translate(
-          "frontend/src/routes/assignments/[id]/tests/+page.svelte::manage_tests",
-        )} — {assignment.title}
-      </h1>
-      {#if assignment.llm_interactive}
-        <p class="text-sm opacity-70">
-          {translate(
-            "frontend/src/routes/assignments/[id]/tests/+page.svelte::configure_ai_testing_llm_interactive",
-          )}
-        </p>
-      {:else}
-        <p class="text-sm opacity-70">
-          {translate(
-            "frontend/src/routes/assignments/[id]/tests/+page.svelte::create_io_tests_build_python_unittest_based_tests_or_use_ai_to_generate_them",
-          )}
-        </p>
-      {/if}
-      {#if assignment?.manual_review}
-        <div class="alert alert-info mt-2">
-          <span
-            >{translate(
-              "frontend/src/routes/assignments/[id]/tests/+page.svelte::manual_review_enabled_tests_optional",
-            )}</span
-          >
-        </div>
-      {/if}
+
+  <!-- Premium Header -->
+
+
+  <section class="relative bg-base-100 rounded-3xl border border-base-200 shadow-xl shadow-base-300/30 mb-8 p-6 sm:p-10">
+    <div class="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none">
+      <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent"></div>
+      <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl"></div>
     </div>
-    <a class="btn" href={`/assignments/${id}`}
-      >{translate(
-        "frontend/src/routes/assignments/[id]/tests/+page.svelte::back_to_assignment",
-      )}</a
-    >
-  </div>
+    <div class="relative flex flex-col md:flex-row items-center justify-between gap-6">
+      <div class="flex-1 text-center md:text-left">
+        <h1 class="text-3xl sm:text-4xl font-black tracking-tight mb-2">
+          {assignment.title} <span class="text-primary/40">/</span> {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::manage_tests")}
+        </h1>
+        
+        <div class="flex flex-col gap-2">
+            {#if assignment.llm_interactive}
+                <p class="text-base-content/60 font-medium max-w-xl mx-auto md:mx-0">
+                {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::configure_ai_testing_llm_interactive")}
+                </p>
+            {:else}
+                <p class="text-base-content/60 font-medium max-w-xl mx-auto md:mx-0">
+                {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::create_io_tests_build_python_unittest_based_tests_or_use_ai_to_generate_them")}
+                </p>
+            {/if}
+            
+            {#if assignment?.manual_review}
+             <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-info/10 text-info text-xs font-bold w-fit mx-auto md:mx-0">
+                <Shield size={12} />
+                {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::manual_review_enabled_tests_optional")}
+             </div>
+            {/if}
+        </div>
+      </div>
+      
+      <div class="flex flex-wrap items-center gap-3">
+        <a class="btn btn-ghost btn-sm rounded-xl gap-2 font-black uppercase tracking-widest text-[10px] h-10 px-4 select-none hover:bg-base-200 transition-all" href={`/assignments/${id}`}>
+             <CornerDownRight size={16} class="rotate-180" />
+            {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::back_to_assignment")}
+        </a>
+      </div>
+    </div>
+  </section>
+
   <div class="card-elevated p-4 sm:p-5 space-y-5">
     {#if assignment.llm_interactive}
       <div class="grid gap-4">
@@ -2983,7 +2999,7 @@ class MyTests(unittest.TestCase):
             <label class="flex items-center gap-2 sm:col-span-2">
               <input
                 type="checkbox"
-                class="checkbox"
+                class="checkbox checkbox-primary rounded-md"
                 bind:checked={llmFeedback}
               />
               <span class="label-text"
@@ -2995,7 +3011,7 @@ class MyTests(unittest.TestCase):
             <label class="flex items-center gap-2">
               <input
                 type="checkbox"
-                class="checkbox"
+                class="checkbox checkbox-primary rounded-md"
                 bind:checked={llmAutoAward}
               />
               <span class="label-text"
@@ -3011,7 +3027,7 @@ class MyTests(unittest.TestCase):
                 )}</span
               >
               <textarea
-                class="textarea textarea-bordered h-40"
+                class="textarea textarea-bordered rounded-xl h-40"
                 bind:value={llmScenarios}
                 placeholder={exampleScenario}
               ></textarea>
@@ -3043,7 +3059,7 @@ class MyTests(unittest.TestCase):
                   )}</span
                 >
                 <textarea
-                  class="textarea textarea-bordered h-32"
+                  class="textarea textarea-bordered rounded-xl h-32"
                   bind:value={llmRubric}
                   placeholder={translate(
                     "frontend/src/routes/assignments/[id]/tests/+page.svelte::describe_what_is_acceptable_and_what_should_be_considered_wrong",
@@ -3052,7 +3068,7 @@ class MyTests(unittest.TestCase):
               </label>
             </div>
             <div class="sm:col-span-2 flex justify-end">
-              <button class="btn btn-primary" on:click={saveLLMSettings}
+              <button class="btn btn-primary rounded-xl" on:click={saveLLMSettings}
                 ><Save size={16} />
                 {translate(
                   "frontend/src/routes/assignments/[id]/tests/+page.svelte::save_settings",
@@ -3067,7 +3083,7 @@ class MyTests(unittest.TestCase):
 
       <div class="flex justify-end gap-2 mb-3">
         <button
-          class="btn btn-outline btn-sm min-h-0 h-9"
+          class="btn btn-outline btn-sm min-h-0 h-9 rounded-xl"
           on:click={() => document.getElementById("banned_tools_modal").showModal()}
         >
           <Shield size={14} />
@@ -3076,7 +3092,7 @@ class MyTests(unittest.TestCase):
           )}
         </button>
         <button
-          class="btn btn-neutral btn-sm min-h-0 h-9"
+          class="btn btn-neutral btn-sm min-h-0 h-9 rounded-xl"
           on:click={() => document.getElementById("existing_tests_modal").showModal()}
         >
           <Eye size={14} />
@@ -3145,7 +3161,7 @@ class MyTests(unittest.TestCase):
                       {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_library_label")}
                     </span>
                     <select
-                      class="select select-bordered select-sm w-full bg-base-200/50 focus:bg-base-100 border-base-300/50 transition-all font-medium"
+                      class="select select-bordered rounded-lg select-sm w-full bg-base-200/50 focus:bg-base-100 border-base-300/50 transition-all font-medium"
                       bind:value={draftLibrary}
                       on:change={() => (bannedSaved = false)}
                     >
@@ -3162,7 +3178,7 @@ class MyTests(unittest.TestCase):
                     <div class="flex gap-1.5">
                       <div class="relative flex-1">
                         <input
-                          class="input input-bordered input-sm w-full bg-base-200/50 focus:bg-base-100 border-base-300/50 transition-all font-mono"
+                          class="input input-bordered rounded-lg input-sm w-full bg-base-200/50 focus:bg-base-100 border-base-300/50 transition-all font-mono"
                           list="banned-function-options"
                           bind:value={draftFunction}
                           placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_function_placeholder")}
@@ -3192,7 +3208,7 @@ class MyTests(unittest.TestCase):
                       {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_note_label")}
                     </span>
                     <input
-                      class="input input-bordered input-sm w-full bg-base-200/50 focus:bg-base-100 border-base-300/50 transition-all"
+                      class="input input-bordered rounded-lg input-sm w-full bg-base-200/50 focus:bg-base-100 border-base-300/50 transition-all"
                       bind:value={draftNote}
                       placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::structured_note_placeholder")}
                       on:input={() => (bannedSaved = false)}
@@ -3202,7 +3218,7 @@ class MyTests(unittest.TestCase):
                   <div class="md:col-span-2 flex justify-end">
                     <button
                       type="button"
-                      class="btn btn-primary btn-sm px-6 shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all font-bold"
+                      class="btn btn-primary rounded-xl btn-sm px-6 shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all font-bold"
                       on:click={addStructuredRule}
                     >
                       <Plus size={16} />
@@ -3279,7 +3295,7 @@ class MyTests(unittest.TestCase):
                     {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::advanced_label")}
                   </span>
                   <textarea
-                    class="textarea textarea-bordered w-full h-64 bg-base-200/50 focus:bg-base-100 border-base-300/50 transition-all font-mono text-sm p-6"
+                    class="textarea textarea-bordered rounded-xl w-full h-64 bg-base-200/50 focus:bg-base-100 border-base-300/50 transition-all font-mono text-sm p-6"
                     bind:value={advancedPatternsText}
                     placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::advanced_placeholder")}
                     on:input={() => (bannedSaved = false)}
@@ -3302,10 +3318,10 @@ class MyTests(unittest.TestCase):
 
             <div class="flex items-center gap-3">
               <form method="dialog">
-                <button class="btn btn-ghost btn-sm font-bold px-4">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::close")}</button>
+                <button class="btn btn-ghost rounded-xl btn-sm font-bold px-4">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::close")}</button>
               </form>
               <button
-                class="btn btn-primary btn-sm px-6 shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all font-black"
+                class="btn btn-primary rounded-xl btn-sm px-6 shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all font-black"
                 on:click={saveBannedTools}
                 disabled={bannedSaving}
               >
@@ -3445,7 +3461,7 @@ class MyTests(unittest.TestCase):
                             </span>
                           </label>
                           <input
-                            class="input input-bordered input-sm w-full bg-base-200/50 focus:bg-base-100 transition-all font-mono text-xs"
+                            class="input input-bordered rounded-lg input-sm w-full bg-base-200/50 focus:bg-base-100 transition-all font-mono text-xs"
                             placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::function_name_example_multiply")}
                             bind:value={t.function_name}
                           />
@@ -3457,7 +3473,7 @@ class MyTests(unittest.TestCase):
                             </span>
                           </label>
                           <textarea
-                            class="textarea textarea-bordered h-8 min-h-0 py-1 w-full bg-base-200/50 focus:bg-base-100 transition-all font-mono text-xs"
+                            class="textarea textarea-bordered rounded-lg h-8 min-h-0 py-1 w-full bg-base-200/50 focus:bg-base-100 transition-all font-mono text-xs"
                             rows="1"
                             placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::example_6")}
                             bind:value={t.expected_return}
@@ -3484,7 +3500,7 @@ class MyTests(unittest.TestCase):
                           {#each prep as arg, ai}
                             <div class="flex items-center gap-1.5 group/arg">
                               <input
-                                class="input input-bordered input-xs w-28 bg-base-100 font-mono text-[10px] font-bold transition-all focus:ring-1 focus:ring-info"
+                                class="input input-bordered rounded-lg input-xs w-28 bg-base-100 font-mono text-[10px] font-bold transition-all focus:ring-1 focus:ring-info"
                                 class:text-info={!arg.is_pos}
                                 placeholder={arg.is_pos ? "Arg name" : translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::keyword_name")}
                                 bind:value={arg.key}
@@ -3492,7 +3508,7 @@ class MyTests(unittest.TestCase):
                               <span class="opacity-30 font-bold text-xs">=</span>
                               <div class="flex-1 flex items-center gap-1">
                                 <input
-                                  class="input input-bordered input-xs flex-1 bg-base-100 transition-all focus:ring-1 focus:ring-info text-[10px]"
+                                  class="input input-bordered rounded-lg input-xs flex-1 bg-base-100 transition-all focus:ring-1 focus:ring-info text-[10px]"
                                   placeholder="Value"
                                   bind:value={arg.value}
                                 />
@@ -3537,7 +3553,7 @@ class MyTests(unittest.TestCase):
                           </span>
                         </label>
                         <textarea
-                          class="textarea textarea-bordered w-full bg-base-200/50 focus:bg-base-100 transition-all font-mono min-h-[4rem] text-xs py-1.5"
+                          class="textarea textarea-bordered rounded-xl w-full bg-base-200/50 focus:bg-base-100 transition-all font-mono min-h-[4rem] text-xs py-1.5"
                           rows="3"
                           placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin")}
                           bind:value={t.stdin}
@@ -3550,7 +3566,7 @@ class MyTests(unittest.TestCase):
                           </span>
                         </label>
                         <textarea
-                          class="textarea textarea-bordered w-full bg-base-200/50 focus:bg-base-100 transition-all font-mono min-h-[4rem] text-xs py-1.5"
+                          class="textarea textarea-bordered rounded-xl w-full bg-base-200/50 focus:bg-base-100 transition-all font-mono min-h-[4rem] text-xs py-1.5"
                           rows="3"
                           placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_stdout")}
                           bind:value={t.expected_stdout}
@@ -3570,7 +3586,7 @@ class MyTests(unittest.TestCase):
                         </label>
                         <div class="relative flex items-center">
                           <input
-                            class="input input-bordered input-xs w-24 font-bold bg-base-200/30 transition-all focus:w-28"
+                            class="input input-bordered rounded-lg input-xs w-24 font-bold bg-base-200/30 transition-all focus:w-28"
                             placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::seconds")}
                             bind:value={t.time_limit_sec}
                           />
@@ -3588,7 +3604,7 @@ class MyTests(unittest.TestCase):
                           </label>
                           <div class="relative flex items-center">
                             <input
-                              class="input input-bordered input-xs w-24 font-bold bg-base-200/30 transition-all focus:w-28"
+                              class="input input-bordered rounded-lg input-xs w-24 font-bold bg-base-200/30 transition-all focus:w-28"
                               placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::points_placeholder")}
                               bind:value={t.weight}
                             />
@@ -3793,7 +3809,7 @@ class MyTests(unittest.TestCase):
           type="radio"
           name="tests-tab"
           role="tab"
-          class="tab"
+          class="tab h-10 font-black uppercase tracking-widest text-[10px] sm:text-xs opacity-40 checked:opacity-100 checked:text-primary [--tab-bg:theme(colors.base-100)] [--tab-border-color:theme(colors.base-200)] checked:!border-b-base-100 transition-all"
           aria-label={translate(
             "frontend/src/routes/assignments/[id]/tests/+page.svelte::add_io_test",
           )}
@@ -3801,7 +3817,7 @@ class MyTests(unittest.TestCase):
         />
         <div
           role="tabpanel"
-          class="tab-content bg-base-100 border-base-300 rounded-box p-3"
+          class="tab-content bg-base-100 border-base-200 rounded-box p-6 shadow-xl shadow-base-200/50"
         >
           <div class="group relative bg-base-100 rounded-xl border border-base-300/50 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 border-l-secondary">
             <!-- Header -->
@@ -3894,7 +3910,7 @@ class MyTests(unittest.TestCase):
                     </span>
                   </label>
                   <textarea
-                    class="textarea textarea-bordered w-full bg-base-200/50 focus:bg-base-100 transition-all font-mono min-h-[6rem] shadow-inner text-xs"
+                    class="textarea textarea-bordered rounded-xl w-full bg-base-200/50 focus:bg-base-100 transition-all font-mono min-h-[6rem] shadow-inner text-xs"
                     placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin")}
                     bind:value={tStdin}
                   ></textarea>
@@ -3912,7 +3928,7 @@ class MyTests(unittest.TestCase):
                   </label>
                   {#if ioOutputMode === "manual"}
                     <textarea
-                      class="textarea textarea-bordered w-full bg-base-200/50 focus:bg-base-100 transition-all font-mono min-h-[6rem] shadow-inner text-xs"
+                      class="textarea textarea-bordered rounded-xl w-full bg-base-200/50 focus:bg-base-100 transition-all font-mono min-h-[6rem] shadow-inner text-xs"
                       placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::expected_stdout")}
                       bind:value={tStdout}
                     ></textarea>
@@ -3944,7 +3960,7 @@ class MyTests(unittest.TestCase):
                     </label>
                     <div class="relative flex items-center">
                       <input
-                        class="input input-bordered input-xs w-24 font-bold bg-base-200/30 transition-all focus:w-28"
+                        class="input input-bordered rounded-lg input-xs w-24 font-bold bg-base-200/30 transition-all focus:w-28"
                         placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::seconds")}
                         bind:value={tLimit}
                       />
@@ -3962,7 +3978,7 @@ class MyTests(unittest.TestCase):
                       </label>
                       <div class="relative flex items-center">
                         <input
-                          class="input input-bordered input-xs w-24 font-bold bg-base-200/30 transition-all focus:w-28"
+                          class="input input-bordered rounded-lg input-xs w-24 font-bold bg-base-200/30 transition-all focus:w-28"
                           placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::points_placeholder")}
                           bind:value={tWeight}
                         />
@@ -3990,7 +4006,7 @@ class MyTests(unittest.TestCase):
                   {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::stdin_stdout_multiline_hint")}
                 </p>
                 <button
-                  class="btn btn-secondary btn-sm px-6 font-bold shadow-lg shadow-secondary/20 hover:scale-105 transition-all h-9 min-h-0"
+                  class="btn btn-secondary btn-sm px-6 font-bold shadow-lg shadow-secondary/20 hover:scale-105 transition-all h-9 min-h-0 rounded-xl"
                   on:click={addTest}
                   disabled={!tStdin ||
                     ioOutputLoading ||
@@ -4018,14 +4034,14 @@ class MyTests(unittest.TestCase):
           type="radio"
           name="tests-tab"
           role="tab"
-          class="tab"
+          class="tab h-10 font-black uppercase tracking-widest text-[10px] sm:text-xs opacity-40 checked:opacity-100 checked:text-primary [--tab-bg:theme(colors.base-100)] [--tab-border-color:theme(colors.base-200)] checked:!border-b-base-100 transition-all"
           aria-label={translate(
             "frontend/src/routes/assignments/[id]/tests/+page.svelte::unittest_builder",
           )}
         />
         <div
           role="tabpanel"
-          class="tab-content bg-base-100 border-base-300 rounded-box p-3 space-y-3"
+          class="tab-content bg-base-100 border-base-200 rounded-box p-6 shadow-xl shadow-base-200/50 space-y-3"
         >
           <div class="group relative bg-base-100 rounded-xl border border-base-300/50 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 border-l-primary">
             <!-- Header -->
@@ -4103,19 +4119,19 @@ class MyTests(unittest.TestCase):
                   <label class="form-control w-full space-y-1">
                     <span class="text-[8px] uppercase font-black tracking-widest opacity-40 px-1">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::class_name")}</span>
                     <input
-                      class="input input-bordered input-sm w-full font-bold h-8"
+                      class="input input-bordered rounded-xl input-sm w-full font-bold h-8"
                       bind:value={utClassName}
                       placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_assignment_placeholder")}
                     />
                   </label>
                   <div class="flex gap-2">
-                    <button type="button" class="btn btn-outline btn-sm font-bold h-8 min-h-0 px-3 text-[11px]" on:click={addUTTest}>
+                    <button type="button" class="btn btn-outline btn-sm font-bold h-8 min-h-0 px-3 text-[11px] rounded-lg" on:click={addUTTest}>
                       <Plus size={14} />
                       {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::add_test_method")}
                     </button>
                     <button
                       type="button"
-                      class="btn btn-ghost btn-sm h-8 min-h-0 font-bold px-3 border border-transparent hover:border-base-300 text-[11px]"
+                      class="btn btn-ghost btn-sm h-8 min-h-0 font-bold px-3 border border-transparent hover:border-base-300 text-[11px] rounded-lg"
                       on:click={() => { utShowPreview = !utShowPreview; refreshPreview(); }}
                     >
                       <Eye size={14} />
@@ -4162,7 +4178,7 @@ class MyTests(unittest.TestCase):
                         <div class="form-control space-y-1">
                           <span class="text-[9px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::method_name")}</span>
                           <input
-                            class="input input-bordered input-sm w-full font-mono font-bold text-xs"
+                            class="input input-bordered input-sm w-full font-mono font-bold text-xs rounded-lg"
                             bind:value={ut.name}
                             placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_something_placeholder")}
                           />
@@ -4170,7 +4186,7 @@ class MyTests(unittest.TestCase):
                         <div class="form-control space-y-1">
                           <span class="text-[9px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::description")}</span>
                           <input
-                            class="input input-bordered input-sm w-full text-xs"
+                            class="input input-bordered input-sm w-full text-xs rounded-lg"
                             bind:value={ut.description}
                             placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::what_this_test_checks_placeholder")}
                           />
@@ -4180,7 +4196,7 @@ class MyTests(unittest.TestCase):
                       <div class="grid sm:grid-cols-2 gap-4">
                         <div class="form-control space-y-1">
                           <span class="text-[9px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::call_mode")}</span>
-                          <select class="select select-bordered select-sm w-full font-semibold text-xs h-8 min-h-0" bind:value={ut.callMode}>
+                          <select class="select select-bordered select-sm w-full font-semibold text-xs h-8 min-h-0 rounded-lg" bind:value={ut.callMode}>
                             <option value="stdin">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::student_code_stdin_stdout")}</option>
                             <option value="function">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::student_function_return_value")}</option>
                           </select>
@@ -4189,7 +4205,7 @@ class MyTests(unittest.TestCase):
                           <div class="form-control space-y-1 animate-in fade-in slide-in-from-left-2">
                             <span class="text-[9px] font-black uppercase tracking-widest opacity-40">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::function_name")}</span>
                             <input
-                              class="input input-bordered input-sm w-full font-mono font-bold text-xs"
+                              class="input input-bordered input-sm w-full font-mono font-bold text-xs rounded-lg"
                               bind:value={ut.functionName}
                               placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::solve_placeholder")}
                             />
@@ -4201,7 +4217,7 @@ class MyTests(unittest.TestCase):
                         <div class="form-control">
                           <span class="text-[9px] font-black uppercase tracking-widest opacity-40 mb-1 flex items-center gap-1.5"><Clock size={10} class="text-warning" /> {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::time_limit_s")}</span>
                           <div class="relative flex items-center">
-                            <input class="input input-bordered input-xs w-24 font-bold" bind:value={ut.timeLimit} />
+                            <input class="input input-bordered rounded-lg input-xs w-24 font-bold" bind:value={ut.timeLimit} />
                             <span class="absolute right-2 text-[7px] font-black opacity-30">SEC</span>
                           </div>
                         </div>
@@ -4209,7 +4225,7 @@ class MyTests(unittest.TestCase):
                           <div class="form-control">
                             <span class="text-[9px] font-black uppercase tracking-widest opacity-40 mb-1 flex items-center gap-1.5"><Scale size={10} class="text-error" /> {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::points")}</span>
                             <div class="relative flex items-center">
-                              <input class="input input-bordered input-xs w-24 font-bold" bind:value={ut.weight} />
+                              <input class="input input-bordered rounded-lg input-xs w-24 font-bold" bind:value={ut.weight} />
                               <span class="absolute right-2 text-[7px] font-black opacity-30">PTS</span>
                             </div>
                           </div>
@@ -4237,7 +4253,7 @@ class MyTests(unittest.TestCase):
                                 {/if}
                             </div>
                             <div class="dropdown dropdown-end">
-                              <label tabindex="0" class="btn btn-primary btn-xs font-bold gap-1 px-2 h-6 min-h-0">
+                              <label tabindex="0" class="btn btn-primary btn-xs font-bold gap-1 px-2 h-6 min-h-0 rounded-lg">
                                 <Plus size={10} /> Add Assertion
                               </label>
                               <ul tabindex="0" class="dropdown-content z-[20] menu p-1.5 shadow-xl bg-base-100 rounded-box w-48 border border-base-200 mt-1">
@@ -4348,7 +4364,7 @@ class MyTests(unittest.TestCase):
                 <div class="flex justify-center pt-4 border-t border-base-200/50">
                   <button
                     type="button"
-                    class="btn btn-primary btn-sm px-10 font-black shadow-lg shadow-primary/20 hover:scale-105 transition-all text-white h-9 min-h-0"
+                    class="btn btn-primary btn-sm px-10 font-black shadow-lg shadow-primary/20 hover:scale-105 transition-all text-white h-9 min-h-0 rounded-xl"
                     disabled={utTests.length === 0 || utOutputLoading || (utOutputMode === "teacher" && !teacherSolutionFile)}
                     on:click={uploadGeneratedUnitTests}
                   >
@@ -4368,14 +4384,14 @@ class MyTests(unittest.TestCase):
           type="radio"
           name="tests-tab"
           role="tab"
-          class="tab"
+          class="tab h-10 font-black uppercase tracking-widest text-[10px] sm:text-xs opacity-40 checked:opacity-100 checked:text-primary [--tab-bg:theme(colors.base-100)] [--tab-border-color:theme(colors.base-200)] checked:!border-b-base-100 transition-all"
           aria-label={translate(
             "frontend/src/routes/assignments/[id]/tests/+page.svelte::function_tests_builder",
           )}
         />
         <div
           role="tabpanel"
-          class="tab-content bg-base-100 border-base-300 rounded-box p-3 space-y-3"
+          class="tab-content bg-base-100 border-base-200 rounded-box p-6 shadow-xl shadow-base-200/50 space-y-3"
         >
           <div class="group relative bg-base-100 rounded-xl border border-base-300/50 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 border-l-info">
             <!-- Header -->
@@ -4653,14 +4669,14 @@ class MyTests(unittest.TestCase):
                                         </label>
                                       {:else if control.control === "textarea"}
                                         <textarea
-                                          class="textarea textarea-bordered h-16 py-1.5 px-2 font-mono text-xs bg-base-100 shadow-inner"
+                                          class="textarea textarea-bordered rounded-xl h-16 py-1.5 px-2 font-mono text-xs bg-base-100 shadow-inner"
                                           value={fc.args[pi]}
                                           on:input={(e) => updateFnArg(fi, pi, (e.target as HTMLTextAreaElement).value)}
                                           placeholder={param.type ?? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder")}
                                         ></textarea>
                                       {:else}
                                         <input
-                                          class="input input-bordered input-sm w-full font-mono text-xs bg-base-100 shadow-inner h-8"
+                                          class="input input-bordered rounded-lg input-sm w-full font-mono text-xs bg-base-100 shadow-inner h-8"
                                           type={control.control === "integer" || control.control === "number" ? "number" : "text"}
                                           step={control.control === "integer" ? "1" : (control.control === "number" ? "any" : undefined)}
                                           value={fc.args[pi]}
@@ -4697,7 +4713,7 @@ class MyTests(unittest.TestCase):
                                       <div class="grid gap-2 grid-cols-[1fr_1.2fr_auto] items-end bg-base-100 p-2 rounded-lg border border-base-300 shadow-sm animate-in zoom-in-95 duration-200">
                                         <div class="form-control space-y-1">
                                           <input
-                                            class="input input-bordered input-xs w-full font-mono font-bold"
+                                            class="input input-bordered rounded-lg input-xs w-full font-mono font-bold"
                                             placeholder="key"
                                             value={kw.key}
                                             on:input={(e) => updateFnKwargKey(fi, ki, (e.target as HTMLInputElement).value)}
@@ -4705,7 +4721,7 @@ class MyTests(unittest.TestCase):
                                         </div>
                                         <div class="form-control space-y-1">
                                           <input
-                                            class="input input-bordered input-xs w-full font-mono"
+                                            class="input input-bordered rounded-lg input-xs w-full font-mono"
                                             placeholder="value"
                                             value={kw.value}
                                             on:input={(e) => updateFnKwargValue(fi, ki, (e.target as HTMLInputElement).value)}
@@ -4774,14 +4790,14 @@ class MyTests(unittest.TestCase):
                                           </label>
                                         {:else if control.control === "textarea"}
                                           <textarea
-                                            class="textarea textarea-bordered h-16 py-1.5 px-2 font-mono text-xs bg-base-100 shadow-inner"
+                                            class="textarea textarea-bordered rounded-xl h-16 py-1.5 px-2 font-mono text-xs bg-base-100 shadow-inner"
                                             value={fc.returns[ri]}
                                             on:input={(e) => updateFnReturn(fi, ri, (e.target as HTMLTextAreaElement).value)}
                                             placeholder={ret.type ?? translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::value_placeholder")}
                                           ></textarea>
                                         {:else}
                                           <input
-                                            class="input input-bordered input-sm w-full font-mono text-xs bg-base-100 shadow-inner h-8"
+                                            class="input input-bordered rounded-lg input-sm w-full font-mono text-xs bg-base-100 shadow-inner h-8"
                                             type={control.control === "integer" || control.control === "number" ? "number" : "text"}
                                             step={control.control === "integer" ? "1" : (control.control === "number" ? "any" : undefined)}
                                             value={fc.returns[ri]}
@@ -4840,14 +4856,14 @@ class MyTests(unittest.TestCase):
           type="radio"
           name="tests-tab"
           role="tab"
-          class="tab"
+          class="tab h-10 font-black uppercase tracking-widest text-[10px] sm:text-xs opacity-40 checked:opacity-100 checked:text-primary [--tab-bg:theme(colors.base-100)] [--tab-border-color:theme(colors.base-200)] checked:!border-b-base-100 transition-all"
           aria-label={translate(
             "frontend/src/routes/assignments/[id]/tests/+page.svelte::ai_generate",
           )}
         />
         <div
           role="tabpanel"
-          class="tab-content bg-base-100 border-base-300 rounded-box p-3 space-y-3"
+          class="tab-content bg-base-100 border-base-200 rounded-box p-6 shadow-xl shadow-base-200/50 space-y-3"
         >
           <div class="group relative bg-base-100 rounded-xl border border-base-300/50 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 border-l-secondary">
             <!-- Premium Header -->
@@ -4984,7 +5000,7 @@ class MyTests(unittest.TestCase):
                               type="number"
                               min="1"
                               max="50"
-                              class="input input-bordered input-xs w-16 font-bold text-center bg-base-100 h-8"
+                              class="input input-bordered input-xs w-16 font-bold text-center bg-base-100 h-8 rounded-lg"
                               bind:value={aiNumTests}
                             />
                             <span class="text-[9px] font-bold opacity-40 uppercase tracking-widest">{translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::test_plural")}</span>
@@ -5001,7 +5017,7 @@ class MyTests(unittest.TestCase):
                       {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::additional_instructions_optional")}
                     </h5>
                     <textarea
-                      class="textarea textarea-bordered w-full min-h-[100px] bg-base-200/30 focus:bg-base-100 transition-all leading-relaxed text-xs py-2"
+                      class="textarea textarea-bordered w-full min-h-[100px] bg-base-200/30 focus:bg-base-100 transition-all leading-relaxed text-xs py-2 rounded-xl"
                       bind:value={aiInstructions}
                       placeholder={translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::edge_cases_to_cover_placeholder")}
                     ></textarea>
@@ -5087,7 +5103,7 @@ class MyTests(unittest.TestCase):
                           on:change={(e) => (teacherSolutionFile = (e.target as HTMLInputElement).files?.[0] || null)}
                         />
                         <button
-                          class="btn btn-secondary btn-xs h-7 font-black shadow-lg shadow-secondary/10"
+                          class="btn btn-secondary btn-xs h-7 font-black shadow-lg shadow-secondary/10 rounded-lg"
                           disabled={!teacherSolutionFile || teacherRunLoading}
                           on:click={runTeacherSolution}
                         >
@@ -5123,7 +5139,7 @@ class MyTests(unittest.TestCase):
               <div class="flex flex-col gap-2.5 border-t border-base-300/50 pt-3.5 mt-1.5">
                 <div class="flex flex-col sm:flex-row gap-2.5">
                   <button
-                    class="btn btn-secondary flex-1 h-9 text-xs font-black shadow-xl shadow-secondary/20 hover:scale-[1.02] transition-all group"
+                    class="btn btn-secondary flex-1 h-9 text-xs font-black shadow-xl shadow-secondary/20 hover:scale-[1.02] transition-all group rounded-xl"
                     on:click={generateWithAI}
                     disabled={aiGenerating}
                   >
@@ -5137,7 +5153,7 @@ class MyTests(unittest.TestCase):
                   </button>
                   
                   <button
-                    class="btn btn-outline btn-sm flex-1 h-9 text-xs font-black hover:bg-primary hover:text-primary-content border-2 hover:border-primary transition-all duration-300"
+                    class="btn btn-outline btn-sm flex-1 h-9 text-xs font-black hover:bg-primary hover:text-primary-content border-2 hover:border-primary transition-all duration-300 rounded-xl"
                     on:click={uploadAIUnitTestsCode}
                     disabled={builderMode !== "unittest" || !aiCode}
                   >
@@ -5195,14 +5211,14 @@ class MyTests(unittest.TestCase):
           type="radio"
           name="tests-tab"
           role="tab"
-          class="tab"
+          class="tab h-10 font-black uppercase tracking-widest text-[10px] sm:text-xs opacity-40 checked:opacity-100 checked:text-primary [--tab-bg:theme(colors.base-100)] [--tab-border-color:theme(colors.base-200)] checked:!border-b-base-100 transition-all"
           aria-label={translate(
             "frontend/src/routes/assignments/[id]/tests/+page.svelte::upload_py",
           )}
         />
         <div
           role="tabpanel"
-          class="tab-content bg-base-100 border-base-300 rounded-box p-4"
+          class="tab-content bg-base-100 border-base-200 rounded-box p-6 shadow-xl shadow-base-200/50"
         >
           <div class="group relative bg-base-100 rounded-xl border border-base-300/50 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 border-l-accent">
             <!-- Header -->
@@ -5270,7 +5286,7 @@ class MyTests(unittest.TestCase):
                       </div>
                       
                       <button
-                        class="btn btn-accent btn-sm h-8 px-6 font-black shadow-xl shadow-accent/20 hover:scale-105 active:scale-95 transition-all gap-1.5"
+                        class="btn btn-accent btn-sm h-8 px-6 font-black shadow-xl shadow-accent/20 hover:scale-105 active:scale-95 transition-all gap-1.5 rounded-xl"
                         on:click={uploadUnitTests}
                       >
                         <UploadIcon size={16} />
