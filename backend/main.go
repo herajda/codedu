@@ -121,8 +121,6 @@ func main() {
 	InitOIDC()
 	ensureAdmin()
 	InitMailer()
-	// Ensure Teachers' group exists as a special class
-	EnsureTeacherGroupExists()
 	// Ensure the shared execution root exists with permissive traversal
 	ensureExecRoot(execRoot)
 	StartWorker(2)

@@ -45,6 +45,8 @@ CREATE TABLE IF NOT EXISTS classes (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE classes ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '';
+-- Remove legacy Teachers' group class (fixed ID) if present.
+DELETE FROM classes WHERE id = '11111111-1111-1111-1111-111111111111';
 
 CREATE TABLE IF NOT EXISTS assignments (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
