@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS assignments (
   created_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   deadline TIMESTAMPTZ NOT NULL,
   max_points INTEGER NOT NULL DEFAULT 100,
+  max_submission_size_mb INTEGER NOT NULL DEFAULT 10 CHECK (max_submission_size_mb > 0),
   grading_policy TEXT NOT NULL DEFAULT 'all_or_nothing' CHECK (grading_policy IN ('all_or_nothing','weighted')),
   published BOOLEAN NOT NULL DEFAULT FALSE,
   show_traceback BOOLEAN NOT NULL DEFAULT FALSE,
@@ -78,6 +79,7 @@ ALTER TABLE assignments ADD COLUMN IF NOT EXISTS manual_review BOOLEAN NOT NULL 
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS banned_functions TEXT[] NOT NULL DEFAULT '{}';
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS banned_modules TEXT[] NOT NULL DEFAULT '{}';
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS banned_tool_rules TEXT;
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS max_submission_size_mb INTEGER NOT NULL DEFAULT 10 CHECK (max_submission_size_mb > 0);
 -- LLM interactive testing configuration
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_interactive BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_feedback BOOLEAN NOT NULL DEFAULT FALSE; -- show LLM feedback to students

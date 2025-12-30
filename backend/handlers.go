@@ -289,6 +289,7 @@ func createAssignment(c *gin.Context) {
 		Description:      req.Description,
 		Deadline:         time.Now().Add(24 * time.Hour),
 		MaxPoints:        100,
+		MaxSubmissionSizeMB: defaultSubmissionSizeMB,
 		GradingPolicy:    "all_or_nothing",
 		Published:        false,
 		ShowTraceback:    req.ShowTraceback,
@@ -436,6 +437,7 @@ func updateAssignment(c *gin.Context) {
 		ShowTraceback       bool     `json:"show_traceback"`
 		ShowTestDetails     bool     `json:"show_test_details"`
 		ManualReview        bool     `json:"manual_review"`
+		MaxSubmissionSizeMB *int     `json:"max_submission_size_mb"`
 		ProgrammingLanguage *string  `json:"programming_language"`
 		LLMInteractive      bool     `json:"llm_interactive"`
 		LLMFeedback         bool     `json:"llm_feedback"`
@@ -468,6 +470,15 @@ func updateAssignment(c *gin.Context) {
 	a.Description = req.Description
 	a.Deadline = dl
 	a.MaxPoints = req.MaxPoints
+	if req.MaxSubmissionSizeMB != nil {
+		if *req.MaxSubmissionSizeMB <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid max_submission_size_mb"})
+			return
+		}
+		a.MaxSubmissionSizeMB = *req.MaxSubmissionSizeMB
+	} else if a.MaxSubmissionSizeMB == 0 {
+		a.MaxSubmissionSizeMB = defaultSubmissionSizeMB
+	}
 	a.GradingPolicy = req.GradingPolicy
 	a.ShowTraceback = req.ShowTraceback
 	a.ShowTestDetails = req.ShowTestDetails
@@ -572,6 +583,7 @@ func syncTeachersGroupAssignment(c *gin.Context) {
 		clone.Title = source.Title
 		clone.Description = source.Description
 		clone.MaxPoints = source.MaxPoints
+		clone.MaxSubmissionSizeMB = source.MaxSubmissionSizeMB
 		clone.GradingPolicy = source.GradingPolicy
 		clone.ShowTraceback = source.ShowTraceback
 		clone.ShowTestDetails = source.ShowTestDetails
@@ -1668,6 +1680,24 @@ func createSubmission(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 		return
 	}
+	assignment, err := GetAssignment(aid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "assignment not found"})
+		return
+	}
+	maxMB := assignment.MaxSubmissionSizeMB
+	if maxMB <= 0 {
+		maxMB = defaultSubmissionSizeMB
+	}
+	maxBytes := int64(maxMB) * 1024 * 1024
+	if c.Request.ContentLength > 0 && c.Request.ContentLength > maxBytes {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{
+			"error":   "submission_too_large",
+			"max_mb":  maxMB,
+			"size_mb": float64(c.Request.ContentLength) / (1024 * 1024),
+		})
+		return
+	}
 	if err := c.Request.ParseMultipartForm(32 << 20); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid form"})
 		return
@@ -1698,10 +1728,25 @@ func createSubmission(c *gin.Context) {
 	}
 	defer os.RemoveAll(tmpDir)
 
+	var totalSize int64
 	for _, fh := range files {
 		dst := filepath.Join(tmpDir, filepath.Base(fh.Filename))
 		if err := c.SaveUploadedFile(fh, dst); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot save"})
+			return
+		}
+		info, statErr := os.Stat(dst)
+		if statErr == nil {
+			totalSize += info.Size()
+		} else if fh.Size > 0 {
+			totalSize += fh.Size
+		}
+		if totalSize > maxBytes {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{
+				"error":   "submission_too_large",
+				"max_mb":  maxMB,
+				"size_mb": float64(totalSize) / (1024 * 1024),
+			})
 			return
 		}
 	}
@@ -1782,8 +1827,8 @@ func createSubmission(c *gin.Context) {
 		return
 	}
 	// enqueue for grading unless manual review is enabled (unless LLM interactive is on)
-	if a, err := GetAssignment(aid); err == nil {
-		if a.LLMInteractive || !a.ManualReview {
+	if assignment != nil {
+		if assignment.LLMInteractive || !assignment.ManualReview {
 			EnqueueJob(Job{SubmissionID: sub.ID})
 		}
 	}

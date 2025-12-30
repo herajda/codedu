@@ -96,6 +96,7 @@
   type ProgrammingLanguage = "python" | "scratch";
   const pythonFileExt = ".py";
   const scratchFileExt = ".sb3";
+  const defaultMaxSubmissionSizeMB = 10;
   let eProgrammingLanguage: ProgrammingLanguage = "python";
 
   let confirmModal: InstanceType<typeof ConfirmModal>;
@@ -108,15 +109,43 @@
   $: submissionExtension = isScratchAssignment ? scratchFileExt : pythonFileExt;
   $: submissionExtLabel = submissionExtension;
 
+  function formatMB(bytes: number) {
+    return Math.round((bytes / (1024 * 1024)) * 10) / 10;
+  }
+
+  function getSubmissionLimitMB() {
+    return assignment?.max_submission_size_mb ?? defaultMaxSubmissionSizeMB;
+  }
+
   function addSubmissionFiles(incoming: File[]) {
     const ext = submissionExtension.toLowerCase();
     const allowed = incoming.filter((f) =>
       f.name.toLowerCase().endsWith(ext),
     );
     if (!allowed.length) return;
+    err = "";
+    const maxMB = getSubmissionLimitMB();
+    const maxBytes = maxMB * 1024 * 1024;
     if (isScratchAssignment) {
-      files = [allowed[allowed.length - 1]];
+      const candidate = allowed[allowed.length - 1];
+      if (candidate.size > maxBytes) {
+        err = t(
+          "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_size_error",
+          { size: formatMB(candidate.size), max: maxMB },
+        );
+        return;
+      }
+      files = [candidate];
       if (fileInput) fileInput.value = "";
+      return;
+    }
+    const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
+    const newTotal = totalBytes + allowed.reduce((sum, f) => sum + f.size, 0);
+    if (newTotal > maxBytes) {
+      err = t(
+        "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_size_error",
+        { size: formatMB(newTotal), max: maxMB },
+      );
       return;
     }
     files = [...files, ...allowed];
@@ -139,6 +168,7 @@
     eDeadline = "",
     ePoints = 0,
     ePolicy = "all_or_nothing",
+    eMaxSubmissionSizeMB = defaultMaxSubmissionSizeMB,
     eShowTraceback = false,
     eShowTestDetails = false;
   let eManualReview = false;
@@ -560,6 +590,8 @@
     eDesc = assignment.description;
     ePoints = assignment.max_points;
     ePolicy = assignment.grading_policy;
+    eMaxSubmissionSizeMB =
+      assignment.max_submission_size_mb ?? defaultMaxSubmissionSizeMB;
     // Fix: convert UTC deadline to local time string for input[type="datetime-local"]
     // The input expects "YYYY-MM-DDTHH:mm", but simply slicing toISOString() gives UTC time.
     // We need to shift the time by the timezone offset before slicing.
@@ -682,6 +714,7 @@
           description: eDesc,
           deadline: new Date(eDeadline).toISOString(),
           max_points: maxPoints,
+          max_submission_size_mb: Number(eMaxSubmissionSizeMB),
           grading_policy: ePolicy,
           show_traceback: eShowTraceback,
           show_test_details: eShowTestDetails,
@@ -917,7 +950,26 @@
           } else {
             try {
               const errorData = JSON.parse(xhr.responseText);
-              reject(new Error(errorData.error || xhr.statusText));
+              if (errorData?.error === "submission_too_large") {
+                const size =
+                  typeof errorData.size_mb === "number"
+                    ? Math.round(errorData.size_mb * 10) / 10
+                    : 0;
+                const max =
+                  typeof errorData.max_mb === "number"
+                    ? errorData.max_mb
+                    : defaultMaxSubmissionSizeMB;
+                reject(
+                  new Error(
+                    t(
+                      "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_size_error",
+                      { size, max },
+                    ),
+                  ),
+                );
+              } else {
+                reject(new Error(errorData.error || xhr.statusText));
+              }
             } catch {
               reject(new Error(xhr.statusText));
             }
@@ -1411,6 +1463,20 @@
                         {t("frontend/src/routes/assignments/[id]/+page.svelte::programming_language_scratch")}
                       </option>
                     </select>
+                  </div>
+                  <div class="form-control min-w-[200px]">
+                    <span class="label-text font-bold text-[10px] uppercase opacity-40 mb-1.5 ml-1">
+                      {t("frontend/src/routes/assignments/[id]/+page.svelte::max_submission_size_label")}
+                    </span>
+                    <div class="relative">
+                      <input
+                        type="number"
+                        min="1"
+                        class="input input-bordered input-sm w-full bg-base-100 pr-12 font-mono"
+                        bind:value={eMaxSubmissionSizeMB}
+                      />
+                      <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase opacity-40">MB</span>
+                    </div>
                   </div>
                   {#if eProgrammingLanguage === "scratch"}
                     <div class="flex-1 text-[11px] text-info/80 font-medium">
@@ -2827,6 +2893,13 @@
             on:change={(e) =>
               addSubmissionFiles(Array.from((e.target as HTMLInputElement).files || []))}
           />
+        </div>
+
+        <div class="text-[10px] font-bold uppercase tracking-widest opacity-40 text-center">
+          {t(
+            "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_max_size",
+            { max: getSubmissionLimitMB() },
+          )}
         </div>
 
         {#if files.length > 0}

@@ -118,28 +118,44 @@
   }
 
   async function setupVM() {
-    const [vmMod, renderMod, audioMod, storageMod] = await Promise.all([
+    const [vmMod, renderMod, audioMod, storageMod, svgRendererMod] = await Promise.all([
       import("scratch-vm"),
       import("scratch-render"),
       import("scratch-audio"),
       import("scratch-storage"),
+      import("scratch-svg-renderer"),
     ]);
     const VM = resolveCtor(vmMod, ["VirtualMachine"]);
     const RenderWebGL = resolveCtor(renderMod, ["RenderWebGL", "ScratchRender"]);
     const AudioEngine = resolveCtor(audioMod, ["AudioEngine"]);
     const ScratchStorage = resolveCtor(storageMod, ["ScratchStorage"]);
+    const BitmapAdapter = resolveCtor(svgRendererMod, ["BitmapAdapter"]);
 
-    if (!VM || !RenderWebGL || !AudioEngine || !ScratchStorage) {
+    if (!VM || !RenderWebGL || !AudioEngine || !ScratchStorage || !BitmapAdapter) {
       throw new Error(
         translate("frontend/src/lib/components/ScratchPlayer.svelte::scratch_player_runtime_error"),
       );
     }
 
     vm = new VM();
+    if (typeof vm.attachV2BitmapAdapter === "function") {
+      vm.attachV2BitmapAdapter(new BitmapAdapter());
+    }
     renderer = new RenderWebGL(canvas);
     vm.attachRenderer(renderer);
 
     storage = new ScratchStorage();
+    const AssetType = storage?.AssetType;
+    if (AssetType && storage.addWebStore) {
+      storage.addWebStore([AssetType.Project], storage.WebStore);
+      storage.addWebStore(
+        [AssetType.ImageVector, AssetType.ImageBitmap, AssetType.Sound],
+        storage.AssetWebStore,
+      );
+    }
+    if (storage.setBitmapAdapter) {
+      storage.setBitmapAdapter(new BitmapAdapter());
+    }
     vm.attachStorage(storage);
 
     audioEngine = new AudioEngine();

@@ -53,6 +53,7 @@
 		"pyodide": "^0.28.0",
 		"scratch-audio": "^2.0.268",
 		"scratch-render": "^2.2.80",
+		"scratch-svg-renderer": "^3.1.17",
 		"scratch-storage": "^5.0.10",
 		"scratch-vm": "^5.0.300",
 		"shiki": "^3.8.1",
