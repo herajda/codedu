@@ -193,7 +193,7 @@
   </div>
 
   <div class="flex-1 flex items-center justify-center p-4 min-h-[calc(100vh-4rem)]">
-      <div class="w-full max-w-[460px] relative -mt-16" in:scale={{duration: 600, start: 0.98, opacity: 0}}>
+      <div class="w-full max-w-[460px] relative" in:scale={{duration: 600, start: 0.98, opacity: 0}}>
         
         <!-- Header Section -->
         <div class="text-center mb-6">
