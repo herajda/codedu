@@ -29,12 +29,11 @@ COPY --from=build /out/codegrader /usr/local/bin/codegrader
 COPY backend/schema.sql ./schema.sql
 COPY backend/llm_agent /app/llm_agent
 COPY backend/scripts /app/scripts
-COPY vm /app/vm
 # Install agent dependencies into an isolated virtualenv to satisfy PEP 668.
 RUN python3 -m venv /opt/llm-agent-venv \
     && /opt/llm-agent-venv/bin/pip install --no-cache-dir -r /app/llm_agent/requirements.txt \
     && find /app/scripts -type f -name "*.py" -exec chmod +x {} +
-RUN mkdir -p /uploads /sandbox
+RUN mkdir -p /uploads /sandbox /app/vm
 ENV PORT=8080
 ENV EXECUTION_ROOT=/sandbox
 ENV PYTHON_RUNNER_IMAGE=python:3.11

@@ -65,6 +65,7 @@ services:
     volumes:
       - runner_shared:/sandbox:z
       - ./.env:/app/.env:ro
+      - ./vm:/app/vm:ro,z
     networks: [appnet]
 
   docker-engine:
