@@ -528,11 +528,16 @@ function toggleView() {
       movingFile = true;
       dropErr = '';
       
-      await apiFetch(`/api/files/${draggedItem.id}`, {
+      const res = await apiFetch(`/api/files/${draggedItem.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ parent_id: targetFolder.id })
       });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(errorData.error || t('frontend/src/routes/files/+page.svelte::failed_to_move_error'));
+      }
       
       await load(currentParent);
     } catch (e: any) {
@@ -641,8 +646,11 @@ onMount(() => {
         <div class="flex items-center gap-1 shrink-0">
           <button 
             type="button" 
-            class={`btn btn-sm btn-ghost rounded-xl px-3 font-bold text-xs h-9 ${i === breadcrumbs.length - 1 ? 'bg-base-200/50' : 'opacity-60 hover:opacity-100'}`}
+            class={`btn btn-sm btn-ghost rounded-xl px-3 font-bold text-xs h-9 transition-all duration-200 ${i === breadcrumbs.length - 1 ? 'bg-base-200/50' : 'opacity-60 hover:opacity-100'} ${dragOverFolder === 'crumb-' + i ? 'ring-2 ring-primary bg-primary/10 opacity-100' : ''}`}
             on:click={() => crumbTo(i)}
+            on:dragover={(e) => { if (draggedItem && i < breadcrumbs.length - 1) { e.preventDefault(); e.stopPropagation(); dragOverFolder = 'crumb-' + i; } }}
+            on:dragleave={() => { if (dragOverFolder === 'crumb-' + i) dragOverFolder = null; }}
+            on:drop={(e) => { if (draggedItem && i < breadcrumbs.length - 1) onFolderDrop(e, { id: b.id }); }}
           >
             {b.name}
           </button>
@@ -713,6 +721,24 @@ onMount(() => {
     {#if loading}
       <div class="absolute inset-0 z-10 bg-base-100/10 backdrop-blur-[1px] flex items-center justify-center pointer-events-none">
         <span class="loading loading-spinner text-primary"></span>
+      </div>
+    {/if}
+
+    {#if draggedItem && currentParent !== null}
+      <!-- Move to parent folder target -->
+      <div 
+        class="mb-4 p-8 border-2 border-dashed border-primary/30 rounded-[2.5rem] flex flex-col items-center justify-center gap-3 bg-primary/5 transition-all duration-300 animate-in fade-in slide-in-from-top-4 {dragOverFolder === 'parent' ? 'ring-4 ring-primary/20 bg-primary/10 scale-[1.01] border-primary/50' : ''}"
+        on:dragover|preventDefault={(e) => { e.preventDefault(); e.stopPropagation(); dragOverFolder = 'parent'; }}
+        on:dragleave={() => { if (dragOverFolder === 'parent') dragOverFolder = null; }}
+        on:drop={(e) => { if (breadcrumbs.length > 1) onFolderDrop(e, { id: breadcrumbs[breadcrumbs.length - 2].id }); }}
+      >
+        <div class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shadow-sm">
+          <ArrowRight class="-rotate-90" size={24} />
+        </div>
+        <div class="text-center">
+          <p class="font-black text-sm tracking-tight text-primary uppercase tracking-widest">Move to {breadcrumbs[breadcrumbs.length - 2].name}</p>
+          <p class="text-[10px] font-bold opacity-40 uppercase tracking-widest mt-1">Drop here to move item up one level</p>
+        </div>
       </div>
     {/if}
 

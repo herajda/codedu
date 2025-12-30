@@ -477,8 +477,90 @@ function onDragLeave() {
     dragDepth = 0;
   }
 }
-function onDragOver() {
-  // allow drop
+function onDragOver(e: DragEvent) {
+  // Prevent default to allow drop, but only for external files
+  if (!draggedItem) {
+    e.preventDefault();
+  }
+}
+
+// Drag & drop file/folder move handlers
+let draggedItem: any = null;
+let dragOverFolder: any = null;
+let movingFile = false;
+
+function onItemDragStart(e: DragEvent, item: any) {
+  if (!e.dataTransfer) return;
+  draggedItem = item;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', item.id);
+  // Add a slight delay to allow the drag image to be created
+  setTimeout(() => {
+    if (e.target instanceof HTMLElement) {
+      e.target.style.opacity = '0.5';
+    }
+  }, 0);
+}
+
+function onItemDragEnd(e: DragEvent) {
+  if (e.target instanceof HTMLElement) {
+    e.target.style.opacity = '1';
+  }
+  draggedItem = null;
+  dragOverFolder = null;
+}
+
+function onFolderDragOver(e: DragEvent, folder: any) {
+  if (!draggedItem || draggedItem.id === folder.id) return;
+  e.preventDefault();
+  e.stopPropagation();
+  dragOverFolder = folder;
+}
+
+function onFolderDragLeave(e: DragEvent, folder: any) {
+  if (dragOverFolder?.id === folder.id || dragOverFolder === folder) {
+    dragOverFolder = null;
+  }
+}
+
+async function onFolderDrop(e: DragEvent, targetFolder: any) {
+  e.preventDefault();
+  e.stopPropagation();
+  dragOverFolder = null;
+  
+  if (!draggedItem || draggedItem.id === targetFolder.id) {
+    draggedItem = null;
+    return;
+  }
+
+  // Don't allow moving a folder into itself
+  if (draggedItem.is_dir && targetFolder.id === draggedItem.id) {
+    draggedItem = null;
+    return;
+  }
+
+  try {
+    movingFile = true;
+    dropErr = '';
+    
+    const res = await apiFetch(`/api/files/${draggedItem.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parent_id: targetFolder.id })
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(errorData.error || t('frontend/src/routes/files/+page.svelte::failed_to_move_error'));
+    }
+    
+    await load(currentParent);
+  } catch (e: any) {
+    dropErr = e?.message ?? t('frontend/src/routes/files/+page.svelte::failed_to_move_error');
+  } finally {
+    movingFile = false;
+    draggedItem = null;
+  }
 }
 async function onDrop(e: DragEvent) {
   dragDepth = 0;
@@ -601,8 +683,11 @@ onMount(() => {
         <div class="flex items-center gap-1 shrink-0">
           <button 
             type="button" 
-            class={`btn btn-sm btn-ghost rounded-xl px-3 font-bold text-xs h-9 select-none ${i === breadcrumbs.length - 1 ? 'bg-base-200/50' : 'opacity-60 hover:opacity-100'}`}
+            class={`btn btn-sm btn-ghost rounded-xl px-3 font-bold text-xs h-9 select-none transition-all duration-200 ${i === breadcrumbs.length - 1 ? 'bg-base-200/50' : 'opacity-60 hover:opacity-100'} ${dragOverFolder === 'crumb-' + i ? 'ring-2 ring-primary bg-primary/10 opacity-100' : ''}`}
             on:click={() => crumbTo(i)}
+            on:dragover={(e) => { if (draggedItem && i < breadcrumbs.length - 1) { e.preventDefault(); e.stopPropagation(); dragOverFolder = 'crumb-' + i; } }}
+            on:dragleave={() => { if (dragOverFolder === 'crumb-' + i) dragOverFolder = null; }}
+            on:drop={(e) => { if (draggedItem && i < breadcrumbs.length - 1) onFolderDrop(e, { id: b.id }); }}
           >
             <span class="pointer-events-none">{b.name}</span>
           </button>
@@ -677,12 +762,36 @@ onMount(() => {
       </div>
     {/if}
 
+    {#if draggedItem && currentParent !== null}
+      <!-- Move to parent folder target -->
+      <div 
+        class="mb-4 p-8 border-2 border-dashed border-primary/30 rounded-[2.5rem] flex flex-col items-center justify-center gap-3 bg-primary/5 transition-all duration-300 animate-in fade-in slide-in-from-top-4 {dragOverFolder === 'parent' ? 'ring-4 ring-primary/20 bg-primary/10 scale-[1.01] border-primary/50' : ''}"
+        on:dragover|preventDefault={(e) => { e.preventDefault(); e.stopPropagation(); dragOverFolder = 'parent'; }}
+        on:dragleave={() => { if (dragOverFolder === 'parent') dragOverFolder = null; }}
+        on:drop={(e) => { if (breadcrumbs.length > 1) onFolderDrop(e, { id: breadcrumbs[breadcrumbs.length - 2].id }); }}
+      >
+        <div class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shadow-sm">
+          <ArrowRight class="-rotate-90" size={24} />
+        </div>
+        <div class="text-center">
+          <p class="font-black text-sm tracking-tight text-primary uppercase tracking-widest">Move to {breadcrumbs[breadcrumbs.length - 2].name}</p>
+          <p class="text-[10px] font-bold opacity-40 uppercase tracking-widest mt-1">Drop here to move item up one level</p>
+        </div>
+      </div>
+    {/if}
+
     {#if viewMode === 'grid'}
       <!-- ── GRID VIEW ── -->
       <div class="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 mb-8">
         {#each visible as it (it.id)}
           <div 
-            class="group relative bg-base-200/50 dark:bg-base-200 hover:bg-base-100 dark:hover:bg-base-300 border border-base-200 dark:border-base-300 shadow-sm rounded-[2rem] p-4 flex flex-col items-center gap-3 hover:shadow-xl hover:shadow-primary/5 hover:border-primary/20 transition-all cursor-pointer overflow-hidden select-none backdrop-blur-sm"
+            class="group relative bg-base-200/50 dark:bg-base-200 hover:bg-base-100 dark:hover:bg-base-300 border border-base-200 dark:border-base-300 shadow-sm rounded-[2rem] p-4 flex flex-col items-center gap-3 hover:shadow-xl hover:shadow-primary/5 hover:border-primary/20 transition-all cursor-pointer overflow-hidden select-none backdrop-blur-sm {dragOverFolder?.id === it.id ? 'ring-4 ring-primary/40 scale-105 bg-primary/5' : ''} {draggedItem?.id === it.id ? 'opacity-50' : ''}"
+            draggable={role === 'teacher' || role === 'admin'}
+            on:dragstart={(e) => onItemDragStart(e, it)}
+            on:dragend={onItemDragEnd}
+            on:dragover={(e) => it.is_dir && onFolderDragOver(e, it)}
+            on:dragleave={(e) => it.is_dir && onFolderDragLeave(e, it)}
+            on:drop={(e) => it.is_dir && onFolderDrop(e, it)}
             on:click={(e) => { e.stopPropagation(); open(it); }}
           >
             <div class="absolute top-0 right-0 w-12 h-12 bg-primary/5 rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
@@ -767,7 +876,16 @@ onMount(() => {
           </thead>
           <tbody class="divide-y divide-base-100">
             {#each visible as it (it.id)}
-              <tr class="hover:bg-base-200/50 cursor-pointer group transition-colors select-none" on:click={(e) => { e.stopPropagation(); open(it); }}>
+              <tr 
+                class="hover:bg-base-200/50 cursor-pointer group transition-colors select-none {dragOverFolder?.id === it.id ? 'bg-primary/10 ring-2 ring-inset ring-primary/40' : ''} {draggedItem?.id === it.id ? 'opacity-50' : ''}" 
+                draggable={role === 'teacher' || role === 'admin'}
+                on:dragstart={(e) => onItemDragStart(e, it)}
+                on:dragend={onItemDragEnd}
+                on:dragover={(e) => it.is_dir && onFolderDragOver(e, it)}
+                on:dragleave={(e) => it.is_dir && onFolderDragLeave(e, it)}
+                on:drop={(e) => it.is_dir && onFolderDrop(e, it)}
+                on:click={(e) => { e.stopPropagation(); open(it); }}
+              >
                 <td class="py-4 pl-8">
                   <div class="flex items-center gap-4">
                     <div class={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${it.is_dir ? 'bg-warning/10 text-warning' : 'bg-primary/10 text-primary'} group-hover:scale-110 transition-transform`}>
