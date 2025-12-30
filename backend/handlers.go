@@ -4322,7 +4322,8 @@ func renameClassFile(c *gin.Context) {
 		return
 	}
 	var req struct {
-		Name string `json:"name" binding:"required"`
+		Name     *string         `json:"name"`
+		ParentID json.RawMessage `json:"parent_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -4353,10 +4354,66 @@ func renameClassFile(c *gin.Context) {
 			}
 		}
 	}
-	if err := RenameFile(fid, req.Name); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-		return
+	
+	// Handle moving to a different parent (including moving to root with explicit null)
+	if req.ParentID != nil {
+		var newParentID *uuid.UUID
+		rawParentID := bytes.TrimSpace(req.ParentID)
+		if string(rawParentID) != "null" {
+			var pid uuid.UUID
+			if err := json.Unmarshal(rawParentID, &pid); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid parent id"})
+				return
+			}
+			newParentID = &pid
+		}
+
+		if newParentID != nil {
+			// Validate the target parent exists and is a folder
+			var parent ClassFile
+			var query string
+			var args []interface{}
+			
+			if f.OwnerID != nil {
+				// For personal files, ensure parent belongs to same owner
+				query = `SELECT id,owner_id,is_dir FROM class_files WHERE id=$1 AND owner_id=$2`
+				args = []interface{}{*newParentID, *f.OwnerID}
+			} else {
+				// For class files, ensure parent is in same class
+				query = `SELECT id,class_id,is_dir FROM class_files WHERE id=$1 AND class_id=$2`
+				args = []interface{}{*newParentID, f.ClassID}
+			}
+			
+			if err := DB.Get(&parent, query, args...); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "target folder not found or inaccessible"})
+				return
+			}
+			if !parent.IsDir {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "target is not a folder"})
+				return
+			}
+			// Don't allow moving a folder into itself (basic check)
+			if fid == *newParentID {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "cannot move a folder into itself"})
+				return
+			}
+		}
+		
+		// Move the file
+		if err := MoveFile(fid, newParentID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to move file: " + err.Error()})
+			return
+		}
 	}
+	
+	// Handle renaming if name is provided
+	if req.Name != nil && strings.TrimSpace(*req.Name) != "" {
+		if err := RenameFile(fid, *req.Name); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+			return
+		}
+	}
+	
 	c.Status(http.StatusNoContent)
 }
 
