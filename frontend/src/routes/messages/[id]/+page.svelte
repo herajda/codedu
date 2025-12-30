@@ -454,9 +454,11 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
 
 <div class="messages-page flex flex-col h-[calc(100vh-6rem)] sm:h-[calc(100vh-7.1rem)] overflow-hidden">
   <!-- Premium Profile Header -->
-  <section class="relative overflow-hidden bg-base-100 rounded-3xl border border-base-300 shadow-md mt-0 sm:mt-0 mb-2 p-4 sm:p-6 shrink-0">
-    <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent pointer-events-none"></div>
-    <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
+  <section class="relative bg-base-100 rounded-3xl border border-base-300 shadow-md mt-0 sm:mt-0 mb-2 p-4 sm:p-6 shrink-0 z-20">
+    <div class="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none">
+      <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent"></div>
+      <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl"></div>
+    </div>
     <div class="relative flex items-center justify-between gap-4">
       <div class="flex items-center gap-4 min-w-0">
         <button 
