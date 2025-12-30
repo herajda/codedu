@@ -889,6 +889,14 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
     color: rgba(255, 255, 255, 0.8) !important;
   }
 
+  /* Fix code block and inline code visibility in sent messages (dark background) */
+  :global(.bg-primary .markdown pre),
+  :global(.bg-primary .markdown :not(pre) > code) {
+    background-color: rgba(0, 0, 0, 0.3) !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    color: white !important;
+  }
+
   /* Specific message bubble tweaks */
   :global(.group\/bubble .markdown a) {
     color: inherit !important;

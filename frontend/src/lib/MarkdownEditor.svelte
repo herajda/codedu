@@ -192,10 +192,10 @@
 
 </script>
 
-<div class={`markdown-editor-container bg-base-100 border border-base-300 rounded-xl overflow-hidden shadow-sm transition-all duration-200 ${isFullscreen ? 'fixed inset-0 z-50 rounded-none' : ''}`}>
+<div class={`markdown-editor-container bg-base-100 border border-base-300 rounded-xl shadow-sm transition-all duration-200 ${isFullscreen ? 'fixed inset-0 z-50 rounded-none overflow-y-auto' : ''}`}>
   <!-- Toolbar -->
   {#if editor}
-    <div class="editor-toolbar flex items-center gap-1 p-2 border-b border-base-200 bg-base-100/50 backdrop-blur-sm overflow-x-auto">
+    <div class="editor-toolbar flex items-center gap-1 p-2 border-b border-base-200 bg-base-100/50 backdrop-blur-sm overflow-x-auto sticky top-0 z-20 rounded-t-xl">
         <button class="btn btn-square btn-sm btn-ghost {editor.isActive('bold') ? 'bg-base-200 text-primary' : ''}" on:click={toggleBold} title="Bold">
           <Bold class="w-4 h-4" />
         </button>
@@ -268,7 +268,7 @@
   {/if}
 
   <!-- Editor Content -->
-  <div bind:this={element} class="h-full bg-base-100/30"></div>
+  <div bind:this={element} class="h-full bg-base-100/30 {isFullscreen ? '' : 'rounded-b-xl'}"></div>
   
   <input type="file" bind:this={fileInput} on:change={onFileChange} accept="image/*" class="hidden" />
 
