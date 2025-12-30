@@ -452,11 +452,13 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
   <title>{name ? `${name} | CodEdu` : 'Messages | CodEdu'}</title>
 </svelte:head>
 
-<div class="messages-page flex flex-col h-[calc(100vh-7.5rem)] sm:h-[calc(100vh-9rem)] overflow-hidden">
+<div class="messages-page flex flex-col h-[calc(100vh-6rem)] sm:h-[calc(100vh-7.1rem)] overflow-hidden">
   <!-- Premium Profile Header -->
-  <section class="relative overflow-hidden bg-base-100 rounded-3xl border border-base-200 shadow-xl shadow-base-300/30 mb-4 p-4 sm:p-6 shrink-0">
-    <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent pointer-events-none"></div>
-    <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
+  <section class="relative bg-base-100 rounded-3xl border border-base-300 shadow-md mt-0 sm:mt-0 mb-2 p-4 sm:p-6 shrink-0 z-20">
+    <div class="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none">
+      <div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent"></div>
+      <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl"></div>
+    </div>
     <div class="relative flex items-center justify-between gap-4">
       <div class="flex items-center gap-4 min-w-0">
         <button 
@@ -507,7 +509,7 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
             <MoreVertical size={20} />
           </button>
           <ul class="dropdown-content menu p-2 shadow-2xl bg-base-100 rounded-2xl w-52 border border-base-200 mt-2 z-50">
-            <li><button class="rounded-xl font-medium" on:click={openProfile}>{translate('frontend/src/routes/messages/[id]/+page.svelte::view_profile')}</button></li>
+            <li><a class="rounded-xl font-medium" href="/profile/{id}">{translate('frontend/src/routes/messages/[id]/+page.svelte::view_profile')}</a></li>
             <li><button class="rounded-xl font-medium text-error" on:click={blockThisUser}>{translate('frontend/src/routes/messages/[id]/+page.svelte::block_user')}</button></li>
           </ul>
         </div>
@@ -526,9 +528,9 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
     </div>
   {/if}
 
-  <div class="flex flex-col flex-1 min-h-0 bg-base-100/50 rounded-[2.5rem] border border-base-200 shadow-sm overflow-hidden relative backdrop-blur-sm">
+  <div class="flex-1 min-h-0 bg-base-100 rounded-[2.5rem] border border-base-300 shadow-md overflow-hidden relative mb-2 flex flex-col">
     <!-- Messages Area -->
-    <div class="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth custom-scrollbar" bind:this={chatBox}>
+    <div class="flex-1 h-full overflow-y-auto p-6 space-y-6 scroll-smooth custom-scrollbar" bind:this={chatBox}>
       {#if hasMore}
         <div class="text-center py-4">
           <button class="btn btn-ghost btn-sm rounded-xl gap-2 font-black uppercase tracking-widest text-[10px] border border-base-300 hover:bg-base-200" on:click={() => load(true)}>
@@ -644,7 +646,7 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
                       class={`relative rounded-[2rem] px-5 py-4 shadow-sm transition-all duration-300 group/bubble message-bubble w-fit ${
                         m.sender_id === $auth?.id
                           ? 'bg-primary text-primary-content rounded-br-lg shadow-primary/20 hover:shadow-primary/30 [&_a]:text-primary-content'
-                          : 'bg-base-100 border border-base-200 text-base-content rounded-bl-lg hover:border-primary/20'
+                          : 'bg-base-200 border border-base-300 shadow-sm text-base-content rounded-bl-lg hover:border-primary/20'
                       }`}
                       on:click={() => { m.showTime = !m.showTime; convo = [...convo]; }}
                       role="button"
@@ -703,9 +705,8 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
         </div>
       {/each}
     </div>
-
     <!-- Input Area -->
-    <div class="p-6 bg-base-100/50 border-t border-base-200 backdrop-blur-md">
+    <div class="p-4 sm:p-5 border-t border-base-200 bg-base-100 relative z-10">
       {#if imageData || fileData}
         <div class="flex flex-wrap gap-3 mb-4" in:fade>
           {#if imageData}
@@ -814,7 +815,6 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
             <Send size={24} />
           </button>
         </div>
-
         {#if err}
           <div class="mt-2 p-2 bg-error/10 border border-error/20 rounded-xl" in:fade>
             <p class="text-error text-xs font-bold uppercase tracking-tight text-center">{err}</p>
@@ -822,12 +822,20 @@ import MarkdownEditor from '$lib/MarkdownEditor.svelte';
         {/if}
       </div>
     </div>
+    </div>
   </div>
-</div>
 
 <!-- Image Lightbox Overlay -->
 {#if lightboxOpen && modalImage}
-  <div class="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4" in:fade={{ duration: 200 }} out:fade={{ duration: 200 }} on:click|self={closeLightbox}>
+  <div 
+    class="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4" 
+    in:fade={{ duration: 200 }} 
+    out:fade={{ duration: 200 }} 
+    on:click|self={closeLightbox}
+    role="button"
+    tabindex="-1"
+    aria-label="Close lightbox"
+  >
     <div class="absolute top-6 right-6 flex items-center gap-4">
       <a href={modalImage} download class="btn btn-ghost text-white font-black uppercase tracking-widest text-xs gap-2"><Download size={18}/> {t('frontend/src/routes/messages/[id]/+page.svelte::download_button')}</a>
       <button class="btn btn-circle btn-ghost text-white" on:click={closeLightbox}><X size={24}/></button>
