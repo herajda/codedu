@@ -58,10 +58,16 @@
   let assignmentShowTraceback = false;
   let assignmentLLMHelpWhyFailed = false;
   let assignmentLanguage: string = "python";
+  let assignmentLoaded = false;
   let scratchProject: Uint8Array | null = null;
   let scratchProjectName = "";
   let scratchProjectError = "";
   let scratchLoading = false;
+  let lastCodeContent = "";
+  let lastCodeBytes: Uint8Array | null = null;
+  let filesLoading = false;
+  let filesLoaded = false;
+  let pendingZip: JSZip | null = null;
   let allTestsFailed = false;
   let sid: number = 0;
   let role = "";
@@ -119,50 +125,84 @@
     }
   }
 
-  async function parseFiles(b64: string) {
-    const bytes = decodeBase64(b64);
-    if (!bytes) {
+  async function parseFilesFromZip(zip: JSZip) {
+    const list: { name: string; content: string }[] = [];
+    for (const file of Object.values(zip.files)) {
+      if (file.dir) continue;
+      if (file.name.toLowerCase().endsWith(".sb3")) {
+        list.push({
+          name: file.name,
+          content: t(
+            "frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_file_placeholder",
+          ),
+        });
+        continue;
+      }
+      const content = await file.async("string");
+      list.push({ name: file.name, content });
+    }
+    return list;
+  }
+
+  async function parseFiles(b64: string, bytes?: Uint8Array | null) {
+    const payload = bytes !== undefined ? bytes : decodeBase64(b64);
+    if (!payload) {
       return [{ name: "code", content: b64 }];
     }
 
     try {
-      const zip = await JSZip.loadAsync(bytes);
-      const list: { name: string; content: string }[] = [];
-      for (const file of Object.values(zip.files)) {
-        if (file.dir) continue;
-        if (file.name.toLowerCase().endsWith(".sb3")) {
-          list.push({
-            name: file.name,
-            content: t(
-              "frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_file_placeholder",
-            ),
-          });
-          continue;
-        }
-        const content = await file.async("string");
-        list.push({ name: file.name, content });
-      }
-      return list;
+      const zip = await JSZip.loadAsync(payload);
+      return await parseFilesFromZip(zip);
     } catch {
-      const text = new TextDecoder().decode(bytes);
+      const text = new TextDecoder().decode(payload);
       return [{ name: "code", content: text }];
     }
   }
 
-  async function extractScratchProject(b64: string) {
+  async function loadFilesFromZip(zip: JSZip) {
+    if (filesLoading || filesLoaded) return;
+    filesLoading = true;
+    try {
+      files = await parseFilesFromZip(zip);
+      tree = buildTree(files);
+      selected = files[0] ?? null;
+      filesLoaded = true;
+      pendingZip = null;
+    } finally {
+      filesLoading = false;
+    }
+  }
+
+  async function loadFilesFromBytes(b64: string, bytes?: Uint8Array | null) {
+    if (filesLoading || filesLoaded) return;
+    filesLoading = true;
+    try {
+      files = await parseFiles(b64, bytes);
+      tree = buildTree(files);
+      selected = files[0] ?? null;
+      filesLoaded = true;
+    } finally {
+      filesLoading = false;
+    }
+  }
+
+  async function extractScratchProject(
+    b64: string,
+    bytes?: Uint8Array | null,
+  ): Promise<JSZip | null> {
     scratchProject = null;
     scratchProjectName = "";
     scratchProjectError = "";
-    const bytes = decodeBase64(b64);
-    if (!bytes) {
+    const payload = bytes !== undefined ? bytes : decodeBase64(b64);
+    if (!payload) {
       scratchProjectError = t(
         "frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_decode_error",
       );
-      return;
+      return null;
     }
     try {
       scratchLoading = true;
-      const zip = await JSZip.loadAsync(bytes);
+      const zip = await JSZip.loadAsync(payload);
       const candidates = Object.values(zip.files).filter(
         (file) =>
           !file.dir && file.name.toLowerCase().endsWith(".sb3"),
@@ -171,17 +211,19 @@
         scratchProjectError = t(
           "frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_missing",
         );
-        return;
+        return zip;
       }
       const file = candidates[0];
       scratchProject = await file.async("uint8array");
       scratchProjectName = file.name;
+      return zip;
     } catch (e: any) {
       scratchProjectError =
         e?.message ||
         t(
           "frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_load_error",
         );
+      return null;
     } finally {
       scratchLoading = false;
     }
@@ -189,6 +231,7 @@
 
   async function load() {
     err = "";
+    assignmentLoaded = false;
     try {
       const data = await apiJSON(`/api/submissions/${id}`);
       submission = data.submission;
@@ -200,10 +243,6 @@
         const cur = submission?.override_points ?? submission?.points;
         overrideValue = (cur ?? "") as any;
       } catch {}
-
-      files = await parseFiles(submission.code_content);
-      tree = buildTree(files);
-      selected = files[0];
 
       if (submission?.assignment_id) {
         try {
@@ -230,7 +269,6 @@
             assignmentTestsCount = 0;
           }
           if (assignmentLanguage === "scratch") {
-            await extractScratchProject(submission.code_content);
             if (activeTab === "results") activeTab = "scratch";
           } else {
             scratchProject = null;
@@ -238,9 +276,43 @@
             scratchProjectError = "";
           }
         } catch {}
+        assignmentLoaded = true;
+      } else {
+        assignmentLoaded = true;
+      }
+
+      const codeContent = submission?.code_content ?? "";
+      const codeChanged = codeContent !== lastCodeContent;
+      if (codeChanged) {
+        lastCodeContent = codeContent;
+        lastCodeBytes = codeContent ? decodeBase64(codeContent) : null;
+        files = [];
+        tree = [];
+        selected = null;
+        highlighted = "";
+        filesLoaded = false;
+        filesLoading = false;
+        pendingZip = null;
+      }
+
+      if (assignmentLanguage === "scratch") {
+        if (codeChanged) {
+          scratchProject = null;
+          scratchProjectName = "";
+          scratchProjectError = "";
+        }
+        const shouldLoadScratch =
+          codeChanged || (!scratchProject && !scratchProjectError && !scratchLoading);
+        if (shouldLoadScratch && codeContent) {
+          pendingZip = await extractScratchProject(codeContent, lastCodeBytes);
+        }
+      } else if (codeChanged || (!filesLoaded && !filesLoading)) {
+        await loadFilesFromBytes(codeContent, lastCodeBytes);
       }
     } catch (e: any) {
       err = e.message;
+    } finally {
+      if (!assignmentLoaded) assignmentLoaded = true;
     }
   }
 
@@ -374,6 +446,13 @@
 
   async function downloadFiles() {
     try {
+      if (!filesLoaded && !filesLoading) {
+        if (pendingZip) {
+          await loadFilesFromZip(pendingZip);
+        } else if (submission?.code_content) {
+          await loadFilesFromBytes(submission.code_content, lastCodeBytes);
+        }
+      }
       if (Array.isArray(files) && files.length) {
         const zip = new JSZip();
         for (const f of files) {
@@ -436,8 +515,20 @@
     highlighted = hljs.highlightAuto(selected.content).value;
   }
 
-  $: if (!selected && submission) {
+  $: if (!selected && submission && assignmentLoaded && !isScratchSubmission) {
     highlighted = hljs.highlightAuto(submission.code_content).value;
+  }
+
+  $: if (!selected && isScratchSubmission) {
+    highlighted = "";
+  }
+
+  $: if (activeTab === "files" && isScratchSubmission && !filesLoaded && !filesLoading) {
+    if (pendingZip) {
+      void loadFilesFromZip(pendingZip);
+    } else if (submission?.code_content) {
+      void loadFilesFromBytes(submission.code_content, lastCodeBytes);
+    }
   }
 
   onMount(() => {
