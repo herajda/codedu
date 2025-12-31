@@ -4,6 +4,7 @@
   import { t, translator, locale as localeStore } from "$lib/i18n";
 
   export let projectData: Uint8Array | ArrayBuffer | null = null;
+  export let fullHeight = false;
 
   type TargetInfo = {
     id: string;
@@ -22,6 +23,7 @@
   let selectedTargetId = "";
   let xmlByTarget = new Map<string, string>();
   let lastProjectRef: Uint8Array | ArrayBuffer | null = null;
+  let resizeObserver: ResizeObserver | null = null;
   let translate = t;
   $: translate = $translator;
   let activeLocale = "en";
@@ -139,6 +141,11 @@
     });
   }
 
+  function resizeWorkspace() {
+    if (!browser || !workspace || !ScratchBlocks) return;
+    ScratchBlocks.svgResize?.(workspace);
+  }
+
   async function loadProject() {
     if (!browser || !projectData) return;
     loading = true;
@@ -221,6 +228,12 @@
         renderSelected();
       }
     });
+    if (typeof ResizeObserver !== "undefined" && workspaceHost) {
+      resizeObserver = new ResizeObserver(() => {
+        resizeWorkspace();
+      });
+      resizeObserver.observe(workspaceHost);
+    }
     if (projectData) {
       void loadProject();
     }
@@ -228,11 +241,12 @@
 
   onDestroy(() => {
     localeUnsub?.();
+    resizeObserver?.disconnect();
     cleanup();
   });
 </script>
 
-<div class="space-y-4">
+<div class={`space-y-4 ${fullHeight ? "scratch-blocks-full" : ""}`}>
   {#if loading}
     <div class="flex items-center gap-2 text-sm opacity-70">
       <span class="loading loading-spinner loading-sm"></span>
@@ -291,5 +305,18 @@
     .scratch-blocks-host {
       height: 620px;
     }
+  }
+
+  .scratch-blocks-full {
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .scratch-blocks-full .scratch-blocks-host {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
   }
 </style>

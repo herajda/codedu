@@ -45,7 +45,9 @@
     Search,
     Shield,
     Save,
-    Gamepad2
+    Gamepad2,
+    Maximize2,
+    Minimize2
   } from "lucide-svelte";
   let manualConsoleVisible = false;
   let esCtrl: { close: () => void } | null = null;
@@ -74,6 +76,9 @@
   $: role = $auth?.role ?? "";
   let translate;
   $: translate = $translator;
+  let scratchFullscreenMode: "none" | "player" | "both" = "none";
+  let scratchFullscreenHost: HTMLDivElement | null = null;
+  let removeScratchFullscreenListener: (() => void) | null = null;
 
   import hljs from "highlight.js";
   import "highlight.js/styles/github.css";
@@ -380,6 +385,16 @@
     (assignmentManual || hideAutoUI) && !isScratchSubmission;
   $: if (forceManualConsole) manualConsoleVisible = true;
   $: if (isScratchSubmission) manualConsoleVisible = false;
+  $: if (activeTab !== "scratch" && scratchFullscreenMode !== "none") {
+    void exitScratchFullscreen();
+  }
+  $: if (typeof document !== "undefined") {
+    if (scratchFullscreenMode !== "none") {
+      document.body.classList.add("scratch-fullscreen-active");
+    } else {
+      document.body.classList.remove("scratch-fullscreen-active");
+    }
+  }
 
   function bgFromBadge(badgeClass: string) {
     return badgeClass.replace("badge", "bg");
@@ -511,6 +526,33 @@
     }
   }
 
+  async function enterScratchFullscreen(mode: "player" | "both") {
+    scratchFullscreenMode = mode;
+    if (typeof document === "undefined") return;
+    if (!scratchFullscreenHost || !scratchFullscreenHost.requestFullscreen) return;
+    if (document.fullscreenElement === scratchFullscreenHost) return;
+    try {
+      await scratchFullscreenHost.requestFullscreen();
+    } catch {}
+  }
+
+  async function exitScratchFullscreen() {
+    scratchFullscreenMode = "none";
+    if (typeof document === "undefined") return;
+    if (!document.fullscreenElement) return;
+    try {
+      await document.exitFullscreen();
+    } catch {}
+  }
+
+  function toggleScratchFullscreen(mode: "player" | "both") {
+    if (scratchFullscreenMode === mode) {
+      void exitScratchFullscreen();
+      return;
+    }
+    void enterScratchFullscreen(mode);
+  }
+
   $: if (selected) {
     highlighted = hljs.highlightAuto(selected.content).value;
   }
@@ -559,9 +601,21 @@
         },
       },
     );
+    if (typeof document !== "undefined") {
+      const handleFullscreenChange = () => {
+        if (!document.fullscreenElement && scratchFullscreenMode !== "none") {
+          scratchFullscreenMode = "none";
+        }
+      };
+      document.addEventListener("fullscreenchange", handleFullscreenChange);
+      removeScratchFullscreenListener = () => {
+        document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      };
+    }
   });
   onDestroy(() => {
     esCtrl?.close();
+    removeScratchFullscreenListener?.();
   });
   $: sid = submission?.id ?? id;
   $: allTestsFailed =
@@ -1160,76 +1214,119 @@
       {/if}
 
       {#if activeTab === 'scratch'}
-        <div class="space-y-6">
-          <div class="bg-base-100 rounded-3xl border border-base-200 shadow-lg shadow-base-300/30 overflow-hidden">
-            <div class="px-6 py-4 border-b border-base-200 flex flex-wrap items-center justify-between gap-3 bg-base-100/50 backdrop-blur-sm">
-              <div class="flex items-center gap-3">
-                <div class="p-2 bg-secondary/10 text-secondary rounded-lg">
-                  <Gamepad2 size={18} />
-                </div>
-                <h2 class="text-lg font-black tracking-tight">{t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_title")}</h2>
-              </div>
-              {#if scratchProjectName}
-                <span class="text-xs font-mono font-bold opacity-60">{scratchProjectName}</span>
-              {/if}
+        <div
+          class={scratchFullscreenMode !== "none" ? "scratch-fullscreen-shell" : "space-y-6"}
+          bind:this={scratchFullscreenHost}
+        >
+          <div class={`flex flex-wrap items-center justify-between gap-3 ${scratchFullscreenMode !== "none" ? "scratch-fullscreen-toolbar" : ""}`}>
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                class={`btn btn-sm rounded-lg px-3 h-8 font-black uppercase tracking-widest text-[9px] ${scratchFullscreenMode === "player" ? "btn-primary" : "btn-ghost border border-base-300"}`}
+                on:click={() => toggleScratchFullscreen("player")}
+              >
+                <Maximize2 size={14} />
+                {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_fullscreen_game")}
+              </button>
+              <button
+                class={`btn btn-sm rounded-lg px-3 h-8 font-black uppercase tracking-widest text-[9px] ${scratchFullscreenMode === "both" ? "btn-primary" : "btn-ghost border border-base-300"}`}
+                on:click={() => toggleScratchFullscreen("both")}
+              >
+                <Maximize2 size={14} />
+                {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_fullscreen_game_blocks")}
+              </button>
             </div>
-            <div class="p-6">
-              {#if scratchLoading}
-                <div class="flex items-center gap-2 text-sm opacity-70">
-                  <span class="loading loading-spinner loading-sm"></span>
-                  {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_loading")}
-                </div>
-              {:else if scratchProjectError}
-                <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl">
-                  <AlertCircle size={18} />
-                  <span class="font-medium text-sm">{scratchProjectError}</span>
-                </div>
-              {:else if scratchProject}
-                <ScratchPlayer projectData={scratchProject} projectName={scratchProjectName} />
-              {:else}
-                <div class="alert bg-warning/10 border-warning/20 text-warning-content rounded-2xl">
-                  <AlertTriangle size={18} />
-                  <span class="font-medium text-sm">
-                    {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_empty")}
-                  </span>
-                </div>
-              {/if}
-            </div>
+            {#if scratchFullscreenMode !== "none"}
+              <button
+                class="btn btn-ghost btn-sm rounded-lg px-3 h-8 font-black uppercase tracking-widest text-[9px] border border-base-300"
+                on:click={exitScratchFullscreen}
+              >
+                <Minimize2 size={14} />
+                {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_fullscreen_exit")}
+              </button>
+            {/if}
           </div>
 
-          <div class="bg-base-100 rounded-3xl border border-base-200 shadow-lg shadow-base-300/30 overflow-hidden">
-            <div class="px-6 py-4 border-b border-base-200 flex flex-wrap items-center justify-between gap-3 bg-base-100/50 backdrop-blur-sm">
-              <div class="flex items-center gap-3">
-                <div class="p-2 bg-base-200 text-base-content/70 rounded-lg">
-                  <FileCode size={18} />
+          <div
+            class={scratchFullscreenMode !== "none"
+              ? `scratch-fullscreen-grid ${scratchFullscreenMode === "both" ? "scratch-fullscreen-grid-both" : "scratch-fullscreen-grid-player"}`
+              : "space-y-6"}
+          >
+            <div class={`bg-base-100 rounded-3xl border border-base-200 shadow-lg shadow-base-300/30 overflow-hidden ${scratchFullscreenMode !== "none" ? "scratch-fullscreen-card" : ""}`}>
+              <div class="px-6 py-4 border-b border-base-200 flex flex-wrap items-center justify-between gap-3 bg-base-100/50 backdrop-blur-sm">
+                <div class="flex items-center gap-3">
+                  <div class="p-2 bg-secondary/10 text-secondary rounded-lg">
+                    <Gamepad2 size={18} />
+                  </div>
+                  <h2 class="text-lg font-black tracking-tight">{t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_title")}</h2>
                 </div>
-                <h2 class="text-lg font-black tracking-tight">
-                  {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_blocks_title")}
-                </h2>
+                {#if scratchProjectName}
+                  <span class="text-xs font-mono font-bold opacity-60">{scratchProjectName}</span>
+                {/if}
+              </div>
+              <div class={`p-6 ${scratchFullscreenMode !== "none" ? "scratch-fullscreen-body" : ""}`}>
+                {#if scratchLoading}
+                  <div class="flex items-center gap-2 text-sm opacity-70">
+                    <span class="loading loading-spinner loading-sm"></span>
+                    {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_loading")}
+                  </div>
+                {:else if scratchProjectError}
+                  <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl">
+                    <AlertCircle size={18} />
+                    <span class="font-medium text-sm">{scratchProjectError}</span>
+                  </div>
+                {:else if scratchProject}
+                  <ScratchPlayer
+                    projectData={scratchProject}
+                    projectName={scratchProjectName}
+                    fullScreen={scratchFullscreenMode !== "none"}
+                  />
+                {:else}
+                  <div class="alert bg-warning/10 border-warning/20 text-warning-content rounded-2xl">
+                    <AlertTriangle size={18} />
+                    <span class="font-medium text-sm">
+                      {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_empty")}
+                    </span>
+                  </div>
+                {/if}
               </div>
             </div>
-            <div class="p-6">
-              {#if scratchLoading}
-                <div class="flex items-center gap-2 text-sm opacity-70">
-                  <span class="loading loading-spinner loading-sm"></span>
-                  {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_blocks_loading")}
+
+            {#if scratchFullscreenMode !== "player"}
+              <div class={`bg-base-100 rounded-3xl border border-base-200 shadow-lg shadow-base-300/30 overflow-hidden ${scratchFullscreenMode !== "none" ? "scratch-fullscreen-card" : ""}`}>
+                <div class="px-6 py-4 border-b border-base-200 flex flex-wrap items-center justify-between gap-3 bg-base-100/50 backdrop-blur-sm">
+                  <div class="flex items-center gap-3">
+                    <div class="p-2 bg-base-200 text-base-content/70 rounded-lg">
+                      <FileCode size={18} />
+                    </div>
+                    <h2 class="text-lg font-black tracking-tight">
+                      {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_blocks_title")}
+                    </h2>
+                  </div>
                 </div>
-              {:else if scratchProjectError}
-                <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl">
-                  <AlertCircle size={18} />
-                  <span class="font-medium text-sm">{scratchProjectError}</span>
+                <div class={`p-6 ${scratchFullscreenMode !== "none" ? "scratch-fullscreen-body scratch-fullscreen-body--blocks" : ""}`}>
+                  {#if scratchLoading}
+                    <div class="flex items-center gap-2 text-sm opacity-70">
+                      <span class="loading loading-spinner loading-sm"></span>
+                      {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_blocks_loading")}
+                    </div>
+                  {:else if scratchProjectError}
+                    <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl">
+                      <AlertCircle size={18} />
+                      <span class="font-medium text-sm">{scratchProjectError}</span>
+                    </div>
+                  {:else if scratchProject}
+                    <ScratchBlocksViewer projectData={scratchProject} fullHeight={scratchFullscreenMode === "both"} />
+                  {:else}
+                    <div class="alert bg-warning/10 border-warning/20 text-warning-content rounded-2xl">
+                      <AlertTriangle size={18} />
+                      <span class="font-medium text-sm">
+                        {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_empty")}
+                      </span>
+                    </div>
+                  {/if}
                 </div>
-              {:else if scratchProject}
-                <ScratchBlocksViewer projectData={scratchProject} />
-              {:else}
-                <div class="alert bg-warning/10 border-warning/20 text-warning-content rounded-2xl">
-                  <AlertTriangle size={18} />
-                  <span class="font-medium text-sm">
-                    {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_empty")}
-                  </span>
-                </div>
-              {/if}
-            </div>
+              </div>
+            {/if}
           </div>
         </div>
       {/if}
@@ -1482,5 +1579,56 @@
   }
   .hljs {
     background: transparent;
+  }
+  :global(body.scratch-fullscreen-active) {
+    overflow: hidden;
+  }
+  .scratch-fullscreen-shell {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    background: hsl(var(--b2));
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    overflow: hidden;
+  }
+  .scratch-fullscreen-toolbar {
+    flex: 0 0 auto;
+  }
+  .scratch-fullscreen-grid {
+    display: grid;
+    gap: 1rem;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .scratch-fullscreen-grid-player {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .scratch-fullscreen-grid-both {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .scratch-fullscreen-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .scratch-fullscreen-body {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .scratch-fullscreen-body--blocks {
+    overflow: hidden;
+  }
+  @media (min-width: 768px) {
+    .scratch-fullscreen-shell {
+      padding: 1.5rem;
+    }
+  }
+  @media (min-width: 1024px) {
+    .scratch-fullscreen-grid-both {
+      grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    }
   }
 </style>

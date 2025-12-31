@@ -5,6 +5,7 @@
 
   export let projectData: Uint8Array | ArrayBuffer | null = null;
   export let projectName: string | null = null;
+  export let fullScreen = false;
 
   let canvas: HTMLCanvasElement;
   let vm: any = null;
@@ -16,11 +17,15 @@
   let ready = false;
   let running = false;
   let resizeObserver: ResizeObserver | null = null;
+  let stageResizeObserver: ResizeObserver | null = null;
   let lastProjectRef: Uint8Array | ArrayBuffer | null = null;
   let pointerIsDown = false;
   let monitors: MonitorView[] = [];
   let visibleMonitors: MonitorView[] = [];
   let monitorListener: ((monitorList: any) => void) | null = null;
+  let stageShell: HTMLDivElement | null = null;
+  let stageSizeStyle = "";
+  const STAGE_ASPECT = 4 / 3;
 
   const MONITORS_UPDATE_EVENT = "MONITORS_UPDATE";
   const MONITOR_OPCODES = new Set(["data_variable", "data_listcontents"]);
@@ -181,6 +186,21 @@
     renderer.resize(width, height);
   }
 
+  function updateStageSize() {
+    if (!fullScreen || !stageShell) return;
+    const rect = stageShell.getBoundingClientRect();
+    const availableWidth = Math.max(1, rect.width);
+    const availableHeight = Math.max(1, rect.height);
+    const widthFromHeight = availableHeight * STAGE_ASPECT;
+    let width = availableWidth;
+    let height = availableWidth / STAGE_ASPECT;
+    if (widthFromHeight < availableWidth) {
+      width = widthFromHeight;
+      height = availableHeight;
+    }
+    stageSizeStyle = `width: ${Math.floor(width)}px; height: ${Math.floor(height)}px;`;
+  }
+
   function postMouse(event: PointerEvent, isDown: boolean) {
     if (!vm || !canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -293,9 +313,16 @@
       resizeObserver = new ResizeObserver(() => resizeStage());
       resizeObserver.observe(canvas);
     }
+    if (typeof ResizeObserver !== "undefined" && stageShell) {
+      stageResizeObserver = new ResizeObserver(() => updateStageSize());
+      stageResizeObserver.observe(stageShell);
+    }
+    updateStageSize();
     return () => {
       resizeObserver?.disconnect();
       resizeObserver = null;
+      stageResizeObserver?.disconnect();
+      stageResizeObserver = null;
     };
   });
 
@@ -321,9 +348,14 @@
   }
 
   $: visibleMonitors = monitors.filter((monitor) => monitor.visible);
+  $: if (!fullScreen) {
+    stageSizeStyle = "";
+  } else {
+    updateStageSize();
+  }
 </script>
 
-<div class="space-y-4">
+<div class={`space-y-4 ${fullScreen ? "flex flex-col h-full min-h-0" : ""}`}>
   <div class="flex flex-wrap items-center gap-3">
     <button
       class="btn btn-primary btn-sm rounded-lg gap-2 font-black uppercase tracking-widest text-[9px]"
@@ -359,8 +391,14 @@
     </div>
   {/if}
 
-  <div class="w-full max-w-3xl">
-    <div class="relative w-full aspect-[4/3] rounded-2xl overflow-hidden border border-base-300 bg-base-200/60">
+  <div
+    class={`w-full ${fullScreen ? "flex-1 flex items-center justify-center min-h-0" : "max-w-3xl"}`}
+    bind:this={stageShell}
+  >
+    <div
+      class={`relative w-full aspect-[4/3] rounded-2xl overflow-hidden border border-base-300 bg-base-200/60 ${fullScreen ? "mx-auto" : ""}`}
+      style={fullScreen ? stageSizeStyle : ""}
+    >
       {#if visibleMonitors.length}
         <div class="absolute left-3 top-3 z-10 flex flex-col gap-2 pointer-events-none">
           {#each visibleMonitors as monitor (monitor.id)}
