@@ -6,6 +6,7 @@
   import JSZip from "jszip";
   import { FileTree, RunConsole } from "$lib";
   import ScratchPlayer from "$lib/components/ScratchPlayer.svelte";
+  import ScratchBlocksViewer from "$lib/components/ScratchBlocksViewer.svelte";
   import { formatDateTime } from "$lib/date";
   import { goto } from "$app/navigation";
   import { auth } from "$lib/auth";
@@ -43,7 +44,6 @@
     Cpu,
     Search,
     Shield,
-    Eye,
     Save,
     Gamepad2
   } from "lucide-svelte";
@@ -268,17 +268,17 @@
           } catch {
             assignmentTestsCount = 0;
           }
-          if (assignmentLanguage === "scratch") {
-            if (activeTab === "results") activeTab = "scratch";
-          } else {
-            scratchProject = null;
-            scratchProjectName = "";
-            scratchProjectError = "";
-          }
-        } catch {}
-        assignmentLoaded = true;
-      } else {
-        assignmentLoaded = true;
+        if (assignmentLanguage === "scratch") {
+          if (activeTab === "results") activeTab = "scratch";
+        } else {
+          scratchProject = null;
+          scratchProjectName = "";
+          scratchProjectError = "";
+        }
+      } catch {}
+      assignmentLoaded = true;
+    } else {
+      assignmentLoaded = true;
       }
 
       const codeContent = submission?.code_content ?? "";
@@ -1160,39 +1160,76 @@
       {/if}
 
       {#if activeTab === 'scratch'}
-        <div class="bg-base-100 rounded-3xl border border-base-200 shadow-lg shadow-base-300/30 overflow-hidden">
-          <div class="px-6 py-4 border-b border-base-200 flex flex-wrap items-center justify-between gap-3 bg-base-100/50 backdrop-blur-sm">
-            <div class="flex items-center gap-3">
-              <div class="p-2 bg-secondary/10 text-secondary rounded-lg">
-                <Gamepad2 size={18} />
+        <div class="space-y-6">
+          <div class="bg-base-100 rounded-3xl border border-base-200 shadow-lg shadow-base-300/30 overflow-hidden">
+            <div class="px-6 py-4 border-b border-base-200 flex flex-wrap items-center justify-between gap-3 bg-base-100/50 backdrop-blur-sm">
+              <div class="flex items-center gap-3">
+                <div class="p-2 bg-secondary/10 text-secondary rounded-lg">
+                  <Gamepad2 size={18} />
+                </div>
+                <h2 class="text-lg font-black tracking-tight">{t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_title")}</h2>
               </div>
-              <h2 class="text-lg font-black tracking-tight">{t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_title")}</h2>
+              {#if scratchProjectName}
+                <span class="text-xs font-mono font-bold opacity-60">{scratchProjectName}</span>
+              {/if}
             </div>
-            {#if scratchProjectName}
-              <span class="text-xs font-mono font-bold opacity-60">{scratchProjectName}</span>
-            {/if}
+            <div class="p-6">
+              {#if scratchLoading}
+                <div class="flex items-center gap-2 text-sm opacity-70">
+                  <span class="loading loading-spinner loading-sm"></span>
+                  {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_loading")}
+                </div>
+              {:else if scratchProjectError}
+                <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl">
+                  <AlertCircle size={18} />
+                  <span class="font-medium text-sm">{scratchProjectError}</span>
+                </div>
+              {:else if scratchProject}
+                <ScratchPlayer projectData={scratchProject} projectName={scratchProjectName} />
+              {:else}
+                <div class="alert bg-warning/10 border-warning/20 text-warning-content rounded-2xl">
+                  <AlertTriangle size={18} />
+                  <span class="font-medium text-sm">
+                    {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_empty")}
+                  </span>
+                </div>
+              {/if}
+            </div>
           </div>
-          <div class="p-6">
-            {#if scratchLoading}
-              <div class="flex items-center gap-2 text-sm opacity-70">
-                <span class="loading loading-spinner loading-sm"></span>
-                {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_loading")}
+
+          <div class="bg-base-100 rounded-3xl border border-base-200 shadow-lg shadow-base-300/30 overflow-hidden">
+            <div class="px-6 py-4 border-b border-base-200 flex flex-wrap items-center justify-between gap-3 bg-base-100/50 backdrop-blur-sm">
+              <div class="flex items-center gap-3">
+                <div class="p-2 bg-base-200 text-base-content/70 rounded-lg">
+                  <FileCode size={18} />
+                </div>
+                <h2 class="text-lg font-black tracking-tight">
+                  {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_blocks_title")}
+                </h2>
               </div>
-            {:else if scratchProjectError}
-              <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl">
-                <AlertCircle size={18} />
-                <span class="font-medium text-sm">{scratchProjectError}</span>
-              </div>
-            {:else if scratchProject}
-              <ScratchPlayer projectData={scratchProject} projectName={scratchProjectName} />
-            {:else}
-              <div class="alert bg-warning/10 border-warning/20 text-warning-content rounded-2xl">
-                <AlertTriangle size={18} />
-                <span class="font-medium text-sm">
-                  {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_empty")}
-                </span>
-              </div>
-            {/if}
+            </div>
+            <div class="p-6">
+              {#if scratchLoading}
+                <div class="flex items-center gap-2 text-sm opacity-70">
+                  <span class="loading loading-spinner loading-sm"></span>
+                  {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_blocks_loading")}
+                </div>
+              {:else if scratchProjectError}
+                <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl">
+                  <AlertCircle size={18} />
+                  <span class="font-medium text-sm">{scratchProjectError}</span>
+                </div>
+              {:else if scratchProject}
+                <ScratchBlocksViewer projectData={scratchProject} />
+              {:else}
+                <div class="alert bg-warning/10 border-warning/20 text-warning-content rounded-2xl">
+                  <AlertTriangle size={18} />
+                  <span class="font-medium text-sm">
+                    {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_empty")}
+                  </span>
+                </div>
+              {/if}
+            </div>
           </div>
         </div>
       {/if}
