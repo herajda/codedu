@@ -1221,14 +1221,14 @@
           <div class={`flex flex-wrap items-center justify-between gap-3 ${scratchFullscreenMode !== "none" ? "scratch-fullscreen-toolbar" : ""}`}>
             <div class="flex flex-wrap items-center gap-2">
               <button
-                class={`btn btn-sm rounded-lg px-3 h-8 font-black uppercase tracking-widest text-[9px] ${scratchFullscreenMode === "player" ? "btn-primary" : "btn-ghost border border-base-300"}`}
+                class={`btn btn-sm rounded-lg px-3 h-8 font-black uppercase tracking-widest text-[9px] ${scratchFullscreenMode === "player" ? "btn-primary" : "btn-ghost border border-base-300"} ${scratchFullscreenMode !== "none" ? "text-white" : ""}`}
                 on:click={() => toggleScratchFullscreen("player")}
               >
                 <Maximize2 size={14} />
                 {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_fullscreen_game")}
               </button>
               <button
-                class={`btn btn-sm rounded-lg px-3 h-8 font-black uppercase tracking-widest text-[9px] ${scratchFullscreenMode === "both" ? "btn-primary" : "btn-ghost border border-base-300"}`}
+                class={`btn btn-sm rounded-lg px-3 h-8 font-black uppercase tracking-widest text-[9px] ${scratchFullscreenMode === "both" ? "btn-primary" : "btn-ghost border border-base-300"} ${scratchFullscreenMode !== "none" ? "text-white" : ""}`}
                 on:click={() => toggleScratchFullscreen("both")}
               >
                 <Maximize2 size={14} />
@@ -1237,7 +1237,7 @@
             </div>
             {#if scratchFullscreenMode !== "none"}
               <button
-                class="btn btn-ghost btn-sm rounded-lg px-3 h-8 font-black uppercase tracking-widest text-[9px] border border-base-300"
+                class="btn btn-ghost btn-sm rounded-lg px-3 h-8 font-black uppercase tracking-widest text-[9px] border border-base-300 text-white"
                 on:click={exitScratchFullscreen}
               >
                 <Minimize2 size={14} />
