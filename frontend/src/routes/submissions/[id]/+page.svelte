@@ -46,6 +46,7 @@
     Search,
     Shield,
     Save,
+    Download,
     Gamepad2,
     Maximize2,
     Minimize2
@@ -545,6 +546,21 @@
 
   async function downloadFiles() {
     try {
+      if (isScratchSubmission && scratchProject) {
+        const blob = new Blob([scratchProject], { type: "application/octet-stream" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        let filename = scratchProjectName || `submission_${submission?.id ?? id}`;
+        if (!filename.toLowerCase().endsWith(".sb3")) filename += ".sb3";
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        return;
+      }
+
       if (!filesLoaded && !filesLoading) {
         if (pendingZip) {
           await loadFilesFromZip(pendingZip);
@@ -565,6 +581,19 @@
           .slice(0, 60);
         a.href = url;
         a.download = `${safeTitle}_${submission?.id ?? id}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } else if (lastCodeBytes) {
+        const blob = new Blob([lastCodeBytes], {
+          type: "application/octet-stream",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        const ext = isScratchSubmission ? "sb3" : "txt";
+        a.download = `submission_${submission?.id ?? id}.${ext}`;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -894,7 +923,20 @@
                   </div>
                 </div>
               {/if}
+
             </div>
+
+            {#if isScratchSubmission}
+              <div class="pt-2">
+                <button 
+                  class="btn btn-primary h-12 px-6 rounded-2xl gap-3 font-black uppercase tracking-widest shadow-lg shadow-primary/20 group/dl transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  on:click={downloadFiles}
+                >
+                  <Download size={20} class="group-hover/dl:translate-y-0.5 transition-transform" />
+                  {t("frontend/src/routes/submissions/[id]/+page.svelte::download_button")}
+                </button>
+              </div>
+            {/if}
           </div>
 
 
@@ -983,53 +1025,57 @@
     </section>
 
     <!-- Tab Navigation -->
-    <div class="flex flex-wrap items-center gap-1 p-1 bg-base-200/50 backdrop-blur-sm rounded-xl border border-base-300/50 mb-0 max-w-fit shadow-inner">
-      {#if !isScratchSubmission}
-        <button 
-          class={`px-3 py-1.5 rounded-[0.6rem] text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'results' ? 'bg-base-100 text-primary shadow-md' : 'hover:bg-base-300/50 opacity-50 hover:opacity-100'}`}
-          on:click={() => activeTab = 'results'}
-        >
-          <div class="flex items-center gap-2 text-[11px]">
-            <FlaskConical size={12} />
-            {t("frontend/src/routes/submissions/[id]/+page.svelte::results_title")}
-          </div>
-        </button>
-      {/if}
+    {#if !isScratchSubmission || showLLM}
+      <div class="flex flex-wrap items-center gap-1 p-1 bg-base-200/50 backdrop-blur-sm rounded-xl border border-base-300/50 mb-0 max-w-fit shadow-inner">
+        {#if !isScratchSubmission}
+          <button 
+            class={`px-3 py-1.5 rounded-[0.6rem] text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'results' ? 'bg-base-100 text-primary shadow-md' : 'hover:bg-base-300/50 opacity-50 hover:opacity-100'}`}
+            on:click={() => activeTab = 'results'}
+          >
+            <div class="flex items-center gap-2 text-[11px]">
+              <FlaskConical size={12} />
+              {t("frontend/src/routes/submissions/[id]/+page.svelte::results_title")}
+            </div>
+          </button>
+        {/if}
 
-      {#if isScratchSubmission}
-        <button 
-          class={`px-3 py-1.5 rounded-[0.6rem] text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'scratch' ? 'bg-base-100 text-primary shadow-md' : 'hover:bg-base-300/50 opacity-50 hover:opacity-100'}`}
-          on:click={() => activeTab = 'scratch'}
-        >
-          <div class="flex items-center gap-2 text-[11px]">
-            <Gamepad2 size={12} />
-            {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_tab")}
-          </div>
-        </button>
-      {/if}
-      
-      <button 
-        class={`px-3 py-1.5 rounded-[0.6rem] text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'files' ? 'bg-base-100 text-primary shadow-md' : 'hover:bg-base-300/50 opacity-50 hover:opacity-100'}`}
-        on:click={() => activeTab = 'files'}
-      >
-        <div class="flex items-center gap-2 text-[11px]">
-          <FileCode size={12} />
-          {t("frontend/src/routes/submissions/[id]/+page.svelte::files_dialog_title")}
-        </div>
-      </button>
+        {#if isScratchSubmission}
+          <button 
+            class={`px-3 py-1.5 rounded-[0.6rem] text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'scratch' ? 'bg-base-100 text-primary shadow-md' : 'hover:bg-base-300/50 opacity-50 hover:opacity-100'}`}
+            on:click={() => activeTab = 'scratch'}
+          >
+            <div class="flex items-center gap-2 text-[11px]">
+              <Gamepad2 size={12} />
+              {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_tab")}
+            </div>
+          </button>
+        {/if}
+        
+        {#if !isScratchSubmission}
+          <button 
+            class={`px-3 py-1.5 rounded-[0.6rem] text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'files' ? 'bg-base-100 text-primary shadow-md' : 'hover:bg-base-300/50 opacity-50 hover:opacity-100'}`}
+            on:click={() => activeTab = 'files'}
+          >
+            <div class="flex items-center gap-2 text-[11px]">
+              <FileCode size={12} />
+              {t("frontend/src/routes/submissions/[id]/+page.svelte::files_dialog_title")}
+            </div>
+          </button>
+        {/if}
 
-      {#if showLLM}
-        <button 
-          class={`px-3 py-1.5 rounded-[0.6rem] text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'review' ? 'bg-base-100 text-primary shadow-md' : 'hover:bg-base-300/50 opacity-50 hover:opacity-100'}`}
-          on:click={() => activeTab = 'review'}
-        >
-          <div class="flex items-center gap-2 text-[11px]">
-            <Search size={12} />
-            {t("frontend/src/routes/submissions/[id]/+page.svelte::llm_review_tab")}
-          </div>
-        </button>
-      {/if}
-    </div>
+        {#if showLLM}
+          <button 
+            class={`px-3 py-1.5 rounded-[0.6rem] text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'review' ? 'bg-base-100 text-primary shadow-md' : 'hover:bg-base-300/50 opacity-50 hover:opacity-100'}`}
+            on:click={() => activeTab = 'review'}
+          >
+            <div class="flex items-center gap-2 text-[11px]">
+              <Search size={12} />
+              {t("frontend/src/routes/submissions/[id]/+page.svelte::llm_review_tab")}
+            </div>
+          </button>
+        {/if}
+      </div>
+    {/if}
 
     <div class="space-y-6">
       {#if activeTab === 'results'}
