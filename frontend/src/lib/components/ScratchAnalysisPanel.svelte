@@ -64,6 +64,8 @@
     skills: SkillScore[];
   };
 
+  type ModeKey = "extended" | "vanilla";
+
   type DeadCodeSprite = {
     sprite: string;
     scripts: { id: string; blocks: string[] }[];
@@ -535,23 +537,19 @@
       }));
   }
 
+  function translatedLabel(key: string): string {
+    return translate ? translate(key) : t(key);
+  }
+
   function modeLabel(key: string): string {
     if (key === "extended") {
-      return translate
-        ? translate(
-            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_analysis_extended_label",
-          )
-        : t(
-            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_analysis_extended_label",
-          );
+      return translatedLabel(
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_analysis_extended_label",
+      );
     }
-    return translate
-      ? translate(
-          "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_analysis_vanilla_label",
-        )
-      : t(
-          "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_analysis_vanilla_label",
-        );
+    return translatedLabel(
+      "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_analysis_vanilla_label",
+    );
   }
 
   function buildModeSummary(key: string, section: any): ModeSummary | null {
@@ -578,12 +576,41 @@
     };
   }
 
+  const MODE_ORDER: ModeKey[] = ["vanilla", "extended"];
+
+  let activeModeKey: ModeKey = "vanilla";
+
   $: modeSummaries = (() => {
     translate;
-    return ["extended", "vanilla"]
-      .map((key) => buildModeSummary(key, analysis?.[key]))
+    return MODE_ORDER.map((key) => buildModeSummary(key, analysis?.[key]))
       .filter(Boolean) as ModeSummary[];
   })();
+
+  $: modeSummariesByKey = new Map(
+    modeSummaries.map((mode) => [mode.key as ModeKey, mode]),
+  );
+
+  $: hasVanillaMode = modeSummariesByKey.has("vanilla");
+  $: hasExtendedMode = modeSummariesByKey.has("extended");
+  $: canToggleMode = hasVanillaMode && hasExtendedMode;
+
+  $: if (activeModeKey === "vanilla" && !hasVanillaMode && hasExtendedMode) {
+    activeModeKey = "extended";
+  }
+
+  $: activeMode =
+    modeSummariesByKey.get(activeModeKey) ??
+    modeSummariesByKey.get("vanilla") ??
+    null;
+
+  $: modeToggleLabel =
+    activeModeKey === "vanilla"
+      ? translatedLabel(
+          "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_analysis_show_extended_button",
+        )
+      : translatedLabel(
+          "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_analysis_show_vanilla_button",
+        );
 
   $: badHabits = analysis?.bad_habits ?? null;
   $: deadCode = badHabits?.deadCode ?? null;
@@ -626,6 +653,10 @@
   }
 
   $: deadCodeSprites = normalizeDeadCodeSprites(deadCode?.scripts);
+  $: deadCodeCount = deadCodeSprites.reduce(
+    (total, sprite) => total + sprite.scripts.length,
+    0,
+  );
 
   function splitDuplicateGroup(text: any): string[][] {
     if (typeof text !== "string") return [];
@@ -666,7 +697,7 @@
           key: "deadCode",
           labelKey:
             "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_bad_habit_dead_code",
-          count: asNumber(deadCode?.number),
+          count: deadCodeCount,
           tone: "warning",
         },
         {
@@ -719,11 +750,16 @@
       exampleDialog.showModal();
     }
   }
+
+  function toggleMode() {
+    if (!canToggleMode) return;
+    activeModeKey = activeModeKey === "vanilla" ? "extended" : "vanilla";
+  }
 </script>
 
 <div class="bg-base-100 rounded-3xl border border-base-200 shadow-lg shadow-base-300/30 overflow-hidden">
   <div class="px-6 py-4 border-b border-base-200 bg-base-100/50 backdrop-blur-sm">
-    <div class="flex flex-wrap items-center gap-4">
+    <div class="flex flex-wrap items-center justify-between gap-4">
       <div class="flex items-center gap-3">
         <div class="p-2 bg-primary/10 text-primary rounded-lg">
           <Sparkles size={18} />
@@ -738,6 +774,19 @@
             )}
           </p>
         </div>
+      </div>
+      <div class="text-[9px] font-black uppercase tracking-widest opacity-50">
+        {t(
+          "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_analysis_powered_by_label",
+        )}
+        <a
+          class="text-primary hover:text-primary/80"
+          href="https://www.drscratch.org/"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Dr. Scratch
+        </a>
       </div>
     </div>
   </div>
@@ -763,35 +812,52 @@
     {:else}
       <div class="space-y-6">
         <div class="space-y-4">
-          <div class="text-[9px] font-black uppercase tracking-widest opacity-40">
-            {t("frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_analysis_overall_title")}
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="text-[9px] font-black uppercase tracking-widest opacity-40">
+              {t(
+                "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_analysis_overall_title",
+              )}
+            </div>
+            {#if canToggleMode}
+              <button
+                class="btn btn-xs rounded-full border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 hover:border-primary/50 text-[9px] font-black uppercase tracking-widest"
+                type="button"
+                on:click={toggleMode}
+              >
+                {modeToggleLabel}
+              </button>
+            {/if}
           </div>
-          <div class="grid lg:grid-cols-2 gap-4">
-            {#each modeSummaries as mode}
-              <div class="bg-base-200/40 rounded-2xl border border-base-300/40 p-5 space-y-4">
+          <div class="w-full">
+            {#if activeMode}
+              <div class="w-full bg-base-200/40 rounded-2xl border border-base-300/40 p-5 space-y-4">
                 <div class="flex items-center justify-between gap-3">
                   <div class="flex items-center gap-2">
                     <div class="p-2 bg-primary/10 text-primary rounded-lg">
                       <Trophy size={16} />
                     </div>
-                    <div class="text-sm font-black tracking-tight">{mode.label}</div>
+                    <div class="text-sm font-black tracking-tight">
+                      {activeMode.label}
+                    </div>
                   </div>
-                  {#if mode.competence}
+                  {#if activeMode.competence}
                     <span class="badge bg-primary/10 text-primary border-none font-black text-[8px] uppercase tracking-widest">
-                      {mode.competence}
+                      {activeMode.competence}
                     </span>
                   {/if}
                 </div>
                 <div class="flex items-end gap-2">
-                  <div class="text-3xl font-black">{mode.score}</div>
-                  {#if mode.max > 0}
-                    <div class="text-sm font-bold opacity-50">/ {mode.max}</div>
+                  <div class="text-3xl font-black">{activeMode.score}</div>
+                  {#if activeMode.max > 0}
+                    <div class="text-sm font-bold opacity-50">
+                      / {activeMode.max}
+                    </div>
                   {/if}
                 </div>
                 <progress
                   class="progress progress-primary h-2"
-                  value={mode.score}
-                  max={mode.safeMax}
+                  value={activeMode.score}
+                  max={activeMode.safeMax}
                 ></progress>
                 <div class="grid grid-cols-2 gap-3 text-[11px] font-medium">
                   <div class="space-y-1">
@@ -800,7 +866,7 @@
                         "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_analysis_average_label",
                       )}
                     </div>
-                    <div>{formatAverage(mode.average)}</div>
+                    <div>{formatAverage(activeMode.average)}</div>
                   </div>
                   <div class="space-y-1">
                     <div class="text-[9px] font-black uppercase tracking-widest opacity-40">
@@ -808,12 +874,12 @@
                         "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_analysis_total_blocks_label",
                       )}
                     </div>
-                    <div>{formatCount(mode.totalBlocks)}</div>
+                    <div>{formatCount(activeMode.totalBlocks)}</div>
                   </div>
                 </div>
-                {#if mode.skills.length}
+                {#if activeMode.skills.length}
                   <div class="grid sm:grid-cols-2 gap-3 pt-2">
-                    {#each mode.skills as skill}
+                    {#each activeMode.skills as skill}
                       <div class="bg-base-100/70 rounded-xl border border-base-300/40 p-3 space-y-2">
                         <div class="flex items-center justify-between gap-2">
                           <div class="flex items-center gap-2">
@@ -850,7 +916,7 @@
                   </div>
                 {/if}
               </div>
-            {/each}
+            {/if}
           </div>
         </div>
 
@@ -891,10 +957,10 @@
                   </div>
                 </div>
                 <span class="badge bg-warning/10 text-warning border-none font-black text-[8px] uppercase tracking-widest">
-                  {asNumber(deadCode?.number)}
+                  {deadCodeCount}
                 </span>
               </div>
-              {#if deadCode?.number > 0 && deadCodeSprites.length}
+              {#if deadCodeCount > 0 && deadCodeSprites.length}
                 <div class="space-y-3">
                   {#each deadCodeSprites as sprite}
                     <details class="collapse bg-base-100/60 border border-base-300/50 rounded-xl">
