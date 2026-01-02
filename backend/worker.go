@@ -90,6 +90,7 @@ var (
 	pythonBinary    = getenvOr("PYTHON_BIN", "python3")
 	// additional grace period for docker startup/shutdown
 	dockerExtraTime = 10 * time.Second
+	scratchAnalysisTimeout = getenvDurationOr("SCRATCH_ANALYSIS_TIMEOUT", 2*time.Minute)
 )
 
 // ==== LLM typed outputs ====
@@ -392,8 +393,8 @@ func runSubmission(id uuid.UUID) {
 			runLLMInteractive(sub, assignment)
 			return
 		}
-		// Early exit for manual-review assignments when not using LLM
-		if assignment.ManualReview {
+		// Early exit for manual-review assignments when not using LLM or Scratch analysis
+		if assignment.ManualReview && assignment.ProgrammingLanguage != "scratch" {
 			return
 		}
 	}
@@ -457,6 +458,11 @@ func runSubmission(id uuid.UUID) {
 		return nil
 	})
 	_ = ensureSandboxPerms(tmpDir)
+
+	if assignment != nil && assignment.ProgrammingLanguage == "scratch" {
+		runScratchAnalysis(sub, tmpDir)
+		return
+	}
 	var mainFile string
 	var firstPy string
 	filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
@@ -563,6 +569,207 @@ func runSubmission(id uuid.UUID) {
 	}
 
 	finalizeSubmissionOutcome(sub, assignment, allPass, totalWeight, earnedWeight)
+}
+
+func runScratchAnalysis(sub *Submission, submissionDir string) {
+	sb3Path := findScratchProjectFile(submissionDir)
+	if sb3Path == "" {
+		fmt.Printf("[worker] scratch analysis: no .sb3 file found for submission %s\n", sub.ID)
+		_ = SetSubmissionScratchAnalysis(sub.ID, nil)
+		_ = UpdateSubmissionStatus(sub.ID, "failed")
+		return
+	}
+
+	workDir, sb3Name, cleanup, err := prepareScratchAnalysisWorkspace(sb3Path)
+	if err != nil {
+		fmt.Printf("[worker] scratch analysis: workspace prep failed for submission %s: %v\n", sub.ID, err)
+		_ = SetSubmissionScratchAnalysis(sub.ID, nil)
+		_ = UpdateSubmissionStatus(sub.ID, "failed")
+		return
+	}
+	defer cleanup()
+
+	out, errOut, exitCode, timedOut, _ := executeScratchAnalysis(
+		workDir,
+		sb3Name,
+		scratchAnalysisTimeout,
+	)
+	if timedOut {
+		fmt.Printf("[worker] scratch analysis: timeout for submission %s\n", sub.ID)
+		_ = SetSubmissionScratchAnalysis(sub.ID, nil)
+		_ = UpdateSubmissionStatus(sub.ID, "failed")
+		return
+	}
+	if exitCode != 0 {
+		fmt.Printf("[worker] scratch analysis: drscratch failed for submission %s: %s\n", sub.ID, errOut)
+		_ = SetSubmissionScratchAnalysis(sub.ID, nil)
+		_ = UpdateSubmissionStatus(sub.ID, "failed")
+		return
+	}
+
+	analysis := strings.TrimSpace(out)
+	if analysis == "" || !json.Valid([]byte(analysis)) {
+		fmt.Printf("[worker] scratch analysis: invalid JSON for submission %s\n", sub.ID)
+		_ = SetSubmissionScratchAnalysis(sub.ID, nil)
+		_ = UpdateSubmissionStatus(sub.ID, "failed")
+		return
+	}
+
+	if err := SetSubmissionScratchAnalysis(sub.ID, &analysis); err != nil {
+		fmt.Printf("[worker] scratch analysis: db update failed for submission %s: %v\n", sub.ID, err)
+		_ = UpdateSubmissionStatus(sub.ID, "failed")
+		return
+	}
+
+	_ = UpdateSubmissionStatus(sub.ID, "completed")
+}
+
+func findScratchProjectFile(root string) string {
+	var found string
+	_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(strings.ToLower(info.Name()), ".sb3") {
+			found = path
+			return io.EOF
+		}
+		return nil
+	})
+	return found
+}
+
+func prepareScratchAnalysisWorkspace(sb3Path string) (string, string, func(), error) {
+	workDir, err := os.MkdirTemp(execRoot, "scratch-")
+	if err != nil {
+		return "", "", func() {}, err
+	}
+	cleanup := func() { _ = os.RemoveAll(workDir) }
+
+	src := resolveVMPath(filepath.Join("backend", "dr_scratch"))
+	if _, err := os.Stat(src); err != nil {
+		cleanup()
+		return "", "", func() {}, fmt.Errorf("dr_scratch not found: %w", err)
+	}
+
+	dst := filepath.Join(workDir, "dr_scratch")
+	if err := copyScratchRuntime(src, dst); err != nil {
+		cleanup()
+		return "", "", func() {}, err
+	}
+
+	sb3Name := filepath.Base(sb3Path)
+	if err := copyFile(sb3Path, filepath.Join(dst, sb3Name)); err != nil {
+		cleanup()
+		return "", "", func() {}, err
+	}
+
+	_ = ensureSandboxPerms(workDir)
+	return workDir, sb3Name, cleanup, nil
+}
+
+func copyScratchRuntime(src, dst string) error {
+	skipDirs := map[string]struct{}{
+		".git":       {},
+		"__pycache__": {},
+		"example":    {},
+	}
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		if rel == "." {
+			return nil
+		}
+		parts := strings.Split(rel, string(filepath.Separator))
+		for _, part := range parts {
+			if _, skip := skipDirs[part]; skip {
+				if info.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+		}
+		target := filepath.Join(dst, rel)
+		if info.IsDir() {
+			return os.MkdirAll(target, 0755)
+		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+		return copyFile(path, target)
+	})
+}
+
+func copyFile(src, dst string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		_ = out.Close()
+		return err
+	}
+	return out.Close()
+}
+
+func executeScratchAnalysis(dir, sb3Name string, timeout time.Duration) (string, string, int, bool, time.Duration) {
+	_ = ensureSandboxPerms(dir)
+	abs, _ := filepath.Abs(dir)
+	fmt.Printf("[worker] Running Dr. Scratch in VM: %s with timeout %v\n", abs, timeout)
+
+	bootCtx, bootCancel := context.WithTimeout(context.Background(), vmBootTimeout+vmExtraTimeout+vmQueueTimeout)
+	defer bootCancel()
+
+	vm, remoteDir, err := startVMWithWorkspace(bootCtx, dir, nil)
+	if err != nil {
+		timedOut := bootCtx.Err() == context.DeadlineExceeded
+		return "", fmt.Sprintf("vm start failed: %v", err), -1, timedOut, 0
+	}
+	defer vm.Close()
+
+	remoteWorkDir := filepath.Join(remoteDir, "dr_scratch")
+	remoteScript := filepath.Join(remoteWorkDir, "drscratch_cli.py")
+	remoteSb3 := filepath.Join(remoteWorkDir, sb3Name)
+	outputName := sb3Name + ".analysis.json"
+	remoteOut := filepath.Join(remoteWorkDir, outputName)
+	safeScript := strings.ReplaceAll(remoteScript, "'", "'\\''")
+	safeSb3 := strings.ReplaceAll(remoteSb3, "'", "'\\''")
+	safeOut := strings.ReplaceAll(remoteOut, "'", "'\\''")
+	script := fmt.Sprintf(
+		"PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 %s -u '%s' '%s' -o '%s' >/dev/null && cat '%s'",
+		pythonBinary,
+		safeScript,
+		safeSb3,
+		safeOut,
+		safeOut,
+	)
+
+	execCtx, execCancel := context.WithTimeout(context.Background(), timeout)
+	defer execCancel()
+
+	startWall := time.Now()
+	outRaw, errRaw, exitCode, runErr := vm.runCommand(execCtx, remoteDir, script, nil)
+	duration := time.Since(startWall)
+	timedOut := execCtx.Err() == context.DeadlineExceeded
+
+	if runErr != nil && exitCode == 0 {
+		exitCode = -1
+	}
+
+	return strings.TrimSpace(outRaw), strings.TrimSpace(errRaw), exitCode, timedOut, duration
 }
 
 func finalizeSubmissionOutcome(sub *Submission, assignment *Assignment, allPass bool, totalWeight, earnedWeight float64) {

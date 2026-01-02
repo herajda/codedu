@@ -819,14 +819,15 @@ rm -rf -- "$dest" && mkdir -p -- "$dest"
 // syncWorkspace copies the given directory into the VM under /home/<user>/code.
 func (v *vmInstance) syncWorkspace(ctx context.Context, dir string) (string, error) {
 	tStart := time.Now()
-	dest := vmWorkspacePath()
-	fmt.Printf("[vm] syncing workspace %s -> %s\n", dir, dest)
+	defaultDest := vmWorkspacePath()
+	fmt.Printf("[vm] syncing workspace %s -> %s\n", dir, defaultDest)
 	// Some images may have restrictive permissions under /home; fall back to /tmp if prep fails.
-	candidates := []string{dest, fmt.Sprintf("/tmp/code-%d", time.Now().UnixNano())}
-	var prepStdout, prepStderr string
-	var prepErr error
-	for _, candidate := range candidates {
-		dest = candidate
+	candidates := []string{defaultDest, fmt.Sprintf("/tmp/code-%d", time.Now().UnixNano())}
+	var lastErr error
+
+	for _, dest := range candidates {
+		var prepStdout, prepStderr string
+		var prepErr error
 		for attempt := 1; attempt <= 5; attempt++ {
 			prepStdout, prepStderr, prepErr = v.prepareWorkspaceDir(ctx, dest)
 			if prepErr != nil {
@@ -837,62 +838,60 @@ func (v *vmInstance) syncWorkspace(ctx context.Context, dir string) (string, err
 			prepErr = nil
 			break
 		}
-		if prepErr == nil {
-			break
-		}
-	}
-	if prepErr != nil {
-		stdoutTail := strings.TrimSpace(v.qemuStdout.String())
-		stderrTail := strings.TrimSpace(v.qemuStderr.String())
-		if stdoutTail != "" {
-			fmt.Printf("[vm] qemu stdout (prep failure):\n%s\n", stdoutTail)
-		}
-		if stderrTail != "" {
-			fmt.Printf("[vm] qemu stderr (prep failure):\n%s\n", stderrTail)
-		}
-		return "", fmt.Errorf("prepare workspace: %w (stdout=%q stderr=%q)", prepErr, prepStdout, prepStderr)
-	}
-
-	target := fmt.Sprintf("%s@127.0.0.1:%s", qemuSSHUser, dest)
-	args := []string{
-		"-q",
-		"-r",
-		"-o", "StrictHostKeyChecking=no",
-		"-o", "UserKnownHostsFile=/dev/null",
-		"-o", "LogLevel=ERROR",
-		"-i", v.sshKeyPath,
-		"-P", strconv.Itoa(v.sshPort),
-		filepath.Clean(dir) + "/.",
-		target,
-	}
-	copyCtx, cancel := context.WithTimeout(ctx, vmBootTimeout)
-	defer cancel()
-	var scpErr error
-	for attempt := 1; attempt <= 5; attempt++ {
-		cmd := exec.CommandContext(copyCtx, "scp", args...)
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			scpErr = err
-			fmt.Printf("[vm] scp attempt=%d failed: %v output=%q\n", attempt, err, string(out))
-			time.Sleep(1 * time.Second)
+		if prepErr != nil {
+			lastErr = fmt.Errorf("prepare workspace: %w (stdout=%q stderr=%q)", prepErr, prepStdout, prepStderr)
 			continue
 		}
-		scpErr = nil
-		break
+
+		target := fmt.Sprintf("%s@127.0.0.1:%s", qemuSSHUser, dest)
+		args := []string{
+			"-q",
+			"-r",
+			"-o", "StrictHostKeyChecking=no",
+			"-o", "UserKnownHostsFile=/dev/null",
+			"-o", "LogLevel=ERROR",
+			"-i", v.sshKeyPath,
+			"-P", strconv.Itoa(v.sshPort),
+			filepath.Clean(dir) + "/.",
+			target,
+		}
+		copyCtx, cancel := context.WithTimeout(ctx, vmBootTimeout)
+		var scpErr error
+		for attempt := 1; attempt <= 5; attempt++ {
+			cmd := exec.CommandContext(copyCtx, "scp", args...)
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				scpErr = err
+				fmt.Printf("[vm] scp attempt=%d failed: %v output=%q\n", attempt, err, string(out))
+				time.Sleep(1 * time.Second)
+				continue
+			}
+			scpErr = nil
+			break
+		}
+		cancel()
+
+		if scpErr != nil {
+			lastErr = fmt.Errorf("copy workspace to %s: %w", dest, scpErr)
+			continue
+		}
+
+		fmt.Printf("[vm] workspace synced to %s (took %v)\n", dest, time.Since(tStart))
+		return dest, nil
 	}
-	if scpErr != nil {
+
+	if lastErr != nil {
 		stdoutTail := strings.TrimSpace(v.qemuStdout.String())
 		stderrTail := strings.TrimSpace(v.qemuStderr.String())
 		if stdoutTail != "" {
-			fmt.Printf("[vm] qemu stdout (scp failure):\n%s\n", stdoutTail)
+			fmt.Printf("[vm] qemu stdout (workspace failure):\n%s\n", stdoutTail)
 		}
 		if stderrTail != "" {
-			fmt.Printf("[vm] qemu stderr (scp failure):\n%s\n", stderrTail)
+			fmt.Printf("[vm] qemu stderr (workspace failure):\n%s\n", stderrTail)
 		}
-		return "", fmt.Errorf("copy workspace: %w", scpErr)
+		return "", lastErr
 	}
-	fmt.Printf("[vm] workspace synced to %s (took %v)\n", dest, time.Since(tStart))
-	return dest, nil
+	return "", fmt.Errorf("copy workspace failed")
 }
 
 // startVMWithWorkspace boots a VM and copies the workspace into it.

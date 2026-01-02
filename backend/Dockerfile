@@ -27,6 +27,7 @@ RUN apt-get update \
 WORKDIR /app
 COPY --from=build /out/codegrader /usr/local/bin/codegrader
 COPY backend/schema.sql ./schema.sql
+COPY backend/dr_scratch /app/backend/dr_scratch
 COPY backend/llm_agent /app/llm_agent
 COPY backend/scripts /app/scripts
 # Install agent dependencies into an isolated virtualenv to satisfy PEP 668.

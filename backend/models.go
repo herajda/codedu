@@ -129,6 +129,7 @@ type Submission struct {
 	StudentID                  uuid.UUID `db:"student_id" json:"student_id"`
 	CodePath                   string    `db:"code_path" json:"code_path"`
 	CodeContent                string    `db:"code_content" json:"code_content"`
+	ScratchAnalysis            *string   `db:"scratch_analysis" json:"scratch_analysis,omitempty"`
 	Status                     string    `db:"status" json:"status"`
 	Points                     *float64  `db:"points" json:"points"`
 	OverridePts                *float64  `db:"override_points" json:"override_points"`
@@ -1547,10 +1548,10 @@ func GetLatestLLMRun(subID uuid.UUID) (*LLMRun, error) {
 func GetSubmission(id uuid.UUID) (*Submission, error) {
 	var s Submission
 	err := DB.Get(&s, `
-        SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at,
+        SELECT id, assignment_id, student_id, code_path, code_content, scratch_analysis, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at,
                attempt_number, student_name
           FROM (
-            SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.points, s.override_points, s.is_teacher_run, s.manually_accepted, s.late, s.created_at, s.updated_at,
+            SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.scratch_analysis, s.status, s.points, s.override_points, s.is_teacher_run, s.manually_accepted, s.late, s.created_at, s.updated_at,
                    ROW_NUMBER() OVER (PARTITION BY s.assignment_id, s.student_id ORDER BY s.created_at ASC, s.id ASC) AS attempt_number,
                    u.name as student_name
               FROM submissions s
@@ -1664,6 +1665,11 @@ func SetSubmissionOverridePoints(id uuid.UUID, pts *float64) error {
 
 func SetSubmissionManualAccept(id uuid.UUID, accepted bool) error {
 	_, err := DB.Exec(`UPDATE submissions SET manually_accepted=$1, updated_at=now() WHERE id=$2`, accepted, id)
+	return err
+}
+
+func SetSubmissionScratchAnalysis(id uuid.UUID, analysis *string) error {
+	_, err := DB.Exec(`UPDATE submissions SET scratch_analysis=$1, updated_at=now() WHERE id=$2`, analysis, id)
 	return err
 }
 

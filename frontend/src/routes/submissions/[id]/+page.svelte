@@ -7,6 +7,7 @@
   import { FileTree, RunConsole } from "$lib";
   import ScratchPlayer from "$lib/components/ScratchPlayer.svelte";
   import ScratchBlocksViewer from "$lib/components/ScratchBlocksViewer.svelte";
+  import ScratchAnalysisPanel from "$lib/components/ScratchAnalysisPanel.svelte";
   import { formatDateTime } from "$lib/date";
   import { goto } from "$app/navigation";
   import { auth } from "$lib/auth";
@@ -65,6 +66,9 @@
   let scratchProjectName = "";
   let scratchProjectError = "";
   let scratchLoading = false;
+  let scratchAnalysisPayload: any = null;
+  let scratchAnalysis: any = null;
+  let scratchAnalysisError = "";
   let lastCodeContent = "";
   let lastCodeBytes: Uint8Array | null = null;
   let filesLoading = false;
@@ -242,6 +246,7 @@
       submission = data.submission;
       results = data.results;
       llm = data.llm ?? null;
+      scratchAnalysisPayload = data;
 
       // Prefill override input with the currently assigned points (teacher sees what's set)
       try {
@@ -419,6 +424,85 @@
     } catch {
       return null;
     }
+  }
+
+  function looksLikeScratchAnalysis(value: any): boolean {
+    if (!value || typeof value !== "object") return false;
+    return "bad_habits" in value || "vanilla" in value || "extended" in value;
+  }
+
+  function parseScratchAnalysisCandidate(
+    raw: any,
+    trackError = true,
+  ): { value: any | null; error: string } {
+    if (!raw) return { value: null, error: "" };
+    if (looksLikeScratchAnalysis(raw)) return { value: raw, error: "" };
+    if (typeof raw === "string") {
+      const trimmed = raw.trim();
+      if (!trimmed) return { value: null, error: "" };
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (looksLikeScratchAnalysis(parsed)) return { value: parsed, error: "" };
+      } catch (e: any) {
+        return {
+          value: null,
+          error: trackError
+            ? e?.message ?? "Invalid Dr. Scratch analysis JSON"
+            : "",
+        };
+      }
+    }
+    return { value: null, error: "" };
+  }
+
+  function extractScratchAnalysis(
+    payload: any,
+    sub: any,
+    res: any[],
+  ): { value: any | null; error: string } {
+    const candidates = [
+      payload?.scratch_analysis,
+      payload?.scratchAnalysis,
+      payload?.analysis,
+      payload?.analysis_json,
+      payload?.drscratch,
+      payload?.drscratch_analysis,
+      payload?.dr_scratch,
+      payload?.dr_scratch_analysis,
+      sub?.scratch_analysis,
+      sub?.scratchAnalysis,
+      sub?.analysis,
+      sub?.analysis_json,
+      sub?.drscratch,
+      sub?.drscratch_analysis,
+      sub?.dr_scratch,
+      sub?.dr_scratch_analysis,
+    ];
+    let firstError = "";
+    for (const candidate of candidates) {
+      const { value, error } = parseScratchAnalysisCandidate(candidate, true);
+      if (value) return { value, error: "" };
+      if (!firstError && error) firstError = error;
+    }
+
+    if (Array.isArray(res)) {
+      for (const item of res) {
+        const fallbackCandidates = [
+          item?.analysis,
+          item?.analysis_json,
+          item?.actual_stdout,
+          item?.actual_return,
+          item?.stderr,
+          item?.failure_explanation,
+        ];
+        for (const candidate of fallbackCandidates) {
+          const { value } = parseScratchAnalysisCandidate(candidate, false);
+          if (value) return { value, error: "" };
+        }
+      }
+    }
+
+    return { value: null, error: firstError };
   }
 
   function viewableUnitTestSnippet(
@@ -622,6 +706,18 @@
     Array.isArray(results) &&
     results.length > 0 &&
     results.every((r) => r.status !== "passed" && r.status !== "running");
+  $: if (isScratchSubmission) {
+    const { value, error } = extractScratchAnalysis(
+      scratchAnalysisPayload,
+      submission,
+      results,
+    );
+    scratchAnalysis = value;
+    scratchAnalysisError = value ? "" : error;
+  } else {
+    scratchAnalysis = null;
+    scratchAnalysisError = "";
+  }
 
   let explanations: Record<string, { loading: boolean; text?: string; error?: string }> = {};
   let explainInFlight = false;
@@ -1328,6 +1424,12 @@
               </div>
             {/if}
           </div>
+          {#if scratchFullscreenMode === "none"}
+            <ScratchAnalysisPanel
+              analysis={scratchAnalysis}
+              error={scratchAnalysisError}
+            />
+          {/if}
         </div>
       {/if}
 
