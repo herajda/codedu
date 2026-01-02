@@ -91,6 +91,7 @@ var (
 	// additional grace period for docker startup/shutdown
 	dockerExtraTime = 10 * time.Second
 	scratchAnalysisTimeout = getenvDurationOr("SCRATCH_ANALYSIS_TIMEOUT", 2*time.Minute)
+	scratchSemanticTimeout = getenvDurationOr("SCRATCH_SEMANTIC_TIMEOUT", 45*time.Second)
 )
 
 // ==== LLM typed outputs ====
@@ -460,7 +461,7 @@ func runSubmission(id uuid.UUID) {
 	_ = ensureSandboxPerms(tmpDir)
 
 	if assignment != nil && assignment.ProgrammingLanguage == "scratch" {
-		runScratchAnalysis(sub, tmpDir)
+		runScratchAnalysis(sub, assignment, tmpDir)
 		return
 	}
 	var mainFile string
@@ -571,11 +572,12 @@ func runSubmission(id uuid.UUID) {
 	finalizeSubmissionOutcome(sub, assignment, allPass, totalWeight, earnedWeight)
 }
 
-func runScratchAnalysis(sub *Submission, submissionDir string) {
+func runScratchAnalysis(sub *Submission, assignment *Assignment, submissionDir string) {
 	sb3Path := findScratchProjectFile(submissionDir)
 	if sb3Path == "" {
 		fmt.Printf("[worker] scratch analysis: no .sb3 file found for submission %s\n", sub.ID)
 		_ = SetSubmissionScratchAnalysis(sub.ID, nil)
+		_ = SetSubmissionScratchSemanticAnalysis(sub.ID, nil)
 		_ = UpdateSubmissionStatus(sub.ID, "failed")
 		return
 	}
@@ -584,6 +586,7 @@ func runScratchAnalysis(sub *Submission, submissionDir string) {
 	if err != nil {
 		fmt.Printf("[worker] scratch analysis: workspace prep failed for submission %s: %v\n", sub.ID, err)
 		_ = SetSubmissionScratchAnalysis(sub.ID, nil)
+		_ = SetSubmissionScratchSemanticAnalysis(sub.ID, nil)
 		_ = UpdateSubmissionStatus(sub.ID, "failed")
 		return
 	}
@@ -597,12 +600,14 @@ func runScratchAnalysis(sub *Submission, submissionDir string) {
 	if timedOut {
 		fmt.Printf("[worker] scratch analysis: timeout for submission %s\n", sub.ID)
 		_ = SetSubmissionScratchAnalysis(sub.ID, nil)
+		_ = SetSubmissionScratchSemanticAnalysis(sub.ID, nil)
 		_ = UpdateSubmissionStatus(sub.ID, "failed")
 		return
 	}
 	if exitCode != 0 {
 		fmt.Printf("[worker] scratch analysis: drscratch failed for submission %s: %s\n", sub.ID, errOut)
 		_ = SetSubmissionScratchAnalysis(sub.ID, nil)
+		_ = SetSubmissionScratchSemanticAnalysis(sub.ID, nil)
 		_ = UpdateSubmissionStatus(sub.ID, "failed")
 		return
 	}
@@ -611,6 +616,7 @@ func runScratchAnalysis(sub *Submission, submissionDir string) {
 	if analysis == "" || !json.Valid([]byte(analysis)) {
 		fmt.Printf("[worker] scratch analysis: invalid JSON for submission %s\n", sub.ID)
 		_ = SetSubmissionScratchAnalysis(sub.ID, nil)
+		_ = SetSubmissionScratchSemanticAnalysis(sub.ID, nil)
 		_ = UpdateSubmissionStatus(sub.ID, "failed")
 		return
 	}
@@ -619,6 +625,26 @@ func runScratchAnalysis(sub *Submission, submissionDir string) {
 		fmt.Printf("[worker] scratch analysis: db update failed for submission %s: %v\n", sub.ID, err)
 		_ = UpdateSubmissionStatus(sub.ID, "failed")
 		return
+	}
+
+	var semanticJSON *string
+	if assignment != nil {
+		criteria := strings.TrimSpace(stringOrEmpty(assignment.ScratchSemanticCriteria))
+		if criteria != "" {
+			language := "English"
+			if user, err := GetUser(sub.StudentID); err == nil && user.PreferredLocale != nil {
+				if strings.EqualFold(strings.TrimSpace(*user.PreferredLocale), "cs") {
+					language = "Czech"
+				}
+			}
+			semanticJSON, err = runScratchSemanticAnalysis(sb3Path, criteria, scratchSemanticTimeout, language)
+			if err != nil {
+				fmt.Printf("[worker] scratch semantic: evaluation failed for submission %s: %v\n", sub.ID, err)
+			}
+		}
+	}
+	if err := SetSubmissionScratchSemanticAnalysis(sub.ID, semanticJSON); err != nil {
+		fmt.Printf("[worker] scratch semantic: db update failed for submission %s: %v\n", sub.ID, err)
 	}
 
 	_ = UpdateSubmissionStatus(sub.ID, "completed")

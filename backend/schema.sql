@@ -95,6 +95,7 @@ ALTER TABLE assignments ADD COLUMN IF NOT EXISTS llm_help_why_failed BOOLEAN NOT
 -- Second deadline feature
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS second_deadline TIMESTAMPTZ; -- optional second deadline for late submissions
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS late_penalty_ratio NUMERIC NOT NULL DEFAULT 0.5 CHECK (late_penalty_ratio >= 0 AND late_penalty_ratio <= 1); -- points multiplier for second deadline submissions
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS scratch_semantic_criteria TEXT;
 
 -- Track cloned assignments (e.g., Teachers' group versions)
 CREATE TABLE IF NOT EXISTS assignment_clones (
@@ -180,6 +181,7 @@ ALTER TABLE submissions ADD COLUMN IF NOT EXISTS late BOOLEAN NOT NULL DEFAULT F
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS manually_accepted BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS all_tests_failure_explanation TEXT;
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS scratch_analysis TEXT;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS scratch_semantic_analysis TEXT;
 
 DO $$ BEGIN
     CREATE TYPE result_status AS ENUM ('passed','time_limit_exceeded','memory_limit_exceeded','wrong_output','runtime_error');

@@ -268,6 +268,7 @@ func createAssignment(c *gin.Context) {
 		ShowTestDetails     bool   `json:"show_test_details"`
 		ManualReview        bool   `json:"manual_review"`
 		ProgrammingLanguage string `json:"programming_language"`
+		ScratchSemanticCriteria *string `json:"scratch_semantic_criteria"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -296,6 +297,7 @@ func createAssignment(c *gin.Context) {
 		ShowTestDetails:  req.ShowTestDetails,
 		ProgrammingLanguage: lang,
 		ManualReview:     manualReview,
+		ScratchSemanticCriteria: req.ScratchSemanticCriteria,
 		CreatedBy:        getUserID(c),
 		SecondDeadline:   nil,
 		LatePenaltyRatio: 0.5,
@@ -447,6 +449,7 @@ func updateAssignment(c *gin.Context) {
 		LLMRubric           *string  `json:"llm_rubric"`
 		LLMTeacherBaseline  *string  `json:"llm_teacher_baseline_json"`
 		LLMHelpWhyFailed    bool     `json:"llm_help_why_failed"`
+		ScratchSemanticCriteria *string `json:"scratch_semantic_criteria"`
 		SecondDeadline      *string  `json:"second_deadline"`
 		LatePenaltyRatio    *float64 `json:"late_penalty_ratio"`
 	}
@@ -507,6 +510,14 @@ func updateAssignment(c *gin.Context) {
 	}
 	if req.LLMTeacherBaseline != nil {
 		a.LLMTeacherBaseline = req.LLMTeacherBaseline
+	}
+	if req.ScratchSemanticCriteria != nil {
+		trimmed := strings.TrimSpace(*req.ScratchSemanticCriteria)
+		if trimmed == "" {
+			a.ScratchSemanticCriteria = nil
+		} else {
+			a.ScratchSemanticCriteria = &trimmed
+		}
 	}
 	if req.SecondDeadline != nil {
 		trimmed := strings.TrimSpace(*req.SecondDeadline)
@@ -2511,6 +2522,9 @@ func getSubmission(c *gin.Context) {
 		}
 	}
 	resp := gin.H{"submission": sub, "results": results}
+	if sub.ScratchSemanticAnalysis != nil && json.Valid([]byte(*sub.ScratchSemanticAnalysis)) {
+		resp["semantic_analysis"] = json.RawMessage(*sub.ScratchSemanticAnalysis)
+	}
 	// Attach latest LLM run if available
 	if llm, err := GetLatestLLMRun(sid); err == nil && llm != nil {
 		// apply feedback visibility for students

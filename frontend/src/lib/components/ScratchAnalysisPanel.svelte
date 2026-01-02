@@ -755,6 +755,7 @@
     if (!canToggleMode) return;
     activeModeKey = activeModeKey === "vanilla" ? "extended" : "vanilla";
   }
+
 </script>
 
 <div class="bg-base-100 rounded-3xl border border-base-200 shadow-lg shadow-base-300/30 overflow-hidden">

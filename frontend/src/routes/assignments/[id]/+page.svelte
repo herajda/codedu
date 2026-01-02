@@ -180,6 +180,7 @@
   let eLLMStrictness: number = 50;
   let eLLMRubric = "";
   let eLLMTeacherBaseline = "";
+  let eScratchSemanticCriteria = "";
   $: eLLMStrictnessMessage = strictnessGuidance(eLLMStrictness);
   let eSecondDeadline = "";
   // Enhanced date/time UX state (derived from the above strings)
@@ -632,6 +633,7 @@
         : 50;
     eLLMRubric = assignment.llm_rubric ?? "";
     eLLMTeacherBaseline = assignment.llm_teacher_baseline_json ?? "";
+    eScratchSemanticCriteria = assignment.scratch_semantic_criteria ?? "";
     showAdvancedOptions = !!assignment.second_deadline;
     if (assignment.manual_review) testMode = "manual";
     else if (assignment.llm_interactive) testMode = "ai";
@@ -729,6 +731,9 @@
             ? Math.min(100, Math.max(0, Number(eLLMStrictness)))
             : 50,
           llm_rubric: eLLMRubric.trim() ? eLLMRubric : null,
+          scratch_semantic_criteria: eScratchSemanticCriteria.trim()
+            ? eScratchSemanticCriteria
+            : null,
           second_deadline: eSecondDeadline.trim()
             ? new Date(eSecondDeadline).toISOString()
             : null,
@@ -1542,6 +1547,22 @@
                     {t("frontend/src/routes/assignments/[id]/+page.svelte::ai_grading_desc")}
                   {/if}
                 </div>
+
+                {#if eProgrammingLanguage === "scratch"}
+                  <div class="bg-base-100 rounded-xl border border-base-300/40 p-4 space-y-3">
+                    <div class="text-[10px] font-black uppercase tracking-widest opacity-50">
+                      {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_criteria_label")}
+                    </div>
+                    <textarea
+                      class="textarea textarea-bordered w-full bg-base-100/70 text-sm min-h-[120px]"
+                      bind:value={eScratchSemanticCriteria}
+                      placeholder={t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_criteria_placeholder")}
+                    ></textarea>
+                    <div class="text-[11px] opacity-60 leading-relaxed">
+                      {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_criteria_help")}
+                    </div>
+                  </div>
+                {/if}
 
                 {#if testMode === "ai"}
                   <div class="pt-2 animate-in slide-in-from-top-2 duration-300">

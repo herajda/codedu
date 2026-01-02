@@ -70,6 +70,9 @@
   let scratchAnalysisPayload: any = null;
   let scratchAnalysis: any = null;
   let scratchAnalysisError = "";
+  let scratchSemanticAnalysis: any = null;
+  let scratchSemanticAnalysisError = "";
+  let assignmentScratchSemanticCriteria = "";
   let lastCodeContent = "";
   let lastCodeBytes: Uint8Array | null = null;
   let filesLoading = false;
@@ -84,6 +87,18 @@
   let scratchFullscreenMode: "none" | "player" | "both" = "none";
   let scratchFullscreenHost: HTMLDivElement | null = null;
   let removeScratchFullscreenListener: (() => void) | null = null;
+  $: scratchSemanticChecklist = Array.isArray(scratchSemanticAnalysis?.check_list)
+    ? scratchSemanticAnalysis.check_list
+    : [];
+  $: scratchSemanticConfidence =
+    typeof scratchSemanticAnalysis?.confidence_score === "number"
+      ? Math.round(scratchSemanticAnalysis.confidence_score)
+      : null;
+  $: scratchSemanticCriteriaMet = scratchSemanticAnalysis?.criteria_met === true;
+  $: scratchSemanticSummary =
+    typeof scratchSemanticAnalysis?.feedback_summary === "string"
+      ? scratchSemanticAnalysis.feedback_summary
+      : "";
 
   import hljs from "highlight.js";
   import "highlight.js/styles/github.css";
@@ -122,6 +137,13 @@
     name: string;
     content?: string;
     children?: FileNode[];
+  }
+
+  function scratchSemanticStatusTone(status: string) {
+    const normalized = String(status || "").toUpperCase();
+    if (normalized === "PASS") return "badge-success";
+    if (normalized === "FAIL") return "badge-error";
+    return "badge-ghost";
   }
 
   function decodeBase64(b64: string): Uint8Array | null {
@@ -268,6 +290,8 @@
           assignmentShowTraceback = !!ad.assignment?.show_traceback;
           assignmentLLMHelpWhyFailed = !!ad.assignment?.llm_help_why_failed;
           assignmentLanguage = ad.assignment?.programming_language ?? "python";
+          assignmentScratchSemanticCriteria =
+            ad.assignment?.scratch_semantic_criteria ?? "";
           // Prefer aggregate tests_count when present (student view), fallback to tests array (teacher/admin)
           try {
             assignmentTestsCount =
@@ -432,6 +456,15 @@
     return "bad_habits" in value || "vanilla" in value || "extended" in value;
   }
 
+  function looksLikeScratchSemanticAnalysis(value: any): boolean {
+    if (!value || typeof value !== "object") return false;
+    return (
+      "criteria_met" in value ||
+      "confidence_score" in value ||
+      "check_list" in value
+    );
+  }
+
   function parseScratchAnalysisCandidate(
     raw: any,
     trackError = true,
@@ -450,6 +483,29 @@
           error: trackError
             ? e?.message ?? "Invalid Dr. Scratch analysis JSON"
             : "",
+        };
+      }
+    }
+    return { value: null, error: "" };
+  }
+
+  function parseScratchSemanticCandidate(
+    raw: any,
+    trackError = true,
+  ): { value: any | null; error: string } {
+    if (!raw) return { value: null, error: "" };
+    if (looksLikeScratchSemanticAnalysis(raw)) return { value: raw, error: "" };
+    if (typeof raw === "string") {
+      const trimmed = raw.trim();
+      if (!trimmed) return { value: null, error: "" };
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (looksLikeScratchSemanticAnalysis(parsed))
+          return { value: parsed, error: "" };
+      } catch (e: any) {
+        return {
+          value: null,
+          error: trackError ? e?.message ?? "Invalid semantic analysis JSON" : "",
         };
       }
     }
@@ -503,6 +559,29 @@
       }
     }
 
+    return { value: null, error: firstError };
+  }
+
+  function extractScratchSemanticAnalysis(
+    payload: any,
+    sub: any,
+  ): { value: any | null; error: string } {
+    const candidates = [
+      payload?.semantic_analysis,
+      payload?.semanticAnalysis,
+      payload?.scratch_semantic_analysis,
+      payload?.scratchSemanticAnalysis,
+      sub?.semantic_analysis,
+      sub?.semanticAnalysis,
+      sub?.scratch_semantic_analysis,
+      sub?.scratchSemanticAnalysis,
+    ];
+    let firstError = "";
+    for (const candidate of candidates) {
+      const { value, error } = parseScratchSemanticCandidate(candidate, true);
+      if (value) return { value, error: "" };
+      if (!firstError && error) firstError = error;
+    }
     return { value: null, error: firstError };
   }
 
@@ -743,9 +822,17 @@
     );
     scratchAnalysis = value;
     scratchAnalysisError = value ? "" : error;
+    const semantic = extractScratchSemanticAnalysis(
+      scratchAnalysisPayload,
+      submission,
+    );
+    scratchSemanticAnalysis = semantic.value;
+    scratchSemanticAnalysisError = semantic.value ? "" : semantic.error;
   } else {
     scratchAnalysis = null;
     scratchAnalysisError = "";
+    scratchSemanticAnalysis = null;
+    scratchSemanticAnalysisError = "";
   }
 
   let explanations: Record<string, { loading: boolean; text?: string; error?: string }> = {};
@@ -1360,6 +1447,118 @@
           class={scratchFullscreenMode !== "none" ? "scratch-fullscreen-shell" : "space-y-6"}
           bind:this={scratchFullscreenHost}
         >
+          {#if scratchFullscreenMode === "none" && (assignmentScratchSemanticCriteria || scratchSemanticAnalysis || scratchSemanticAnalysisError)}
+            <div class="bg-base-100 rounded-3xl border border-base-200 shadow-lg shadow-base-300/30 overflow-hidden">
+              <div class="px-6 py-4 border-b border-base-200 bg-base-100/50 backdrop-blur-sm">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <div class="flex items-center gap-3">
+                    <div class="p-2 bg-secondary/10 text-secondary rounded-lg">
+                      <Sparkles size={18} />
+                    </div>
+                    <div>
+                      <h2 class="text-lg font-black tracking-tight">
+                        {t("frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_title")}
+                      </h2>
+                      <p class="text-[10px] font-black uppercase tracking-widest opacity-40">
+                        {t("frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_subtitle")}
+                      </p>
+                    </div>
+                  </div>
+                  {#if scratchSemanticAnalysis}
+                    <div class="flex items-center gap-2">
+                      <span
+                        class={`badge badge-sm border-none font-black text-[8px] uppercase tracking-widest ${scratchSemanticCriteriaMet ? "bg-success/10 text-success" : "bg-error/10 text-error"}`}
+                      >
+                        {scratchSemanticCriteriaMet
+                          ? t("frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_pass")
+                          : t("frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_fail")}
+                      </span>
+                      {#if scratchSemanticConfidence !== null}
+                        <span class="text-[9px] font-black uppercase tracking-widest opacity-50">
+                          {t(
+                            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_confidence_label",
+                            { score: scratchSemanticConfidence },
+                          )}
+                        </span>
+                      {/if}
+                    </div>
+                  {/if}
+                </div>
+              </div>
+              <div class="p-6 space-y-4">
+                <div class="space-y-2">
+                  <div class="text-[9px] font-black uppercase tracking-widest opacity-40">
+                    {t("frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_criteria_label")}
+                  </div>
+                  <div class="text-sm font-medium opacity-80">
+                    {assignmentScratchSemanticCriteria
+                      ? assignmentScratchSemanticCriteria
+                      : t(
+                          "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_criteria_missing",
+                        )}
+                  </div>
+                </div>
+
+                {#if scratchSemanticAnalysisError}
+                  <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl">
+                    <AlertCircle size={18} />
+                    <div class="flex flex-col">
+                      <span class="font-medium text-sm">
+                        {t("frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_error")}
+                      </span>
+                      <span class="text-xs opacity-70">{scratchSemanticAnalysisError}</span>
+                    </div>
+                  </div>
+                {:else if !scratchSemanticAnalysis}
+                  <div class="bg-base-100/70 rounded-xl border border-base-300/40 p-4 text-sm font-medium opacity-70">
+                    {t("frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_empty")}
+                  </div>
+                {:else}
+                  <div class="space-y-4">
+                    <div class="bg-base-100/70 rounded-xl border border-base-300/40 p-4">
+                      <div class="text-[9px] font-black uppercase tracking-widest opacity-40 mb-2">
+                        {t(
+                          "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_feedback_label",
+                        )}
+                      </div>
+                      <div class="text-sm font-medium opacity-80">
+                        {scratchSemanticSummary || "-"}
+                      </div>
+                    </div>
+                    {#if scratchSemanticChecklist.length}
+                      <div class="space-y-2">
+                        <div class="text-[9px] font-black uppercase tracking-widest opacity-40">
+                          {t(
+                            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_checklist_label",
+                          )}
+                        </div>
+                        <div class="space-y-2">
+                          {#each scratchSemanticChecklist as item}
+                            <div class="bg-base-100/70 rounded-xl border border-base-300/40 p-3 flex items-start gap-3">
+                              <span
+                                class={`badge badge-sm font-black uppercase tracking-widest ${scratchSemanticStatusTone(item?.status)}`}
+                              >
+                                {String(item?.status || "").toUpperCase() || "-"}
+                              </span>
+                              <div class="space-y-1">
+                                <div class="text-sm font-semibold">
+                                  {item?.item ?? "-"}
+                                </div>
+                                {#if item?.reason && String(item.reason).trim().length}
+                                  <div class="text-xs opacity-60">{item.reason}</div>
+                                {/if}
+                              </div>
+                            </div>
+                          {/each}
+                        </div>
+                      </div>
+                    {/if}
+                  </div>
+                {/if}
+              </div>
+            </div>
+          {/if}
+
           <div class={`flex flex-wrap items-center justify-between gap-3 ${scratchFullscreenMode !== "none" ? "scratch-fullscreen-toolbar" : ""}`}>
             <div class="flex flex-wrap items-center gap-2">
               <button
