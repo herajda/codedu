@@ -6,6 +6,7 @@
     FileCode,
     Sparkles,
     Trophy,
+    X,
   } from "lucide-svelte";
   import { t, translator } from "$lib/i18n";
   import ScratchBlocksSnippet from "$lib/components/ScratchBlocksSnippet.svelte";
@@ -15,6 +16,11 @@
 
   let translate;
   $: translate = $translator;
+
+  let helpDialog: HTMLDialogElement | undefined;
+  let activeSkillKey: string | null = null;
+  let activeSkillLabel = "";
+  let activeHelp: SkillHelpEntry | null = null;
 
   const SUMMARY_KEYS = new Set([
     "average_points",
@@ -29,6 +35,18 @@
     label: string;
     score: number;
     max: number;
+  };
+
+  type SkillHelpLevel = {
+    titleKey: string;
+    bodyKey: string;
+    exampleKey: string;
+  };
+
+  type SkillHelpEntry = {
+    summaryKey: string;
+    bulletsKeys: string[];
+    levels: SkillHelpLevel[];
   };
 
   type ModeSummary = {
@@ -50,6 +68,396 @@
 
   type DuplicateGroup = {
     scripts: string[][];
+  };
+
+  const SKILL_HELP: Record<string, SkillHelpEntry> = {
+    Abstraction: {
+      summaryKey:
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_abstraction_summary",
+      bulletsKeys: [
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_abstraction_bullet_1",
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_abstraction_bullet_2",
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_abstraction_bullet_3",
+      ],
+      levels: [
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_1_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_abstraction_points_1",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_abstraction_example_1",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_2_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_abstraction_points_2",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_abstraction_example_2",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_3_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_abstraction_points_3",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_abstraction_example_3",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_4_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_abstraction_points_4",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_abstraction_example_4",
+        },
+      ],
+    },
+    Parallelization: {
+      summaryKey:
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_parallelization_summary",
+      bulletsKeys: [
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_parallelization_bullet_1",
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_parallelization_bullet_2",
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_parallelization_bullet_3",
+      ],
+      levels: [
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_1_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_parallelization_points_1",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_parallelization_example_1",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_2_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_parallelization_points_2",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_parallelization_example_2",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_3_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_parallelization_points_3",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_parallelization_example_3",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_4_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_parallelization_points_4",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_parallelization_example_4",
+        },
+      ],
+    },
+    Logic: {
+      summaryKey:
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_logic_summary",
+      bulletsKeys: [
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_logic_bullet_1",
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_logic_bullet_2",
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_logic_bullet_3",
+      ],
+      levels: [
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_1_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_logic_points_1",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_logic_example_1",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_2_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_logic_points_2",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_logic_example_2",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_3_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_logic_points_3",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_logic_example_3",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_4_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_logic_points_4",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_logic_example_4",
+        },
+      ],
+    },
+    Synchronization: {
+      summaryKey:
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_synchronization_summary",
+      bulletsKeys: [
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_synchronization_bullet_1",
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_synchronization_bullet_2",
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_synchronization_bullet_3",
+      ],
+      levels: [
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_1_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_synchronization_points_1",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_synchronization_example_1",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_2_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_synchronization_points_2",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_synchronization_example_2",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_3_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_synchronization_points_3",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_synchronization_example_3",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_4_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_synchronization_points_4",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_synchronization_example_4",
+        },
+      ],
+    },
+    FlowControl: {
+      summaryKey:
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_flow_control_summary",
+      bulletsKeys: [
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_flow_control_bullet_1",
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_flow_control_bullet_2",
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_flow_control_bullet_3",
+      ],
+      levels: [
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_1_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_flow_control_points_1",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_flow_control_example_1",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_2_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_flow_control_points_2",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_flow_control_example_2",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_3_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_flow_control_points_3",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_flow_control_example_3",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_4_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_flow_control_points_4",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_flow_control_example_4",
+        },
+      ],
+    },
+    UserInteractivity: {
+      summaryKey:
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_user_interactivity_summary",
+      bulletsKeys: [
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_user_interactivity_bullet_1",
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_user_interactivity_bullet_2",
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_user_interactivity_bullet_3",
+      ],
+      levels: [
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_1_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_user_interactivity_points_1",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_user_interactivity_example_1",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_2_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_user_interactivity_points_2",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_user_interactivity_example_2",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_3_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_user_interactivity_points_3",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_user_interactivity_example_3",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_4_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_user_interactivity_points_4",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_user_interactivity_example_4",
+        },
+      ],
+    },
+    DataRepresentation: {
+      summaryKey:
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_data_representation_summary",
+      bulletsKeys: [
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_data_representation_bullet_1",
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_data_representation_bullet_2",
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_data_representation_bullet_3",
+      ],
+      levels: [
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_1_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_data_representation_points_1",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_data_representation_example_1",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_2_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_data_representation_points_2",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_data_representation_example_2",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_3_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_data_representation_points_3",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_data_representation_example_3",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_4_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_data_representation_points_4",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_data_representation_example_4",
+        },
+      ],
+    },
+    MathOperators: {
+      summaryKey:
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_math_operators_summary",
+      bulletsKeys: [
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_math_operators_bullet_1",
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_math_operators_bullet_2",
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_math_operators_bullet_3",
+      ],
+      levels: [
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_1_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_math_operators_points_1",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_math_operators_example_1",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_2_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_math_operators_points_2",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_math_operators_example_2",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_3_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_math_operators_points_3",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_math_operators_example_3",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_4_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_math_operators_points_4",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_math_operators_example_4",
+        },
+      ],
+    },
+    MotionOperators: {
+      summaryKey:
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_motion_operators_summary",
+      bulletsKeys: [
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_motion_operators_bullet_1",
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_motion_operators_bullet_2",
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_motion_operators_bullet_3",
+      ],
+      levels: [
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_1_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_motion_operators_points_1",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_motion_operators_example_1",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_2_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_motion_operators_points_2",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_motion_operators_example_2",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_3_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_motion_operators_points_3",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_motion_operators_example_3",
+        },
+        {
+          titleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_level_4_title",
+          bodyKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_motion_operators_points_4",
+          exampleKey:
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_motion_operators_example_4",
+        },
+      ],
+    },
   };
 
   function asNumber(value: any): number {
@@ -80,6 +488,12 @@
     const label = translate ? translate(key) : t(key);
     return label === key ? humanizeSkill(skill) : label;
   }
+
+  $: activeHelp = activeSkillKey ? SKILL_HELP[activeSkillKey] ?? null : null;
+  $: activeSkillLabel = (() => {
+    translate;
+    return activeSkillKey ? skillLabel(activeSkillKey) : "";
+  })();
 
   function extractScore(section: any): {
     score: number;
@@ -287,6 +701,13 @@
     if (value == null || !Number.isFinite(value)) return "-";
     return String(value);
   }
+
+  function openSkillHelp(skill: SkillScore) {
+    activeSkillKey = skill.name;
+    if (helpDialog && !helpDialog.open) {
+      helpDialog.showModal();
+    }
+  }
 </script>
 
 <div class="bg-base-100 rounded-3xl border border-base-200 shadow-lg shadow-base-300/30 overflow-hidden">
@@ -384,8 +805,25 @@
                     {#each mode.skills as skill}
                       <div class="bg-base-100/70 rounded-xl border border-base-300/40 p-3 space-y-2">
                         <div class="flex items-center justify-between gap-2">
-                          <div class="text-[11px] font-semibold">
-                            {skill.label}
+                          <div class="flex items-center gap-2">
+                            <div class="text-[11px] font-semibold">
+                              {skill.label}
+                            </div>
+                            <button
+                              class="btn btn-ghost btn-xs h-5 min-h-0 w-5 p-0 rounded-full text-[10px] font-black opacity-60 hover:opacity-100"
+                              type="button"
+                              on:click={() => openSkillHelp(skill)}
+                              aria-label={t(
+                                "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_label",
+                                { skill: skill.label },
+                              )}
+                              title={t(
+                                "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_label",
+                                { skill: skill.label },
+                              )}
+                            >
+                              ?
+                            </button>
                           </div>
                           <div class="text-[10px] font-black opacity-60">
                             {skill.score}/{skill.max}
@@ -611,3 +1049,112 @@
     {/if}
   </div>
 </div>
+
+<dialog
+  bind:this={helpDialog}
+  class="modal"
+  on:close={() => (activeSkillKey = null)}
+>
+  <div class="modal-box max-w-2xl p-0 overflow-hidden rounded-3xl border border-base-200 shadow-2xl bg-base-100 max-h-[85vh] flex flex-col">
+    <div class="px-6 py-5 border-b border-base-200 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center text-lg font-black">
+          ?
+        </div>
+        <h3 class="text-lg font-black tracking-tight">
+          {t(
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_heading",
+            { skill: activeSkillLabel },
+          )}
+        </h3>
+      </div>
+      <form method="dialog">
+        <button
+          class="btn btn-ghost btn-circle btn-sm"
+          aria-label={t(
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_close",
+          )}
+        >
+          <X class="size-4" />
+        </button>
+      </form>
+    </div>
+    <div class="px-6 py-5 space-y-4 overflow-y-auto flex-1">
+      {#if activeHelp}
+        <p class="text-sm font-medium text-base-content/80">
+          {t(activeHelp.summaryKey)}
+        </p>
+        {#if activeHelp.bulletsKeys.length}
+          <ul class="list-disc pl-5 space-y-2 text-sm text-base-content/70">
+            {#each activeHelp.bulletsKeys as bulletKey}
+              <li>{t(bulletKey)}</li>
+            {/each}
+          </ul>
+        {/if}
+        {#if activeHelp.levels.length}
+          <div class="space-y-3">
+            <div class="text-[9px] font-black uppercase tracking-widest opacity-50">
+              {t(
+                "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_points_heading",
+              )}
+            </div>
+            <div class="grid md:grid-cols-2 gap-3">
+              {#each activeHelp.levels as level}
+                <div class="rounded-2xl border border-base-200 bg-base-200/40 p-4 space-y-2">
+                  <div class="text-[9px] font-black uppercase tracking-widest opacity-60">
+                    {t(level.titleKey)}
+                  </div>
+                  <div class="text-sm text-base-content/80">
+                    {t(level.bodyKey)}
+                  </div>
+                  <div class="space-y-2">
+                    <div class="text-[9px] font-black uppercase tracking-widest opacity-50">
+                      {t(
+                        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_example_heading",
+                      )}
+                    </div>
+                    <div class="rounded-xl border border-base-300/50 bg-base-100/80 p-3 overflow-x-auto">
+                      <ScratchBlocksSnippet
+                        script={t(level.exampleKey)}
+                        scale={0.75}
+                      />
+                    </div>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
+      {:else}
+        <p class="text-sm opacity-60">
+          {t(
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_missing",
+          )}
+        </p>
+      {/if}
+    </div>
+    <div class="modal-action bg-base-100/80 border-t border-base-200 px-6 py-4 flex justify-end">
+      <form method="dialog">
+        <button class="btn btn-ghost rounded-xl font-black uppercase tracking-widest text-[10px]">
+          {t(
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_close",
+          )}
+        </button>
+      </form>
+    </div>
+  </div>
+  <form
+    method="dialog"
+    class="modal-backdrop bg-base-content/20 backdrop-blur-sm"
+  >
+    <button
+      aria-label={t(
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_close",
+      )}
+    >
+      {t(
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_close",
+      )}
+    </button>
+  </form>
+</dialog>
