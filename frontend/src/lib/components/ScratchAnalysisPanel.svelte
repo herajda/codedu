@@ -18,9 +18,12 @@
   $: translate = $translator;
 
   let helpDialog: HTMLDialogElement | undefined;
+  let exampleDialog: HTMLDialogElement | undefined;
   let activeSkillKey: string | null = null;
   let activeSkillLabel = "";
   let activeHelp: SkillHelpEntry | null = null;
+  let activeExampleKey: string | null = null;
+  let activeExampleLevelTitleKey: string | null = null;
 
   const SUMMARY_KEYS = new Set([
     "average_points",
@@ -708,6 +711,14 @@
       helpDialog.showModal();
     }
   }
+
+  function openExample(level: SkillHelpLevel) {
+    activeExampleKey = level.exampleKey;
+    activeExampleLevelTitleKey = level.titleKey;
+    if (exampleDialog && !exampleDialog.open) {
+      exampleDialog.showModal();
+    }
+  }
 </script>
 
 <div class="bg-base-100 rounded-3xl border border-base-200 shadow-lg shadow-base-300/30 overflow-hidden">
@@ -1107,19 +1118,15 @@
                   <div class="text-sm text-base-content/80">
                     {t(level.bodyKey)}
                   </div>
-                  <div class="space-y-2">
-                    <div class="text-[9px] font-black uppercase tracking-widest opacity-50">
-                      {t(
-                        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_example_heading",
-                      )}
-                    </div>
-                    <div class="rounded-xl border border-base-300/50 bg-base-100/80 p-3 overflow-x-auto">
-                      <ScratchBlocksSnippet
-                        script={t(level.exampleKey)}
-                        scale={0.75}
-                      />
-                    </div>
-                  </div>
+                  <button
+                    class="btn btn-ghost btn-xs rounded-xl px-3 font-black uppercase tracking-widest text-[9px]"
+                    type="button"
+                    on:click={() => openExample(level)}
+                  >
+                    {t(
+                      "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_example_button",
+                    )}
+                  </button>
                 </div>
               {/each}
             </div>
@@ -1131,6 +1138,77 @@
             "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_missing",
           )}
         </p>
+      {/if}
+    </div>
+    <div class="modal-action bg-base-100/80 border-t border-base-200 px-6 py-4 flex justify-end">
+      <form method="dialog">
+        <button class="btn btn-ghost rounded-xl font-black uppercase tracking-widest text-[10px]">
+          {t(
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_close",
+          )}
+        </button>
+      </form>
+    </div>
+  </div>
+  <form
+    method="dialog"
+    class="modal-backdrop bg-base-content/20 backdrop-blur-sm"
+  >
+    <button
+      aria-label={t(
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_close",
+      )}
+    >
+      {t(
+        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_close",
+      )}
+    </button>
+  </form>
+</dialog>
+
+<dialog
+  bind:this={exampleDialog}
+  class="modal"
+  on:close={() => {
+    activeExampleKey = null;
+    activeExampleLevelTitleKey = null;
+  }}
+>
+  <div class="modal-box max-w-3xl p-0 overflow-hidden rounded-3xl border border-base-200 shadow-2xl bg-base-100 max-h-[85vh] flex flex-col">
+    <div class="px-6 py-5 border-b border-base-200 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
+          <FileCode size={18} />
+        </div>
+        <div class="space-y-1">
+          <h3 class="text-lg font-black tracking-tight">
+            {t(
+              "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_example_heading",
+            )}
+          </h3>
+          {#if activeExampleLevelTitleKey}
+            <p class="text-[9px] font-black uppercase tracking-widest opacity-50">
+              {activeSkillLabel} · {t(activeExampleLevelTitleKey)}
+            </p>
+          {/if}
+        </div>
+      </div>
+      <form method="dialog">
+        <button
+          class="btn btn-ghost btn-circle btn-sm"
+          aria-label={t(
+            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_close",
+          )}
+        >
+          <X class="size-4" />
+        </button>
+      </form>
+    </div>
+    <div class="px-6 py-5 overflow-y-auto flex-1">
+      {#if activeExampleKey}
+        <div class="rounded-2xl border border-base-300/50 bg-base-100/80 p-4 overflow-x-auto">
+          <ScratchBlocksSnippet script={t(activeExampleKey)} scale={0.85} />
+        </div>
       {/if}
     </div>
     <div class="modal-action bg-base-100/80 border-t border-base-200 px-6 py-4 flex justify-end">

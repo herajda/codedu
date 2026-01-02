@@ -423,6 +423,7 @@
   "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_motion_operators_points_3": "Use glide to control movement over time.",
   "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_motion_operators_points_4": "Combine movement blocks and loops for complex paths.",
   "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_example_heading": "Example blocks",
+  "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_example_button": "View example",
   "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_abstraction_example_1": "when green flag clicked\nclear\ngo to x:(-100) y:(30)\npen down\nmove (200) steps\npen up\n\nwhen green flag clicked\nwait (1) secs\ngo to x:(-44) y:(-24)\nset pen color to [#FFA500]\nmove (100) steps\npen up",
   "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_abstraction_example_2": "when green flag clicked\nforever\ncreate clone of [myself v]\nwait (0.2) secs\ngo to x:(pick random (-200) to (200)) y:(200)\nglide (3) secs to x:(x position) y:(-180)\ndelete this clone\nend",
   "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_abstraction_example_3": "define PaintOrange (length)\nset pen color to [#FFA500]\npen down\nmove (length) steps\npen up\n\nwhen green flag clicked\nclear\ngo to x:(-200) y:(40)\nPaintOrange (100):: custom\nwait (1) secs\ngo to x:(-200) y:(0)\nPaintOrange (200):: custom",
