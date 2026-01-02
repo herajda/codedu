@@ -653,7 +653,7 @@ func prepareScratchAnalysisWorkspace(sb3Path string) (string, string, func(), er
 	}
 
 	dst := filepath.Join(workDir, "dr_scratch")
-	if err := copyDir(src, dst); err != nil {
+	if err := copyScratchRuntime(src, dst); err != nil {
 		cleanup()
 		return "", "", func() {}, err
 	}
@@ -668,7 +668,12 @@ func prepareScratchAnalysisWorkspace(sb3Path string) (string, string, func(), er
 	return workDir, sb3Name, cleanup, nil
 }
 
-func copyDir(src, dst string) error {
+func copyScratchRuntime(src, dst string) error {
+	skipDirs := map[string]struct{}{
+		".git":       {},
+		"__pycache__": {},
+		"example":    {},
+	}
 	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -676,6 +681,18 @@ func copyDir(src, dst string) error {
 		rel, err := filepath.Rel(src, path)
 		if err != nil {
 			return err
+		}
+		if rel == "." {
+			return nil
+		}
+		parts := strings.Split(rel, string(filepath.Separator))
+		for _, part := range parts {
+			if _, skip := skipDirs[part]; skip {
+				if info.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
 		}
 		target := filepath.Join(dst, rel)
 		if info.IsDir() {
