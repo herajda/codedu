@@ -1828,7 +1828,7 @@ func createSubmission(c *gin.Context) {
 	}
 	// enqueue for grading unless manual review is enabled (unless LLM interactive is on)
 	if assignment != nil {
-		if assignment.LLMInteractive || !assignment.ManualReview {
+		if assignment.LLMInteractive || !assignment.ManualReview || assignment.ProgrammingLanguage == "scratch" {
 			EnqueueJob(Job{SubmissionID: sub.ID})
 		}
 	}
