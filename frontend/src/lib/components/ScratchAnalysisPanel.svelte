@@ -8,6 +8,7 @@
     Trophy,
   } from "lucide-svelte";
   import { t, translator } from "$lib/i18n";
+  import ScratchBlocksSnippet from "$lib/components/ScratchBlocksSnippet.svelte";
 
   export let analysis: any = null;
   export let error = "";
@@ -50,113 +51,6 @@
   type DuplicateGroup = {
     scripts: string[][];
   };
-
-  const CATEGORY_RULES: { id: string; patterns: RegExp[] }[] = [
-    {
-      id: "events",
-      patterns: [
-        /^when\b/,
-        /^broadcast\b/,
-        /when i receive/,
-        /when flag clicked/,
-        /when this sprite clicked/,
-        /when backdrop switches/,
-        /when loudness\b/,
-        /when timer\b/,
-      ],
-    },
-    {
-      id: "control",
-      patterns: [
-        /^wait\b/,
-        /^repeat\b/,
-        /^forever\b/,
-        /^if\b/,
-        /^else\b/,
-        /^stop\b/,
-        /^create clone\b/,
-        /^delete this clone\b/,
-      ],
-    },
-    {
-      id: "motion",
-      patterns: [
-        /^move\b/,
-        /^turn\b/,
-        /^go to\b/,
-        /^glide\b/,
-        /^change x\b/,
-        /^set x\b/,
-        /^change y\b/,
-        /^set y\b/,
-        /^point in direction\b/,
-        /^point towards\b/,
-        /^if on edge\b/,
-        /^x position\b/,
-        /^y position\b/,
-      ],
-    },
-    {
-      id: "looks",
-      patterns: [
-        /^say\b/,
-        /^think\b/,
-        /^switch costume\b/,
-        /^next costume\b/,
-        /^change size\b/,
-        /^set size\b/,
-        /^show\b/,
-        /^hide\b/,
-        /^switch backdrop\b/,
-        /^change .*effect\b/,
-        /^set .*effect\b/,
-      ],
-    },
-    {
-      id: "sound",
-      patterns: [
-        /^play sound\b/,
-        /^start sound\b/,
-        /^stop all sounds\b/,
-        /^change volume\b/,
-        /^set volume\b/,
-      ],
-    },
-    {
-      id: "sensing",
-      patterns: [
-        /^ask\b/,
-        /^answer\b/,
-        /^touching\b/,
-        /^key\b/,
-        /^mouse\b/,
-        /^distance\b/,
-        /^timer\b/,
-        /^loudness\b/,
-        /^video\b/,
-      ],
-    },
-    {
-      id: "data",
-      patterns: [
-        /^set \[/,
-        /^change \[/,
-        /^add\b/,
-        /^delete\b/,
-        /^insert\b/,
-        /^replace item\b/,
-        /^item \d+ of\b/,
-        /^length of \[/,
-      ],
-    },
-    {
-      id: "operators",
-      patterns: [
-        /\b(and|or|not|mod|round|random|join|length of|contains)\b/,
-        /[+\-*/<>]=?/,
-      ],
-    },
-  ];
 
   function asNumber(value: any): number {
     if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -333,40 +227,6 @@
   }
 
   $: duplicateGroups = normalizeDuplicateScripts(duplicateScript?.scripts);
-
-  function blockCategory(line: string): string {
-    const normalized = line.trim().toLowerCase();
-    if (!normalized) return "misc";
-    for (const rule of CATEGORY_RULES) {
-      if (rule.patterns.some((pattern) => pattern.test(normalized))) {
-        return rule.id;
-      }
-    }
-    return "misc";
-  }
-
-  function blockToneClass(category: string): string {
-    switch (category) {
-      case "events":
-        return "bg-warning/10 text-warning border-warning/30";
-      case "control":
-        return "bg-warning/20 text-warning border-warning/40";
-      case "motion":
-        return "bg-info/10 text-info border-info/30";
-      case "looks":
-        return "bg-secondary/10 text-secondary border-secondary/30";
-      case "sound":
-        return "bg-accent/10 text-accent border-accent/30";
-      case "sensing":
-        return "bg-primary/10 text-primary border-primary/30";
-      case "data":
-        return "bg-success/10 text-success border-success/30";
-      case "operators":
-        return "bg-success/5 text-success border-success/20";
-      default:
-        return "bg-base-200/70 text-base-content border-base-300/60";
-    }
-  }
 
   function habitToneClass(tone: string): string {
     switch (tone) {
@@ -608,13 +468,8 @@
                                 )}
                                 {script.id}
                               </div>
-                              <div class="scratch-block-stack max-h-64 overflow-auto pr-1">
-                                {#each script.blocks as block}
-                                  <span
-                                    class={`scratch-block ${blockToneClass(blockCategory(block))}`}
-                                    >{block}</span
-                                  >
-                                {/each}
+                              <div class="max-h-64 overflow-auto pr-1">
+                                <ScratchBlocksSnippet script={script.blocks} />
                               </div>
                             </div>
                           {/each}
@@ -667,13 +522,8 @@
                               )}
                               {scriptIndex + 1}
                             </div>
-                            <div class="scratch-block-stack max-h-64 overflow-auto pr-1">
-                              {#each script as block}
-                                <span
-                                  class={`scratch-block ${blockToneClass(blockCategory(block))}`}
-                                  >{block}</span
-                                >
-                              {/each}
+                            <div class="max-h-64 overflow-auto pr-1">
+                              <ScratchBlocksSnippet script={script} />
                             </div>
                           </div>
                         {/each}
@@ -761,23 +611,3 @@
     {/if}
   </div>
 </div>
-
-<style>
-  .scratch-block {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.35rem 0.6rem;
-    border-radius: 0.75rem;
-    border: 1px solid transparent;
-    font-size: 0.75rem;
-    font-weight: 600;
-    line-height: 1.25;
-    word-break: break-word;
-  }
-
-  .scratch-block-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-  }
-</style>
