@@ -4,6 +4,7 @@
   import { apiJSON } from '$lib/api';
   import { createEventSource } from '$lib/sse';
   import { t } from '$lib/i18n';
+  import { submissionStatusLabel } from '$lib/status';
 
   import { formatDateTime } from "$lib/date";
   interface Submission {
@@ -23,7 +24,13 @@
 
   // UI state
   let query = '';
-  let statusFilter: 'all' | 'running' | 'completed' | 'failed' | 'provisional' = 'all';
+  let statusFilter:
+    | 'all'
+    | 'running'
+    | 'provisional'
+    | 'partially_completed'
+    | 'completed'
+    | 'failed' = 'all';
   let sortBy: 'newest' | 'oldest' | 'status' = 'newest';
   let layoutMode: 'table' | 'cards' | 'board' = 'table';
 
@@ -40,8 +47,13 @@
     if(s === 'completed') return 'badge-success';
     if(s === 'running') return 'badge-info';
     if(s === 'provisional') return 'badge-warning';
+    if(s === 'partially_completed') return 'badge-warning';
     if(s === 'failed') return 'badge-error';
     return '';
+  }
+
+  function statusLabel(s: string) {
+    return submissionStatusLabel(s);
   }
 
   async function load(){
@@ -147,9 +159,10 @@
   $: grouped = {
     running: filtered.filter(s=>s.status==='running'),
     provisional: filtered.filter(s=>s.status==='provisional'),
+    partiallyCompleted: filtered.filter(s=>s.status==='partially_completed'),
     completed: filtered.filter(s=>s.status==='completed'),
     failed: filtered.filter(s=>s.status==='failed'),
-    other: filtered.filter(s=> !['running','provisional','completed','failed'].includes(s.status))
+    other: filtered.filter(s=> !['running','provisional','partially_completed','completed','failed'].includes(s.status))
   };
 </script>
 
@@ -186,6 +199,7 @@
             <option value="all">{t('frontend/src/routes/submissions/+page.svelte::all_filter')}</option>
             <option value="running">{t('frontend/src/routes/submissions/+page.svelte::running_filter')}</option>
             <option value="provisional">{t('frontend/src/routes/submissions/+page.svelte::provisional_filter')}</option>
+            <option value="partially_completed">{t('frontend/src/routes/submissions/+page.svelte::partially_completed_filter')}</option>
             <option value="completed">{t('frontend/src/routes/submissions/+page.svelte::completed_filter')}</option>
             <option value="failed">{t('frontend/src/routes/submissions/+page.svelte::failed_filter')}</option>
           </select>
@@ -203,7 +217,7 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
       <div class="stat bg-base-100 rounded-box shadow">
         <div class="stat-title">{t('frontend/src/routes/submissions/+page.svelte::total_submissions')}</div>
         <div class="stat-value text-primary">{subs.length}</div>
@@ -215,6 +229,10 @@
       <div class="stat bg-base-100 rounded-box shadow">
         <div class="stat-title">{t('frontend/src/routes/submissions/+page.svelte::provisional_submissions')}</div>
         <div class="stat-value text-warning">{countByStatus('provisional')}</div>
+      </div>
+      <div class="stat bg-base-100 rounded-box shadow">
+        <div class="stat-title">{t('frontend/src/routes/submissions/+page.svelte::partially_completed_submissions')}</div>
+        <div class="stat-value text-warning">{countByStatus('partially_completed')}</div>
       </div>
       <div class="stat bg-base-100 rounded-box shadow">
         <div class="stat-title">{t('frontend/src/routes/submissions/+page.svelte::completed_submissions')}</div>
@@ -250,7 +268,7 @@
                     <div class="text-xs opacity-60">#{s.id}</div>
                   </td>
                   <td class="whitespace-nowrap">{formatDateTime(s.created_at)}</td>
-                  <td><span class={`badge ${statusColor(s.status)}`}>{s.status}</span> {#if s.manually_accepted}<span class="badge badge-xs badge-outline badge-success ml-2" title={t('frontend/src/routes/submissions/+page.svelte::accepted_by_teacher')}>{t('frontend/src/routes/submissions/+page.svelte::accepted_badge')}</span>{/if}</td>
+                  <td><span class={`badge ${statusColor(s.status)}`}>{statusLabel(s.status)}</span> {#if s.manually_accepted}<span class="badge badge-xs badge-outline badge-success ml-2" title={t('frontend/src/routes/submissions/+page.svelte::accepted_by_teacher')}>{t('frontend/src/routes/submissions/+page.svelte::accepted_badge')}</span>{/if}</td>
                   <td>
                     {#if s.results && s.results.length}
                       {Math.round((passRatio(s).passed / Math.max(1, passRatio(s).total)) * 100)}%
@@ -274,7 +292,7 @@
               <div class="card-body gap-3">
                 <div class="flex items-center justify-between gap-3">
                   <div class="text-xs opacity-70">{formatDateTime(s.created_at)}</div>
-                  <span class={`badge ${statusColor(s.status)}`}>{s.status}</span>
+                  <span class={`badge ${statusColor(s.status)}`}>{statusLabel(s.status)}</span>
                 </div>
                 <h2 class="card-title text-base md:text-lg truncate">{titles[s.assignment_id] ?? s.assignment_id}</h2>
                 <div class="flex items-center gap-3">
@@ -313,7 +331,7 @@
           {/each}
         </div>
       {:else}
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <div class="space-y-2">
             <div class="flex items-center gap-2">
               <div class="w-2 h-2 rounded-full bg-info"></div>
@@ -325,7 +343,7 @@
                 <a href={`/submissions/${s.id}`} class="block p-3 rounded border border-base-300 hover:border-info/60 bg-base-100/60 hover:bg-base-100 transition">
                   <div class="text-xs opacity-70 flex justify-between">
                     <span>{formatDateTime(s.created_at)}</span>
-                    <span class={`badge badge-xs ${statusColor(s.status)}`}>{s.status}</span>
+                    <span class={`badge badge-xs ${statusColor(s.status)}`}>{statusLabel(s.status)}</span>
                   </div>
                   <div class="truncate font-medium">{titles[s.assignment_id] ?? s.assignment_id}</div>
                   <div class="text-xs opacity-70">#{s.id}</div>
@@ -344,7 +362,7 @@
                 <a href={`/submissions/${s.id}`} class="block p-3 rounded border border-base-300 hover:border-warning/60 bg-base-100/60 hover:bg-base-100 transition">
                   <div class="text-xs opacity-70 flex justify-between">
                     <span>{formatDateTime(s.created_at)}</span>
-                    <span class={`badge badge-xs ${statusColor(s.status)}`}>{s.status}</span>
+                    <span class={`badge badge-xs ${statusColor(s.status)}`}>{statusLabel(s.status)}</span>
                   </div>
                   <div class="truncate font-medium">{titles[s.assignment_id] ?? s.assignment_id}</div>
                   <div class="text-xs opacity-70">#{s.id}</div>
@@ -363,7 +381,26 @@
                 <a href={`/submissions/${s.id}`} class="block p-3 rounded border border-base-300 hover:border-success/60 bg-base-100/60 hover:bg-base-100 transition">
                   <div class="text-xs opacity-70 flex justify-between">
                     <span>{formatDateTime(s.created_at)}</span>
-                    <span class={`badge badge-xs ${statusColor(s.status)}`}>{s.status}</span>
+                    <span class={`badge badge-xs ${statusColor(s.status)}`}>{statusLabel(s.status)}</span>
+                  </div>
+                  <div class="truncate font-medium">{titles[s.assignment_id] ?? s.assignment_id}</div>
+                  <div class="text-xs opacity-70">#{s.id}</div>
+                </a>
+              {/each}
+            </div>
+          </div>
+          <div class="space-y-2">
+            <div class="flex items-center gap-2">
+              <div class="w-2 h-2 rounded-full bg-warning"></div>
+              <div class="font-medium">{t('frontend/src/routes/submissions/+page.svelte::partially_completed_board_title')}</div>
+              <span class="badge badge-ghost">{grouped.partiallyCompleted.length}</span>
+            </div>
+            <div class="space-y-2">
+              {#each grouped.partiallyCompleted as s}
+                <a href={`/submissions/${s.id}`} class="block p-3 rounded border border-base-300 hover:border-warning/60 bg-base-100/60 hover:bg-base-100 transition">
+                  <div class="text-xs opacity-70 flex justify-between">
+                    <span>{formatDateTime(s.created_at)}</span>
+                    <span class={`badge badge-xs ${statusColor(s.status)}`}>{statusLabel(s.status)}</span>
                   </div>
                   <div class="truncate font-medium">{titles[s.assignment_id] ?? s.assignment_id}</div>
                   <div class="text-xs opacity-70">#{s.id}</div>
@@ -382,7 +419,7 @@
                 <a href={`/submissions/${s.id}`} class="block p-3 rounded border border-base-300 hover:border-error/60 bg-base-100/60 hover:bg-base-100 transition">
                   <div class="text-xs opacity-70 flex justify-between">
                     <span>{formatDateTime(s.created_at)}</span>
-                    <span class={`badge badge-xs ${statusColor(s.status)}`}>{s.status}</span>
+                    <span class={`badge badge-xs ${statusColor(s.status)}`}>{statusLabel(s.status)}</span>
                   </div>
                   <div class="truncate font-medium">{titles[s.assignment_id] ?? s.assignment_id}</div>
                   <div class="text-xs opacity-70">#{s.id}</div>
@@ -401,7 +438,7 @@
                 <a href={`/submissions/${s.id}`} class="block p-3 rounded border border-base-300 hover:border-base-200 bg-base-100/60 hover:bg-base-100 transition">
                   <div class="text-xs opacity-70 flex justify-between">
                     <span>{formatDateTime(s.created_at)}</span>
-                    <span class={`badge badge-xs ${statusColor(s.status)}`}>{s.status}</span>
+                    <span class={`badge badge-xs ${statusColor(s.status)}`}>{statusLabel(s.status)}</span>
                   </div>
                   <div class="truncate font-medium">{titles[s.assignment_id] ?? s.assignment_id}</div>
                   <div class="text-xs opacity-70">#{s.id}</div>

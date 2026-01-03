@@ -2479,11 +2479,13 @@ func runTeacherSolution(c *gin.Context) {
 		}
 
 		_ = SetSubmissionPoints(sub.ID, score)
+		status := "failed"
 		if allPass {
-			_ = UpdateSubmissionStatus(sub.ID, "completed")
-		} else {
-			_ = UpdateSubmissionStatus(sub.ID, "failed")
+			status = "completed"
+		} else if score > 0 {
+			status = "partially_completed"
 		}
+		_ = UpdateSubmissionStatus(sub.ID, status)
 	}
 
 	// Save teacher baseline (plan+results) on assignment so student runs can use it as standard

@@ -16,6 +16,7 @@
     stripUnittestMainBlock,
   } from "$lib/unittests";
   import { t, translator } from "$lib/i18n";
+  import { submissionStatusLabel } from "$lib/status";
   import ConfirmModal from "$lib/components/ConfirmModal.svelte";
 
   $: id = $page.params.id;
@@ -456,6 +457,7 @@
     if (s === "completed") return "badge-success";
     if (s === "running") return "badge-info";
     if (s === "provisional") return "badge-warning";
+    if (s === "partially_completed") return "badge-warning";
     if (s === "failed") return "badge-error";
     if (s === "passed") return "badge-success";
     if (s === "wrong_output") return "badge-error";
@@ -464,6 +466,10 @@
     if (s === "time_limit_exceeded" || s === "memory_limit_exceeded")
       return "badge-warning";
     return "";
+  }
+
+  function statusLabel(s: string) {
+    return submissionStatusLabel(s);
   }
 
   function resultColor(s: string) {
@@ -1034,7 +1040,7 @@
               </h1>
               <div class="flex items-center gap-2">
                 <div class={`badge h-7 gap-2 px-2.5 font-black text-[9px] uppercase tracking-wider border-none shadow-sm ${statusColor(submission.status).replace('badge-', 'bg-')}/20 ${statusColor(submission.status).replace('badge-', 'text-')}`}>
-                  {submission.status}
+                  {statusLabel(submission.status)}
                 </div>
                 {#if submission.manually_accepted}
                   <div class="badge h-7 gap-2 px-2.5 font-black text-[9px] uppercase tracking-wider bg-success/20 text-success border-none shadow-sm">

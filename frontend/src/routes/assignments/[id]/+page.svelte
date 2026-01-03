@@ -15,6 +15,7 @@
   import { DeadlinePicker } from "$lib";
   import { strictnessGuidance } from "$lib/llmStrictness";
   import { t, translator } from "$lib/i18n";
+  import { submissionStatusLabel } from "$lib/status";
   import {
     Calendar,
     Clock,
@@ -960,6 +961,7 @@
     if (s === "completed") return "badge-success";
     if (s === "running") return "badge-info";
     if (s === "provisional") return "badge-warning";
+    if (s === "partially_completed") return "badge-warning";
     if (s === "failed") return "badge-error";
     if (s === "passed") return "badge-success";
     if (s === "wrong_output") return "badge-error";
@@ -968,6 +970,10 @@
     if (s === "time_limit_exceeded" || s === "memory_limit_exceeded")
       return "badge-warning";
     return "";
+  }
+
+  function statusLabel(s: string) {
+    return submissionStatusLabel(s);
   }
 
   let explanations: Record<string, { loading: boolean; text?: string; error?: string }> = {};
@@ -2494,7 +2500,7 @@
                       </td>
                       <td>
                         <div class={`badge border-none font-black text-[10px] uppercase tracking-wider py-3 ${statusColor(s.status).replace('badge-', 'bg-')}/20 ${statusColor(s.status).replace('badge-', 'text-')}`}>
-                          {s.status}
+                          {statusLabel(s.status)}
                         </div>
                       </td>
                       {#if testsCount > 0}
@@ -2771,7 +2777,7 @@
                          </td>
                          <td>
                            <div class={`badge border-none font-black text-[10px] uppercase tracking-wider py-3 ${statusColor(p.displayStatus).replace('badge-', 'bg-')}/20 ${statusColor(p.displayStatus).replace('badge-', 'text-')}`}>
-                             {p.displayStatus}
+                             {statusLabel(p.displayStatus)}
                            </div>
                          </td>
                          <td>
@@ -2849,7 +2855,7 @@
                                                <span class="text-[10px] opacity-40 font-bold uppercase tracking-wider">{relativeToDeadline(s.created_at)}</span>
                                             </div>
                                             <div class={`badge border-none font-black text-[9px] uppercase tracking-wider ${statusColor(s.status).replace('badge-', 'bg-')}/15 ${statusColor(s.status).replace('badge-', 'text-')}`}>
-                                               {s.status}
+                                               {statusLabel(s.status)}
                                             </div>
                                             {#if testsCount > 0}
                                               <div class="flex items-center gap-3">
@@ -2941,7 +2947,7 @@
                       </td>
                       <td>
                         <div class={`badge border-none font-black text-[10px] uppercase tracking-wider py-3 ${statusColor(s.status).replace('badge-', 'bg-')}/20 ${statusColor(s.status).replace('badge-', 'text-')}`}>
-                          {s.status}
+                          {statusLabel(s.status)}
                         </div>
                       </td>
                       <td>
@@ -3029,7 +3035,7 @@
               </h3>
               <div class="flex items-center gap-2">
                 <span class={`badge ${statusColor(latestSub.status)}`}
-                  >{latestSub.status}</span
+                  >{statusLabel(latestSub.status)}</span
                 >
                 <span class="text-xs opacity-70"
                   >{t(

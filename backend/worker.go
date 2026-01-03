@@ -618,11 +618,13 @@ func finalizeScratchSubmission(sub *Submission, assignment *Assignment, mode str
 		if ok {
 			score = applyScratchLatePenalty(sub, assignment, score)
 			_ = SetSubmissionPoints(sub.ID, score)
+			status := "failed"
 			if allPass {
-				_ = UpdateSubmissionStatus(sub.ID, "completed")
-			} else {
-				_ = UpdateSubmissionStatus(sub.ID, "failed")
+				status = "completed"
+			} else if score > 0 {
+				status = "partially_completed"
 			}
+			_ = UpdateSubmissionStatus(sub.ID, status)
 		} else {
 			_ = UpdateSubmissionStatus(sub.ID, "failed")
 		}
@@ -910,11 +912,13 @@ func finalizeSubmissionOutcome(sub *Submission, assignment *Assignment, allPass 
 	}
 
 	_ = SetSubmissionPoints(sub.ID, score)
+	status := "failed"
 	if allPass {
-		_ = UpdateSubmissionStatus(sub.ID, "completed")
-	} else {
-		_ = UpdateSubmissionStatus(sub.ID, "failed")
+		status = "completed"
+	} else if score > 0 {
+		status = "partially_completed"
 	}
+	_ = UpdateSubmissionStatus(sub.ID, status)
 }
 
 type testOutcome struct {
