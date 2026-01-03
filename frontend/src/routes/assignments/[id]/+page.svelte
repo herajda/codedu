@@ -356,8 +356,8 @@
   ];
 
   $: programmingLanguageOptions = [
-    { value: "python", label: t("frontend/src/routes/assignments/[id]/+page.svelte::programming_language_python") },
-    { value: "scratch", label: t("frontend/src/routes/assignments/[id]/+page.svelte::programming_language_scratch") }
+    { value: "python", label: t("frontend/src/routes/assignments/[id]/+page.svelte::programming_language_python"), icon: "/python_logo.webp" },
+    { value: "scratch", label: t("frontend/src/routes/assignments/[id]/+page.svelte::programming_language_scratch"), icon: "/scratch_logo.webp" }
   ];
 
   $: scratchEvaluationModeOptions = [

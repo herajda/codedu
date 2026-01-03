@@ -4,7 +4,7 @@
   import { ChevronDown, Check, Search } from 'lucide-svelte';
   import { translator } from '$lib/i18n';
 
-  export let options: { value: any; label: string; icon?: string; flag?: string }[] = [];
+  export let options: { value: any; label: string; icon?: string | any; flag?: string }[] = [];
   export let value: any;
   export let placeholder = 'Select an option';
   export let label: string = '';
@@ -169,6 +169,15 @@
         {/if}
         
         <div class="flex items-center gap-1.5 overflow-hidden">
+          {#if selectedOption?.icon}
+            <div class="shrink-0 flex items-center justify-center" style="width: {small ? '16px' : '20px'}; height: {small ? '16px' : '20px'};">
+              {#if typeof selectedOption.icon === 'string'}
+                <img src={selectedOption.icon} alt="" class="w-full h-full object-contain" />
+              {:else}
+                <svelte:component this={selectedOption.icon} size={small ? 16 : 20} />
+              {/if}
+            </div>
+          {/if}
           {#if selectedOption?.flag}
             <span class="{small ? 'text-lg' : 'text-xl'} leading-none shrink-0">{selectedOption.flag}</span>
           {/if}
@@ -217,6 +226,15 @@
               on:click={() => !option.disabled && select(option)}
             >
               <div class="flex items-center gap-2.5">
+                {#if option.icon}
+                  <div class="shrink-0 flex items-center justify-center" style="width: {small ? '16px' : '20px'}; height: {small ? '16px' : '20px'};">
+                    {#if typeof option.icon === 'string'}
+                      <img src={option.icon} alt="" class="w-full h-full object-contain" />
+                    {:else}
+                      <svelte:component this={option.icon} size={small ? 16 : 20} />
+                    {/if}
+                  </div>
+                {/if}
                 {#if option.flag}
                   <span class="{small ? 'text-lg' : 'text-xl'} shrink-0">{option.flag}</span>
                 {/if}
