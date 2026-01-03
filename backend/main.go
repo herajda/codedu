@@ -136,7 +136,11 @@ func main() {
 	initVMPool()
 
 	// 2) Router
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.LoggerWithConfig(gin.LoggerConfig{
+		SkipPaths: []string{"/api/online-users", "/api/presence"},
+	}))
+	r.Use(gin.Recovery())
 
 	// 3) Public
 	r.POST("/api/register", Register)
