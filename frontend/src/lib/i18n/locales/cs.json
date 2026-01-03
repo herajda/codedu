@@ -817,6 +817,7 @@
   "frontend/src/routes/assignments/[id]/+page.svelte::no_submissions_yet_table": "Zatím žádná odevzdání",
   "frontend/src/routes/assignments/[id]/+page.svelte::pick_button": "Vybrat",
   "frontend/src/routes/assignments/[id]/+page.svelte::points_earned_label": "bodů získáno",
+  "frontend/src/routes/assignments/[id]/+page.svelte::points_label_short": "b.",
   "frontend/src/routes/assignments/[id]/+page.svelte::points_label": "bodů",
   "frontend/src/routes/assignments/[id]/+page.svelte::policyLabel_allOrNothing": "Všechno nebo nic",
   "frontend/src/routes/assignments/[id]/+page.svelte::policyLabel_weighted": "Vážené",
