@@ -164,6 +164,7 @@ EXCEPTION
     WHEN duplicate_object THEN NULL;
 END $$;
 ALTER TYPE submission_status ADD VALUE IF NOT EXISTS 'provisional';
+ALTER TYPE submission_status ADD VALUE IF NOT EXISTS 'partially_completed';
 
 CREATE TABLE IF NOT EXISTS submissions (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

@@ -78,6 +78,7 @@
     if (s === "completed") return "badge-success";
     if (s === "running") return "badge-info";
     if (s === "provisional") return "badge-warning";
+    if (s === "partially_completed") return "badge-warning";
     if (s === "failed") return "badge-error";
     if (s === "passed") return "badge-success";
     if (s === "wrong_output") return "badge-error";
