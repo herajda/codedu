@@ -10,6 +10,8 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/stores";
   import ConfirmModal from "$lib/components/ConfirmModal.svelte";
+  import CustomSelect from "$lib/components/CustomSelect.svelte";
+  import StylishInput from "$lib/components/StylishInput.svelte";
   import { DeadlinePicker } from "$lib";
   import { strictnessGuidance } from "$lib/llmStrictness";
   import { t, translator } from "$lib/i18n";
@@ -29,6 +31,9 @@
     ChevronRight,
     LayoutDashboard,
     ListTodo,
+    List,
+    LayoutList,
+    Lightbulb,
     History,
     Settings2,
     FlaskConical,
@@ -337,6 +342,43 @@
   }
   let translate;
   $: translate = $translator;
+
+  $: gradingPolicyOptions = [
+    {
+      value: "all_or_nothing",
+      label: t("frontend/src/routes/assignments/[id]/+page.svelte::policyLabel_allOrNothing")
+    },
+    {
+      value: "weighted",
+      label: t("frontend/src/routes/assignments/[id]/+page.svelte::policyLabel_weighted"),
+      disabled: !isScratchAssignment && (testMode === "manual" || testMode === "ai")
+    }
+  ];
+
+  $: programmingLanguageOptions = [
+    { value: "python", label: t("frontend/src/routes/assignments/[id]/+page.svelte::programming_language_python") },
+    { value: "scratch", label: t("frontend/src/routes/assignments/[id]/+page.svelte::programming_language_scratch") }
+  ];
+
+  $: scratchEvaluationModeOptions = [
+    { value: "manual", label: t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_manual") },
+    { value: "semi_automatic", label: t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_semi") },
+    { value: "automatic", label: t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_auto") }
+  ];
+
+  $: testModeOptions = [
+    { value: "automatic", label: t("frontend/src/routes/assignments/[id]/+page.svelte::automatic_tests_option") },
+    { 
+      value: "manual", 
+      label: t("frontend/src/routes/assignments/[id]/+page.svelte::manual_teacher_review_option"),
+      disabled: ePolicy === "weighted"
+    },
+    { 
+      value: "ai", 
+      label: t("frontend/src/routes/assignments/[id]/+page.svelte::ai_testing_option"),
+      disabled: ePolicy === "weighted"
+    }
+  ];
 
   // Enhanced UX state
   type TabKey =
@@ -1357,14 +1399,13 @@
               </div>
               
               <div class="space-y-3 p-1">
-                <div class="form-control">
-                  <input
-                    class="input input-bordered w-full bg-base-100/50 focus:bg-base-100 transition-all font-bold"
-                    bind:value={eTitle}
-                    placeholder={t("frontend/src/routes/assignments/[id]/+page.svelte::title_placeholder")}
-                    required
-                  />
-                </div>
+                <StylishInput
+                  bind:value={eTitle}
+                  placeholder={t("frontend/src/routes/assignments/[id]/+page.svelte::title_placeholder")}
+                  required
+                  icon={FileText}
+                  small
+                />
                 
                 <div class="form-control">
                   <MarkdownEditor
@@ -1391,21 +1432,11 @@
                   <label class="label pt-0" for="grading-policy-select">
                     <span class="label-text font-bold text-xs">{t("frontend/src/routes/assignments/[id]/+page.svelte::grading_policy_label")}</span>
                   </label>
-                  <select
-                    id="grading-policy-select"
-                    class="select select-bordered select-sm w-full bg-base-100"
+                  <CustomSelect
+                    options={gradingPolicyOptions}
                     bind:value={ePolicy}
-                  >
-                    <option value="all_or_nothing">
-                      {t("frontend/src/routes/assignments/[id]/+page.svelte::policyLabel_allOrNothing")}
-                    </option>
-                    <option
-                      value="weighted"
-                      disabled={!isScratchAssignment && (testMode === "manual" || testMode === "ai")}
-                    >
-                      {t("frontend/src/routes/assignments/[id]/+page.svelte::policyLabel_weighted")}
-                    </option>
-                  </select>
+                    small
+                  />
                   {#if !isScratchAssignment && (testMode === "manual" || testMode === "ai")}
                     <div class="label-text-alt text-warning mt-1.5 flex gap-1.5 items-start">
                       <AlertTriangle size={12} class="shrink-0 mt-0.5" />
@@ -1415,23 +1446,15 @@
                 </div>
 
                 {#if ePolicy === "all_or_nothing" || isScratchAssignment}
-                  <div class="form-control">
-                    <label class="label" for="max-points-input">
-                      <span class="label-text font-bold text-xs">{t("frontend/src/routes/assignments/[id]/+page.svelte::max_points_label")}</span>
-                    </label>
-                    <div class="relative">
-                      <input
-                        id="max-points-input"
-                        type="number"
-                        min="1"
-                        class="input input-bordered input-sm w-full bg-base-100 pr-12 font-mono"
-                        bind:value={ePoints}
-                        placeholder={t("frontend/src/routes/assignments/[id]/+page.svelte::max_points_placeholder")}
-                        required
-                      />
-                      <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase opacity-40">pts</span>
-                    </div>
-                  </div>
+                  <StylishInput
+                    type="number"
+                    bind:value={ePoints}
+                    label={t("frontend/src/routes/assignments/[id]/+page.svelte::max_points_label")}
+                    placeholder={t("frontend/src/routes/assignments/[id]/+page.svelte::max_points_placeholder")}
+                    required
+                    icon={Trophy}
+                    small
+                  />
                 {:else}
                   <div class="p-3 bg-primary/5 rounded-xl border border-primary/10">
                     <div class="text-[10px] font-black uppercase tracking-wider text-primary mb-1">Max Points</div>
@@ -1580,28 +1603,20 @@
                     <span class="label-text font-bold text-[10px] uppercase opacity-40 mb-1.5 ml-1">
                       {t("frontend/src/routes/assignments/[id]/+page.svelte::programming_language_label")}
                     </span>
-                    <select class="select select-bordered select-sm bg-base-100" bind:value={eProgrammingLanguage}>
-                      <option value="python">
-                        {t("frontend/src/routes/assignments/[id]/+page.svelte::programming_language_python")}
-                      </option>
-                      <option value="scratch">
-                        {t("frontend/src/routes/assignments/[id]/+page.svelte::programming_language_scratch")}
-                      </option>
-                    </select>
+                    <CustomSelect
+                      options={programmingLanguageOptions}
+                      bind:value={eProgrammingLanguage}
+                      small
+                    />
                   </div>
-                  <div class="form-control min-w-[200px]">
-                    <span class="label-text font-bold text-[10px] uppercase opacity-40 mb-1.5 ml-1">
-                      {t("frontend/src/routes/assignments/[id]/+page.svelte::max_submission_size_label")}
-                    </span>
-                    <div class="relative">
-                      <input
-                        type="number"
-                        min="1"
-                        class="input input-bordered input-sm w-full bg-base-100 pr-12 font-mono"
-                        bind:value={eMaxSubmissionSizeMB}
-                      />
-                      <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase opacity-40">MB</span>
-                    </div>
+                  <div class="flex-1 min-w-[200px]">
+                    <StylishInput
+                      type="number"
+                      bind:value={eMaxSubmissionSizeMB}
+                      label={t("frontend/src/routes/assignments/[id]/+page.svelte::max_submission_size_label")}
+                      icon={FileUp}
+                      small
+                    />
                   </div>
                   {#if eProgrammingLanguage === "scratch"}
                     <div class="flex-1 text-[11px] text-info/80 font-medium">
@@ -1616,39 +1631,21 @@
                       <span class="label-text font-bold text-[10px] uppercase opacity-40 mb-1.5 ml-1">
                         {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_label")}
                       </span>
-                      <select
-                        class="select select-bordered select-sm bg-base-100"
+                      <CustomSelect
+                        options={scratchEvaluationModeOptions}
                         bind:value={scratchEvaluationMode}
-                      >
-                        <option value="manual">
-                          {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_manual")}
-                        </option>
-                        <option value="semi_automatic">
-                          {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_semi")}
-                        </option>
-                        <option value="automatic">
-                          {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_auto")}
-                        </option>
-                      </select>
+                        small
+                      />
                     </div>
                   {:else}
                     <div class="form-control min-w-[200px]">
                       <span class="label-text font-bold text-[10px] uppercase opacity-40 mb-1.5 ml-1">Mode</span>
-                      <select
-                        class="select select-bordered select-sm bg-base-100"
+                      <CustomSelect
+                        options={testModeOptions}
                         bind:value={testMode}
+                        small
                         disabled={ePolicy === "weighted"}
-                      >
-                        <option value="automatic">
-                          {t("frontend/src/routes/assignments/[id]/+page.svelte::automatic_tests_option")}
-                        </option>
-                        <option value="manual" disabled={ePolicy === "weighted"}>
-                          {t("frontend/src/routes/assignments/[id]/+page.svelte::manual_teacher_review_option")}
-                        </option>
-                        <option value="ai" disabled={ePolicy === "weighted"}>
-                          {t("frontend/src/routes/assignments/[id]/+page.svelte::ai_testing_option")}
-                        </option>
-                      </select>
+                      />
                     </div>
                   {/if}
 
@@ -1699,72 +1696,110 @@
                 </div>
 
                 {#if eProgrammingLanguage === "scratch"}
-                  <div class="bg-base-100 rounded-xl border border-base-300/40 p-4 space-y-4">
-                    <div class="flex items-center justify-between gap-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest opacity-50">
-                        {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_criteria_label")}
+                  <div class="space-y-6 animate-in fade-in duration-500">
+                    <div class="flex items-center justify-between gap-3 px-1">
+                      <div class="flex items-center gap-2">
+                        <div class="p-1.5 rounded-lg bg-primary/10 text-primary">
+                          <LayoutList size={16} />
+                        </div>
+                        <h4 class="text-[11px] font-black uppercase tracking-widest opacity-60">
+                          {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_criteria_label")}
+                        </h4>
                       </div>
                       <button
                         type="button"
-                        class="btn btn-xs btn-outline gap-1.5"
+                        class="btn btn-sm btn-primary btn-outline gap-2 shadow-sm hover:shadow-md transition-all rounded-xl"
                         on:click={addScratchCriterion}
                       >
-                        <Plus size={12} />
-                        {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_add")}
+                        <Plus size={16} />
+                        <span class="text-[10px] font-black uppercase tracking-widest">
+                          {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_add")}
+                        </span>
                       </button>
                     </div>
 
-                    <div class="space-y-3">
-                      {#each scratchCriteria as item (item.id)}
-                        <div class="grid sm:grid-cols-[1fr,140px,auto] gap-2 items-start">
-                          <div class="flex flex-col gap-1">
-                            <span class="text-[9px] font-black uppercase tracking-widest opacity-40">
-                              {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_criterion_label")}
-                            </span>
-                            <input
-                              class="input input-bordered input-sm w-full bg-base-100/70"
-                              bind:value={item.text}
-                              placeholder={t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_criteria_placeholder")}
-                            />
+                    <div class="space-y-4">
+                      {#each scratchCriteria as item, index (item.id)}
+                        <div class="group relative bg-base-100/50 hover:bg-base-100 transition-all duration-300 rounded-2xl border border-base-300/40 p-5 shadow-sm hover:shadow-md">
+                          <div class="flex flex-col sm:flex-row gap-6 items-start">
+                            <div class="flex-1 w-full space-y-3">
+                              <div class="flex items-center gap-3">
+                                <span class="flex items-center justify-center w-6 h-6 rounded-lg bg-primary/10 text-primary text-[10px] font-black shrink-0">
+                                  {index + 1}
+                                </span>
+                                <label class="text-[10px] font-black uppercase tracking-widest opacity-40">
+                                  {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_criterion_label")}
+                                </label>
+                              </div>
+                              <textarea
+                                class="textarea textarea-bordered w-full bg-base-100/30 focus:bg-base-100 min-h-[80px] transition-all rounded-xl text-sm leading-relaxed"
+                                bind:value={item.text}
+                                placeholder={t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_criteria_placeholder")}
+                              ></textarea>
+                            </div>
+                            
+                            <div class="w-full sm:w-36">
+                              <StylishInput
+                                type="number"
+                                bind:value={item.points}
+                                label={t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_points_label")}
+                                placeholder="0"
+                                disabled={ePolicy !== "weighted"}
+                                icon={Trophy}
+                                small
+                              />
+                            </div>
+
+                            <div class="sm:self-end sm:pb-1">
+                                <button
+                                  type="button"
+                                  class="btn btn-ghost btn-circle btn-sm text-error/40 hover:text-error hover:bg-error/10 transition-all"
+                                  on:click={() => removeScratchCriterion(item.id)}
+                                  aria-label={t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_remove")}
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                            </div>
                           </div>
-                          <div class="flex flex-col gap-1">
-                            <span class="text-[9px] font-black uppercase tracking-widest opacity-40">
-                              {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_points_label")}
-                            </span>
-                            <input
-                              type="number"
-                              min="0"
-                              step="1"
-                              class="input input-bordered input-sm w-full bg-base-100/70 font-mono"
-                              bind:value={item.points}
-                              placeholder={t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_points_placeholder")}
-                              disabled={ePolicy !== "weighted"}
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            class="btn btn-ghost btn-sm mt-5"
-                            on:click={() => removeScratchCriterion(item.id)}
-                            aria-label={t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_remove")}
-                          >
-                            <X size={14} />
-                          </button>
                         </div>
                       {/each}
+                      
+                      {#if scratchCriteria.length === 0}
+                        <div class="flex flex-col items-center justify-center py-12 px-4 rounded-2xl border border-dashed border-base-300 opacity-60 bg-base-200/20">
+                          <LayoutList size={32} class="mb-3 opacity-20" />
+                          <p class="text-xs font-medium italic">No criteria added yet. Add your first logic check for the Scratch project.</p>
+                        </div>
+                      {/if}
                     </div>
 
-                    <div class="text-[11px] opacity-60 leading-relaxed">
-                      {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_criteria_help")}
-                    </div>
-                    <div class="rounded-lg bg-base-200/40 p-3 text-[11px] leading-relaxed">
-                      <div class="text-[9px] font-black uppercase tracking-widest opacity-40 mb-2">
-                        {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_examples_title")}
+                    <div class="flex flex-col gap-4 pt-2">
+                      <div class="p-4 bg-base-200/50 rounded-xl border border-base-300/40 text-[11px] leading-relaxed opacity-70 italic flex gap-3 items-start">
+                        <Info size={14} class="shrink-0 mt-0.5 text-primary" />
+                        <div>{t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_criteria_help")}</div>
                       </div>
-                      <ul class="list-disc list-inside space-y-1">
-                        <li>{t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_example_1")}</li>
-                        <li>{t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_example_2")}</li>
-                        <li>{t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_example_3")}</li>
-                      </ul>
+                      
+                      <div class="p-5 bg-info/5 rounded-2xl border border-info/10 relative overflow-hidden group/examples">
+                        <div class="absolute -top-6 -right-6 text-info opacity-5 pointer-events-none group-hover/examples:scale-110 transition-transform duration-700">
+                          <Lightbulb size={120} />
+                        </div>
+                        
+                        <div class="flex items-center gap-2 mb-4">
+                          <div class="p-1.5 rounded-lg bg-info/20 text-info">
+                            <Lightbulb size={14} />
+                          </div>
+                          <h4 class="text-[11px] font-black uppercase tracking-widest text-info/70">
+                            {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_examples_title")}
+                          </h4>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          {#each [1, 2, 3] as i}
+                            <div class="p-3 bg-base-100/50 rounded-xl border border-info/5 text-[11px] leading-relaxed italic opacity-80 hover:opacity-100 hover:bg-base-100 transition-all cursor-default relative z-10">
+                              {t(`frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_example_${i}`)}
+                            </div>
+                          {/each}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 {/if}

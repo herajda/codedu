@@ -3,7 +3,7 @@
   import { fade } from 'svelte/transition';
   import { X } from 'lucide-svelte';
 
-  export let value: string = "";
+  export let value: any = "";
   export let placeholder: string = "";
   export let label: string = "";
   export let icon: any = null; // Lucide icon component
@@ -11,13 +11,14 @@
   export let disabled: boolean = false;
   export let required: boolean = false;
   export let error: string = "";
+  export let small: boolean = false;
 
   const dispatch = createEventDispatcher();
   let focused = false;
 
   function handleInput(e: Event) {
     const target = e.target as HTMLInputElement;
-    value = target.value;
+    value = type === "number" ? (target.value === "" ? null : Number(target.value)) : target.value;
     dispatch('input', value);
   }
 
@@ -41,14 +42,14 @@
 
   <div class="relative w-full group">
     <div
-      class="input-wrapper w-full flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all duration-300
-        {focused ? 'border-primary ring-4 ring-primary/10 bg-base-100 shadow-lg' : 'border-base-300/60 bg-base-50/50 group-hover:bg-base-100/80 group-hover:border-primary/40'}
+      class="input-wrapper w-full flex items-center gap-3 {small ? 'px-3 py-2 rounded-xl' : 'px-4 py-3 rounded-2xl'} border transition-all duration-300
+        {focused ? 'border-primary ring-4 ring-primary/10 bg-base-100 shadow-lg' : 'border-base-300/60 bg-base-100 group-hover:bg-base-100/80 group-hover:border-primary/40'}
         {error ? 'border-error ring-error/10' : ''}
         {disabled ? 'opacity-50 cursor-not-allowed grayscale' : ''}"
     >
       {#if icon}
         <div class="shrink-0 transition-colors duration-300 {focused ? 'text-primary' : 'text-base-content/40'}">
-          <svelte:component this={icon} size={18} />
+          <svelte:component this={icon} size={small ? 16 : 18} />
         </div>
       {/if}
 
@@ -58,7 +59,7 @@
         {placeholder}
         {disabled}
         {required}
-        class="w-full bg-transparent border-none outline-none font-medium text-base-content placeholder:text-base-content/30"
+        class="w-full bg-transparent border-none outline-none font-medium text-base-content placeholder:text-base-content/30 {small ? 'text-sm' : ''}"
         on:input={handleInput}
         on:focus={handleFocus}
         on:blur={handleBlur}
