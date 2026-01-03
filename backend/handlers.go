@@ -767,6 +767,26 @@ func publishAssignment(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// unpublishAssignment: PUT /api/assignments/:id/unpublish
+func unpublishAssignment(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if c.GetString("role") == "teacher" {
+		if ok, err := IsTeacherOfAssignment(id, getUserID(c)); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+	if err := SetAssignmentPublished(id, false); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 // uploadTemplate: POST /api/assignments/:id/template
 func uploadTemplate(c *gin.Context) {
 	aid, err := uuid.Parse(c.Param("id"))

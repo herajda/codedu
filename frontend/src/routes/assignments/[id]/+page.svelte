@@ -28,6 +28,7 @@
     Info,
     ChevronDown,
     ChevronUp,
+    EyeOff,
     ChevronRight,
     LayoutDashboard,
     ListTodo,
@@ -524,6 +525,30 @@
   async function publish() {
     try {
       await apiFetch(`/api/assignments/${id}/publish`, { method: "PUT" });
+      await load();
+    } catch (e: any) {
+      err = e.message;
+    }
+  }
+
+  async function unpublish() {
+    const confirmed = await confirmModal.open({
+      title: t(
+        "frontend/src/routes/assignments/[id]/+page.svelte::unpublish_assignment_title",
+      ),
+      body: t(
+        "frontend/src/routes/assignments/[id]/+page.svelte::unpublish_assignment_body",
+      ),
+      confirmLabel: t(
+        "frontend/src/routes/assignments/[id]/+page.svelte::unpublish_assignment_confirm",
+      ),
+      confirmClass: "btn btn-error",
+      cancelClass: "btn",
+    });
+    if (!confirmed) return;
+
+    try {
+      await apiFetch(`/api/assignments/${id}/unpublish`, { method: "PUT" });
       await load();
     } catch (e: any) {
       err = e.message;
@@ -2139,10 +2164,18 @@
                    {syncTGLoading ? t("frontend/src/routes/assignments/[id]/+page.svelte::syncing_teachers_group_button") : t("frontend/src/routes/assignments/[id]/+page.svelte::update_teachers_group_button")}
                  </button>
                {/if}
-               <button class="btn btn-ghost text-error hover:bg-error/10 font-black uppercase tracking-widest text-[10px] gap-2 h-10 px-4 ml-auto" on:click={delAssignment}>
-                 <Trash2 size={14} />
-                 {t("frontend/src/routes/assignments/[id]/+page.svelte::delete_button")}
-               </button>
+                <div class="ml-auto flex items-center gap-3">
+                  {#if assignment.published}
+                    <button class="btn btn-ghost text-error/70 hover:text-error hover:bg-error/10 font-bold uppercase tracking-widest text-[10px] gap-2 h-10 px-4" on:click={unpublish}>
+                      <EyeOff size={14} />
+                      {t("frontend/src/routes/assignments/[id]/+page.svelte::unpublish_button")}
+                    </button>
+                  {/if}
+                  <button class="btn btn-ghost text-error hover:bg-error/10 font-black uppercase tracking-widest text-[10px] gap-2 h-10 px-4" on:click={delAssignment}>
+                    <Trash2 size={14} />
+                    {t("frontend/src/routes/assignments/[id]/+page.svelte::delete_button")}
+                  </button>
+                </div>
             {:else}
               <button class="btn btn-primary shadow-2xl shadow-primary/30 font-black uppercase tracking-[0.1em] h-12 px-6 gap-3 rounded-xl animate-in fade-in slide-in-from-bottom-2 duration-700 text-xs" on:click={openSubmitModal} disabled={assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}>
                 <Send size={18} />
