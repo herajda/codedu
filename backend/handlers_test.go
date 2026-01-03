@@ -28,8 +28,8 @@ func TestGetAssignmentStudentForbidden(t *testing.T) {
 	studentID := uuid.New()
 	creatorID := uuid.New()
 	classID := uuid.New()
-        rows := sqlmock.NewRows([]string{"id", "title", "description", "created_by", "deadline", "max_points", "grading_policy", "published", "show_traceback", "show_test_details", "template_path", "created_at", "updated_at", "class_id"}).
-                AddRow(assignmentID.String(), "A", "d", creatorID.String(), now, 100, "all_or_nothing", true, false, false, nil, now, now, classID.String())
+        rows := sqlmock.NewRows([]string{"id", "title", "description", "created_by", "deadline", "max_points", "grading_policy", "published", "show_traceback", "show_test_details", "programming_language", "template_path", "created_at", "updated_at", "class_id"}).
+                AddRow(assignmentID.String(), "A", "d", creatorID.String(), now, 100, "all_or_nothing", true, false, false, "python", nil, now, now, classID.String())
 	// Accept a superset of columns now returned by GetAssignment
 	mock.ExpectQuery(`SELECT\s+.*\s+FROM assignments\s+WHERE id = \$1`).
 		WithArgs(assignmentID).WillReturnRows(rows)

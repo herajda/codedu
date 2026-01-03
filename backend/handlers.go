@@ -262,31 +262,58 @@ func createAssignment(c *gin.Context) {
 	}
 
 	var req struct {
-		Title           string `json:"title" binding:"required"`
-		Description     string `json:"description"`
-		ShowTraceback   bool   `json:"show_traceback"`
-		ShowTestDetails bool   `json:"show_test_details"`
-		ManualReview    bool   `json:"manual_review"`
+		Title                   string  `json:"title" binding:"required"`
+		Description             string  `json:"description"`
+		ShowTraceback           bool    `json:"show_traceback"`
+		ShowTestDetails         bool    `json:"show_test_details"`
+		ManualReview            bool    `json:"manual_review"`
+		ProgrammingLanguage     string  `json:"programming_language"`
+		ScratchEvaluationMode   *string `json:"scratch_evaluation_mode"`
+		ScratchSemanticCriteria *string `json:"scratch_semantic_criteria"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	lang, err := normalizeProgrammingLanguage(req.ProgrammingLanguage)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	manualReview := req.ManualReview
+	scratchMode := "manual"
+	if req.ScratchEvaluationMode != nil {
+		mode, err := normalizeScratchEvaluationMode(*req.ScratchEvaluationMode)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		scratchMode = mode
+	}
+	if lang == "scratch" {
+		manualReview = false
+	} else {
+		scratchMode = "manual"
+	}
 
 	a := &Assignment{
-		ClassID:          classID,
-		Title:            req.Title,
-		Description:      req.Description,
-		Deadline:         time.Now().Add(24 * time.Hour),
-		MaxPoints:        100,
-		GradingPolicy:    "all_or_nothing",
-		Published:        false,
-		ShowTraceback:    req.ShowTraceback,
-		ShowTestDetails:  req.ShowTestDetails,
-		ManualReview:     req.ManualReview,
-		CreatedBy:        getUserID(c),
-		SecondDeadline:   nil,
-		LatePenaltyRatio: 0.5,
+		ClassID:                 classID,
+		Title:                   req.Title,
+		Description:             req.Description,
+		Deadline:                time.Now().Add(24 * time.Hour),
+		MaxPoints:               100,
+		MaxSubmissionSizeMB:     defaultSubmissionSizeMB,
+		GradingPolicy:           "all_or_nothing",
+		Published:               false,
+		ShowTraceback:           req.ShowTraceback,
+		ShowTestDetails:         req.ShowTestDetails,
+		ProgrammingLanguage:     lang,
+		ManualReview:            manualReview,
+		ScratchEvaluationMode:   scratchMode,
+		ScratchSemanticCriteria: req.ScratchSemanticCriteria,
+		CreatedBy:               getUserID(c),
+		SecondDeadline:          nil,
+		LatePenaltyRatio:        0.5,
 	}
 	if err := CreateAssignment(a); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create assignment"})
@@ -303,6 +330,33 @@ func listAssignments(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, list)
+}
+
+func normalizeProgrammingLanguage(raw string) (string, error) {
+	lang := strings.ToLower(strings.TrimSpace(raw))
+	if lang == "" {
+		return "python", nil
+	}
+	switch lang {
+	case "python", "scratch":
+		return lang, nil
+	default:
+		return "", fmt.Errorf("invalid programming_language")
+	}
+}
+
+func normalizeScratchEvaluationMode(raw string) (string, error) {
+	mode := strings.ToLower(strings.TrimSpace(raw))
+	switch mode {
+	case "", "manual":
+		return "manual", nil
+	case "semi", "semi_automatic", "semi-automatic":
+		return "semi_automatic", nil
+	case "automatic", "auto":
+		return "automatic", nil
+	default:
+		return "", fmt.Errorf("invalid scratch_evaluation_mode")
+	}
 }
 
 // getAssignment: GET /api/assignments/:id
@@ -346,7 +400,7 @@ func getAssignment(c *gin.Context) {
 		}
 	}
 	tests, _ := ListTestCases(id)
-	if a.GradingPolicy == "weighted" {
+	if a.GradingPolicy == "weighted" && a.ProgrammingLanguage != "scratch" {
 		sum := 0.0
 		for _, t := range tests {
 			sum += t.Weight
@@ -404,24 +458,28 @@ func updateAssignment(c *gin.Context) {
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	var req struct {
-		Title              string   `json:"title" binding:"required"`
-		Description        string   `json:"description"`
-		Deadline           string   `json:"deadline" binding:"required"`
-		MaxPoints          int      `json:"max_points" binding:"required"`
-		GradingPolicy      string   `json:"grading_policy" binding:"required"`
-		ShowTraceback      bool     `json:"show_traceback"`
-		ShowTestDetails    bool     `json:"show_test_details"`
-		ManualReview       bool     `json:"manual_review"`
-		LLMInteractive     bool     `json:"llm_interactive"`
-		LLMFeedback        bool     `json:"llm_feedback"`
-		LLMAutoAward       bool     `json:"llm_auto_award"`
-		LLMScenariosRaw    *string  `json:"llm_scenarios_json"`
-		LLMStrictness      *int     `json:"llm_strictness"`
-		LLMRubric          *string  `json:"llm_rubric"`
-		LLMTeacherBaseline *string  `json:"llm_teacher_baseline_json"`
-		LLMHelpWhyFailed   bool     `json:"llm_help_why_failed"`
-		SecondDeadline     *string  `json:"second_deadline"`
-		LatePenaltyRatio   *float64 `json:"late_penalty_ratio"`
+		Title                   string   `json:"title" binding:"required"`
+		Description             string   `json:"description"`
+		Deadline                string   `json:"deadline" binding:"required"`
+		MaxPoints               int      `json:"max_points" binding:"required"`
+		GradingPolicy           string   `json:"grading_policy" binding:"required"`
+		ShowTraceback           bool     `json:"show_traceback"`
+		ShowTestDetails         bool     `json:"show_test_details"`
+		ManualReview            bool     `json:"manual_review"`
+		MaxSubmissionSizeMB     *int     `json:"max_submission_size_mb"`
+		ProgrammingLanguage     *string  `json:"programming_language"`
+		LLMInteractive          bool     `json:"llm_interactive"`
+		LLMFeedback             bool     `json:"llm_feedback"`
+		LLMAutoAward            bool     `json:"llm_auto_award"`
+		LLMScenariosRaw         *string  `json:"llm_scenarios_json"`
+		LLMStrictness           *int     `json:"llm_strictness"`
+		LLMRubric               *string  `json:"llm_rubric"`
+		LLMTeacherBaseline      *string  `json:"llm_teacher_baseline_json"`
+		LLMHelpWhyFailed        bool     `json:"llm_help_why_failed"`
+		ScratchEvaluationMode   *string  `json:"scratch_evaluation_mode"`
+		ScratchSemanticCriteria *string  `json:"scratch_semantic_criteria"`
+		SecondDeadline          *string  `json:"second_deadline"`
+		LatePenaltyRatio        *float64 `json:"late_penalty_ratio"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -443,10 +501,39 @@ func updateAssignment(c *gin.Context) {
 	a.Description = req.Description
 	a.Deadline = dl
 	a.MaxPoints = req.MaxPoints
+	if req.MaxSubmissionSizeMB != nil {
+		if *req.MaxSubmissionSizeMB <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid max_submission_size_mb"})
+			return
+		}
+		a.MaxSubmissionSizeMB = *req.MaxSubmissionSizeMB
+	} else if a.MaxSubmissionSizeMB == 0 {
+		a.MaxSubmissionSizeMB = defaultSubmissionSizeMB
+	}
 	a.GradingPolicy = req.GradingPolicy
 	a.ShowTraceback = req.ShowTraceback
 	a.ShowTestDetails = req.ShowTestDetails
 	a.ManualReview = req.ManualReview
+	if req.ScratchEvaluationMode != nil {
+		mode, err := normalizeScratchEvaluationMode(*req.ScratchEvaluationMode)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		a.ScratchEvaluationMode = mode
+	} else if strings.TrimSpace(a.ScratchEvaluationMode) == "" {
+		a.ScratchEvaluationMode = "manual"
+	}
+	if req.ProgrammingLanguage != nil {
+		lang, err := normalizeProgrammingLanguage(*req.ProgrammingLanguage)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		a.ProgrammingLanguage = lang
+	} else if strings.TrimSpace(a.ProgrammingLanguage) == "" {
+		a.ProgrammingLanguage = "python"
+	}
 	a.LLMInteractive = req.LLMInteractive
 	a.LLMFeedback = req.LLMFeedback
 	a.LLMAutoAward = req.LLMAutoAward
@@ -461,6 +548,14 @@ func updateAssignment(c *gin.Context) {
 	}
 	if req.LLMTeacherBaseline != nil {
 		a.LLMTeacherBaseline = req.LLMTeacherBaseline
+	}
+	if req.ScratchSemanticCriteria != nil {
+		trimmed := strings.TrimSpace(*req.ScratchSemanticCriteria)
+		if trimmed == "" {
+			a.ScratchSemanticCriteria = nil
+		} else {
+			a.ScratchSemanticCriteria = &trimmed
+		}
 	}
 	if req.SecondDeadline != nil {
 		trimmed := strings.TrimSpace(*req.SecondDeadline)
@@ -477,6 +572,21 @@ func updateAssignment(c *gin.Context) {
 	}
 	if req.LatePenaltyRatio != nil {
 		a.LatePenaltyRatio = *req.LatePenaltyRatio
+	}
+	if a.ProgrammingLanguage == "scratch" {
+		a.ManualReview = false
+		a.LLMInteractive = false
+		a.LLMFeedback = false
+		a.LLMAutoAward = false
+		a.LLMScenariosRaw = nil
+		a.LLMRubric = nil
+		a.LLMTeacherBaseline = nil
+		a.LLMHelpWhyFailed = false
+		if strings.TrimSpace(a.ScratchEvaluationMode) == "" {
+			a.ScratchEvaluationMode = "manual"
+		}
+	} else {
+		a.ScratchEvaluationMode = "manual"
 	}
 	if err := UpdateAssignment(a); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not update"})
@@ -526,10 +636,14 @@ func syncTeachersGroupAssignment(c *gin.Context) {
 		clone.Title = source.Title
 		clone.Description = source.Description
 		clone.MaxPoints = source.MaxPoints
+		clone.MaxSubmissionSizeMB = source.MaxSubmissionSizeMB
 		clone.GradingPolicy = source.GradingPolicy
 		clone.ShowTraceback = source.ShowTraceback
 		clone.ShowTestDetails = source.ShowTestDetails
+		clone.ProgrammingLanguage = source.ProgrammingLanguage
 		clone.ManualReview = source.ManualReview
+		clone.ScratchEvaluationMode = source.ScratchEvaluationMode
+		clone.ScratchSemanticCriteria = source.ScratchSemanticCriteria
 		clone.LLMInteractive = source.LLMInteractive
 		clone.LLMFeedback = source.LLMFeedback
 		clone.LLMAutoAward = source.LLMAutoAward
@@ -1621,6 +1735,24 @@ func createSubmission(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 		return
 	}
+	assignment, err := GetAssignment(aid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "assignment not found"})
+		return
+	}
+	maxMB := assignment.MaxSubmissionSizeMB
+	if maxMB <= 0 {
+		maxMB = defaultSubmissionSizeMB
+	}
+	maxBytes := int64(maxMB) * 1024 * 1024
+	if c.Request.ContentLength > 0 && c.Request.ContentLength > maxBytes {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{
+			"error":   "submission_too_large",
+			"max_mb":  maxMB,
+			"size_mb": float64(c.Request.ContentLength) / (1024 * 1024),
+		})
+		return
+	}
 	if err := c.Request.ParseMultipartForm(32 << 20); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid form"})
 		return
@@ -1651,10 +1783,25 @@ func createSubmission(c *gin.Context) {
 	}
 	defer os.RemoveAll(tmpDir)
 
+	var totalSize int64
 	for _, fh := range files {
 		dst := filepath.Join(tmpDir, filepath.Base(fh.Filename))
 		if err := c.SaveUploadedFile(fh, dst); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot save"})
+			return
+		}
+		info, statErr := os.Stat(dst)
+		if statErr == nil {
+			totalSize += info.Size()
+		} else if fh.Size > 0 {
+			totalSize += fh.Size
+		}
+		if totalSize > maxBytes {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{
+				"error":   "submission_too_large",
+				"max_mb":  maxMB,
+				"size_mb": float64(totalSize) / (1024 * 1024),
+			})
 			return
 		}
 	}
@@ -1735,8 +1882,8 @@ func createSubmission(c *gin.Context) {
 		return
 	}
 	// enqueue for grading unless manual review is enabled (unless LLM interactive is on)
-	if a, err := GetAssignment(aid); err == nil {
-		if a.LLMInteractive || !a.ManualReview {
+	if assignment != nil {
+		if assignment.LLMInteractive || !assignment.ManualReview || assignment.ProgrammingLanguage == "scratch" {
 			EnqueueJob(Job{SubmissionID: sub.ID})
 		}
 	}
@@ -2419,6 +2566,9 @@ func getSubmission(c *gin.Context) {
 		}
 	}
 	resp := gin.H{"submission": sub, "results": results}
+	if sub.ScratchSemanticAnalysis != nil && json.Valid([]byte(*sub.ScratchSemanticAnalysis)) {
+		resp["semantic_analysis"] = json.RawMessage(*sub.ScratchSemanticAnalysis)
+	}
 	// Attach latest LLM run if available
 	if llm, err := GetLatestLLMRun(sid); err == nil && llm != nil {
 		// apply feedback visibility for students
@@ -2511,6 +2661,53 @@ func undoManualAccept(c *gin.Context) {
 
 	// Reset status to failed if it was manually accepted
 	// This will allow the worker to re-grade the submission
+	if a.ProgrammingLanguage == "scratch" {
+		mode := scratchEvaluationMode(a.ScratchEvaluationMode)
+		status := "pending"
+		if mode == "semi_automatic" {
+			status = "provisional"
+		} else if mode == "automatic" {
+			status = "failed"
+		}
+		if err := UpdateSubmissionStatus(sid, status); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+			return
+		}
+	} else if err := UpdateSubmissionStatus(sid, "failed"); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+// failSubmission: PUT /api/submissions/:id/fail
+// Allows a teacher/admin to explicitly fail a submission and set points to 0.
+func failSubmission(c *gin.Context) {
+	sid, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	a, err := GetAssignmentForSubmission(sid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if role := c.GetString("role"); role == "teacher" {
+		if ok, err := IsTeacherOfAssignment(a.ID, getUserID(c)); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+
+	// Mark as not manually accepted
+	_ = SetSubmissionManualAccept(sid, false)
+
+	// Set override points to 0
+	zero := 0.0
+	_ = SetSubmissionOverridePoints(sid, &zero)
+
 	if err := UpdateSubmissionStatus(sid, "failed"); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
@@ -3870,9 +4067,16 @@ func overrideSubmissionPoints(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
-	// If manual review is enabled and points were set, mark as completed
-	if a.ManualReview && req.Points != nil {
-		_ = UpdateSubmissionStatus(sid, "completed")
+	// If manual review is enabled (or scratch needs teacher confirmation) and points were set, mark as completed.
+	if req.Points != nil {
+		if a.ManualReview {
+			_ = UpdateSubmissionStatus(sid, "completed")
+		} else if a.ProgrammingLanguage == "scratch" {
+			mode := scratchEvaluationMode(a.ScratchEvaluationMode)
+			if mode == "manual" || mode == "semi_automatic" {
+				_ = UpdateSubmissionStatus(sid, "completed")
+			}
+		}
 	}
 	c.Status(http.StatusNoContent)
 }

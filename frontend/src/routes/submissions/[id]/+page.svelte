@@ -5,6 +5,9 @@
   import { page } from "$app/stores";
   import JSZip from "jszip";
   import { FileTree, RunConsole } from "$lib";
+  import ScratchPlayer from "$lib/components/ScratchPlayer.svelte";
+  import ScratchBlocksViewer from "$lib/components/ScratchBlocksViewer.svelte";
+  import ScratchAnalysisPanel from "$lib/components/ScratchAnalysisPanel.svelte";
   import { formatDateTime } from "$lib/date";
   import { goto } from "$app/navigation";
   import { auth } from "$lib/auth";
@@ -13,6 +16,7 @@
     stripUnittestMainBlock,
   } from "$lib/unittests";
   import { t, translator } from "$lib/i18n";
+  import ConfirmModal from "$lib/components/ConfirmModal.svelte";
 
   $: id = $page.params.id;
 
@@ -33,6 +37,7 @@
     ExternalLink,
     FileCode,
     CheckCircle2,
+    XCircle,
     AlertCircle,
     AlertTriangle,
     Clock,
@@ -42,8 +47,11 @@
     Cpu,
     Search,
     Shield,
-    Eye,
-    Save
+    Save,
+    Download,
+    Gamepad2,
+    Maximize2,
+    Minimize2
   } from "lucide-svelte";
   let manualConsoleVisible = false;
   let esCtrl: { close: () => void } | null = null;
@@ -55,19 +63,56 @@
   let assignmentShowTestDetails = false;
   let assignmentShowTraceback = false;
   let assignmentLLMHelpWhyFailed = false;
+  let assignmentLanguage: string = "python";
+  let assignmentLoaded = false;
+  let scratchProject: Uint8Array | null = null;
+  let scratchProjectName = "";
+  let scratchProjectError = "";
+  let scratchLoading = false;
+  let scratchAnalysisPayload: any = null;
+  let scratchAnalysis: any = null;
+  let scratchAnalysisError = "";
+  let scratchSemanticAnalysis: any = null;
+  let scratchSemanticAnalysisError = "";
+  type ScratchEvaluationMode = "manual" | "semi_automatic" | "automatic";
+  type ScratchCriterionView = { text: string; points?: number | null };
+  let assignmentScratchSemanticCriteria = "";
+  let assignmentScratchEvaluationMode: ScratchEvaluationMode = "manual";
+  let scratchCriteriaList: ScratchCriterionView[] = [];
+  let lastCodeContent = "";
+  let lastCodeBytes: Uint8Array | null = null;
+  let filesLoading = false;
+  let filesLoaded = false;
+  let pendingZip: JSZip | null = null;
   let allTestsFailed = false;
   let sid: number = 0;
   let role = "";
   $: role = $auth?.role ?? "";
   let translate;
   $: translate = $translator;
+  let scratchFullscreenMode: "none" | "player" | "both" = "none";
+  let scratchFullscreenHost: HTMLDivElement | null = null;
+  let removeScratchFullscreenListener: (() => void) | null = null;
+  $: scratchSemanticChecklist = Array.isArray(scratchSemanticAnalysis?.check_list)
+    ? scratchSemanticAnalysis.check_list
+    : [];
+  $: scratchSemanticConfidence =
+    typeof scratchSemanticAnalysis?.confidence_score === "number"
+      ? Math.round(scratchSemanticAnalysis.confidence_score)
+      : null;
+  $: scratchSemanticCriteriaMet = scratchSemanticAnalysis?.criteria_met === true;
+  $: scratchSemanticSummary =
+    typeof scratchSemanticAnalysis?.feedback_summary === "string"
+      ? scratchSemanticAnalysis.feedback_summary
+      : "";
+  $: scratchCriteriaList = parseScratchCriteria(assignmentScratchSemanticCriteria);
 
   import hljs from "highlight.js";
   import "highlight.js/styles/github.css";
   let fileDialog: HTMLDialogElement;
 
   let llm: any = null;
-  let activeTab: "results" | "files" | "review" = "results";
+  let activeTab: "results" | "files" | "review" | "scratch" = "results";
   // Derived visibility flags
 
   // Inline teacher points override component
@@ -75,6 +120,7 @@
   // Svelte does not support runtime component definitions; instead use a block here:
   let overrideValue: string | number | null = "";
   let savingOverride = false;
+  let confirmModal: InstanceType<typeof ConfirmModal>;
   async function saveOverride() {
     try {
       savingOverride = true;
@@ -101,48 +147,210 @@
     children?: FileNode[];
   }
 
-  async function parseFiles(b64: string) {
-    let bytes: Uint8Array;
+  function scratchSemanticStatusTone(status: string) {
+    const normalized = String(status || "").toUpperCase();
+    if (normalized === "PASS") return "badge-success";
+    if (normalized === "FAIL") return "badge-error";
+    return "badge-ghost";
+  }
+
+  function normalizeScratchEvaluationMode(
+    raw: string | null | undefined,
+  ): ScratchEvaluationMode {
+    if (raw === "automatic") return "automatic";
+    if (raw === "semi_automatic") return "semi_automatic";
+    return "manual";
+  }
+
+  function scratchModeLabel(mode: ScratchEvaluationMode) {
+    if (mode === "automatic")
+      return t(
+        "frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_auto",
+      );
+    if (mode === "semi_automatic")
+      return t(
+        "frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_semi",
+      );
+    return t(
+      "frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_manual",
+    );
+  }
+
+  function parseScratchCriteria(raw: string | null | undefined): ScratchCriterionView[] {
+    const trimmed = (raw ?? "").trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        if (parsed.every((item) => typeof item === "string")) {
+          return parsed
+            .map((text) => String(text).trim())
+            .filter(Boolean)
+            .map((text) => ({ text }));
+        }
+        return parsed
+          .map((item) => {
+            if (!item || typeof item !== "object") return null;
+            const text =
+              typeof item.text === "string"
+                ? item.text
+                : typeof item.item === "string"
+                  ? item.item
+                  : "";
+            if (!text.trim()) return null;
+            const points =
+              typeof item.points === "number"
+                ? item.points
+                : typeof item.points === "string"
+                  ? Number(item.points)
+                  : null;
+            return {
+              text: text.trim(),
+              points: Number.isFinite(points as number) ? (points as number) : null,
+            };
+          })
+          .filter(Boolean) as ScratchCriterionView[];
+      }
+    } catch {}
+
+    return trimmed
+      .split("\n")
+      .map((line) => line.trim())
+      .map((line) => line.replace(/^[-*]\s*/, "").trim())
+      .filter(Boolean)
+      .map((text) => ({ text }));
+  }
+
+  function decodeBase64(b64: string): Uint8Array | null {
     try {
       const bin = atob(b64);
-      bytes = new Uint8Array(bin.length);
+      const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return bytes;
     } catch {
+      return null;
+    }
+  }
+
+  async function parseFilesFromZip(zip: JSZip) {
+    const list: { name: string; content: string }[] = [];
+    for (const file of Object.values(zip.files)) {
+      if (file.dir) continue;
+      if (file.name.toLowerCase().endsWith(".sb3")) {
+        list.push({
+          name: file.name,
+          content: t(
+            "frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_file_placeholder",
+          ),
+        });
+        continue;
+      }
+      const content = await file.async("string");
+      list.push({ name: file.name, content });
+    }
+    return list;
+  }
+
+  async function parseFiles(b64: string, bytes?: Uint8Array | null) {
+    const payload = bytes !== undefined ? bytes : decodeBase64(b64);
+    if (!payload) {
       return [{ name: "code", content: b64 }];
     }
 
     try {
-      const zip = await JSZip.loadAsync(bytes);
-      const list: { name: string; content: string }[] = [];
-      for (const file of Object.values(zip.files)) {
-        if (file.dir) continue;
-        const content = await file.async("string");
-        list.push({ name: file.name, content });
-      }
-      return list;
+      const zip = await JSZip.loadAsync(payload);
+      return await parseFilesFromZip(zip);
     } catch {
-      const text = new TextDecoder().decode(bytes);
+      const text = new TextDecoder().decode(payload);
       return [{ name: "code", content: text }];
+    }
+  }
+
+  async function loadFilesFromZip(zip: JSZip) {
+    if (filesLoading || filesLoaded) return;
+    filesLoading = true;
+    try {
+      files = await parseFilesFromZip(zip);
+      tree = buildTree(files);
+      selected = files[0] ?? null;
+      filesLoaded = true;
+      pendingZip = null;
+    } finally {
+      filesLoading = false;
+    }
+  }
+
+  async function loadFilesFromBytes(b64: string, bytes?: Uint8Array | null) {
+    if (filesLoading || filesLoaded) return;
+    filesLoading = true;
+    try {
+      files = await parseFiles(b64, bytes);
+      tree = buildTree(files);
+      selected = files[0] ?? null;
+      filesLoaded = true;
+    } finally {
+      filesLoading = false;
+    }
+  }
+
+  async function extractScratchProject(
+    b64: string,
+    bytes?: Uint8Array | null,
+  ): Promise<JSZip | null> {
+    scratchProject = null;
+    scratchProjectName = "";
+    scratchProjectError = "";
+    const payload = bytes !== undefined ? bytes : decodeBase64(b64);
+    if (!payload) {
+      scratchProjectError = t(
+        "frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_decode_error",
+      );
+      return null;
+    }
+    try {
+      scratchLoading = true;
+      const zip = await JSZip.loadAsync(payload);
+      const candidates = Object.values(zip.files).filter(
+        (file) =>
+          !file.dir && file.name.toLowerCase().endsWith(".sb3"),
+      );
+      if (!candidates.length) {
+        scratchProjectError = t(
+          "frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_missing",
+        );
+        return zip;
+      }
+      const file = candidates[0];
+      scratchProject = await file.async("uint8array");
+      scratchProjectName = file.name;
+      return zip;
+    } catch (e: any) {
+      scratchProjectError =
+        e?.message ||
+        t(
+          "frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_load_error",
+        );
+      return null;
+    } finally {
+      scratchLoading = false;
     }
   }
 
   async function load() {
     err = "";
+    assignmentLoaded = false;
     try {
       const data = await apiJSON(`/api/submissions/${id}`);
       submission = data.submission;
       results = data.results;
       llm = data.llm ?? null;
+      scratchAnalysisPayload = data;
 
       // Prefill override input with the currently assigned points (teacher sees what's set)
       try {
         const cur = submission?.override_points ?? submission?.points;
         overrideValue = (cur ?? "") as any;
       } catch {}
-
-      files = await parseFiles(submission.code_content);
-      tree = buildTree(files);
-      selected = files[0];
 
       if (submission?.assignment_id) {
         try {
@@ -156,6 +364,12 @@
           assignmentShowTestDetails = !!ad.assignment?.show_test_details;
           assignmentShowTraceback = !!ad.assignment?.show_traceback;
           assignmentLLMHelpWhyFailed = !!ad.assignment?.llm_help_why_failed;
+          assignmentLanguage = ad.assignment?.programming_language ?? "python";
+          assignmentScratchEvaluationMode = normalizeScratchEvaluationMode(
+            ad.assignment?.scratch_evaluation_mode,
+          );
+          assignmentScratchSemanticCriteria =
+            ad.assignment?.scratch_semantic_criteria ?? "";
           // Prefer aggregate tests_count when present (student view), fallback to tests array (teacher/admin)
           try {
             assignmentTestsCount =
@@ -167,10 +381,51 @@
           } catch {
             assignmentTestsCount = 0;
           }
-        } catch {}
+        if (assignmentLanguage === "scratch") {
+          if (activeTab === "results") activeTab = "scratch";
+        } else {
+          scratchProject = null;
+          scratchProjectName = "";
+          scratchProjectError = "";
+        }
+      } catch {}
+      assignmentLoaded = true;
+    } else {
+      assignmentLoaded = true;
+      }
+
+      const codeContent = submission?.code_content ?? "";
+      const codeChanged = codeContent !== lastCodeContent;
+      if (codeChanged) {
+        lastCodeContent = codeContent;
+        lastCodeBytes = codeContent ? decodeBase64(codeContent) : null;
+        files = [];
+        tree = [];
+        selected = null;
+        highlighted = "";
+        filesLoaded = false;
+        filesLoading = false;
+        pendingZip = null;
+      }
+
+      if (assignmentLanguage === "scratch") {
+        if (codeChanged) {
+          scratchProject = null;
+          scratchProjectName = "";
+          scratchProjectError = "";
+        }
+        const shouldLoadScratch =
+          codeChanged || (!scratchProject && !scratchProjectError && !scratchLoading);
+        if (shouldLoadScratch && codeContent) {
+          pendingZip = await extractScratchProject(codeContent, lastCodeBytes);
+        }
+      } else if (codeChanged || (!filesLoaded && !filesLoading)) {
+        await loadFilesFromBytes(codeContent, lastCodeBytes);
       }
     } catch (e: any) {
       err = e.message;
+    } finally {
+      if (!assignmentLoaded) assignmentLoaded = true;
     }
   }
 
@@ -200,6 +455,7 @@
   function statusColor(s: string) {
     if (s === "completed") return "badge-success";
     if (s === "running") return "badge-info";
+    if (s === "provisional") return "badge-warning";
     if (s === "failed") return "badge-error";
     if (s === "passed") return "badge-success";
     if (s === "wrong_output") return "badge-error";
@@ -226,12 +482,28 @@
   $: allowLLMDetails = role !== "student" || assignmentLLMFeedback;
   $: allowTestDetails = role !== "student" || assignmentShowTestDetails;
   $: allowTraceback = role !== "student" || assignmentShowTraceback;
+  $: isScratchSubmission = assignmentLanguage === "scratch";
   // Show Auto-tests only when NOT LLM mode and there are tests configured
-  $: showAutoUI = !assignmentLLMInteractive && assignmentTestsCount > 0;
+  $: showAutoUI =
+    !isScratchSubmission &&
+    !assignmentLLMInteractive &&
+    assignmentTestsCount > 0;
   // Keep legacy meaning of hideAutoUI: specifically, when no auto tests exist
-  $: hideAutoUI = assignmentTestsCount === 0;
-  $: forceManualConsole = assignmentManual || hideAutoUI;
+  $: hideAutoUI = assignmentTestsCount === 0 || isScratchSubmission;
+  $: forceManualConsole =
+    (assignmentManual || hideAutoUI) && !isScratchSubmission;
   $: if (forceManualConsole) manualConsoleVisible = true;
+  $: if (isScratchSubmission) manualConsoleVisible = false;
+  $: if (activeTab !== "scratch" && scratchFullscreenMode !== "none") {
+    void exitScratchFullscreen();
+  }
+  $: if (typeof document !== "undefined") {
+    if (scratchFullscreenMode !== "none") {
+      document.body.classList.add("scratch-fullscreen-active");
+    } else {
+      document.body.classList.remove("scratch-fullscreen-active");
+    }
+  }
 
   function bgFromBadge(badgeClass: string) {
     return badgeClass.replace("badge", "bg");
@@ -256,6 +528,140 @@
     } catch {
       return null;
     }
+  }
+
+  function looksLikeScratchAnalysis(value: any): boolean {
+    if (!value || typeof value !== "object") return false;
+    return "bad_habits" in value || "vanilla" in value || "extended" in value;
+  }
+
+  function looksLikeScratchSemanticAnalysis(value: any): boolean {
+    if (!value || typeof value !== "object") return false;
+    return (
+      "criteria_met" in value ||
+      "confidence_score" in value ||
+      "check_list" in value
+    );
+  }
+
+  function parseScratchAnalysisCandidate(
+    raw: any,
+    trackError = true,
+  ): { value: any | null; error: string } {
+    if (!raw) return { value: null, error: "" };
+    if (looksLikeScratchAnalysis(raw)) return { value: raw, error: "" };
+    if (typeof raw === "string") {
+      const trimmed = raw.trim();
+      if (!trimmed) return { value: null, error: "" };
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (looksLikeScratchAnalysis(parsed)) return { value: parsed, error: "" };
+      } catch (e: any) {
+        return {
+          value: null,
+          error: trackError
+            ? e?.message ?? "Invalid Dr. Scratch analysis JSON"
+            : "",
+        };
+      }
+    }
+    return { value: null, error: "" };
+  }
+
+  function parseScratchSemanticCandidate(
+    raw: any,
+    trackError = true,
+  ): { value: any | null; error: string } {
+    if (!raw) return { value: null, error: "" };
+    if (looksLikeScratchSemanticAnalysis(raw)) return { value: raw, error: "" };
+    if (typeof raw === "string") {
+      const trimmed = raw.trim();
+      if (!trimmed) return { value: null, error: "" };
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (looksLikeScratchSemanticAnalysis(parsed))
+          return { value: parsed, error: "" };
+      } catch (e: any) {
+        return {
+          value: null,
+          error: trackError ? e?.message ?? "Invalid semantic analysis JSON" : "",
+        };
+      }
+    }
+    return { value: null, error: "" };
+  }
+
+  function extractScratchAnalysis(
+    payload: any,
+    sub: any,
+    res: any[],
+  ): { value: any | null; error: string } {
+    const candidates = [
+      payload?.scratch_analysis,
+      payload?.scratchAnalysis,
+      payload?.analysis,
+      payload?.analysis_json,
+      payload?.drscratch,
+      payload?.drscratch_analysis,
+      payload?.dr_scratch,
+      payload?.dr_scratch_analysis,
+      sub?.scratch_analysis,
+      sub?.scratchAnalysis,
+      sub?.analysis,
+      sub?.analysis_json,
+      sub?.drscratch,
+      sub?.drscratch_analysis,
+      sub?.dr_scratch,
+      sub?.dr_scratch_analysis,
+    ];
+    let firstError = "";
+    for (const candidate of candidates) {
+      const { value, error } = parseScratchAnalysisCandidate(candidate, true);
+      if (value) return { value, error: "" };
+      if (!firstError && error) firstError = error;
+    }
+
+    if (Array.isArray(res)) {
+      for (const item of res) {
+        const fallbackCandidates = [
+          item?.analysis,
+          item?.analysis_json,
+          item?.actual_stdout,
+          item?.actual_return,
+          item?.stderr,
+          item?.failure_explanation,
+        ];
+        for (const candidate of fallbackCandidates) {
+          const { value } = parseScratchAnalysisCandidate(candidate, false);
+          if (value) return { value, error: "" };
+        }
+      }
+    }
+
+    return { value: null, error: firstError };
+  }
+
+  function extractScratchSemanticAnalysis(
+    payload: any,
+    sub: any,
+  ): { value: any | null; error: string } {
+    const candidates = [
+      payload?.semantic_analysis,
+      payload?.semanticAnalysis,
+      payload?.scratch_semantic_analysis,
+      payload?.scratchSemanticAnalysis,
+      sub?.semantic_analysis,
+      sub?.semanticAnalysis,
+      sub?.scratch_semantic_analysis,
+      sub?.scratchSemanticAnalysis,
+    ];
+    let firstError = "";
+    for (const candidate of candidates) {
+      const { value, error } = parseScratchSemanticCandidate(candidate, true);
+      if (value) return { value, error: "" };
+      if (!firstError && error) firstError = error;
+    }
+    return { value: null, error: firstError };
   }
 
   function viewableUnitTestSnippet(
@@ -298,6 +704,28 @@
 
   async function downloadFiles() {
     try {
+      if (isScratchSubmission && scratchProject) {
+        const blob = new Blob([scratchProject], { type: "application/octet-stream" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        let filename = scratchProjectName || `submission_${submission?.id ?? id}`;
+        if (!filename.toLowerCase().endsWith(".sb3")) filename += ".sb3";
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        return;
+      }
+
+      if (!filesLoaded && !filesLoading) {
+        if (pendingZip) {
+          await loadFilesFromZip(pendingZip);
+        } else if (submission?.code_content) {
+          await loadFilesFromBytes(submission.code_content, lastCodeBytes);
+        }
+      }
       if (Array.isArray(files) && files.length) {
         const zip = new JSZip();
         for (const f of files) {
@@ -311,6 +739,19 @@
           .slice(0, 60);
         a.href = url;
         a.download = `${safeTitle}_${submission?.id ?? id}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } else if (lastCodeBytes) {
+        const blob = new Blob([lastCodeBytes], {
+          type: "application/octet-stream",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        const ext = isScratchSubmission ? "sb3" : "txt";
+        a.download = `submission_${submission?.id ?? id}.${ext}`;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -356,12 +797,51 @@
     }
   }
 
+  async function enterScratchFullscreen(mode: "player" | "both") {
+    scratchFullscreenMode = mode;
+    if (typeof document === "undefined") return;
+    if (!scratchFullscreenHost || !scratchFullscreenHost.requestFullscreen) return;
+    if (document.fullscreenElement === scratchFullscreenHost) return;
+    try {
+      await scratchFullscreenHost.requestFullscreen();
+    } catch {}
+  }
+
+  async function exitScratchFullscreen() {
+    scratchFullscreenMode = "none";
+    if (typeof document === "undefined") return;
+    if (!document.fullscreenElement) return;
+    try {
+      await document.exitFullscreen();
+    } catch {}
+  }
+
+  function toggleScratchFullscreen(mode: "player" | "both") {
+    if (scratchFullscreenMode === mode) {
+      void exitScratchFullscreen();
+      return;
+    }
+    void enterScratchFullscreen(mode);
+  }
+
   $: if (selected) {
     highlighted = hljs.highlightAuto(selected.content).value;
   }
 
-  $: if (!selected && submission) {
+  $: if (!selected && submission && assignmentLoaded && !isScratchSubmission) {
     highlighted = hljs.highlightAuto(submission.code_content).value;
+  }
+
+  $: if (!selected && isScratchSubmission) {
+    highlighted = "";
+  }
+
+  $: if (activeTab === "files" && isScratchSubmission && !filesLoaded && !filesLoading) {
+    if (pendingZip) {
+      void loadFilesFromZip(pendingZip);
+    } else if (submission?.code_content) {
+      void loadFilesFromBytes(submission.code_content, lastCodeBytes);
+    }
   }
 
   onMount(() => {
@@ -392,15 +872,47 @@
         },
       },
     );
+    if (typeof document !== "undefined") {
+      const handleFullscreenChange = () => {
+        if (!document.fullscreenElement && scratchFullscreenMode !== "none") {
+          scratchFullscreenMode = "none";
+        }
+      };
+      document.addEventListener("fullscreenchange", handleFullscreenChange);
+      removeScratchFullscreenListener = () => {
+        document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      };
+    }
   });
   onDestroy(() => {
     esCtrl?.close();
+    removeScratchFullscreenListener?.();
   });
   $: sid = submission?.id ?? id;
   $: allTestsFailed =
     Array.isArray(results) &&
     results.length > 0 &&
     results.every((r) => r.status !== "passed" && r.status !== "running");
+  $: if (isScratchSubmission) {
+    const { value, error } = extractScratchAnalysis(
+      scratchAnalysisPayload,
+      submission,
+      results,
+    );
+    scratchAnalysis = value;
+    scratchAnalysisError = value ? "" : error;
+    const semantic = extractScratchSemanticAnalysis(
+      scratchAnalysisPayload,
+      submission,
+    );
+    scratchSemanticAnalysis = semantic.value;
+    scratchSemanticAnalysisError = semantic.value ? "" : semantic.error;
+  } else {
+    scratchAnalysis = null;
+    scratchAnalysisError = "";
+    scratchSemanticAnalysis = null;
+    scratchSemanticAnalysisError = "";
+  }
 
   let explanations: Record<string, { loading: boolean; text?: string; error?: string }> = {};
   let explainInFlight = false;
@@ -566,7 +1078,29 @@
                 </div>
               </div>
 
-              {#if assignmentManual}
+              {#if isScratchSubmission}
+                <div class="flex items-center gap-3 group">
+                  <div
+                    class={`p-2 rounded-lg ${
+                      assignmentScratchEvaluationMode === "automatic"
+                        ? "bg-success/10 text-success"
+                        : assignmentScratchEvaluationMode === "semi_automatic"
+                          ? "bg-warning/10 text-warning"
+                          : "bg-info/10 text-info"
+                    }`}
+                  >
+                    <FileCode size={16} />
+                  </div>
+                  <div>
+                    <div class="text-[9px] font-black uppercase tracking-widest opacity-40">
+                      {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_mode_badge")}
+                    </div>
+                    <div class="font-black text-sm uppercase tracking-wider">
+                      {scratchModeLabel(assignmentScratchEvaluationMode)}
+                    </div>
+                  </div>
+                </div>
+              {:else if assignmentManual}
                 <div class="flex items-center gap-3 group">
                   <div class="p-2 bg-info/10 text-info rounded-lg">
                     <FileCode size={16} />
@@ -577,7 +1111,20 @@
                   </div>
                 </div>
               {/if}
+
             </div>
+
+            {#if isScratchSubmission}
+              <div class="pt-2">
+                <button 
+                  class="btn btn-primary h-12 px-6 rounded-2xl gap-3 font-black uppercase tracking-widest shadow-lg shadow-primary/20 group/dl transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  on:click={downloadFiles}
+                >
+                  <Download size={20} class="group-hover/dl:translate-y-0.5 transition-transform" />
+                  {t("frontend/src/routes/submissions/[id]/+page.svelte::download_button")}
+                </button>
+              </div>
+            {/if}
           </div>
 
 
@@ -599,6 +1146,27 @@
                     {submission.override_points ?? submission.points ?? "—"}
                   </span>
                 </div>
+
+                {#if isScratchSubmission}
+                  <div class="text-[10px] font-black uppercase tracking-widest opacity-50">
+                    {submission.status === "provisional"
+                      ? t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_provisional_label")
+                      : assignmentScratchEvaluationMode === "automatic"
+                        ? t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_auto_label")
+                        : assignmentScratchEvaluationMode === "semi_automatic"
+                          ? t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_semi_label")
+                          : t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_manual_label")}
+                  </div>
+                  <div class="text-xs opacity-70">
+                    {submission.status === "provisional"
+                      ? t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_provisional_desc")
+                      : assignmentScratchEvaluationMode === "automatic"
+                        ? t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_auto_desc")
+                        : assignmentScratchEvaluationMode === "semi_automatic"
+                          ? t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_semi_desc")
+                          : t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_manual_desc")}
+                  </div>
+                {/if}
 
                 {#if role === "teacher" || role === "admin"}
                   <div class="w-full pt-4 space-y-3">
@@ -637,24 +1205,59 @@
                         {t("frontend/src/routes/submissions/[id]/+page.svelte::undo_manual_acceptance_button")}
                       </button>
                     {:else}
-                      <button
-                        class="btn btn-success btn-sm w-full rounded-xl font-black uppercase tracking-widest text-[9px] shadow-lg shadow-success/20"
-                        on:click={async () => {
-                          try {
-                            const raw: any = overrideValue;
-                            const v = raw === "" ? null : parseInt(raw, 10);
-                            await apiFetch(`/api/submissions/${submission.id}/accept`, {
-                              method: "PUT",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ points: v }),
-                            });
-                            await load();
-                          } catch (e: any) { err = e.message; }
-                        }}
-                      >
-                        <CheckCircle2 size={14} />
-                        {t("frontend/src/routes/submissions/[id]/+page.svelte::accept_submission_button")}
-                      </button>
+                      <div class="grid grid-cols-2 gap-2">
+                        <button
+                          class="btn btn-error btn-sm w-full rounded-xl font-black uppercase tracking-widest text-[9px] shadow-lg shadow-error/20"
+                          title={t("frontend/src/routes/submissions/[id]/+page.svelte::fail_submission_button")}
+                          on:click={async () => {
+                            if ((!isScratchSubmission && !assignmentManual) || (isScratchSubmission && assignmentScratchEvaluationMode !== "manual")) {
+                              const confirmed = await confirmModal.open({
+                                title: t("frontend/src/routes/submissions/[id]/+page.svelte::overwrite_automatic_grading_title"),
+                                body: t("frontend/src/routes/submissions/[id]/+page.svelte::overwrite_automatic_grading_body"),
+                                confirmLabel: t("frontend/src/lib/components/ConfirmModal.svelte::confirm")
+                              });
+                              if (!confirmed) return;
+                            }
+                            try {
+                              await apiFetch(`/api/submissions/${submission.id}/fail`, {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({}),
+                              });
+                              await load();
+                            } catch (e: any) { err = e.message; }
+                          }}
+                        >
+                          <XCircle size={14} />
+                          {t("frontend/src/routes/submissions/[id]/+page.svelte::fail_submission_button")}
+                        </button>
+                        <button
+                          class="btn btn-success btn-sm w-full rounded-xl font-black uppercase tracking-widest text-[9px] shadow-lg shadow-success/20"
+                          on:click={async () => {
+                            if ((!isScratchSubmission && !assignmentManual) || (isScratchSubmission && assignmentScratchEvaluationMode !== "manual")) {
+                               const confirmed = await confirmModal.open({
+                                title: t("frontend/src/routes/submissions/[id]/+page.svelte::overwrite_automatic_grading_title"),
+                                body: t("frontend/src/routes/submissions/[id]/+page.svelte::overwrite_automatic_grading_body"),
+                                confirmLabel: t("frontend/src/lib/components/ConfirmModal.svelte::confirm")
+                              });
+                              if (!confirmed) return;
+                            }
+                            try {
+                              const raw: any = overrideValue;
+                              const v = raw === "" ? null : parseInt(raw, 10);
+                              await apiFetch(`/api/submissions/${submission.id}/accept`, {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ points: v }),
+                              });
+                              await load();
+                            } catch (e: any) { err = e.message; }
+                          }}
+                        >
+                          <CheckCircle2 size={14} />
+                          {t("frontend/src/routes/submissions/[id]/+page.svelte::accept_submission_button")}
+                        </button>
+                      </div>
                     {/if}
                   </div>
                 {/if}
@@ -666,39 +1269,57 @@
     </section>
 
     <!-- Tab Navigation -->
-    <div class="flex flex-wrap items-center gap-1 p-1 bg-base-200/50 backdrop-blur-sm rounded-xl border border-base-300/50 mb-0 max-w-fit shadow-inner">
-      <button 
-        class={`px-3 py-1.5 rounded-[0.6rem] text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'results' ? 'bg-base-100 text-primary shadow-md' : 'hover:bg-base-300/50 opacity-50 hover:opacity-100'}`}
-        on:click={() => activeTab = 'results'}
-      >
-        <div class="flex items-center gap-2 text-[11px]">
-          <FlaskConical size={12} />
-          {t("frontend/src/routes/submissions/[id]/+page.svelte::results_title")}
-        </div>
-      </button>
-      
-      <button 
-        class={`px-3 py-1.5 rounded-[0.6rem] text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'files' ? 'bg-base-100 text-primary shadow-md' : 'hover:bg-base-300/50 opacity-50 hover:opacity-100'}`}
-        on:click={() => activeTab = 'files'}
-      >
-        <div class="flex items-center gap-2 text-[11px]">
-          <FileCode size={12} />
-          {t("frontend/src/routes/submissions/[id]/+page.svelte::files_dialog_title")}
-        </div>
-      </button>
+    {#if !isScratchSubmission || showLLM}
+      <div class="flex flex-wrap items-center gap-1 p-1 bg-base-200/50 backdrop-blur-sm rounded-xl border border-base-300/50 mb-0 max-w-fit shadow-inner">
+        {#if !isScratchSubmission}
+          <button 
+            class={`px-3 py-1.5 rounded-[0.6rem] text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'results' ? 'bg-base-100 text-primary shadow-md' : 'hover:bg-base-300/50 opacity-50 hover:opacity-100'}`}
+            on:click={() => activeTab = 'results'}
+          >
+            <div class="flex items-center gap-2 text-[11px]">
+              <FlaskConical size={12} />
+              {t("frontend/src/routes/submissions/[id]/+page.svelte::results_title")}
+            </div>
+          </button>
+        {/if}
 
-      {#if showLLM}
-        <button 
-          class={`px-3 py-1.5 rounded-[0.6rem] text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'review' ? 'bg-base-100 text-primary shadow-md' : 'hover:bg-base-300/50 opacity-50 hover:opacity-100'}`}
-          on:click={() => activeTab = 'review'}
-        >
-          <div class="flex items-center gap-2 text-[11px]">
-            <Search size={12} />
-            {t("frontend/src/routes/submissions/[id]/+page.svelte::llm_review_tab")}
-          </div>
-        </button>
-      {/if}
-    </div>
+        {#if isScratchSubmission}
+          <button 
+            class={`px-3 py-1.5 rounded-[0.6rem] text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'scratch' ? 'bg-base-100 text-primary shadow-md' : 'hover:bg-base-300/50 opacity-50 hover:opacity-100'}`}
+            on:click={() => activeTab = 'scratch'}
+          >
+            <div class="flex items-center gap-2 text-[11px]">
+              <Gamepad2 size={12} />
+              {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_tab")}
+            </div>
+          </button>
+        {/if}
+        
+        {#if !isScratchSubmission}
+          <button 
+            class={`px-3 py-1.5 rounded-[0.6rem] text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'files' ? 'bg-base-100 text-primary shadow-md' : 'hover:bg-base-300/50 opacity-50 hover:opacity-100'}`}
+            on:click={() => activeTab = 'files'}
+          >
+            <div class="flex items-center gap-2 text-[11px]">
+              <FileCode size={12} />
+              {t("frontend/src/routes/submissions/[id]/+page.svelte::files_dialog_title")}
+            </div>
+          </button>
+        {/if}
+
+        {#if showLLM}
+          <button 
+            class={`px-3 py-1.5 rounded-[0.6rem] text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'review' ? 'bg-base-100 text-primary shadow-md' : 'hover:bg-base-300/50 opacity-50 hover:opacity-100'}`}
+            on:click={() => activeTab = 'review'}
+          >
+            <div class="flex items-center gap-2 text-[11px]">
+              <Search size={12} />
+              {t("frontend/src/routes/submissions/[id]/+page.svelte::llm_review_tab")}
+            </div>
+          </button>
+        {/if}
+      </div>
+    {/if}
 
     <div class="space-y-6">
       {#if activeTab === 'results'}
@@ -943,7 +1564,7 @@
             </div>
 
             <!-- Manual Console Section -->
-            {#if (role === "teacher" || role === "admin")}
+            {#if (role === "teacher" || role === "admin") && !isScratchSubmission}
               <div class="bg-base-200/40 rounded-3xl border border-base-200 shadow-lg shadow-base-300/20 overflow-hidden">
                 <div class="px-6 py-4 border-b border-base-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-base-100/50 backdrop-blur-sm">
                   <div class="flex items-center gap-3">
@@ -976,6 +1597,260 @@
             {/if}
           </div>
         {/if}
+      {/if}
+
+      {#if activeTab === 'scratch'}
+        <div
+          class={scratchFullscreenMode !== "none" ? "scratch-fullscreen-shell" : "space-y-6"}
+          bind:this={scratchFullscreenHost}
+        >
+          {#if scratchFullscreenMode === "none" && (assignmentScratchSemanticCriteria || scratchSemanticAnalysis || scratchSemanticAnalysisError)}
+            <div class="bg-base-100 rounded-3xl border border-base-200 shadow-lg shadow-base-300/30 overflow-hidden">
+              <div class="px-6 py-4 border-b border-base-200 bg-base-100/50 backdrop-blur-sm">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <div class="flex items-center gap-3">
+                    <div class="p-2 bg-secondary/10 text-secondary rounded-lg">
+                      <Sparkles size={18} />
+                    </div>
+                    <div>
+                      <h2 class="text-lg font-black tracking-tight">
+                        {t("frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_title")}
+                      </h2>
+                      <p class="text-[10px] font-black uppercase tracking-widest opacity-40">
+                        {t("frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_subtitle")}
+                      </p>
+                    </div>
+                  </div>
+                  {#if scratchSemanticAnalysis}
+                    <div class="flex items-center gap-2">
+                      <span
+                        class={`badge badge-sm border-none font-black text-[8px] uppercase tracking-widest ${scratchSemanticCriteriaMet ? "bg-success/10 text-success" : "bg-error/10 text-error"}`}
+                      >
+                        {scratchSemanticCriteriaMet
+                          ? t("frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_pass")
+                          : t("frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_fail")}
+                      </span>
+                      {#if scratchSemanticConfidence !== null}
+                        <span class="text-[9px] font-black uppercase tracking-widest opacity-50">
+                          {t(
+                            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_confidence_label",
+                            { score: scratchSemanticConfidence },
+                          )}
+                        </span>
+                      {/if}
+                    </div>
+                  {/if}
+                </div>
+              </div>
+              <div class="p-6 space-y-8">
+                {#if scratchSemanticAnalysisError}
+                  <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl">
+                    <AlertCircle size={18} />
+                    <div class="flex flex-col">
+                      <span class="font-medium text-sm">
+                        {t("frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_error")}
+                      </span>
+                      <span class="text-xs opacity-70">{scratchSemanticAnalysisError}</span>
+                    </div>
+                  </div>
+                {:else if !scratchSemanticAnalysis}
+                  <div class="bg-base-100/70 rounded-xl border border-base-300/40 p-4 text-sm font-medium opacity-70">
+                    {t("frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_empty")}
+                  </div>
+                {:else}
+                  <div class="space-y-6">
+                    <div class="bg-primary/5 rounded-2xl border border-primary/10 p-5 relative overflow-hidden group">
+                      <div class="absolute -right-4 -top-4 text-primary/10 transition-transform group-hover:scale-110 group-hover:-rotate-12 duration-500">
+                        <Sparkles size={120} />
+                      </div>
+                      <div class="relative">
+                        <div class="text-[9px] font-black uppercase tracking-widest text-primary/60 mb-2">
+                          {t(
+                            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_feedback_label",
+                          )}
+                        </div>
+                        <div class="text-sm font-medium leading-relaxed opacity-90 max-w-[90%]">
+                          {scratchSemanticSummary || "-"}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {#if scratchSemanticChecklist.length}
+                      <div class="space-y-4">
+                        <div class="flex items-center gap-2">
+                          <div class="p-1 px-2 bg-base-200 text-base-content/40 rounded-md text-[9px] font-black uppercase tracking-widest">
+                            {t("frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_checklist_label")}
+                          </div>
+                        </div>
+                        <div class="grid gap-3">
+                          {#each scratchSemanticChecklist as item}
+                            {@const status = String(item?.status || "").toUpperCase()}
+                            {@const criterionMatch = scratchCriteriaList.find(c => c.text === item.item)}
+                            {@const pts = criterionMatch?.points}
+                            <div class="group bg-base-100/70 hover:bg-base-100 rounded-2xl border border-base-300/40 p-4 flex items-start gap-4 transition-all duration-300 hover:shadow-md hover:shadow-base-300/10 hover:-translate-y-0.5">
+                              <div class={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-110 ${
+                                status === 'PASS' ? 'bg-success/10 text-success' : 
+                                status === 'FAIL' ? 'bg-error/10 text-error' : 'bg-base-200 text-base-content/40'
+                              }`}>
+                                {#if status === 'PASS'}
+                                  <CheckCircle2 size={24} />
+                                {:else if status === 'FAIL'}
+                                  <AlertTriangle size={24} />
+                                {:else}
+                                  <Clock size={24} />
+                                {/if}
+                              </div>
+                              <div class="space-y-1.5 pt-1 flex-1">
+                                <div class="flex items-center justify-between gap-4">
+                                  <div class="text-[13px] font-black tracking-tight leading-tight group-hover:text-primary transition-colors flex items-center gap-2">
+                                    {item?.item ?? "-"}
+                                    {#if pts !== null && pts !== undefined}
+                                      <span class="badge bg-secondary/10 text-secondary border-none font-black text-[8px] uppercase tracking-widest px-1.5 h-4">
+                                        {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_points_suffix", { points: pts })}
+                                      </span>
+                                    {/if}
+                                  </div>
+                                  <span class={`badge font-black text-[8px] uppercase tracking-widest border-none px-2 h-5 ${
+                                    status === 'PASS' ? 'bg-success/20 text-success' : 
+                                    status === 'FAIL' ? 'bg-error/20 text-error' : 'bg-base-300 text-base-content/60'
+                                  }`}>
+                                    {status || "-"}
+                                  </span>
+                                </div>
+                                {#if item?.reason && String(item.reason).trim().length}
+                                  <div class="text-xs font-medium opacity-60 leading-relaxed bg-base-200/40 rounded-xl p-3 mt-1 border border-base-300/20 group-hover:bg-base-200/60 transition-colors">
+                                    {item.reason}
+                                  </div>
+                                {/if}
+                              </div>
+                            </div>
+                          {/each}
+                        </div>
+                      </div>
+                    {/if}
+                  </div>
+                {/if}
+              </div>
+            </div>
+          {/if}
+
+          <div class={`flex flex-wrap items-center justify-between gap-3 ${scratchFullscreenMode !== "none" ? "scratch-fullscreen-toolbar" : ""}`}>
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                class={`btn btn-sm rounded-lg px-3 h-8 font-black uppercase tracking-widest text-[9px] ${scratchFullscreenMode === "player" ? "btn-primary" : "btn-ghost border border-base-300"} ${scratchFullscreenMode !== "none" ? "text-white" : ""}`}
+                on:click={() => toggleScratchFullscreen("player")}
+              >
+                <Maximize2 size={14} />
+                {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_fullscreen_game")}
+              </button>
+              <button
+                class={`btn btn-sm rounded-lg px-3 h-8 font-black uppercase tracking-widest text-[9px] ${scratchFullscreenMode === "both" ? "btn-primary" : "btn-ghost border border-base-300"} ${scratchFullscreenMode !== "none" ? "text-white" : ""}`}
+                on:click={() => toggleScratchFullscreen("both")}
+              >
+                <Maximize2 size={14} />
+                {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_fullscreen_game_blocks")}
+              </button>
+            </div>
+            {#if scratchFullscreenMode !== "none"}
+              <button
+                class="btn btn-ghost btn-sm rounded-lg px-3 h-8 font-black uppercase tracking-widest text-[9px] border border-base-300 text-white"
+                on:click={exitScratchFullscreen}
+              >
+                <Minimize2 size={14} />
+                {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_fullscreen_exit")}
+              </button>
+            {/if}
+          </div>
+
+          <div
+            class={scratchFullscreenMode !== "none"
+              ? `scratch-fullscreen-grid ${scratchFullscreenMode === "both" ? "scratch-fullscreen-grid-both" : "scratch-fullscreen-grid-player"}`
+              : "space-y-6"}
+          >
+            <div class={`bg-base-100 rounded-3xl border border-base-200 shadow-lg shadow-base-300/30 overflow-hidden ${scratchFullscreenMode !== "none" ? "scratch-fullscreen-card" : ""}`}>
+              <div class="px-6 py-4 border-b border-base-200 flex flex-wrap items-center justify-between gap-3 bg-base-100/50 backdrop-blur-sm">
+                <div class="flex items-center gap-3">
+                  <div class="p-2 bg-secondary/10 text-secondary rounded-lg">
+                    <Gamepad2 size={18} />
+                  </div>
+                  <h2 class="text-lg font-black tracking-tight">{t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_title")}</h2>
+                </div>
+                {#if scratchProjectName}
+                  <span class="text-xs font-mono font-bold opacity-60">{scratchProjectName}</span>
+                {/if}
+              </div>
+              <div class={`p-6 ${scratchFullscreenMode !== "none" ? "scratch-fullscreen-body" : ""}`}>
+                {#if scratchLoading}
+                  <div class="flex items-center gap-2 text-sm opacity-70">
+                    <span class="loading loading-spinner loading-sm"></span>
+                    {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_loading")}
+                  </div>
+                {:else if scratchProjectError}
+                  <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl">
+                    <AlertCircle size={18} />
+                    <span class="font-medium text-sm">{scratchProjectError}</span>
+                  </div>
+                {:else if scratchProject}
+                  <ScratchPlayer
+                    projectData={scratchProject}
+                    projectName={scratchProjectName}
+                    fullScreen={scratchFullscreenMode !== "none"}
+                  />
+                {:else}
+                  <div class="alert bg-warning/10 border-warning/20 text-warning-content rounded-2xl">
+                    <AlertTriangle size={18} />
+                    <span class="font-medium text-sm">
+                      {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_empty")}
+                    </span>
+                  </div>
+                {/if}
+              </div>
+            </div>
+
+            {#if scratchFullscreenMode !== "player"}
+              <div class={`bg-base-100 rounded-3xl border border-base-200 shadow-lg shadow-base-300/30 overflow-hidden ${scratchFullscreenMode !== "none" ? "scratch-fullscreen-card" : ""}`}>
+                <div class="px-6 py-4 border-b border-base-200 flex flex-wrap items-center justify-between gap-3 bg-base-100/50 backdrop-blur-sm">
+                  <div class="flex items-center gap-3">
+                    <div class="p-2 bg-base-200 text-base-content/70 rounded-lg">
+                      <FileCode size={18} />
+                    </div>
+                    <h2 class="text-lg font-black tracking-tight">
+                      {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_blocks_title")}
+                    </h2>
+                  </div>
+                </div>
+                <div class={`p-6 ${scratchFullscreenMode !== "none" ? "scratch-fullscreen-body scratch-fullscreen-body--blocks" : ""}`}>
+                  {#if scratchLoading}
+                    <div class="flex items-center gap-2 text-sm opacity-70">
+                      <span class="loading loading-spinner loading-sm"></span>
+                      {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_blocks_loading")}
+                    </div>
+                  {:else if scratchProjectError}
+                    <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl">
+                      <AlertCircle size={18} />
+                      <span class="font-medium text-sm">{scratchProjectError}</span>
+                    </div>
+                  {:else if scratchProject}
+                    <ScratchBlocksViewer projectData={scratchProject} fullHeight={scratchFullscreenMode === "both"} />
+                  {:else}
+                    <div class="alert bg-warning/10 border-warning/20 text-warning-content rounded-2xl">
+                      <AlertTriangle size={18} />
+                      <span class="font-medium text-sm">
+                        {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_empty")}
+                      </span>
+                    </div>
+                  {/if}
+                </div>
+              </div>
+            {/if}
+          </div>
+          {#if scratchFullscreenMode === "none"}
+            <ScratchAnalysisPanel
+              analysis={scratchAnalysis}
+              error={scratchAnalysisError}
+            />
+          {/if}
+        </div>
       {/if}
 
       {#if activeTab === 'files'}
@@ -1227,4 +2102,57 @@
   .hljs {
     background: transparent;
   }
+  :global(body.scratch-fullscreen-active) {
+    overflow: hidden;
+  }
+  .scratch-fullscreen-shell {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    background: hsl(var(--b2));
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    overflow: hidden;
+  }
+  .scratch-fullscreen-toolbar {
+    flex: 0 0 auto;
+  }
+  .scratch-fullscreen-grid {
+    display: grid;
+    gap: 1rem;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .scratch-fullscreen-grid-player {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .scratch-fullscreen-grid-both {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .scratch-fullscreen-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .scratch-fullscreen-body {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .scratch-fullscreen-body--blocks {
+    overflow: hidden;
+  }
+  @media (min-width: 768px) {
+    .scratch-fullscreen-shell {
+      padding: 1.5rem;
+    }
+  }
+  @media (min-width: 1024px) {
+    .scratch-fullscreen-grid-both {
+      grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    }
+  }
 </style>
+
+<ConfirmModal bind:this={confirmModal} />

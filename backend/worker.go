@@ -90,6 +90,8 @@ var (
 	pythonBinary    = getenvOr("PYTHON_BIN", "python3")
 	// additional grace period for docker startup/shutdown
 	dockerExtraTime = 10 * time.Second
+	scratchAnalysisTimeout = getenvDurationOr("SCRATCH_ANALYSIS_TIMEOUT", 2*time.Minute)
+	scratchSemanticTimeout = getenvDurationOr("SCRATCH_SEMANTIC_TIMEOUT", 45*time.Second)
 )
 
 // ==== LLM typed outputs ====
@@ -392,8 +394,8 @@ func runSubmission(id uuid.UUID) {
 			runLLMInteractive(sub, assignment)
 			return
 		}
-		// Early exit for manual-review assignments when not using LLM
-		if assignment.ManualReview {
+		// Early exit for manual-review assignments when not using LLM or Scratch analysis
+		if assignment.ManualReview && assignment.ProgrammingLanguage != "scratch" {
 			return
 		}
 	}
@@ -457,6 +459,11 @@ func runSubmission(id uuid.UUID) {
 		return nil
 	})
 	_ = ensureSandboxPerms(tmpDir)
+
+	if assignment != nil && assignment.ProgrammingLanguage == "scratch" {
+		runScratchAnalysis(sub, assignment, tmpDir)
+		return
+	}
 	var mainFile string
 	var firstPy string
 	filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
@@ -563,6 +570,295 @@ func runSubmission(id uuid.UUID) {
 	}
 
 	finalizeSubmissionOutcome(sub, assignment, allPass, totalWeight, earnedWeight)
+}
+
+func scratchEvaluationMode(raw string) string {
+	mode := strings.ToLower(strings.TrimSpace(raw))
+	switch mode {
+	case "automatic", "auto":
+		return "automatic"
+	case "semi_automatic", "semi-automatic", "semi":
+		return "semi_automatic"
+	default:
+		return "manual"
+	}
+}
+
+func applyScratchLatePenalty(sub *Submission, assignment *Assignment, score float64) float64 {
+	if assignment == nil {
+		return score
+	}
+	effDeadline := assignment.Deadline
+	effSecond := assignment.SecondDeadline
+	if o, err := GetDeadlineOverride(sub.AssignmentID, sub.StudentID); err == nil && o != nil {
+		effDeadline = o.NewDeadline
+		if effSecond == nil || o.NewDeadline.After(*effSecond) {
+			tmp := o.NewDeadline
+			effSecond = &tmp
+		}
+	}
+	if sub.CreatedAt.After(effDeadline) {
+		_ = SetSubmissionLate(sub.ID, true)
+		if effSecond != nil && sub.CreatedAt.Before(*effSecond) {
+			return score * assignment.LatePenaltyRatio
+		}
+		return 0
+	}
+	return score
+}
+
+func finalizeScratchSubmission(sub *Submission, assignment *Assignment, mode string, criteria []ScratchSemanticCriterion, analysis *ScratchSemanticAnalysis) {
+	if assignment == nil {
+		_ = UpdateSubmissionStatus(sub.ID, "failed")
+		return
+	}
+	score, allPass, ok := scoreScratchSemantic(criteria, analysis, assignment.GradingPolicy, assignment.MaxPoints)
+	switch mode {
+	case "automatic":
+		if ok {
+			score = applyScratchLatePenalty(sub, assignment, score)
+			_ = SetSubmissionPoints(sub.ID, score)
+			if allPass {
+				_ = UpdateSubmissionStatus(sub.ID, "completed")
+			} else {
+				_ = UpdateSubmissionStatus(sub.ID, "failed")
+			}
+		} else {
+			_ = UpdateSubmissionStatus(sub.ID, "failed")
+		}
+	case "semi_automatic":
+		if ok {
+			score = applyScratchLatePenalty(sub, assignment, score)
+			_ = SetSubmissionPoints(sub.ID, score)
+			_ = UpdateSubmissionStatus(sub.ID, "provisional")
+		} else {
+			_ = UpdateSubmissionStatus(sub.ID, "pending")
+		}
+	default:
+		_ = UpdateSubmissionStatus(sub.ID, "pending")
+	}
+}
+
+func runScratchAnalysis(sub *Submission, assignment *Assignment, submissionDir string) {
+	scratchMode := scratchEvaluationMode("")
+	if assignment != nil {
+		scratchMode = scratchEvaluationMode(assignment.ScratchEvaluationMode)
+	}
+
+	sb3Path := findScratchProjectFile(submissionDir)
+	if sb3Path == "" {
+		fmt.Printf("[worker] scratch analysis: no .sb3 file found for submission %s\n", sub.ID)
+		_ = SetSubmissionScratchAnalysis(sub.ID, nil)
+		_ = SetSubmissionScratchSemanticAnalysis(sub.ID, nil)
+		finalizeScratchSubmission(sub, assignment, scratchMode, nil, nil)
+		return
+	}
+
+	var scratchAnalysis *string
+	workDir, sb3Name, cleanup, err := prepareScratchAnalysisWorkspace(sb3Path)
+	if err != nil {
+		fmt.Printf("[worker] scratch analysis: workspace prep failed for submission %s: %v\n", sub.ID, err)
+	} else {
+		defer cleanup()
+		out, errOut, exitCode, timedOut, _ := executeScratchAnalysis(
+			workDir,
+			sb3Name,
+			scratchAnalysisTimeout,
+		)
+		if timedOut {
+			fmt.Printf("[worker] scratch analysis: timeout for submission %s\n", sub.ID)
+		} else if exitCode != 0 {
+			fmt.Printf("[worker] scratch analysis: drscratch failed for submission %s: %s\n", sub.ID, errOut)
+		} else {
+			candidate := strings.TrimSpace(out)
+			if candidate == "" || !json.Valid([]byte(candidate)) {
+				fmt.Printf("[worker] scratch analysis: invalid JSON for submission %s\n", sub.ID)
+			} else {
+				scratchAnalysis = &candidate
+			}
+		}
+	}
+	if err := SetSubmissionScratchAnalysis(sub.ID, scratchAnalysis); err != nil {
+		fmt.Printf("[worker] scratch analysis: db update failed for submission %s: %v\n", sub.ID, err)
+	}
+
+	var semanticJSON *string
+	var semanticAnalysis *ScratchSemanticAnalysis
+	criteria := []ScratchSemanticCriterion{}
+	if assignment != nil {
+		criteria = parseScratchSemanticCriteria(stringOrEmpty(assignment.ScratchSemanticCriteria))
+		if len(criteria) > 0 {
+			language := "English"
+			if user, err := GetUser(sub.StudentID); err == nil && user.PreferredLocale != nil {
+				if strings.EqualFold(strings.TrimSpace(*user.PreferredLocale), "cs") {
+					language = "Czech"
+				}
+			}
+			semanticAnalysis, err = runScratchSemanticAnalysis(sb3Path, criteria, scratchSemanticTimeout, language)
+			if err != nil {
+				fmt.Printf("[worker] scratch semantic: evaluation failed for submission %s: %v\n", sub.ID, err)
+			}
+		}
+	}
+	if semanticAnalysis != nil {
+		if b, err := json.Marshal(semanticAnalysis); err == nil {
+			encoded := string(b)
+			semanticJSON = &encoded
+		}
+	}
+	if err := SetSubmissionScratchSemanticAnalysis(sub.ID, semanticJSON); err != nil {
+		fmt.Printf("[worker] scratch semantic: db update failed for submission %s: %v\n", sub.ID, err)
+	}
+
+	finalizeScratchSubmission(sub, assignment, scratchMode, criteria, semanticAnalysis)
+}
+
+func findScratchProjectFile(root string) string {
+	var found string
+	_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(strings.ToLower(info.Name()), ".sb3") {
+			found = path
+			return io.EOF
+		}
+		return nil
+	})
+	return found
+}
+
+func prepareScratchAnalysisWorkspace(sb3Path string) (string, string, func(), error) {
+	workDir, err := os.MkdirTemp(execRoot, "scratch-")
+	if err != nil {
+		return "", "", func() {}, err
+	}
+	cleanup := func() { _ = os.RemoveAll(workDir) }
+
+	src := resolveVMPath(filepath.Join("backend", "dr_scratch"))
+	if _, err := os.Stat(src); err != nil {
+		cleanup()
+		return "", "", func() {}, fmt.Errorf("dr_scratch not found: %w", err)
+	}
+
+	dst := filepath.Join(workDir, "dr_scratch")
+	if err := copyScratchRuntime(src, dst); err != nil {
+		cleanup()
+		return "", "", func() {}, err
+	}
+
+	sb3Name := filepath.Base(sb3Path)
+	if err := copyFile(sb3Path, filepath.Join(dst, sb3Name)); err != nil {
+		cleanup()
+		return "", "", func() {}, err
+	}
+
+	_ = ensureSandboxPerms(workDir)
+	return workDir, sb3Name, cleanup, nil
+}
+
+func copyScratchRuntime(src, dst string) error {
+	skipDirs := map[string]struct{}{
+		".git":       {},
+		"__pycache__": {},
+		"example":    {},
+	}
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		if rel == "." {
+			return nil
+		}
+		parts := strings.Split(rel, string(filepath.Separator))
+		for _, part := range parts {
+			if _, skip := skipDirs[part]; skip {
+				if info.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+		}
+		target := filepath.Join(dst, rel)
+		if info.IsDir() {
+			return os.MkdirAll(target, 0755)
+		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+		return copyFile(path, target)
+	})
+}
+
+func copyFile(src, dst string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		_ = out.Close()
+		return err
+	}
+	return out.Close()
+}
+
+func executeScratchAnalysis(dir, sb3Name string, timeout time.Duration) (string, string, int, bool, time.Duration) {
+	_ = ensureSandboxPerms(dir)
+	abs, _ := filepath.Abs(dir)
+	fmt.Printf("[worker] Running Dr. Scratch in VM: %s with timeout %v\n", abs, timeout)
+
+	bootCtx, bootCancel := context.WithTimeout(context.Background(), vmBootTimeout+vmExtraTimeout+vmQueueTimeout)
+	defer bootCancel()
+
+	vm, remoteDir, err := startVMWithWorkspace(bootCtx, dir, nil)
+	if err != nil {
+		timedOut := bootCtx.Err() == context.DeadlineExceeded
+		return "", fmt.Sprintf("vm start failed: %v", err), -1, timedOut, 0
+	}
+	defer vm.Close()
+
+	remoteWorkDir := filepath.Join(remoteDir, "dr_scratch")
+	remoteScript := filepath.Join(remoteWorkDir, "drscratch_cli.py")
+	remoteSb3 := filepath.Join(remoteWorkDir, sb3Name)
+	outputName := sb3Name + ".analysis.json"
+	remoteOut := filepath.Join(remoteWorkDir, outputName)
+	safeScript := strings.ReplaceAll(remoteScript, "'", "'\\''")
+	safeSb3 := strings.ReplaceAll(remoteSb3, "'", "'\\''")
+	safeOut := strings.ReplaceAll(remoteOut, "'", "'\\''")
+	script := fmt.Sprintf(
+		"PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp LANG=C.UTF-8 %s -u '%s' '%s' -o '%s' >/dev/null && cat '%s'",
+		pythonBinary,
+		safeScript,
+		safeSb3,
+		safeOut,
+		safeOut,
+	)
+
+	execCtx, execCancel := context.WithTimeout(context.Background(), timeout)
+	defer execCancel()
+
+	startWall := time.Now()
+	outRaw, errRaw, exitCode, runErr := vm.runCommand(execCtx, remoteDir, script, nil)
+	duration := time.Since(startWall)
+	timedOut := execCtx.Err() == context.DeadlineExceeded
+
+	if runErr != nil && exitCode == 0 {
+		exitCode = -1
+	}
+
+	return strings.TrimSpace(outRaw), strings.TrimSpace(errRaw), exitCode, timedOut, duration
 }
 
 func finalizeSubmissionOutcome(sub *Submission, assignment *Assignment, allPass bool, totalWeight, earnedWeight float64) {

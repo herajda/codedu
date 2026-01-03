@@ -23,7 +23,7 @@
 
   // UI state
   let query = '';
-  let statusFilter: 'all' | 'running' | 'completed' | 'failed' = 'all';
+  let statusFilter: 'all' | 'running' | 'completed' | 'failed' | 'provisional' = 'all';
   let sortBy: 'newest' | 'oldest' | 'status' = 'newest';
   let layoutMode: 'table' | 'cards' | 'board' = 'table';
 
@@ -39,6 +39,7 @@
   function statusColor(s: string){
     if(s === 'completed') return 'badge-success';
     if(s === 'running') return 'badge-info';
+    if(s === 'provisional') return 'badge-warning';
     if(s === 'failed') return 'badge-error';
     return '';
   }
@@ -145,9 +146,10 @@
   $: filtered = sortSubs(subs.filter(matchesQuery).filter(matchesStatus));
   $: grouped = {
     running: filtered.filter(s=>s.status==='running'),
+    provisional: filtered.filter(s=>s.status==='provisional'),
     completed: filtered.filter(s=>s.status==='completed'),
     failed: filtered.filter(s=>s.status==='failed'),
-    other: filtered.filter(s=> !['running','completed','failed'].includes(s.status))
+    other: filtered.filter(s=> !['running','provisional','completed','failed'].includes(s.status))
   };
 </script>
 
@@ -183,6 +185,7 @@
           <select class="select select-bordered join-item" bind:value={statusFilter}>
             <option value="all">{t('frontend/src/routes/submissions/+page.svelte::all_filter')}</option>
             <option value="running">{t('frontend/src/routes/submissions/+page.svelte::running_filter')}</option>
+            <option value="provisional">{t('frontend/src/routes/submissions/+page.svelte::provisional_filter')}</option>
             <option value="completed">{t('frontend/src/routes/submissions/+page.svelte::completed_filter')}</option>
             <option value="failed">{t('frontend/src/routes/submissions/+page.svelte::failed_filter')}</option>
           </select>
@@ -200,7 +203,7 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
       <div class="stat bg-base-100 rounded-box shadow">
         <div class="stat-title">{t('frontend/src/routes/submissions/+page.svelte::total_submissions')}</div>
         <div class="stat-value text-primary">{subs.length}</div>
@@ -208,6 +211,10 @@
       <div class="stat bg-base-100 rounded-box shadow">
         <div class="stat-title">{t('frontend/src/routes/submissions/+page.svelte::running_submissions')}</div>
         <div class="stat-value text-info">{countByStatus('running')}</div>
+      </div>
+      <div class="stat bg-base-100 rounded-box shadow">
+        <div class="stat-title">{t('frontend/src/routes/submissions/+page.svelte::provisional_submissions')}</div>
+        <div class="stat-value text-warning">{countByStatus('provisional')}</div>
       </div>
       <div class="stat bg-base-100 rounded-box shadow">
         <div class="stat-title">{t('frontend/src/routes/submissions/+page.svelte::completed_submissions')}</div>
@@ -306,7 +313,7 @@
           {/each}
         </div>
       {:else}
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <div class="space-y-2">
             <div class="flex items-center gap-2">
               <div class="w-2 h-2 rounded-full bg-info"></div>
@@ -316,6 +323,25 @@
             <div class="space-y-2">
               {#each grouped.running as s}
                 <a href={`/submissions/${s.id}`} class="block p-3 rounded border border-base-300 hover:border-info/60 bg-base-100/60 hover:bg-base-100 transition">
+                  <div class="text-xs opacity-70 flex justify-between">
+                    <span>{formatDateTime(s.created_at)}</span>
+                    <span class={`badge badge-xs ${statusColor(s.status)}`}>{s.status}</span>
+                  </div>
+                  <div class="truncate font-medium">{titles[s.assignment_id] ?? s.assignment_id}</div>
+                  <div class="text-xs opacity-70">#{s.id}</div>
+                </a>
+              {/each}
+            </div>
+          </div>
+          <div class="space-y-2">
+            <div class="flex items-center gap-2">
+              <div class="w-2 h-2 rounded-full bg-warning"></div>
+              <div class="font-medium">{t('frontend/src/routes/submissions/+page.svelte::provisional_board_title')}</div>
+              <span class="badge badge-ghost">{grouped.provisional.length}</span>
+            </div>
+            <div class="space-y-2">
+              {#each grouped.provisional as s}
+                <a href={`/submissions/${s.id}`} class="block p-3 rounded border border-base-300 hover:border-warning/60 bg-base-100/60 hover:bg-base-100 transition">
                   <div class="text-xs opacity-70 flex justify-between">
                     <span>{formatDateTime(s.created_at)}</span>
                     <span class={`badge badge-xs ${statusColor(s.status)}`}>{s.status}</span>
