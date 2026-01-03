@@ -353,6 +353,7 @@
   let isSolDragging = false;
   let solLoading = false;
   let teacherRunDialog: HTMLDialogElement;
+  let teacherFileInput: HTMLInputElement;
 
   function policyLabel(policy: string) {
     if (policy === "all_or_nothing")
@@ -3106,11 +3107,14 @@
         {/if}
 
         <div
-          role="group"
+          role="button"
+          tabindex="0"
           aria-label="Upload dropzone"
-          class={`relative group/drop border-2 border-dashed rounded-3xl p-10 text-center transition-all duration-300 ${isDragging ? "border-primary bg-primary/5 scale-[0.99]" : "border-base-300 bg-base-200/30 hover:bg-base-200/50 hover:border-base-400"}`}
+          class={`relative group/drop border-2 border-dashed rounded-3xl p-10 text-center transition-all duration-300 cursor-pointer ${isDragging ? "border-primary bg-primary/5 scale-[0.99]" : "border-base-300 bg-base-200/30 hover:bg-base-200/50 hover:border-base-400"}`}
           on:dragover|preventDefault={() => (isDragging = true)}
           on:dragleave={() => (isDragging = false)}
+          on:click={() => fileInput?.click()}
+          on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput?.click(); } }}
           on:drop|preventDefault={(e) => {
             isDragging = false;
             const dt = (e as DragEvent).dataTransfer;
@@ -3133,7 +3137,7 @@
             </div>
             <button 
               class="btn btn-sm bg-base-100 hover:bg-base-300 border-base-300 rounded-xl px-6 font-black uppercase tracking-widest text-[9px]"
-              on:click={() => fileInput.click()}
+              tabindex="-1"
             >
               {t("frontend/src/routes/+layout.2svelte::select_image_button").replace("image", "files")}
             </button>
@@ -3353,11 +3357,14 @@
         )}
       </h3>
       <div
-        role="region"
+        role="button"
+        tabindex="0"
         aria-label="Teacher solution dropzone"
-        class={`border-2 border-dashed rounded-xl p-6 text-center transition ${isSolDragging ? "bg-base-200" : "bg-base-100"}`}
+        class={`border-2 border-dashed rounded-xl p-6 text-center transition cursor-pointer ${isSolDragging ? "bg-base-200" : "bg-base-100 hover:bg-base-200/50"}`}
         on:dragover|preventDefault={() => (isSolDragging = true)}
         on:dragleave={() => (isSolDragging = false)}
+        on:click={() => teacherFileInput?.click()}
+        on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); teacherFileInput?.click(); } }}
         on:drop|preventDefault={(e) => {
           isSolDragging = false;
           const dt = (e as DragEvent).dataTransfer;
@@ -3378,11 +3385,15 @@
             "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_or",
           )}
         </div>
+        <div class="btn btn-sm btn-ghost border-base-300">
+          {t("frontend/src/routes/+layout.2svelte::select_image_button").replace("image", "files")}
+        </div>
         <input
+          bind:this={teacherFileInput}
           type="file"
           accept=".py"
           multiple
-          class="file-input file-input-bordered w-full"
+          class="hidden"
           on:change={(e) =>
             (solFiles = Array.from((e.target as HTMLInputElement).files || []))}
         />
