@@ -7,22 +7,23 @@ RUN go mod download
 COPY backend/. .
 # Build package (all files), output to /out
 RUN mkdir -p /out \
- && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/codegrader .
+    && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/codegrader .
 
 # ---- run ----
 FROM debian:bookworm-slim
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        ca-certificates \
-        tzdata \
-        bash \
-        docker.io \
-        qemu-system-x86 \
-        qemu-utils \
-        openssh-client \
-        python3 \
-        python3-venv \
-        python3-pip \
+    ca-certificates \
+    tzdata \
+    bash \
+    docker.io \
+    qemu-system-x86 \
+    qemu-utils \
+    openssh-client \
+    python3 \
+    python3-venv \
+    python3-pip \
+    librsvg2-bin \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /out/codegrader /usr/local/bin/codegrader

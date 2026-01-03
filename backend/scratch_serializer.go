@@ -13,40 +13,49 @@ type ScratchProject struct {
 	Targets []ScratchTarget `json:"targets"`
 }
 
+type ScratchCostume struct {
+	AssetID    string `json:"assetId"`
+	Name       string `json:"name"`
+	MD5Ext     string `json:"md5ext"`
+	DataFormat string `json:"dataFormat"`
+}
+
 type ScratchTarget struct {
-	Name      string                    `json:"name"`
-	IsStage   bool                      `json:"isStage"`
-	Blocks    map[string]*ScratchBlock  `json:"blocks"`
-	Variables map[string][]any          `json:"variables"`
-	Lists     map[string][]any          `json:"lists"`
+	Name           string                   `json:"name"`
+	IsStage        bool                     `json:"isStage"`
+	Blocks         map[string]*ScratchBlock `json:"blocks"`
+	Variables      map[string][]any         `json:"variables"`
+	Lists          map[string][]any         `json:"lists"`
+	Costumes       []ScratchCostume         `json:"costumes"`
+	CurrentCostume int                      `json:"currentCostume"`
 }
 
 type ScratchBlock struct {
-	Opcode   string                 `json:"opcode"`
-	Next     string                 `json:"next"`
-	Parent   string                 `json:"parent"`
-	Inputs   map[string]any         `json:"inputs"`
-	Fields   map[string][]any       `json:"fields"`
-	Shadow   bool                   `json:"shadow"`
-	TopLevel bool                   `json:"topLevel"`
-	X        *float64               `json:"x"`
-	Y        *float64               `json:"y"`
-	Mutation map[string]any         `json:"mutation"`
+	Opcode   string           `json:"opcode"`
+	Next     string           `json:"next"`
+	Parent   string           `json:"parent"`
+	Inputs   map[string]any   `json:"inputs"`
+	Fields   map[string][]any `json:"fields"`
+	Shadow   bool             `json:"shadow"`
+	TopLevel bool             `json:"topLevel"`
+	X        *float64         `json:"x"`
+	Y        *float64         `json:"y"`
+	Mutation map[string]any   `json:"mutation"`
 }
 
 type ScratchSerializerOptions struct {
-	MaxChars           int
+	MaxChars            int
 	MaxScriptsPerTarget int
 }
 
 type ScratchSerializeStats struct {
-	Truncated      bool
+	Truncated       bool
 	IncludedTargets int
 	OmittedTargets  int
 }
 
 const (
-	defaultScratchMaxChars           = 12000
+	defaultScratchMaxChars            = 12000
 	defaultScratchMaxScriptsPerTarget = 50
 )
 
@@ -160,6 +169,14 @@ func (s *scratchSerializer) serializeTarget(target *ScratchTarget, maxScripts in
 		name = "(unnamed)"
 	}
 	lines := []string{fmt.Sprintf("%s: %s", label, name)}
+	costumeNames := extractCostumeNames(target.Costumes)
+	if len(costumeNames) > 0 {
+		if target.IsStage {
+			lines = append(lines, formatMetaLine("Backdrops", costumeNames))
+		} else {
+			lines = append(lines, formatMetaLine("Costumes", costumeNames))
+		}
+	}
 	if len(vars) > 0 {
 		lines = append(lines, formatMetaLine("Variables", vars))
 	}
@@ -181,6 +198,20 @@ func (s *scratchSerializer) serializeTarget(target *ScratchTarget, maxScripts in
 		lines = append(lines, s.renderStack(id, 0, map[string]bool{})...)
 	}
 	return lines
+}
+
+func extractCostumeNames(costumes []ScratchCostume) []string {
+	if len(costumes) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(costumes))
+	for _, c := range costumes {
+		name := strings.TrimSpace(c.Name)
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	return names
 }
 
 func extractNameList(input map[string][]any) []string {
