@@ -7,6 +7,21 @@
     Sparkles,
     Trophy,
     X,
+    Box,
+    Zap,
+    Brain,
+    Clock,
+    Repeat,
+    MousePointer2,
+    Database,
+    Calculator,
+    Move,
+    Wind,
+    Activity,
+    Target,
+    Layers,
+    Cpu,
+    ArrowUpRight
   } from "lucide-svelte";
   import { t, translator } from "$lib/i18n";
   import ScratchBlocksSnippet from "$lib/components/ScratchBlocksSnippet.svelte";
@@ -465,6 +480,30 @@
     },
   };
 
+  const SKILL_ICONS: Record<string, any> = {
+    Abstraction: Box,
+    Parallelization: Zap,
+    Logic: Brain,
+    Synchronization: Clock,
+    FlowControl: Repeat,
+    UserInteractivity: MousePointer2,
+    DataRepresentation: Database,
+    MathOperators: Calculator,
+    MotionOperators: Move,
+  };
+
+  const SKILL_COLORS: Record<string, string> = {
+    Abstraction: "text-blue-500 bg-blue-500/10",
+    Parallelization: "text-amber-500 bg-amber-500/10",
+    Logic: "text-indigo-500 bg-indigo-500/10",
+    Synchronization: "text-purple-500 bg-purple-500/10",
+    FlowControl: "text-emerald-500 bg-emerald-500/10",
+    UserInteractivity: "text-rose-500 bg-rose-500/10",
+    DataRepresentation: "text-cyan-500 bg-cyan-500/10",
+    MathOperators: "text-orange-500 bg-orange-500/10",
+    MotionOperators: "text-sky-500 bg-sky-500/10",
+  };
+
   function asNumber(value: any): number {
     if (typeof value === "number" && Number.isFinite(value)) return value;
     if (typeof value === "string") {
@@ -881,37 +920,53 @@
                 {#if activeMode.skills.length}
                   <div class="grid sm:grid-cols-2 gap-3 pt-2">
                     {#each activeMode.skills as skill}
-                      <div class="bg-base-100/70 rounded-xl border border-base-300/40 p-3 space-y-2">
+                      <div class="group bg-base-100/70 hover:bg-base-100 rounded-xl border border-base-300/40 p-3 space-y-3 transition-all duration-300 hover:shadow-md hover:shadow-base-300/20 hover:-translate-y-0.5">
                         <div class="flex items-center justify-between gap-2">
-                          <div class="flex items-center gap-2">
-                            <div class="text-[11px] font-semibold">
-                              {skill.label}
+                          <div class="flex items-center gap-2.5">
+                            <div class={`p-1.5 rounded-lg ${SKILL_COLORS[skill.name] || "bg-base-200 text-base-content/60"}`}>
+                              <svelte:component this={SKILL_ICONS[skill.name] || Activity} size={14} strokeWidth={2.5} />
                             </div>
-                            <button
-                              class="btn btn-ghost btn-xs h-5 min-h-0 w-5 p-0 rounded-full text-[10px] font-black opacity-60 hover:opacity-100"
-                              type="button"
-                              on:click={() => openSkillHelp(skill)}
-                              aria-label={t(
-                                "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_label",
-                                { skill: skill.label },
-                              )}
-                              title={t(
-                                "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_label",
-                                { skill: skill.label },
-                              )}
-                            >
-                              ?
-                            </button>
+                            <div class="flex flex-col">
+                              <div class="text-[11px] font-black tracking-tight flex items-center gap-1.5">
+                                {skill.label}
+                                <button
+                                  class="opacity-0 group-hover:opacity-40 hover:!opacity-100 transition-opacity"
+                                  type="button"
+                                  on:click={() => openSkillHelp(skill)}
+                                  aria-label={t(
+                                    "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_label",
+                                    { skill: skill.label },
+                                  )}
+                                  title={t(
+                                    "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_skill_help_label",
+                                    { skill: skill.label },
+                                  )}
+                                >
+                                  <AlertCircle size={10} />
+                                </button>
+                              </div>
+                            </div>
                           </div>
-                          <div class="text-[10px] font-black opacity-60">
-                            {skill.score}/{skill.max}
+                          <div class="flex items-end flex-col">
+                            <div class="text-[10px] font-black opacity-40 uppercase tracking-widest leading-none mb-1">
+                              {t("frontend/src/routes/assignments/[id]/+page.svelte::points_label_short") || "pts"}
+                            </div>
+                            <div class="text-[13px] font-black leading-none">
+                              {skill.score}<span class="opacity-30 mx-0.5">/</span>{skill.max}
+                            </div>
                           </div>
                         </div>
-                        <progress
-                          class="progress progress-secondary h-1.5"
-                          value={skill.score}
-                          max={skill.max > 0 ? skill.max : 1}
-                        ></progress>
+                        <div class="space-y-1">
+                          <div class="flex h-1.5 w-full bg-base-200 rounded-full overflow-hidden">
+                            <div 
+                              class={`h-full rounded-full transition-all duration-500 ease-out ${
+                                skill.score === skill.max ? 'bg-success' : 
+                                skill.score > skill.max / 2 ? 'bg-primary' : 'bg-warning'
+                              }`}
+                              style={`width: ${(skill.score / (skill.max > 0 ? skill.max : 1)) * 100}%`}
+                            ></div>
+                          </div>
+                        </div>
                       </div>
                     {/each}
                   </div>

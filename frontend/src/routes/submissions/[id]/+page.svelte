@@ -1604,33 +1604,7 @@
                   {/if}
                 </div>
               </div>
-              <div class="p-6 space-y-4">
-                <div class="space-y-2">
-                  <div class="text-[9px] font-black uppercase tracking-widest opacity-40">
-                    {t("frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_criteria_label")}
-                  </div>
-                  {#if scratchCriteriaList.length}
-                    <div class="space-y-2 text-sm font-medium opacity-80">
-                      {#each scratchCriteriaList as criterion}
-                        <div class="flex items-center justify-between gap-3">
-                          <span>{criterion.text}</span>
-                          {#if criterion.points !== null && criterion.points !== undefined}
-                            <span class="badge badge-xs font-black uppercase tracking-widest">
-                              {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_points_suffix", { points: criterion.points })}
-                            </span>
-                          {/if}
-                        </div>
-                      {/each}
-                    </div>
-                  {:else}
-                    <div class="text-sm font-medium opacity-80">
-                      {t(
-                        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_criteria_missing",
-                      )}
-                    </div>
-                  {/if}
-                </div>
-
+              <div class="p-6 space-y-8">
                 {#if scratchSemanticAnalysisError}
                   <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl">
                     <AlertCircle size={18} />
@@ -1646,38 +1620,69 @@
                     {t("frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_empty")}
                   </div>
                 {:else}
-                  <div class="space-y-4">
-                    <div class="bg-base-100/70 rounded-xl border border-base-300/40 p-4">
-                      <div class="text-[9px] font-black uppercase tracking-widest opacity-40 mb-2">
-                        {t(
-                          "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_feedback_label",
-                        )}
+                  <div class="space-y-6">
+                    <div class="bg-primary/5 rounded-2xl border border-primary/10 p-5 relative overflow-hidden group">
+                      <div class="absolute -right-4 -top-4 text-primary/10 transition-transform group-hover:scale-110 group-hover:-rotate-12 duration-500">
+                        <Sparkles size={120} />
                       </div>
-                      <div class="text-sm font-medium opacity-80">
-                        {scratchSemanticSummary || "-"}
-                      </div>
-                    </div>
-                    {#if scratchSemanticChecklist.length}
-                      <div class="space-y-2">
-                        <div class="text-[9px] font-black uppercase tracking-widest opacity-40">
+                      <div class="relative">
+                        <div class="text-[9px] font-black uppercase tracking-widest text-primary/60 mb-2">
                           {t(
-                            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_checklist_label",
+                            "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_feedback_label",
                           )}
                         </div>
-                        <div class="space-y-2">
+                        <div class="text-sm font-medium leading-relaxed opacity-90 max-w-[90%]">
+                          {scratchSemanticSummary || "-"}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {#if scratchSemanticChecklist.length}
+                      <div class="space-y-4">
+                        <div class="flex items-center gap-2">
+                          <div class="p-1 px-2 bg-base-200 text-base-content/40 rounded-md text-[9px] font-black uppercase tracking-widest">
+                            {t("frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_checklist_label")}
+                          </div>
+                        </div>
+                        <div class="grid gap-3">
                           {#each scratchSemanticChecklist as item}
-                            <div class="bg-base-100/70 rounded-xl border border-base-300/40 p-3 flex items-start gap-3">
-                              <span
-                                class={`badge badge-sm font-black uppercase tracking-widest ${scratchSemanticStatusTone(item?.status)}`}
-                              >
-                                {String(item?.status || "").toUpperCase() || "-"}
-                              </span>
-                              <div class="space-y-1">
-                                <div class="text-sm font-semibold">
-                                  {item?.item ?? "-"}
+                            {@const status = String(item?.status || "").toUpperCase()}
+                            {@const criterionMatch = scratchCriteriaList.find(c => c.text === item.item)}
+                            {@const pts = criterionMatch?.points}
+                            <div class="group bg-base-100/70 hover:bg-base-100 rounded-2xl border border-base-300/40 p-4 flex items-start gap-4 transition-all duration-300 hover:shadow-md hover:shadow-base-300/10 hover:-translate-y-0.5">
+                              <div class={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-110 ${
+                                status === 'PASS' ? 'bg-success/10 text-success' : 
+                                status === 'FAIL' ? 'bg-error/10 text-error' : 'bg-base-200 text-base-content/40'
+                              }`}>
+                                {#if status === 'PASS'}
+                                  <CheckCircle2 size={24} />
+                                {:else if status === 'FAIL'}
+                                  <AlertTriangle size={24} />
+                                {:else}
+                                  <Clock size={24} />
+                                {/if}
+                              </div>
+                              <div class="space-y-1.5 pt-1 flex-1">
+                                <div class="flex items-center justify-between gap-4">
+                                  <div class="text-[13px] font-black tracking-tight leading-tight group-hover:text-primary transition-colors flex items-center gap-2">
+                                    {item?.item ?? "-"}
+                                    {#if pts !== null && pts !== undefined}
+                                      <span class="badge bg-secondary/10 text-secondary border-none font-black text-[8px] uppercase tracking-widest px-1.5 h-4">
+                                        {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_points_suffix", { points: pts })}
+                                      </span>
+                                    {/if}
+                                  </div>
+                                  <span class={`badge font-black text-[8px] uppercase tracking-widest border-none px-2 h-5 ${
+                                    status === 'PASS' ? 'bg-success/20 text-success' : 
+                                    status === 'FAIL' ? 'bg-error/20 text-error' : 'bg-base-300 text-base-content/60'
+                                  }`}>
+                                    {status || "-"}
+                                  </span>
                                 </div>
                                 {#if item?.reason && String(item.reason).trim().length}
-                                  <div class="text-xs opacity-60">{item.reason}</div>
+                                  <div class="text-xs font-medium opacity-60 leading-relaxed bg-base-200/40 rounded-xl p-3 mt-1 border border-base-300/20 group-hover:bg-base-200/60 transition-colors">
+                                    {item.reason}
+                                  </div>
                                 {/if}
                               </div>
                             </div>
