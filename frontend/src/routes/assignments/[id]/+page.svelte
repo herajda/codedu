@@ -3059,42 +3059,68 @@
             {/if}
           </div>
           {#if latestSub}
-            <div class="card-elevated p-5 space-y-2">
-              <h3 class="font-semibold">
-                {t(
-                  "frontend/src/routes/assignments/[id]/+page.svelte::latest_submission_heading",
-                )}
-              </h3>
-              <div class="flex items-center gap-2">
-                <span class={`badge ${statusColor(latestSub.status)}`}
-                  >{statusLabel(latestSub.status)}</span
-                >
-                <span class="text-xs opacity-70"
-                  >{t(
-                    "frontend/src/routes/assignments/[id]/+page.svelte::attempt_num_label",
-                    { num: latestSub.attempt_number ?? "?" },
-                  )}</span
-                >
-                <a
-                  class="link"
-                  href={`/submissions/${latestSub.id}?fromTab=${activeTab}`}
-                  on:click={saveState}>{formatDateTime(latestSub.created_at)}</a
-                >
+            <div class="card-elevated p-6 space-y-4 bg-base-100 rounded-[2rem] border border-base-200 overflow-hidden relative group animate-in fade-in slide-in-from-right-4 duration-500">
+              <!-- Header with status -->
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div class={`p-2.5 rounded-xl ${statusColor(latestSub.status).replace('badge-', 'bg-')}/10 ${statusColor(latestSub.status).replace('badge-', 'text-')}`}>
+                    <History size={18} />
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-black tracking-tight leading-none mb-1">{t("frontend/src/routes/assignments/[id]/+page.svelte::latest_submission_heading")}</h3>
+                    <p class="text-[9px] font-bold opacity-40 uppercase tracking-widest">
+                      {t("frontend/src/routes/assignments/[id]/+page.svelte::attempt_num_label", { num: latestSub.attempt_number ?? "?" })}
+                    </p>
+                  </div>
+                </div>
+                <div class={`badge border-none font-black text-[9px] uppercase tracking-wider py-3 ${statusColor(latestSub.status).replace('badge-', 'bg-')}/20 ${statusColor(latestSub.status).replace('badge-', 'text-')}`}>
+                  {statusLabel(latestSub.status)}
+                </div>
               </div>
-              {#if assignment.second_deadline && latestSub.created_at > assignment.deadline && latestSub.created_at <= assignment.second_deadline}
-                <div class="alert alert-warning alert-sm">
-                  <span
-                    >{t(
-                      "frontend/src/routes/assignments/[id]/+page.svelte::latest_submission_alert_body",
-                      {
-                        penalty: Math.round(
-                          assignment.late_penalty_ratio * 100,
-                        ),
-                      },
-                    )}</span
-                  >
+
+              <!-- Points display if available -->
+              {#if latestSub.points_earned !== undefined}
+                <div class="bg-base-200/30 p-4 rounded-2xl border border-base-200 flex items-center justify-between group-hover:border-primary/20 transition-colors">
+                  <div class="flex items-center gap-2">
+                    <Trophy size={14} class="text-warning" />
+                    <span class="text-[10px] font-black uppercase tracking-widest opacity-40">{t("frontend/src/routes/assignments/[id]/+page.svelte::points_label")}</span>
+                  </div>
+                  <div class="flex items-baseline gap-1">
+                    <span class="text-xl font-black tabular-nums text-primary">{latestSub.points_earned}</span>
+                    <span class="text-[10px] font-bold opacity-30">/ {assignment.max_points}</span>
+                  </div>
                 </div>
               {/if}
+
+              <!-- Date display -->
+              <div class="flex items-center gap-2 text-[10px] font-bold opacity-40 uppercase tracking-wider px-1">
+                <Clock size={12} />
+                <span class="truncate">{formatDateTime(latestSub.created_at)}</span>
+              </div>
+
+              <!-- Warning for late submission -->
+              {#if assignment.second_deadline && latestSub.created_at > assignment.deadline && latestSub.created_at <= assignment.second_deadline}
+                <div class="alert bg-warning/10 border-warning/20 text-warning-content rounded-xl p-3 flex items-start gap-2 animate-in zoom-in-95 duration-300">
+                  <AlertTriangle size={14} class="mt-0.5 shrink-0" />
+                  <p class="text-[10px] leading-relaxed font-bold">
+                    {t("frontend/src/routes/assignments/[id]/+page.svelte::latest_submission_alert_body", { penalty: Math.round(assignment.late_penalty_ratio * 100) })}
+                  </p>
+                </div>
+              {/if}
+
+              <!-- Action button -->
+              <a
+                class="btn btn-primary w-full rounded-xl gap-2 font-black uppercase tracking-widest text-[10px] h-11 shadow-lg shadow-primary/20 transform transition-all active:scale-95 group-hover:translate-y-[-2px]"
+                href={`/submissions/${latestSub.id}?fromTab=${activeTab}`}
+                on:click={saveState}
+              >
+                <Eye size={14} />
+                {t("frontend/src/routes/assignments/[id]/+page.svelte::submission_table_view_button")}
+                <ArrowRight size={14} class="ml-auto opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0 group-hover:duration-300" />
+              </a>
+
+              <!-- Subtle background decoration -->
+              <div class={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-3xl opacity-5 transition-all duration-500 group-hover:opacity-10 ${statusColor(latestSub.status).replace('badge-', 'bg-')}`}></div>
             </div>
           {/if}
           {#if assignment.second_deadline && new Date() > assignment.deadline && new Date() <= assignment.second_deadline}
