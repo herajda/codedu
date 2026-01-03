@@ -1610,7 +1610,7 @@
           class={scratchFullscreenMode !== "none" ? "scratch-fullscreen-shell" : "space-y-6"}
           bind:this={scratchFullscreenHost}
         >
-          {#if scratchFullscreenMode === "none" && (assignmentScratchSemanticCriteria || scratchSemanticAnalysis || scratchSemanticAnalysisError)}
+          {#if scratchFullscreenMode === "none" && assignmentScratchEvaluationMode !== "manual" && (assignmentScratchSemanticCriteria || scratchSemanticAnalysis || scratchSemanticAnalysisError)}
             <div class="bg-base-100 rounded-3xl border border-base-200 shadow-lg shadow-base-300/30 overflow-hidden">
               <div class="px-6 py-4 border-b border-base-200 bg-base-100/50 backdrop-blur-sm">
                 <div class="flex flex-wrap items-center justify-between gap-3">

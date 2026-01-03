@@ -193,7 +193,7 @@
   let eLLMTeacherBaseline = "";
   type ScratchEvaluationMode = "manual" | "semi_automatic" | "automatic";
   type ScratchCriterionInput = { id: string; text: string; points: string };
-  let scratchEvaluationMode: ScratchEvaluationMode = "manual";
+  let scratchEvaluationMode: ScratchEvaluationMode = "automatic";
   let scratchCriteria: ScratchCriterionInput[] = [];
   $: eLLMStrictnessMessage = strictnessGuidance(eLLMStrictness);
   let eSecondDeadline = "";
@@ -281,7 +281,7 @@
   ): ScratchEvaluationMode {
     if (raw === "automatic") return "automatic";
     if (raw === "semi_automatic") return "semi_automatic";
-    return "manual";
+    return "automatic";
   }
 
   function normalizeScratchPoints(points: string): number | null {
@@ -342,6 +342,13 @@
       eLLMInteractive = false;
     }
   }
+
+  // Auto-switch away from weighted policy when Scratch manual mode is selected
+  $: {
+    if (eProgrammingLanguage === "scratch" && scratchEvaluationMode === "manual" && ePolicy === "weighted") {
+      ePolicy = "all_or_nothing";
+    }
+  }
   let translate;
   $: translate = $translator;
 
@@ -353,7 +360,7 @@
     {
       value: "weighted",
       label: t("frontend/src/routes/assignments/[id]/+page.svelte::policyLabel_weighted"),
-      disabled: !isScratchAssignment && (testMode === "manual" || testMode === "ai")
+      disabled: (!isScratchAssignment && (testMode === "manual" || testMode === "ai")) || (isScratchAssignment && scratchEvaluationMode === "manual")
     }
   ];
 
@@ -1725,7 +1732,7 @@
                   {/if}
                 </div>
 
-                {#if eProgrammingLanguage === "scratch"}
+                {#if eProgrammingLanguage === "scratch" && scratchEvaluationMode !== "manual"}
                   <div class="space-y-6 animate-in fade-in duration-500">
                     <div class="flex items-center justify-between gap-3 px-1">
                       <div class="flex items-center gap-2">

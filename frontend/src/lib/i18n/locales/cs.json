@@ -918,7 +918,7 @@
   "frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_manual": "Ruční hodnocení učitelem",
   "frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_semi": "Poloautomaticky (učitel potvrzuje)",
   "frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_auto": "Plně automaticky",
-  "frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_manual_desc": "Učitel hodnotí odevzdání a přiděluje body. Sémantické kontroly jsou jen pro orientaci.",
+  "frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_manual_desc": "Učitel hodnotí odevzdání a přiděluje body.",
   "frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_semi_desc": "Sémantické kontroly spočítají provizorní skóre. Učitel potvrzuje nebo upraví body.",
   "frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_auto_desc": "Sémantické kontroly automaticky určují výsledné body podle způsobu hodnocení.",
   "frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_manual_student_alert": "Hodnocení učitelem: odevzdání zůstává čekající, dokud učitel nepřiřadí body.",
