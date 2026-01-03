@@ -543,8 +543,7 @@
       confirmLabel: t(
         "frontend/src/routes/assignments/[id]/+page.svelte::unpublish_assignment_confirm",
       ),
-      confirmClass: "btn btn-error",
-      cancelClass: "btn",
+      confirmClass: "btn btn-error"
     });
     if (!confirmed) return;
 

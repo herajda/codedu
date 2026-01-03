@@ -246,8 +246,7 @@ async function del(item:any){
     title: item.is_dir ? t('frontend/src/routes/classes/[id]/files/+page.svelte::delete_folder_title') : t('frontend/src/routes/classes/[id]/files/+page.svelte::delete_file_title'),
     body: item.is_dir ? t('frontend/src/routes/classes/[id]/files/+page.svelte::delete_folder_body') : t('frontend/src/routes/classes/[id]/files/+page.svelte::delete_file_body'),
     confirmLabel: t('frontend/src/routes/classes/[id]/files/+page.svelte::delete_button_label'),
-    confirmClass: 'btn btn-error',
-    cancelClass: 'btn'
+    confirmClass: 'btn btn-error'
   });
   if(!confirmed) return;
   await apiFetch(`/api/files/${item.id}`,{method:'DELETE'});

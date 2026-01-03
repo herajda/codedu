@@ -229,8 +229,7 @@
       confirmLabel: t(
         "frontend/src/routes/teachers/assignments/+page.svelte::delete_button_label",
       ),
-      confirmClass: "btn btn-error",
-      cancelClass: "btn",
+      confirmClass: "btn btn-error"
     });
     if (!shouldDelete) return;
     await apiFetch(`/api/files/${it.id}`, { method: "DELETE" });
