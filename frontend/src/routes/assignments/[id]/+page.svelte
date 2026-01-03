@@ -1451,7 +1451,7 @@
                   {/if}
                 </div>
 
-                {#if ePolicy === "all_or_nothing" || isScratchAssignment}
+                {#if ePolicy === "all_or_nothing" || (isScratchAssignment && scratchEvaluationMode === 'manual')}
                   <StylishInput
                     type="number"
                     bind:value={ePoints}

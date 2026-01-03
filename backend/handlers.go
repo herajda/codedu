@@ -400,12 +400,29 @@ func getAssignment(c *gin.Context) {
 		}
 	}
 	tests, _ := ListTestCases(id)
-	if a.GradingPolicy == "weighted" && a.ProgrammingLanguage != "scratch" {
-		sum := 0.0
-		for _, t := range tests {
-			sum += t.Weight
+	// Recalculate MaxPoints from test weights if weighted grading policy is active.
+	// This applies to Python assignments and automatic/semi-automatic Scratch assignments.
+	if a.GradingPolicy == "weighted" {
+		isPython := a.ProgrammingLanguage != "scratch"
+		// Only apply to automatic/semi-automatic Scratch modes
+		isScratchAuto := a.ProgrammingLanguage == "scratch" && (a.ScratchEvaluationMode == "automatic" || a.ScratchEvaluationMode == "semi_automatic")
+
+		if isPython {
+			sum := 0.0
+			for _, t := range tests {
+				sum += t.Weight
+			}
+			a.MaxPoints = int(sum)
+		} else if isScratchAuto && a.ScratchSemanticCriteria != nil {
+			criteria := parseScratchSemanticCriteria(*a.ScratchSemanticCriteria)
+			sum := 0.0
+			for _, c := range criteria {
+				if c.Points != nil {
+					sum += *c.Points
+				}
+			}
+			a.MaxPoints = int(sum)
 		}
-		a.MaxPoints = int(sum)
 	}
 	resp := gin.H{"assignment": a, "tests": tests}
 	if role == "teacher" || role == "admin" {
