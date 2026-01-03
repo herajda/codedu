@@ -11,6 +11,7 @@
   import DOMPurify from 'dompurify';
   import { marked } from 'marked';
   import { t, translator } from '$lib/i18n';
+  import ConfirmModal from '$lib/components/ConfirmModal.svelte';
 
   let translate;
   $: translate = $translator;
@@ -27,8 +28,7 @@
   let selectedIDs: number[] = [];
   let search = '';
   let addDialog: HTMLDialogElement;
-  let deleteDialog: HTMLDialogElement;
-  let removeStudentDialog: HTMLDialogElement;
+
   let existingStudentIds: Set<number> = new Set();
   $: existingStudentIds = new Set(students.map((s) => s.id));
   // reactive filtered students for add modal
@@ -135,6 +135,15 @@
   }
 
   async function deleteClass() {
+    const confirmed = await confirmModal.open({
+      title: t('frontend/src/routes/classes/[id]/settings/+page.svelte::delete_class'),
+      body: translate('frontend/src/routes/classes/[id]/settings/+page.svelte::delete_class_confirmation', { name: cls.name }),
+      confirmLabel: t('frontend/src/routes/classes/[id]/settings/+page.svelte::delete'),
+      confirmClass: 'btn btn-error',
+      icon: Trash2
+    });
+    if (!confirmed) return;
+
     try {
       await apiFetch(`/api/classes/${id}`, { method: 'DELETE' });
       // Remove from store before navigating away
@@ -153,10 +162,22 @@
   }
 
   let studentToRemove: any = null;
+  let confirmModal: InstanceType<typeof ConfirmModal>;
 
-  function promptRemoveStudent(student: any) {
-    studentToRemove = student;
-    removeStudentDialog?.showModal();
+  async function promptRemoveStudent(student: any) {
+    const confirmed = await confirmModal.open({
+      title: t('frontend/src/routes/classes/[id]/settings/+page.svelte::remove_student_modal_title'),
+      body: translate('frontend/src/routes/classes/[id]/settings/+page.svelte::remove_student_modal_body', {
+        name: displayName(student)
+      }),
+      confirmLabel: t('frontend/src/routes/classes/[id]/settings/+page.svelte::remove_student_modal_confirm'),
+      confirmClass: 'btn btn-error',
+      icon: UserMinus
+    });
+    
+    if (confirmed) {
+      await removeStudent(student.id);
+    }
   }
 
   async function removeStudent(sid: number) {
@@ -165,15 +186,6 @@
       await load();
       return true;
     } catch (e: any) { err = e.message; return false; }
-  }
-
-  async function confirmRemoveStudent() {
-    if (!studentToRemove) return;
-    const ok = await removeStudent(studentToRemove.id);
-    if (ok) {
-      removeStudentDialog?.close();
-      studentToRemove = null;
-    }
   }
 
   function openAddModal() {
@@ -382,7 +394,7 @@
               {t('frontend/src/routes/classes/[id]/settings/+page.svelte::delete_class_warning')}
             </p>
             
-            <button class="btn btn-error btn-outline w-full rounded-xl gap-2 font-black uppercase tracking-widest text-[10px] h-11 border-error/30 hover:bg-error hover:text-white transition-all shadow-lg shadow-error/10" on:click={() => deleteDialog.showModal()}>
+            <button class="btn btn-error btn-outline w-full rounded-xl gap-2 font-black uppercase tracking-widest text-[10px] h-11 border-error/30 hover:bg-error hover:text-white transition-all shadow-lg shadow-error/10" on:click={deleteClass}>
               <Trash2 class="size-4" /> 
               {t('frontend/src/routes/classes/[id]/settings/+page.svelte::delete_class')}
             </button>
@@ -557,55 +569,6 @@
     <form method="dialog" class="modal-backdrop"><button>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::close')}</button></form>
   </dialog>
 
-  <!-- Remove student confirm modal -->
-  <dialog bind:this={removeStudentDialog} class="modal" on:close={() => (studentToRemove = null)}>
-    <div class="modal-box rounded-[2.5rem] p-8 space-y-6 shadow-2xl border border-base-200">
-      <div class="flex items-center gap-3 text-error">
-        <div class="size-10 rounded-xl bg-error/10 flex items-center justify-center">
-          <UserMinus class="size-5" />
-        </div>
-        <h3 class="text-xl font-black tracking-tight">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::remove_student_modal_title')}</h3>
-      </div>
-      
-      <p class="text-sm font-bold text-base-content/70 leading-relaxed">
-        {translate('frontend/src/routes/classes/[id]/settings/+page.svelte::remove_student_modal_body', {
-          name: studentToRemove ? displayName(studentToRemove) : ''
-        })}
-      </p>
+  <ConfirmModal bind:this={confirmModal} />
 
-      <div class="flex items-center gap-3 pt-2">
-        <form method="dialog" class="flex-1">
-          <button class="btn btn-ghost w-full rounded-2xl font-black uppercase tracking-widest text-[10px]">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::cancel')}</button>
-        </form>
-        <button class="btn btn-error flex-1 rounded-2xl font-black uppercase tracking-widest text-[10px] h-12 shadow-lg shadow-error/10" on:click={confirmRemoveStudent}>
-          <UserMinus class="size-4 mr-2" />
-          {t('frontend/src/routes/classes/[id]/settings/+page.svelte::remove_student_modal_confirm')}
-        </button>
-      </div>
-    </div>
-    <form method="dialog" class="modal-backdrop"><button>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::close')}</button></form>
-  </dialog>
-
-  <!-- Delete confirm modal -->
-  <dialog bind:this={deleteDialog} class="modal">
-    <div class="modal-box rounded-[2.5rem] p-8 space-y-6 shadow-2xl border border-base-200">
-      <div class="flex items-center gap-3 text-error">
-        <div class="size-10 rounded-xl bg-error/10 flex items-center justify-center">
-          <Trash2 class="size-5" />
-        </div>
-        <h3 class="text-xl font-black tracking-tight">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::delete_class')}</h3>
-      </div>
-
-      <p class="text-sm font-bold text-base-content/70 leading-relaxed">{translate('frontend/src/routes/classes/[id]/settings/+page.svelte::delete_class_confirmation', { name: cls.name })}</p>
-
-      <div class="flex items-center gap-3 pt-2">
-        <form method="dialog" class="flex-1"><button class="btn btn-ghost w-full rounded-2xl font-black uppercase tracking-widest text-[10px]">{t('frontend/src/routes/classes/[id]/settings/+page.svelte::cancel')}</button></form>
-        <button class="btn btn-error flex-1 rounded-2xl font-black uppercase tracking-widest text-[10px] h-12 shadow-lg shadow-error/10" on:click={deleteClass}>
-          <Trash2 class="size-4 mr-2" />
-          {t('frontend/src/routes/classes/[id]/settings/+page.svelte::delete')}
-        </button>
-      </div>
-    </div>
-    <form method="dialog" class="modal-backdrop"><button>{t('frontend/src/routes/classes/[id]/settings/+page.svelte::close')}</button></form>
-  </dialog>
 {/if}
