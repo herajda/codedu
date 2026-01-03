@@ -16,6 +16,7 @@
     stripUnittestMainBlock,
   } from "$lib/unittests";
   import { t, translator } from "$lib/i18n";
+  import ConfirmModal from "$lib/components/ConfirmModal.svelte";
 
   $: id = $page.params.id;
 
@@ -36,6 +37,7 @@
     ExternalLink,
     FileCode,
     CheckCircle2,
+    XCircle,
     AlertCircle,
     AlertTriangle,
     Clock,
@@ -118,6 +120,7 @@
   // Svelte does not support runtime component definitions; instead use a block here:
   let overrideValue: string | number | null = "";
   let savingOverride = false;
+  let confirmModal: InstanceType<typeof ConfirmModal>;
   async function saveOverride() {
     try {
       savingOverride = true;
@@ -1202,24 +1205,59 @@
                         {t("frontend/src/routes/submissions/[id]/+page.svelte::undo_manual_acceptance_button")}
                       </button>
                     {:else}
-                      <button
-                        class="btn btn-success btn-sm w-full rounded-xl font-black uppercase tracking-widest text-[9px] shadow-lg shadow-success/20"
-                        on:click={async () => {
-                          try {
-                            const raw: any = overrideValue;
-                            const v = raw === "" ? null : parseInt(raw, 10);
-                            await apiFetch(`/api/submissions/${submission.id}/accept`, {
-                              method: "PUT",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ points: v }),
-                            });
-                            await load();
-                          } catch (e: any) { err = e.message; }
-                        }}
-                      >
-                        <CheckCircle2 size={14} />
-                        {t("frontend/src/routes/submissions/[id]/+page.svelte::accept_submission_button")}
-                      </button>
+                      <div class="grid grid-cols-2 gap-2">
+                        <button
+                          class="btn btn-error btn-sm w-full rounded-xl font-black uppercase tracking-widest text-[9px] shadow-lg shadow-error/20"
+                          title={t("frontend/src/routes/submissions/[id]/+page.svelte::fail_submission_button")}
+                          on:click={async () => {
+                            if ((!isScratchSubmission && !assignmentManual) || (isScratchSubmission && assignmentScratchEvaluationMode !== "manual")) {
+                              const confirmed = await confirmModal.open({
+                                title: t("frontend/src/routes/submissions/[id]/+page.svelte::overwrite_automatic_grading_title"),
+                                body: t("frontend/src/routes/submissions/[id]/+page.svelte::overwrite_automatic_grading_body"),
+                                confirmLabel: t("frontend/src/lib/components/ConfirmModal.svelte::confirm")
+                              });
+                              if (!confirmed) return;
+                            }
+                            try {
+                              await apiFetch(`/api/submissions/${submission.id}/fail`, {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({}),
+                              });
+                              await load();
+                            } catch (e: any) { err = e.message; }
+                          }}
+                        >
+                          <XCircle size={14} />
+                          {t("frontend/src/routes/submissions/[id]/+page.svelte::fail_submission_button")}
+                        </button>
+                        <button
+                          class="btn btn-success btn-sm w-full rounded-xl font-black uppercase tracking-widest text-[9px] shadow-lg shadow-success/20"
+                          on:click={async () => {
+                            if ((!isScratchSubmission && !assignmentManual) || (isScratchSubmission && assignmentScratchEvaluationMode !== "manual")) {
+                               const confirmed = await confirmModal.open({
+                                title: t("frontend/src/routes/submissions/[id]/+page.svelte::overwrite_automatic_grading_title"),
+                                body: t("frontend/src/routes/submissions/[id]/+page.svelte::overwrite_automatic_grading_body"),
+                                confirmLabel: t("frontend/src/lib/components/ConfirmModal.svelte::confirm")
+                              });
+                              if (!confirmed) return;
+                            }
+                            try {
+                              const raw: any = overrideValue;
+                              const v = raw === "" ? null : parseInt(raw, 10);
+                              await apiFetch(`/api/submissions/${submission.id}/accept`, {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ points: v }),
+                              });
+                              await load();
+                            } catch (e: any) { err = e.message; }
+                          }}
+                        >
+                          <CheckCircle2 size={14} />
+                          {t("frontend/src/routes/submissions/[id]/+page.svelte::accept_submission_button")}
+                        </button>
+                      </div>
                     {/if}
                   </div>
                 {/if}
@@ -2116,3 +2154,5 @@
     }
   }
 </style>
+
+<ConfirmModal bind:this={confirmModal} />

@@ -245,6 +245,7 @@ func main() {
 		api.POST("/submissions/:id/explain-all-test-failures", RoleGuard("student", "teacher", "admin"), explainAllTestsFailed)
 		api.PUT("/submissions/:id/points", RoleGuard("teacher", "admin"), overrideSubmissionPoints)
 		api.PUT("/submissions/:id/accept", RoleGuard("teacher", "admin"), acceptSubmission)
+		api.PUT("/submissions/:id/fail", RoleGuard("teacher", "admin"), failSubmission)
 		api.PUT("/submissions/:id/undo-accept", RoleGuard("teacher", "admin"), undoManualAccept)
 		// TEACHER / STUDENT / ADMIN common
 		api.GET("/classes", RoleGuard("teacher", "student", "admin"), myClasses)
