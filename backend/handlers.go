@@ -281,7 +281,7 @@ func createAssignment(c *gin.Context) {
 		return
 	}
 	manualReview := req.ManualReview
-	scratchMode := "manual"
+	scratchMode := "automatic"
 	if req.ScratchEvaluationMode != nil {
 		mode, err := normalizeScratchEvaluationMode(*req.ScratchEvaluationMode)
 		if err != nil {
@@ -297,23 +297,28 @@ func createAssignment(c *gin.Context) {
 	}
 
 	a := &Assignment{
-		ClassID:                 classID,
-		Title:                   req.Title,
-		Description:             req.Description,
-		Deadline:                time.Now().Add(24 * time.Hour),
-		MaxPoints:               100,
-		MaxSubmissionSizeMB:     defaultSubmissionSizeMB,
-		GradingPolicy:           "all_or_nothing",
-		Published:               false,
-		ShowTraceback:           req.ShowTraceback,
-		ShowTestDetails:         req.ShowTestDetails,
-		ProgrammingLanguage:     lang,
-		ManualReview:            manualReview,
-		ScratchEvaluationMode:   scratchMode,
-		ScratchSemanticCriteria: req.ScratchSemanticCriteria,
-		CreatedBy:               getUserID(c),
-		SecondDeadline:          nil,
-		LatePenaltyRatio:        0.5,
+		ClassID:               classID,
+		Title:                 req.Title,
+		Description:           req.Description,
+		Deadline:              time.Now().Add(24 * time.Hour),
+		MaxPoints:             100,
+		MaxSubmissionSizeMB:   defaultSubmissionSizeMB,
+		GradingPolicy:         "all_or_nothing",
+		Published:             false,
+		ShowTraceback:         req.ShowTraceback,
+		ShowTestDetails:       req.ShowTestDetails,
+		ProgrammingLanguage:   lang,
+		ManualReview:          manualReview,
+		ScratchEvaluationMode: scratchMode,
+		ScratchSemanticCriteria: func() *string {
+			if lang == "scratch" && scratchMode == "manual" {
+				return nil
+			}
+			return req.ScratchSemanticCriteria
+		}(),
+		CreatedBy:        getUserID(c),
+		SecondDeadline:   nil,
+		LatePenaltyRatio: 0.5,
 	}
 	if err := CreateAssignment(a); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create assignment"})
@@ -348,12 +353,12 @@ func normalizeProgrammingLanguage(raw string) (string, error) {
 func normalizeScratchEvaluationMode(raw string) (string, error) {
 	mode := strings.ToLower(strings.TrimSpace(raw))
 	switch mode {
-	case "", "manual":
+	case "", "automatic", "auto":
+		return "automatic", nil
+	case "manual":
 		return "manual", nil
 	case "semi", "semi_automatic", "semi-automatic":
 		return "semi_automatic", nil
-	case "automatic", "auto":
-		return "automatic", nil
 	default:
 		return "", fmt.Errorf("invalid scratch_evaluation_mode")
 	}
@@ -539,7 +544,7 @@ func updateAssignment(c *gin.Context) {
 		}
 		a.ScratchEvaluationMode = mode
 	} else if strings.TrimSpace(a.ScratchEvaluationMode) == "" {
-		a.ScratchEvaluationMode = "manual"
+		a.ScratchEvaluationMode = "automatic"
 	}
 	if req.ProgrammingLanguage != nil {
 		lang, err := normalizeProgrammingLanguage(*req.ProgrammingLanguage)
@@ -600,7 +605,13 @@ func updateAssignment(c *gin.Context) {
 		a.LLMTeacherBaseline = nil
 		a.LLMHelpWhyFailed = false
 		if strings.TrimSpace(a.ScratchEvaluationMode) == "" {
-			a.ScratchEvaluationMode = "manual"
+			a.ScratchEvaluationMode = "automatic"
+		}
+		if a.ScratchEvaluationMode == "manual" {
+			a.ScratchSemanticCriteria = nil
+			if a.GradingPolicy == "weighted" {
+				a.GradingPolicy = "all_or_nothing"
+			}
 		}
 	} else {
 		a.ScratchEvaluationMode = "manual"
