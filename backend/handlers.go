@@ -268,6 +268,8 @@ func createAssignment(c *gin.Context) {
 		ShowTestDetails     bool   `json:"show_test_details"`
 		ManualReview        bool   `json:"manual_review"`
 		ProgrammingLanguage string `json:"programming_language"`
+		ScratchEvaluationMode *string `json:"scratch_evaluation_mode"`
+		ScratchSemanticCriteria *string `json:"scratch_semantic_criteria"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -279,8 +281,19 @@ func createAssignment(c *gin.Context) {
 		return
 	}
 	manualReview := req.ManualReview
+	scratchMode := "manual"
+	if req.ScratchEvaluationMode != nil {
+		mode, err := normalizeScratchEvaluationMode(*req.ScratchEvaluationMode)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		scratchMode = mode
+	}
 	if lang == "scratch" {
-		manualReview = true
+		manualReview = false
+	} else {
+		scratchMode = "manual"
 	}
 
 	a := &Assignment{
@@ -296,6 +309,8 @@ func createAssignment(c *gin.Context) {
 		ShowTestDetails:  req.ShowTestDetails,
 		ProgrammingLanguage: lang,
 		ManualReview:     manualReview,
+		ScratchEvaluationMode: scratchMode,
+		ScratchSemanticCriteria: req.ScratchSemanticCriteria,
 		CreatedBy:        getUserID(c),
 		SecondDeadline:   nil,
 		LatePenaltyRatio: 0.5,
@@ -327,6 +342,20 @@ func normalizeProgrammingLanguage(raw string) (string, error) {
 		return lang, nil
 	default:
 		return "", fmt.Errorf("invalid programming_language")
+	}
+}
+
+func normalizeScratchEvaluationMode(raw string) (string, error) {
+	mode := strings.ToLower(strings.TrimSpace(raw))
+	switch mode {
+	case "", "manual":
+		return "manual", nil
+	case "semi", "semi_automatic", "semi-automatic":
+		return "semi_automatic", nil
+	case "automatic", "auto":
+		return "automatic", nil
+	default:
+		return "", fmt.Errorf("invalid scratch_evaluation_mode")
 	}
 }
 
@@ -371,7 +400,7 @@ func getAssignment(c *gin.Context) {
 		}
 	}
 	tests, _ := ListTestCases(id)
-	if a.GradingPolicy == "weighted" {
+	if a.GradingPolicy == "weighted" && a.ProgrammingLanguage != "scratch" {
 		sum := 0.0
 		for _, t := range tests {
 			sum += t.Weight
@@ -447,6 +476,8 @@ func updateAssignment(c *gin.Context) {
 		LLMRubric           *string  `json:"llm_rubric"`
 		LLMTeacherBaseline  *string  `json:"llm_teacher_baseline_json"`
 		LLMHelpWhyFailed    bool     `json:"llm_help_why_failed"`
+		ScratchEvaluationMode *string `json:"scratch_evaluation_mode"`
+		ScratchSemanticCriteria *string `json:"scratch_semantic_criteria"`
 		SecondDeadline      *string  `json:"second_deadline"`
 		LatePenaltyRatio    *float64 `json:"late_penalty_ratio"`
 	}
@@ -483,6 +514,16 @@ func updateAssignment(c *gin.Context) {
 	a.ShowTraceback = req.ShowTraceback
 	a.ShowTestDetails = req.ShowTestDetails
 	a.ManualReview = req.ManualReview
+	if req.ScratchEvaluationMode != nil {
+		mode, err := normalizeScratchEvaluationMode(*req.ScratchEvaluationMode)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		a.ScratchEvaluationMode = mode
+	} else if strings.TrimSpace(a.ScratchEvaluationMode) == "" {
+		a.ScratchEvaluationMode = "manual"
+	}
 	if req.ProgrammingLanguage != nil {
 		lang, err := normalizeProgrammingLanguage(*req.ProgrammingLanguage)
 		if err != nil {
@@ -508,6 +549,14 @@ func updateAssignment(c *gin.Context) {
 	if req.LLMTeacherBaseline != nil {
 		a.LLMTeacherBaseline = req.LLMTeacherBaseline
 	}
+	if req.ScratchSemanticCriteria != nil {
+		trimmed := strings.TrimSpace(*req.ScratchSemanticCriteria)
+		if trimmed == "" {
+			a.ScratchSemanticCriteria = nil
+		} else {
+			a.ScratchSemanticCriteria = &trimmed
+		}
+	}
 	if req.SecondDeadline != nil {
 		trimmed := strings.TrimSpace(*req.SecondDeadline)
 		if trimmed == "" {
@@ -525,8 +574,7 @@ func updateAssignment(c *gin.Context) {
 		a.LatePenaltyRatio = *req.LatePenaltyRatio
 	}
 	if a.ProgrammingLanguage == "scratch" {
-		a.GradingPolicy = "all_or_nothing"
-		a.ManualReview = true
+		a.ManualReview = false
 		a.LLMInteractive = false
 		a.LLMFeedback = false
 		a.LLMAutoAward = false
@@ -534,6 +582,11 @@ func updateAssignment(c *gin.Context) {
 		a.LLMRubric = nil
 		a.LLMTeacherBaseline = nil
 		a.LLMHelpWhyFailed = false
+		if strings.TrimSpace(a.ScratchEvaluationMode) == "" {
+			a.ScratchEvaluationMode = "manual"
+		}
+	} else {
+		a.ScratchEvaluationMode = "manual"
 	}
 	if err := UpdateAssignment(a); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not update"})
@@ -589,6 +642,8 @@ func syncTeachersGroupAssignment(c *gin.Context) {
 		clone.ShowTestDetails = source.ShowTestDetails
 		clone.ProgrammingLanguage = source.ProgrammingLanguage
 		clone.ManualReview = source.ManualReview
+		clone.ScratchEvaluationMode = source.ScratchEvaluationMode
+		clone.ScratchSemanticCriteria = source.ScratchSemanticCriteria
 		clone.LLMInteractive = source.LLMInteractive
 		clone.LLMFeedback = source.LLMFeedback
 		clone.LLMAutoAward = source.LLMAutoAward
@@ -2511,6 +2566,9 @@ func getSubmission(c *gin.Context) {
 		}
 	}
 	resp := gin.H{"submission": sub, "results": results}
+	if sub.ScratchSemanticAnalysis != nil && json.Valid([]byte(*sub.ScratchSemanticAnalysis)) {
+		resp["semantic_analysis"] = json.RawMessage(*sub.ScratchSemanticAnalysis)
+	}
 	// Attach latest LLM run if available
 	if llm, err := GetLatestLLMRun(sid); err == nil && llm != nil {
 		// apply feedback visibility for students
@@ -2603,7 +2661,19 @@ func undoManualAccept(c *gin.Context) {
 
 	// Reset status to failed if it was manually accepted
 	// This will allow the worker to re-grade the submission
-	if err := UpdateSubmissionStatus(sid, "failed"); err != nil {
+	if a.ProgrammingLanguage == "scratch" {
+		mode := scratchEvaluationMode(a.ScratchEvaluationMode)
+		status := "pending"
+		if mode == "semi_automatic" {
+			status = "provisional"
+		} else if mode == "automatic" {
+			status = "failed"
+		}
+		if err := UpdateSubmissionStatus(sid, status); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+			return
+		}
+	} else if err := UpdateSubmissionStatus(sid, "failed"); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
@@ -3962,9 +4032,16 @@ func overrideSubmissionPoints(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
 	}
-	// If manual review is enabled and points were set, mark as completed
-	if a.ManualReview && req.Points != nil {
-		_ = UpdateSubmissionStatus(sid, "completed")
+	// If manual review is enabled (or scratch needs teacher confirmation) and points were set, mark as completed.
+	if req.Points != nil {
+		if a.ManualReview {
+			_ = UpdateSubmissionStatus(sid, "completed")
+		} else if a.ProgrammingLanguage == "scratch" {
+			mode := scratchEvaluationMode(a.ScratchEvaluationMode)
+			if mode == "manual" || mode == "semi_automatic" {
+				_ = UpdateSubmissionStatus(sid, "completed")
+			}
+		}
 	}
 	c.Status(http.StatusNoContent)
 }

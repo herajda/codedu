@@ -54,6 +54,7 @@ type Assignment struct {
 	ShowTestDetails bool           `db:"show_test_details" json:"show_test_details"`
 	ProgrammingLanguage string     `db:"programming_language" json:"programming_language"`
 	ManualReview    bool           `db:"manual_review" json:"manual_review"`
+	ScratchEvaluationMode string   `db:"scratch_evaluation_mode" json:"scratch_evaluation_mode"`
 	BannedFunctions pq.StringArray `db:"banned_functions" json:"banned_functions"`
 	BannedModules   pq.StringArray `db:"banned_modules" json:"banned_modules"`
 	BannedToolRules *string        `db:"banned_tool_rules" json:"banned_tool_rules,omitempty"`
@@ -71,6 +72,7 @@ type Assignment struct {
 	LLMRubric          *string `db:"llm_rubric" json:"llm_rubric"`
 	LLMTeacherBaseline *string `db:"llm_teacher_baseline_json" json:"llm_teacher_baseline_json"`
 	LLMHelpWhyFailed   bool    `db:"llm_help_why_failed" json:"llm_help_why_failed"`
+	ScratchSemanticCriteria *string `db:"scratch_semantic_criteria" json:"scratch_semantic_criteria,omitempty"`
 
 	// Second deadline feature
 	SecondDeadline   *time.Time `db:"second_deadline" json:"second_deadline"`
@@ -130,6 +132,7 @@ type Submission struct {
 	CodePath                   string    `db:"code_path" json:"code_path"`
 	CodeContent                string    `db:"code_content" json:"code_content"`
 	ScratchAnalysis            *string   `db:"scratch_analysis" json:"scratch_analysis,omitempty"`
+	ScratchSemanticAnalysis    *string   `db:"scratch_semantic_analysis" json:"scratch_semantic_analysis,omitempty"`
 	Status                     string    `db:"status" json:"status"`
 	Points                     *float64  `db:"points" json:"points"`
 	OverridePts                *float64  `db:"override_points" json:"override_points"`
@@ -275,17 +278,20 @@ func CreateAssignment(a *Assignment) error {
 	if a.MaxSubmissionSizeMB <= 0 {
 		a.MaxSubmissionSizeMB = defaultSubmissionSizeMB
 	}
+	if strings.TrimSpace(a.ScratchEvaluationMode) == "" {
+		a.ScratchEvaluationMode = "manual"
+	}
 	const q = `
-          INSERT INTO assignments (title, description, created_by, deadline, max_points, max_submission_size_mb, grading_policy, published, show_traceback, show_test_details, programming_language, manual_review, banned_functions, banned_modules, banned_tool_rules, template_path, class_id, second_deadline, late_penalty_ratio, llm_help_why_failed)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+          INSERT INTO assignments (title, description, created_by, deadline, max_points, max_submission_size_mb, grading_policy, published, show_traceback, show_test_details, programming_language, manual_review, scratch_evaluation_mode, banned_functions, banned_modules, banned_tool_rules, template_path, class_id, second_deadline, late_penalty_ratio, llm_help_why_failed, scratch_semantic_criteria)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
           RETURNING id, created_at, updated_at`
 	return DB.QueryRow(q,
 		a.Title, a.Description, a.CreatedBy, a.Deadline,
-		a.MaxPoints, a.MaxSubmissionSizeMB, a.GradingPolicy, a.Published, a.ShowTraceback, a.ShowTestDetails, a.ProgrammingLanguage, a.ManualReview,
+		a.MaxPoints, a.MaxSubmissionSizeMB, a.GradingPolicy, a.Published, a.ShowTraceback, a.ShowTestDetails, a.ProgrammingLanguage, a.ManualReview, a.ScratchEvaluationMode,
 		pq.Array(copyStringArray(a.BannedFunctions)), pq.Array(copyStringArray(a.BannedModules)),
 		a.BannedToolRules,
 		a.TemplatePath, a.ClassID,
-		a.SecondDeadline, a.LatePenaltyRatio, a.LLMHelpWhyFailed,
+		a.SecondDeadline, a.LatePenaltyRatio, a.LLMHelpWhyFailed, a.ScratchSemanticCriteria,
 	).Scan(&a.ID, &a.CreatedAt, &a.UpdatedAt)
 }
 
@@ -336,6 +342,8 @@ func ListAssignments(role string, userID uuid.UUID) ([]Assignment, error) {
            a.llm_rubric,
            a.llm_teacher_baseline_json,
            COALESCE(a.llm_help_why_failed,false) AS llm_help_why_failed,
+           COALESCE(a.scratch_evaluation_mode,'manual') AS scratch_evaluation_mode,
+           a.scratch_semantic_criteria,
            a.second_deadline,
            COALESCE(a.late_penalty_ratio,0.5) AS late_penalty_ratio
       FROM assignments a`
@@ -366,6 +374,8 @@ func ListAssignments(role string, userID uuid.UUID) ([]Assignment, error) {
            COALESCE(a.llm_strictness,50) AS llm_strictness,
            a.llm_rubric,
            a.llm_teacher_baseline_json,
+           COALESCE(a.scratch_evaluation_mode,'manual') AS scratch_evaluation_mode,
+           a.scratch_semantic_criteria,
            a.second_deadline,
            COALESCE(a.late_penalty_ratio,0.5) AS late_penalty_ratio
       FROM assignments a` + joins + ` JOIN class_students cs ON cs.class_id = a.class_id
@@ -458,6 +468,8 @@ func GetAssignment(id uuid.UUID) (*Assignment, error) {
            llm_rubric,
            llm_teacher_baseline_json,
            COALESCE(llm_help_why_failed,false) AS llm_help_why_failed,
+           COALESCE(scratch_evaluation_mode,'manual') AS scratch_evaluation_mode,
+           scratch_semantic_criteria,
            second_deadline,
            COALESCE(late_penalty_ratio,0.5) AS late_penalty_ratio
       FROM assignments
@@ -489,9 +501,11 @@ func GetAssignmentForSubmission(subID uuid.UUID) (*Assignment, error) {
                a.llm_rubric,
                a.llm_rubric,
                a.llm_teacher_baseline_json,
-               COALESCE(a.llm_help_why_failed,false) AS llm_help_why_failed,
-               a.second_deadline,
-               COALESCE(a.late_penalty_ratio,0.5) AS late_penalty_ratio
+           COALESCE(a.llm_help_why_failed,false) AS llm_help_why_failed,
+           COALESCE(a.scratch_evaluation_mode,'manual') AS scratch_evaluation_mode,
+           a.scratch_semantic_criteria,
+           a.second_deadline,
+           COALESCE(a.late_penalty_ratio,0.5) AS late_penalty_ratio
           FROM assignments a
           JOIN submissions s ON s.assignment_id = a.id
          WHERE s.id=$1`, subID)
@@ -506,19 +520,19 @@ func UpdateAssignment(a *Assignment) error {
 	res, err := DB.Exec(`
     UPDATE assignments
        SET title=$1, description=$2, deadline=$3,
-           max_points=$4, max_submission_size_mb=$5, grading_policy=$6, show_traceback=$7, show_test_details=$8, programming_language=$9, manual_review=$10,
-           banned_functions=$11, banned_modules=$12, banned_tool_rules=$13,
-           llm_interactive=$14, llm_feedback=$15, llm_auto_award=$16, llm_scenarios_json=$17,
-           llm_strictness=$18, llm_rubric=$19, llm_teacher_baseline_json=$20,
-           second_deadline=$21, late_penalty_ratio=$22, llm_help_why_failed=$23,
+           max_points=$4, max_submission_size_mb=$5, grading_policy=$6, show_traceback=$7, show_test_details=$8, programming_language=$9, manual_review=$10, scratch_evaluation_mode=$11,
+           banned_functions=$12, banned_modules=$13, banned_tool_rules=$14,
+           llm_interactive=$15, llm_feedback=$16, llm_auto_award=$17, llm_scenarios_json=$18,
+           llm_strictness=$19, llm_rubric=$20, llm_teacher_baseline_json=$21,
+           second_deadline=$22, late_penalty_ratio=$23, llm_help_why_failed=$24, scratch_semantic_criteria=$25,
            updated_at=now()
-     WHERE id=$24`,
+     WHERE id=$26`,
 		a.Title, a.Description, a.Deadline,
-		a.MaxPoints, a.MaxSubmissionSizeMB, a.GradingPolicy, a.ShowTraceback, a.ShowTestDetails, a.ProgrammingLanguage, a.ManualReview,
+		a.MaxPoints, a.MaxSubmissionSizeMB, a.GradingPolicy, a.ShowTraceback, a.ShowTestDetails, a.ProgrammingLanguage, a.ManualReview, a.ScratchEvaluationMode,
 		pq.Array(copyStringArray(a.BannedFunctions)), pq.Array(copyStringArray(a.BannedModules)), a.BannedToolRules,
 		a.LLMInteractive, a.LLMFeedback, a.LLMAutoAward, a.LLMScenariosRaw,
 		a.LLMStrictness, a.LLMRubric, a.LLMTeacherBaseline,
-		a.SecondDeadline, a.LatePenaltyRatio, a.LLMHelpWhyFailed,
+		a.SecondDeadline, a.LatePenaltyRatio, a.LLMHelpWhyFailed, a.ScratchSemanticCriteria,
 		a.ID)
 	if err != nil {
 		return err
@@ -583,6 +597,7 @@ func CloneAssignmentWithTests(sourceID, targetClassID, createdBy uuid.UUID) (uui
 		ShowTestDetails:  src.ShowTestDetails,
 		ProgrammingLanguage: src.ProgrammingLanguage,
 		ManualReview:     src.ManualReview,
+		ScratchEvaluationMode: src.ScratchEvaluationMode,
 		BannedFunctions:  append(pq.StringArray(nil), src.BannedFunctions...),
 		BannedModules:    append(pq.StringArray(nil), src.BannedModules...),
 		TemplatePath:     src.TemplatePath,
@@ -598,6 +613,7 @@ func CloneAssignmentWithTests(sourceID, targetClassID, createdBy uuid.UUID) (uui
 		LLMRubric:          src.LLMRubric,
 		LLMTeacherBaseline: src.LLMTeacherBaseline,
 		LLMHelpWhyFailed:   src.LLMHelpWhyFailed,
+		ScratchSemanticCriteria: src.ScratchSemanticCriteria,
 	}
 	if src.BannedToolRules != nil {
 		clone := *src.BannedToolRules
@@ -1409,6 +1425,7 @@ func teacherGroupCloneDiffers(src, clone *Assignment, srcTests, cloneTests []Tes
 		src.ShowTestDetails != clone.ShowTestDetails ||
 		src.ProgrammingLanguage != clone.ProgrammingLanguage ||
 		src.ManualReview != clone.ManualReview ||
+		src.ScratchEvaluationMode != clone.ScratchEvaluationMode ||
 		src.LLMInteractive != clone.LLMInteractive ||
 		src.LLMFeedback != clone.LLMFeedback ||
 		src.LLMAutoAward != clone.LLMAutoAward {
@@ -1433,6 +1450,12 @@ func teacherGroupCloneDiffers(src, clone *Assignment, srcTests, cloneTests []Tes
 		return true
 	}
 	if src.LLMTeacherBaseline != nil && clone.LLMTeacherBaseline != nil && *src.LLMTeacherBaseline != *clone.LLMTeacherBaseline {
+		return true
+	}
+	if (src.ScratchSemanticCriteria == nil) != (clone.ScratchSemanticCriteria == nil) {
+		return true
+	}
+	if src.ScratchSemanticCriteria != nil && clone.ScratchSemanticCriteria != nil && *src.ScratchSemanticCriteria != *clone.ScratchSemanticCriteria {
 		return true
 	}
 
@@ -1548,10 +1571,10 @@ func GetLatestLLMRun(subID uuid.UUID) (*LLMRun, error) {
 func GetSubmission(id uuid.UUID) (*Submission, error) {
 	var s Submission
 	err := DB.Get(&s, `
-        SELECT id, assignment_id, student_id, code_path, code_content, scratch_analysis, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at,
+        SELECT id, assignment_id, student_id, code_path, code_content, scratch_analysis, scratch_semantic_analysis, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at,
                attempt_number, student_name
           FROM (
-            SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.scratch_analysis, s.status, s.points, s.override_points, s.is_teacher_run, s.manually_accepted, s.late, s.created_at, s.updated_at,
+            SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.scratch_analysis, s.scratch_semantic_analysis, s.status, s.points, s.override_points, s.is_teacher_run, s.manually_accepted, s.late, s.created_at, s.updated_at,
                    ROW_NUMBER() OVER (PARTITION BY s.assignment_id, s.student_id ORDER BY s.created_at ASC, s.id ASC) AS attempt_number,
                    u.name as student_name
               FROM submissions s
@@ -1673,6 +1696,11 @@ func SetSubmissionScratchAnalysis(id uuid.UUID, analysis *string) error {
 	return err
 }
 
+func SetSubmissionScratchSemanticAnalysis(id uuid.UUID, analysis *string) error {
+	_, err := DB.Exec(`UPDATE submissions SET scratch_semantic_analysis=$1, updated_at=now() WHERE id=$2`, analysis, id)
+	return err
+}
+
 type ScoreCell struct {
 	StudentID    uuid.UUID `db:"student_id" json:"student_id"`
 	AssignmentID uuid.UUID `db:"assignment_id" json:"assignment_id"`
@@ -1707,6 +1735,8 @@ func GetClassProgress(classID uuid.UUID) (*ClassProgress, error) {
                        COALESCE(llm_feedback,false) AS llm_feedback,
                        COALESCE(llm_auto_award,true) AS llm_auto_award,
                        llm_scenarios_json,
+                       COALESCE(scratch_evaluation_mode,'manual') AS scratch_evaluation_mode,
+                       scratch_semantic_criteria,
                        second_deadline,
                        COALESCE(late_penalty_ratio,0.5) AS late_penalty_ratio
                   FROM assignments

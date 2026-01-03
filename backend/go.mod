@@ -2,6 +2,8 @@ module github.com/herajda/code-edu/backend
 
 go 1.23.0
 
+toolchain go1.23.12
+
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/coreos/go-oidc/v3 v3.9.0

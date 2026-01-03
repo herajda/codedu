@@ -48,6 +48,7 @@
     Globe,
     ExternalLink,
     Save,
+    Plus,
     X,
     Cpu,
     FileUp,
@@ -106,6 +107,9 @@
   $: isScratchAssignment =
     (editing ? eProgrammingLanguage : assignment?.programming_language) ===
     "scratch";
+  $: scratchModeView = normalizeScratchEvaluationMode(
+    assignment?.scratch_evaluation_mode,
+  );
   $: submissionExtension = isScratchAssignment ? scratchFileExt : pythonFileExt;
   $: submissionExtLabel = submissionExtension;
 
@@ -180,6 +184,10 @@
   let eLLMStrictness: number = 50;
   let eLLMRubric = "";
   let eLLMTeacherBaseline = "";
+  type ScratchEvaluationMode = "manual" | "semi_automatic" | "automatic";
+  type ScratchCriterionInput = { id: string; text: string; points: string };
+  let scratchEvaluationMode: ScratchEvaluationMode = "manual";
+  let scratchCriteria: ScratchCriterionInput[] = [];
   $: eLLMStrictnessMessage = strictnessGuidance(eLLMStrictness);
   let eSecondDeadline = "";
   // Enhanced date/time UX state (derived from the above strings)
@@ -206,13 +214,106 @@
     ? DOMPurify.sanitize(marked.parse(assignment.description) as string)
     : "";
 
+  function newScratchCriterion(text = "", points = ""): ScratchCriterionInput {
+    return {
+      id: `crit-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      text,
+      points,
+    };
+  }
+
+  function parseScratchCriteria(
+    raw: string | null | undefined,
+  ): ScratchCriterionInput[] {
+    const trimmed = (raw ?? "").trim();
+    if (!trimmed) return [newScratchCriterion()];
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        if (parsed.every((item) => typeof item === "string")) {
+          const items = parsed
+            .map((text) => String(text).trim())
+            .filter(Boolean)
+            .map((text) => newScratchCriterion(text));
+          return items.length ? items : [newScratchCriterion()];
+        }
+        const items = parsed
+          .map((item) => {
+            if (!item || typeof item !== "object") return null;
+            const text =
+              typeof item.text === "string"
+                ? item.text
+                : typeof item.item === "string"
+                  ? item.item
+                  : "";
+            const points =
+              typeof item.points === "number"
+                ? String(item.points)
+                : typeof item.points === "string"
+                  ? item.points
+                  : "";
+            if (!text.trim()) return null;
+            return newScratchCriterion(text, points);
+          })
+          .filter(Boolean) as ScratchCriterionInput[];
+        return items.length ? items : [newScratchCriterion()];
+      }
+    } catch {}
+
+    const lines = trimmed
+      .split("\n")
+      .map((line) => line.trim())
+      .map((line) => line.replace(/^[-*]\s*/, "").trim())
+      .filter(Boolean);
+    if (!lines.length) return [newScratchCriterion()];
+    return lines.map((text) => newScratchCriterion(text));
+  }
+
+  function normalizeScratchEvaluationMode(
+    raw: string | null | undefined,
+  ): ScratchEvaluationMode {
+    if (raw === "automatic") return "automatic";
+    if (raw === "semi_automatic") return "semi_automatic";
+    return "manual";
+  }
+
+  function normalizeScratchPoints(points: string): number | null {
+    const value = Number(points);
+    if (!Number.isFinite(value) || value <= 0) return null;
+    return value;
+  }
+
+  function serializeScratchCriteria(
+    list: ScratchCriterionInput[],
+  ): string | null {
+    const payload = list
+      .map((item) => {
+        const text = item.text.trim();
+        if (!text) return null;
+        const points = normalizeScratchPoints(item.points);
+        return points === null ? { text } : { text, points };
+      })
+      .filter(Boolean);
+    return payload.length ? JSON.stringify(payload) : null;
+  }
+
+  function addScratchCriterion() {
+    scratchCriteria = [...scratchCriteria, newScratchCriterion()];
+  }
+
+  function removeScratchCriterion(id: string) {
+    scratchCriteria = scratchCriteria.filter((item) => item.id !== id);
+    if (!scratchCriteria.length) {
+      scratchCriteria = [newScratchCriterion()];
+    }
+  }
+
   // Testing model selector (automatic | manual | ai)
   type TestMode = "automatic" | "manual" | "ai";
   let testMode: TestMode = "automatic";
   $: {
     if (eProgrammingLanguage === "scratch") {
-      testMode = "manual";
-      eManualReview = true;
+      eManualReview = false;
       eLLMInteractive = false;
     } else if (testMode === "manual") {
       eManualReview = true;
@@ -228,10 +329,7 @@
 
   // Auto-switch to automatic testing when weighted policy is selected
   $: {
-    if (eProgrammingLanguage === "scratch" && ePolicy === "weighted") {
-      ePolicy = "all_or_nothing";
-    }
-    if (ePolicy === "weighted" && testMode !== "automatic") {
+    if (eProgrammingLanguage !== "scratch" && ePolicy === "weighted" && testMode !== "automatic") {
       testMode = "automatic";
       eManualReview = false;
       eLLMInteractive = false;
@@ -266,6 +364,19 @@
         "frontend/src/routes/assignments/[id]/+page.svelte::policyLabel_weighted",
       );
     return policy;
+  }
+  function scratchModeLabel(mode: ScratchEvaluationMode) {
+    if (mode === "automatic")
+      return t(
+        "frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_auto",
+      );
+    if (mode === "semi_automatic")
+      return t(
+        "frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_semi",
+      );
+    return t(
+      "frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_manual",
+    );
   }
   function relativeToDeadline(deadline: string) {
     const now = new Date();
@@ -632,6 +743,12 @@
         : 50;
     eLLMRubric = assignment.llm_rubric ?? "";
     eLLMTeacherBaseline = assignment.llm_teacher_baseline_json ?? "";
+    scratchCriteria = parseScratchCriteria(
+      assignment.scratch_semantic_criteria ?? "",
+    );
+    scratchEvaluationMode = normalizeScratchEvaluationMode(
+      assignment.scratch_evaluation_mode,
+    );
     showAdvancedOptions = !!assignment.second_deadline;
     if (assignment.manual_review) testMode = "manual";
     else if (assignment.llm_interactive) testMode = "ai";
@@ -703,8 +820,14 @@
         if (!proceed) return;
       }
       // For weighted assignments, max_points is calculated from test weights
+      const isScratch = eProgrammingLanguage === "scratch";
       const maxPoints =
-        ePolicy === "weighted" ? assignment.max_points || 100 : Number(ePoints);
+        ePolicy === "weighted" && !isScratch
+          ? assignment.max_points || 100
+          : Number(ePoints);
+      const scratchCriteriaPayload = isScratch
+        ? serializeScratchCriteria(scratchCriteria)
+        : null;
 
       await apiFetch(`/api/assignments/${id}`, {
         method: "PUT",
@@ -729,6 +852,8 @@
             ? Math.min(100, Math.max(0, Number(eLLMStrictness)))
             : 50,
           llm_rubric: eLLMRubric.trim() ? eLLMRubric : null,
+          scratch_evaluation_mode: isScratch ? scratchEvaluationMode : "manual",
+          scratch_semantic_criteria: scratchCriteriaPayload,
           second_deadline: eSecondDeadline.trim()
             ? new Date(eSecondDeadline).toISOString()
             : null,
@@ -791,6 +916,7 @@
   function statusColor(s: string) {
     if (s === "completed") return "badge-success";
     if (s === "running") return "badge-info";
+    if (s === "provisional") return "badge-warning";
     if (s === "failed") return "badge-error";
     if (s === "passed") return "badge-success";
     if (s === "wrong_output") return "badge-error";
@@ -1009,7 +1135,9 @@
     const allowed: TabKey[] = ["overview"];
     if (role === "student") {
       allowed.push("submissions");
-      if (!assignment?.manual_review) allowed.push("results");
+      if (!assignment?.manual_review && !isScratchAssignment) {
+        allowed.push("results");
+      }
     }
     if (role === "teacher" || role === "admin") {
       allowed.push("instructor");
@@ -1272,16 +1400,12 @@
                     </option>
                     <option
                       value="weighted"
-                      disabled={
-                        testMode === "manual" ||
-                        testMode === "ai" ||
-                        eProgrammingLanguage === "scratch"
-                      }
+                      disabled={!isScratchAssignment && (testMode === "manual" || testMode === "ai")}
                     >
                       {t("frontend/src/routes/assignments/[id]/+page.svelte::policyLabel_weighted")}
                     </option>
                   </select>
-                  {#if testMode === "manual" || testMode === "ai"}
+                  {#if !isScratchAssignment && (testMode === "manual" || testMode === "ai")}
                     <div class="label-text-alt text-warning mt-1.5 flex gap-1.5 items-start">
                       <AlertTriangle size={12} class="shrink-0 mt-0.5" />
                       <span>{t("frontend/src/routes/assignments/[id]/+page.svelte::weighted_grading_warning")}</span>
@@ -1289,7 +1413,7 @@
                   {/if}
                 </div>
 
-                {#if ePolicy === "all_or_nothing"}
+                {#if ePolicy === "all_or_nothing" || isScratchAssignment}
                   <div class="form-control">
                     <label class="label" for="max-points-input">
                       <span class="label-text font-bold text-xs">{t("frontend/src/routes/assignments/[id]/+page.svelte::max_points_label")}</span>
@@ -1486,26 +1610,48 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-4">
-                  <div class="form-control min-w-[200px]">
-                    <span class="label-text font-bold text-[10px] uppercase opacity-40 mb-1.5 ml-1">Mode</span>
-                    <select
-                      class="select select-bordered select-sm bg-base-100"
-                      bind:value={testMode}
-                      disabled={ePolicy === "weighted" || eProgrammingLanguage === "scratch"}
-                    >
-                      <option value="automatic">
-                        {t("frontend/src/routes/assignments/[id]/+page.svelte::automatic_tests_option")}
-                      </option>
-                      <option value="manual" disabled={ePolicy === "weighted"}>
-                        {t("frontend/src/routes/assignments/[id]/+page.svelte::manual_teacher_review_option")}
-                      </option>
-                      <option value="ai" disabled={ePolicy === "weighted"}>
-                        {t("frontend/src/routes/assignments/[id]/+page.svelte::ai_testing_option")}
-                      </option>
-                    </select>
-                  </div>
+                  {#if eProgrammingLanguage === "scratch"}
+                    <div class="form-control min-w-[220px]">
+                      <span class="label-text font-bold text-[10px] uppercase opacity-40 mb-1.5 ml-1">
+                        {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_label")}
+                      </span>
+                      <select
+                        class="select select-bordered select-sm bg-base-100"
+                        bind:value={scratchEvaluationMode}
+                      >
+                        <option value="manual">
+                          {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_manual")}
+                        </option>
+                        <option value="semi_automatic">
+                          {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_semi")}
+                        </option>
+                        <option value="automatic">
+                          {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_auto")}
+                        </option>
+                      </select>
+                    </div>
+                  {:else}
+                    <div class="form-control min-w-[200px]">
+                      <span class="label-text font-bold text-[10px] uppercase opacity-40 mb-1.5 ml-1">Mode</span>
+                      <select
+                        class="select select-bordered select-sm bg-base-100"
+                        bind:value={testMode}
+                        disabled={ePolicy === "weighted"}
+                      >
+                        <option value="automatic">
+                          {t("frontend/src/routes/assignments/[id]/+page.svelte::automatic_tests_option")}
+                        </option>
+                        <option value="manual" disabled={ePolicy === "weighted"}>
+                          {t("frontend/src/routes/assignments/[id]/+page.svelte::manual_teacher_review_option")}
+                        </option>
+                        <option value="ai" disabled={ePolicy === "weighted"}>
+                          {t("frontend/src/routes/assignments/[id]/+page.svelte::ai_testing_option")}
+                        </option>
+                      </select>
+                    </div>
+                  {/if}
 
-                  {#if testMode === "automatic"}
+                  {#if eProgrammingLanguage !== "scratch" && testMode === "automatic"}
                     <div class="flex flex-wrap items-center gap-x-6 gap-y-2 pt-4 sm:pt-0">
                       <label class="flex items-center gap-2 cursor-pointer group">
                         <input type="checkbox" class="checkbox checkbox-xs" bind:checked={eShowTraceback} />
@@ -1532,7 +1678,15 @@
                 </div>
 
                 <div class="p-3 bg-base-100 rounded-xl border border-base-300/40 text-[11px] leading-relaxed opacity-70 italic">
-                  {#if ePolicy === "weighted"}
+                  {#if eProgrammingLanguage === "scratch"}
+                    {#if scratchEvaluationMode === "automatic"}
+                      {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_auto_desc")}
+                    {:else if scratchEvaluationMode === "semi_automatic"}
+                      {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_semi_desc")}
+                    {:else}
+                      {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_manual_desc")}
+                    {/if}
+                  {:else if ePolicy === "weighted"}
                     {t("frontend/src/routes/assignments/[id]/+page.svelte::weighted_assignments_desc")}
                   {:else if testMode === "automatic"}
                     {t("frontend/src/routes/assignments/[id]/+page.svelte::automatic_tests_desc")}
@@ -1543,7 +1697,78 @@
                   {/if}
                 </div>
 
-                {#if testMode === "ai"}
+                {#if eProgrammingLanguage === "scratch"}
+                  <div class="bg-base-100 rounded-xl border border-base-300/40 p-4 space-y-4">
+                    <div class="flex items-center justify-between gap-3">
+                      <div class="text-[10px] font-black uppercase tracking-widest opacity-50">
+                        {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_criteria_label")}
+                      </div>
+                      <button
+                        type="button"
+                        class="btn btn-xs btn-outline gap-1.5"
+                        on:click={addScratchCriterion}
+                      >
+                        <Plus size={12} />
+                        {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_add")}
+                      </button>
+                    </div>
+
+                    <div class="space-y-3">
+                      {#each scratchCriteria as item (item.id)}
+                        <div class="grid sm:grid-cols-[1fr,140px,auto] gap-2 items-start">
+                          <div class="flex flex-col gap-1">
+                            <span class="text-[9px] font-black uppercase tracking-widest opacity-40">
+                              {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_criterion_label")}
+                            </span>
+                            <input
+                              class="input input-bordered input-sm w-full bg-base-100/70"
+                              bind:value={item.text}
+                              placeholder={t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_criteria_placeholder")}
+                            />
+                          </div>
+                          <div class="flex flex-col gap-1">
+                            <span class="text-[9px] font-black uppercase tracking-widest opacity-40">
+                              {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_points_label")}
+                            </span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              class="input input-bordered input-sm w-full bg-base-100/70 font-mono"
+                              bind:value={item.points}
+                              placeholder={t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_points_placeholder")}
+                              disabled={ePolicy !== "weighted"}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            class="btn btn-ghost btn-sm mt-5"
+                            on:click={() => removeScratchCriterion(item.id)}
+                            aria-label={t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_remove")}
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      {/each}
+                    </div>
+
+                    <div class="text-[11px] opacity-60 leading-relaxed">
+                      {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_criteria_help")}
+                    </div>
+                    <div class="rounded-lg bg-base-200/40 p-3 text-[11px] leading-relaxed">
+                      <div class="text-[9px] font-black uppercase tracking-widest opacity-40 mb-2">
+                        {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_examples_title")}
+                      </div>
+                      <ul class="list-disc list-inside space-y-1">
+                        <li>{t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_example_1")}</li>
+                        <li>{t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_example_2")}</li>
+                        <li>{t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_example_3")}</li>
+                      </ul>
+                    </div>
+                  </div>
+                {/if}
+
+                {#if eProgrammingLanguage !== "scratch" && testMode === "ai"}
                   <div class="pt-2 animate-in slide-in-from-top-2 duration-300">
                     <button
                       type="button"
@@ -1800,7 +2025,20 @@
                   </div>
                 {/if}
 
-                {#if assignment.manual_review}
+                {#if isScratchAssignment}
+                  <div
+                    class={`badge h-7 gap-2 px-2.5 font-black text-[9px] uppercase tracking-wider border-none shadow-sm ${
+                      scratchModeView === "automatic"
+                        ? "bg-success text-success-content"
+                        : scratchModeView === "semi_automatic"
+                          ? "bg-warning text-warning-content"
+                          : "bg-info text-info-content"
+                    }`}
+                  >
+                    <GraduationCap size={12} />
+                    {scratchModeLabel(scratchModeView)}
+                  </div>
+                {:else if assignment.manual_review}
                   <div class="badge h-7 gap-2 px-2.5 font-black text-[9px] uppercase tracking-wider bg-info text-info-content border-none shadow-sm">
                     <GraduationCap size={12} />
                     {t("frontend/src/routes/assignments/[id]/+page.svelte::manual_review_badge")}
@@ -1828,7 +2066,7 @@
               </div>
             </div>
 
-             {#if role === "student" && !assignment.manual_review && testsCount > 0}
+             {#if role === "student" && !assignment.manual_review && !isScratchAssignment && testsCount > 0}
                <div class="flex flex-col items-center gap-1.5 bg-base-100/60 backdrop-blur-md p-4 rounded-3xl border border-primary/20 shadow-xl shadow-primary/10 min-w-[110px] animate-in zoom-in-95 duration-500">
                   <div class="radial-progress text-primary font-black" style="--value:{testsPercent}; --size:3.5rem; --thickness: 6px;" aria-valuenow={testsPercent} role="progressbar">
                     <span class="text-xs">{testsPercent}%</span>
@@ -1908,7 +2146,18 @@
       </div>
     </section>
 
-    {#if role === "student" && assignment.manual_review}
+    {#if role === "student" && isScratchAssignment}
+      <div class="alert bg-info/10 border-info/20 text-info-content mb-6 rounded-2xl shadow-sm">
+        <Info size={20} />
+        <span class="font-medium text-sm">
+          {scratchModeView === "automatic"
+            ? t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_auto_student_alert")
+            : scratchModeView === "semi_automatic"
+              ? t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_semi_student_alert")
+              : t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_manual_student_alert")}
+        </span>
+      </div>
+    {:else if role === "student" && assignment.manual_review}
       <div class="alert bg-info/10 border-info/20 text-info-content mb-6 rounded-2xl shadow-sm">
         <Info size={20} />
         <span class="font-medium text-sm">{t("frontend/src/routes/assignments/[id]/+page.svelte::teacher_review_alert_body")}</span>
@@ -1949,7 +2198,7 @@
               <History size={12} />
               {t("frontend/src/routes/assignments/[id]/+page.svelte::tab_submissions")}
             </button>
-            {#if !assignment.manual_review}
+            {#if !assignment.manual_review && !isScratchAssignment}
               <button
                 class={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${activeTab === "results" ? "bg-base-100 text-primary shadow-lg shadow-base-300 scale-[1.02] border border-base-300" : "hover:bg-base-300/50 opacity-50 hover:opacity-100"}`}
                 on:click={() => setTab("results")}
@@ -1988,7 +2237,13 @@
                   </div>
                   <div>
                     <h3 class="text-base font-black">{t("frontend/src/routes/assignments/[id]/+page.svelte::basic_info_heading")}</h3>
-                    <p class="text-[9px] font-bold opacity-40 uppercase tracking-widest">{assignment.manual_review ? t("frontend/src/routes/assignments/[id]/+page.svelte::manual_teacher_review_option") : t("frontend/src/routes/assignments/[id]/+page.svelte::automatic_tests_option")}</p>
+                    <p class="text-[9px] font-bold opacity-40 uppercase tracking-widest">
+                      {isScratchAssignment
+                        ? scratchModeLabel(scratchModeView)
+                        : assignment.manual_review
+                          ? t("frontend/src/routes/assignments/[id]/+page.svelte::manual_teacher_review_option")
+                          : t("frontend/src/routes/assignments/[id]/+page.svelte::automatic_tests_option")}
+                    </p>
                   </div>
                </div>
 

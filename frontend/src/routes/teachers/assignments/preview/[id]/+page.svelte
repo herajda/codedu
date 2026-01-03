@@ -77,6 +77,7 @@
   function statusColor(s: string) {
     if (s === "completed") return "badge-success";
     if (s === "running") return "badge-info";
+    if (s === "provisional") return "badge-warning";
     if (s === "failed") return "badge-error";
     if (s === "passed") return "badge-success";
     if (s === "wrong_output") return "badge-error";
@@ -97,6 +98,20 @@
         "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::weighted",
       ); // Localized
     return policy;
+  }
+
+  function scratchModeLabel(mode: string) {
+    if (mode === "automatic")
+      return t(
+        "frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_auto",
+      );
+    if (mode === "semi_automatic")
+      return t(
+        "frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_semi",
+      );
+    return t(
+      "frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_manual",
+    );
   }
 
   async function load() {
@@ -169,7 +184,9 @@
           <span class="badge badge-ghost"
             >{policyLabel(assignment.grading_policy)}</span
           >
-          {#if assignment.manual_review}
+          {#if assignment.programming_language === "scratch"}
+            <span class="badge badge-info">{scratchModeLabel(assignment.scratch_evaluation_mode)}</span>
+          {:else if assignment.manual_review}
             <span class="badge badge-info"
               >{translate(
                 "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::manual_review_badge",
@@ -259,18 +276,24 @@
           </div>
           <div class="stat bg-base-100 rounded-xl border border-base-300/60">
             <div class="stat-title">
-              {translate(
-                "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::manual_review_stat_title",
-              )}
-            </div>
-            <div class="stat-value text-lg">
-              {assignment.manual_review
+              {assignment.programming_language === "scratch"
                 ? translate(
-                    "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::yes",
+                    "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::scratch_mode_stat_title",
                   )
                 : translate(
-                    "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::no",
+                    "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::manual_review_stat_title",
                   )}
+            </div>
+            <div class="stat-value text-lg">
+              {assignment.programming_language === "scratch"
+                ? scratchModeLabel(assignment.scratch_evaluation_mode)
+                : assignment.manual_review
+                  ? translate(
+                      "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::yes",
+                    )
+                  : translate(
+                      "frontend/src/routes/teachers/assignments/preview/[id]/+page.svelte::no",
+                    )}
             </div>
             <div class="stat-desc">
               {translate(
