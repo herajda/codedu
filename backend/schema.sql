@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS assignments (
   show_test_details BOOLEAN NOT NULL DEFAULT FALSE,
   programming_language TEXT NOT NULL DEFAULT 'python' CHECK (programming_language IN ('python','scratch')),
   manual_review BOOLEAN NOT NULL DEFAULT FALSE,
+  scratch_evaluation_mode TEXT NOT NULL DEFAULT 'manual' CHECK (scratch_evaluation_mode IN ('manual','semi_automatic','automatic')),
   banned_functions TEXT[] NOT NULL DEFAULT '{}',
   banned_modules TEXT[] NOT NULL DEFAULT '{}',
   banned_tool_rules TEXT,
@@ -76,6 +77,7 @@ ALTER TABLE assignments ADD COLUMN IF NOT EXISTS show_traceback BOOLEAN NOT NULL
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS show_test_details BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS programming_language TEXT NOT NULL DEFAULT 'python' CHECK (programming_language IN ('python','scratch'));
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS manual_review BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS scratch_evaluation_mode TEXT NOT NULL DEFAULT 'manual';
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS banned_functions TEXT[] NOT NULL DEFAULT '{}';
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS banned_modules TEXT[] NOT NULL DEFAULT '{}';
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS banned_tool_rules TEXT;
@@ -161,6 +163,7 @@ DO $$ BEGIN
 EXCEPTION
     WHEN duplicate_object THEN NULL;
 END $$;
+ALTER TYPE submission_status ADD VALUE IF NOT EXISTS 'provisional';
 
 CREATE TABLE IF NOT EXISTS submissions (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

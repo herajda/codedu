@@ -72,7 +72,11 @@
   let scratchAnalysisError = "";
   let scratchSemanticAnalysis: any = null;
   let scratchSemanticAnalysisError = "";
+  type ScratchEvaluationMode = "manual" | "semi_automatic" | "automatic";
+  type ScratchCriterionView = { text: string; points?: number | null };
   let assignmentScratchSemanticCriteria = "";
+  let assignmentScratchEvaluationMode: ScratchEvaluationMode = "manual";
+  let scratchCriteriaList: ScratchCriterionView[] = [];
   let lastCodeContent = "";
   let lastCodeBytes: Uint8Array | null = null;
   let filesLoading = false;
@@ -99,6 +103,7 @@
     typeof scratchSemanticAnalysis?.feedback_summary === "string"
       ? scratchSemanticAnalysis.feedback_summary
       : "";
+  $: scratchCriteriaList = parseScratchCriteria(assignmentScratchSemanticCriteria);
 
   import hljs from "highlight.js";
   import "highlight.js/styles/github.css";
@@ -144,6 +149,73 @@
     if (normalized === "PASS") return "badge-success";
     if (normalized === "FAIL") return "badge-error";
     return "badge-ghost";
+  }
+
+  function normalizeScratchEvaluationMode(
+    raw: string | null | undefined,
+  ): ScratchEvaluationMode {
+    if (raw === "automatic") return "automatic";
+    if (raw === "semi_automatic") return "semi_automatic";
+    return "manual";
+  }
+
+  function scratchModeLabel(mode: ScratchEvaluationMode) {
+    if (mode === "automatic")
+      return t(
+        "frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_auto",
+      );
+    if (mode === "semi_automatic")
+      return t(
+        "frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_semi",
+      );
+    return t(
+      "frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_manual",
+    );
+  }
+
+  function parseScratchCriteria(raw: string | null | undefined): ScratchCriterionView[] {
+    const trimmed = (raw ?? "").trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        if (parsed.every((item) => typeof item === "string")) {
+          return parsed
+            .map((text) => String(text).trim())
+            .filter(Boolean)
+            .map((text) => ({ text }));
+        }
+        return parsed
+          .map((item) => {
+            if (!item || typeof item !== "object") return null;
+            const text =
+              typeof item.text === "string"
+                ? item.text
+                : typeof item.item === "string"
+                  ? item.item
+                  : "";
+            if (!text.trim()) return null;
+            const points =
+              typeof item.points === "number"
+                ? item.points
+                : typeof item.points === "string"
+                  ? Number(item.points)
+                  : null;
+            return {
+              text: text.trim(),
+              points: Number.isFinite(points as number) ? (points as number) : null,
+            };
+          })
+          .filter(Boolean) as ScratchCriterionView[];
+      }
+    } catch {}
+
+    return trimmed
+      .split("\n")
+      .map((line) => line.trim())
+      .map((line) => line.replace(/^[-*]\s*/, "").trim())
+      .filter(Boolean)
+      .map((text) => ({ text }));
   }
 
   function decodeBase64(b64: string): Uint8Array | null {
@@ -290,6 +362,9 @@
           assignmentShowTraceback = !!ad.assignment?.show_traceback;
           assignmentLLMHelpWhyFailed = !!ad.assignment?.llm_help_why_failed;
           assignmentLanguage = ad.assignment?.programming_language ?? "python";
+          assignmentScratchEvaluationMode = normalizeScratchEvaluationMode(
+            ad.assignment?.scratch_evaluation_mode,
+          );
           assignmentScratchSemanticCriteria =
             ad.assignment?.scratch_semantic_criteria ?? "";
           // Prefer aggregate tests_count when present (student view), fallback to tests array (teacher/admin)
@@ -377,6 +452,7 @@
   function statusColor(s: string) {
     if (s === "completed") return "badge-success";
     if (s === "running") return "badge-info";
+    if (s === "provisional") return "badge-warning";
     if (s === "failed") return "badge-error";
     if (s === "passed") return "badge-success";
     if (s === "wrong_output") return "badge-error";
@@ -999,7 +1075,29 @@
                 </div>
               </div>
 
-              {#if assignmentManual}
+              {#if isScratchSubmission}
+                <div class="flex items-center gap-3 group">
+                  <div
+                    class={`p-2 rounded-lg ${
+                      assignmentScratchEvaluationMode === "automatic"
+                        ? "bg-success/10 text-success"
+                        : assignmentScratchEvaluationMode === "semi_automatic"
+                          ? "bg-warning/10 text-warning"
+                          : "bg-info/10 text-info"
+                    }`}
+                  >
+                    <FileCode size={16} />
+                  </div>
+                  <div>
+                    <div class="text-[9px] font-black uppercase tracking-widest opacity-40">
+                      {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_mode_badge")}
+                    </div>
+                    <div class="font-black text-sm uppercase tracking-wider">
+                      {scratchModeLabel(assignmentScratchEvaluationMode)}
+                    </div>
+                  </div>
+                </div>
+              {:else if assignmentManual}
                 <div class="flex items-center gap-3 group">
                   <div class="p-2 bg-info/10 text-info rounded-lg">
                     <FileCode size={16} />
@@ -1045,6 +1143,27 @@
                     {submission.override_points ?? submission.points ?? "—"}
                   </span>
                 </div>
+
+                {#if isScratchSubmission}
+                  <div class="text-[10px] font-black uppercase tracking-widest opacity-50">
+                    {submission.status === "provisional"
+                      ? t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_provisional_label")
+                      : assignmentScratchEvaluationMode === "automatic"
+                        ? t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_auto_label")
+                        : assignmentScratchEvaluationMode === "semi_automatic"
+                          ? t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_semi_label")
+                          : t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_manual_label")}
+                  </div>
+                  <div class="text-xs opacity-70">
+                    {submission.status === "provisional"
+                      ? t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_provisional_desc")
+                      : assignmentScratchEvaluationMode === "automatic"
+                        ? t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_auto_desc")
+                        : assignmentScratchEvaluationMode === "semi_automatic"
+                          ? t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_semi_desc")
+                          : t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_manual_desc")}
+                  </div>
+                {/if}
 
                 {#if role === "teacher" || role === "admin"}
                   <div class="w-full pt-4 space-y-3">
@@ -1490,13 +1609,26 @@
                   <div class="text-[9px] font-black uppercase tracking-widest opacity-40">
                     {t("frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_criteria_label")}
                   </div>
-                  <div class="text-sm font-medium opacity-80">
-                    {assignmentScratchSemanticCriteria
-                      ? assignmentScratchSemanticCriteria
-                      : t(
-                          "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_criteria_missing",
-                        )}
-                  </div>
+                  {#if scratchCriteriaList.length}
+                    <div class="space-y-2 text-sm font-medium opacity-80">
+                      {#each scratchCriteriaList as criterion}
+                        <div class="flex items-center justify-between gap-3">
+                          <span>{criterion.text}</span>
+                          {#if criterion.points !== null && criterion.points !== undefined}
+                            <span class="badge badge-xs font-black uppercase tracking-widest">
+                              {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_points_suffix", { points: criterion.points })}
+                            </span>
+                          {/if}
+                        </div>
+                      {/each}
+                    </div>
+                  {:else}
+                    <div class="text-sm font-medium opacity-80">
+                      {t(
+                        "frontend/src/lib/components/ScratchAnalysisPanel.svelte::scratch_semantic_criteria_missing",
+                      )}
+                    </div>
+                  {/if}
                 </div>
 
                 {#if scratchSemanticAnalysisError}
