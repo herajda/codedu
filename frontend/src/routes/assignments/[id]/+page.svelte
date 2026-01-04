@@ -95,6 +95,10 @@
   let testsPercent = 0;
   let testsCount = 0;
   let err = "";
+  let maxPointsInput: HTMLInputElement | null = null;
+  let maxSubmissionSizeInput: HTMLInputElement | null = null;
+  let maxPointsError = "";
+  let maxSubmissionSizeError = "";
   let subStats: Record<string, { passed: number; total: number }> = {};
   // removed test creation inputs (moved to tests page)
   let files: File[] = [];
@@ -119,6 +123,19 @@
   );
   $: submissionExtension = isScratchAssignment ? scratchFileExt : pythonFileExt;
   $: submissionExtLabel = submissionExtension;
+  $: {
+    if (maxPointsError) {
+      const needsMaxPoints =
+        ePolicy === "all_or_nothing" ||
+        (isScratchAssignment && scratchEvaluationMode === "manual");
+      if (!needsMaxPoints || Number(ePoints) > 0) maxPointsError = "";
+    }
+  }
+  $: {
+    if (maxSubmissionSizeError && Number(eMaxSubmissionSizeMB) > 0) {
+      maxSubmissionSizeError = "";
+    }
+  }
 
   function formatMB(bytes: number) {
     return Math.round((bytes / (1024 * 1024)) * 10) / 10;
@@ -126,6 +143,52 @@
 
   function getSubmissionLimitMB() {
     return assignment?.max_submission_size_mb ?? defaultMaxSubmissionSizeMB;
+  }
+
+  function clearEditErrors() {
+    maxPointsError = "";
+    maxSubmissionSizeError = "";
+  }
+
+  async function focusInput(input: HTMLInputElement | null) {
+    await tick();
+    if (!input) return;
+    input.focus();
+    if (typeof input.select === "function") input.select();
+    if (typeof input.scrollIntoView === "function") {
+      input.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
+
+  async function setMaxPointsError(message: string) {
+    maxPointsError = message;
+    await focusInput(maxPointsInput);
+  }
+
+  async function setMaxSubmissionSizeError(message: string) {
+    maxSubmissionSizeError = message;
+    await focusInput(maxSubmissionSizeInput);
+  }
+
+  async function handleEditError(message: string) {
+    const normalized = (message || "").toLowerCase();
+    if (normalized.includes("maxpoints") || normalized.includes("max_points")) {
+      await setMaxPointsError(
+        t(
+          "frontend/src/routes/assignments/[id]/+page.svelte::max_points_required_error",
+        ),
+      );
+      return true;
+    }
+    if (normalized.includes("max_submission_size_mb")) {
+      await setMaxSubmissionSizeError(
+        t(
+          "frontend/src/routes/assignments/[id]/+page.svelte::max_submission_size_required_error",
+        ),
+      );
+      return true;
+    }
+    return false;
   }
 
   function addSubmissionFiles(incoming: File[]) {
@@ -772,6 +835,7 @@
   }
 
   function startEdit() {
+    clearEditErrors();
     eTitle = assignment.title;
     eDesc = assignment.description;
     ePoints = assignment.max_points;
@@ -856,6 +920,8 @@
 
   async function saveEdit() {
     try {
+      clearEditErrors();
+      err = "";
       if (new Date(eDeadline) < new Date()) {
         const proceed = await confirmModal.open({
           title: t(
@@ -894,17 +960,38 @@
         });
         if (!proceed) return;
       }
-      // For weighted assignments, max_points is calculated from test weights
       const isScratch = eProgrammingLanguage === "scratch";
+      const needsMaxPoints =
+        ePolicy === "all_or_nothing" ||
+        (isScratch && scratchEvaluationMode === "manual");
+      const pointsValue = Number(ePoints);
+      if (needsMaxPoints && (!Number.isFinite(pointsValue) || pointsValue <= 0)) {
+        await setMaxPointsError(
+          t(
+            "frontend/src/routes/assignments/[id]/+page.svelte::max_points_required_error",
+          ),
+        );
+        return;
+      }
+      const sizeValue = Number(eMaxSubmissionSizeMB);
+      if (!Number.isFinite(sizeValue) || sizeValue <= 0) {
+        await setMaxSubmissionSizeError(
+          t(
+            "frontend/src/routes/assignments/[id]/+page.svelte::max_submission_size_required_error",
+          ),
+        );
+        return;
+      }
+      // For weighted assignments, max_points is calculated from test weights
       const maxPoints =
         ePolicy === "weighted" && !isScratch
           ? assignment.max_points || 100
-          : Number(ePoints);
+          : pointsValue;
       const scratchCriteriaPayload = isScratch
         ? serializeScratchCriteria(scratchCriteria)
         : null;
 
-      await apiFetch(`/api/assignments/${id}`, {
+      const res = await apiFetch(`/api/assignments/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -912,7 +999,7 @@
           description: eDesc,
           deadline: new Date(eDeadline).toISOString(),
           max_points: maxPoints,
-          max_submission_size_mb: Number(eMaxSubmissionSizeMB),
+          max_submission_size_mb: sizeValue,
           grading_policy: ePolicy,
           show_traceback: eShowTraceback,
           show_test_details: eShowTestDetails,
@@ -937,6 +1024,18 @@
             : 0.5,
         }),
       });
+      if (!res.ok) {
+        let message = res.statusText;
+        try {
+          const data = await res.json();
+          message = data?.error ?? message;
+        } catch (parseError) {
+          // ignore response parse errors
+        }
+        const handled = await handleEditError(message);
+        if (!handled) err = message;
+        return;
+      }
       editing = false;
       await load();
     } catch (e: any) {
@@ -1490,6 +1589,8 @@
                     placeholder={t("frontend/src/routes/assignments/[id]/+page.svelte::max_points_placeholder")}
                     required
                     icon={Trophy}
+                    error={maxPointsError}
+                    bind:inputRef={maxPointsInput}
                     small
                   />
                 {:else}
@@ -1652,6 +1753,8 @@
                       bind:value={eMaxSubmissionSizeMB}
                       label={t("frontend/src/routes/assignments/[id]/+page.svelte::max_submission_size_label")}
                       icon={FileUp}
+                      error={maxSubmissionSizeError}
+                      bind:inputRef={maxSubmissionSizeInput}
                       small
                     />
                   </div>
@@ -1661,6 +1764,19 @@
                     </div>
                   {/if}
                 </div>
+
+                {#if eProgrammingLanguage === "python"}
+                  <div class="flex items-center gap-3">
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-outline gap-2 rounded-xl"
+                      on:click={openTestsModal}
+                    >
+                      <FlaskConical size={14} />
+                      {t("frontend/src/routes/assignments/[id]/+page.svelte::manage_tests_button")}
+                    </button>
+                  </div>
+                {/if}
 
                 <div class="flex flex-wrap items-center gap-4">
                   {#if eProgrammingLanguage === "scratch"}
