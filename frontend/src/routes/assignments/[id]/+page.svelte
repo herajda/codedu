@@ -95,6 +95,10 @@
   let testsPercent = 0;
   let testsCount = 0;
   let err = "";
+  let maxPointsInput: HTMLInputElement | null = null;
+  let maxSubmissionSizeInput: HTMLInputElement | null = null;
+  let maxPointsError = "";
+  let maxSubmissionSizeError = "";
   let subStats: Record<string, { passed: number; total: number }> = {};
   // removed test creation inputs (moved to tests page)
   let files: File[] = [];
@@ -119,6 +123,19 @@
   );
   $: submissionExtension = isScratchAssignment ? scratchFileExt : pythonFileExt;
   $: submissionExtLabel = submissionExtension;
+  $: {
+    if (maxPointsError) {
+      const needsMaxPoints =
+        ePolicy === "all_or_nothing" ||
+        (isScratchAssignment && scratchEvaluationMode === "manual");
+      if (!needsMaxPoints || Number(ePoints) > 0) maxPointsError = "";
+    }
+  }
+  $: {
+    if (maxSubmissionSizeError && Number(eMaxSubmissionSizeMB) > 0) {
+      maxSubmissionSizeError = "";
+    }
+  }
 
   function formatMB(bytes: number) {
     return Math.round((bytes / (1024 * 1024)) * 10) / 10;
@@ -126,6 +143,50 @@
 
   function getSubmissionLimitMB() {
     return assignment?.max_submission_size_mb ?? defaultMaxSubmissionSizeMB;
+  }
+
+  function clearEditErrors() {
+    maxPointsError = "";
+    maxSubmissionSizeError = "";
+  }
+
+  async function focusInput(input: HTMLInputElement | null) {
+    await tick();
+    if (!input) return;
+    input.focus();
+    if (typeof input.select === "function") input.select();
+    if (typeof input.scrollIntoView === "function") {
+      input.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
+
+  async function setMaxPointsError(message: string) {
+    maxPointsError = message;
+    await focusInput(maxPointsInput);
+  }
+
+  async function setMaxSubmissionSizeError(message: string) {
+    maxSubmissionSizeError = message;
+    await focusInput(maxSubmissionSizeInput);
+  }
+
+  async function handleEditError(message: string) {
+    const normalized = (message || "").toLowerCase();
+    if (normalized.includes("maxpoints") || normalized.includes("max_points")) {
+      const translated = t(
+        "frontend/src/routes/assignments/[id]/+page.svelte::max_points_required_error",
+      );
+      await setMaxPointsError(translated);
+      return translated;
+    }
+    if (normalized.includes("max_submission_size_mb")) {
+      const translated = t(
+        "frontend/src/routes/assignments/[id]/+page.svelte::max_submission_size_required_error",
+      );
+      await setMaxSubmissionSizeError(translated);
+      return translated;
+    }
+    return null;
   }
 
   function addSubmissionFiles(incoming: File[]) {
@@ -772,6 +833,7 @@
   }
 
   function startEdit() {
+    clearEditErrors();
     eTitle = assignment.title;
     eDesc = assignment.description;
     ePoints = assignment.max_points;
@@ -854,8 +916,11 @@
       eSecondDeadlineTime = "23:59";
   }
 
-  async function saveEdit() {
+  async function saveEdit(options: { showError?: boolean } = {}) {
     try {
+      const { showError = false } = options;
+      clearEditErrors();
+      err = "";
       if (new Date(eDeadline) < new Date()) {
         const proceed = await confirmModal.open({
           title: t(
@@ -873,7 +938,7 @@
           confirmClass: "btn btn-warning",
           cancelClass: "btn",
         });
-        if (!proceed) return;
+        if (!proceed) return false;
       }
       if (eSecondDeadline && new Date(eSecondDeadline) <= new Date(eDeadline)) {
         const proceed = await confirmModal.open({
@@ -892,19 +957,40 @@
           confirmClass: "btn btn-warning",
           cancelClass: "btn",
         });
-        if (!proceed) return;
+        if (!proceed) return false;
+      }
+      const isScratch = eProgrammingLanguage === "scratch";
+      const needsMaxPoints =
+        ePolicy === "all_or_nothing" ||
+        (isScratch && scratchEvaluationMode === "manual");
+      const pointsValue = Number(ePoints);
+      if (needsMaxPoints && (!Number.isFinite(pointsValue) || pointsValue <= 0)) {
+        const message = t(
+          "frontend/src/routes/assignments/[id]/+page.svelte::max_points_required_error",
+        );
+        await setMaxPointsError(message);
+        if (showError) err = message;
+        return false;
+      }
+      const sizeValue = Number(eMaxSubmissionSizeMB);
+      if (!Number.isFinite(sizeValue) || sizeValue <= 0) {
+        const message = t(
+          "frontend/src/routes/assignments/[id]/+page.svelte::max_submission_size_required_error",
+        );
+        await setMaxSubmissionSizeError(message);
+        if (showError) err = message;
+        return false;
       }
       // For weighted assignments, max_points is calculated from test weights
-      const isScratch = eProgrammingLanguage === "scratch";
       const maxPoints =
         ePolicy === "weighted" && !isScratch
           ? assignment.max_points || 100
-          : Number(ePoints);
+          : pointsValue;
       const scratchCriteriaPayload = isScratch
         ? serializeScratchCriteria(scratchCriteria)
         : null;
 
-      await apiFetch(`/api/assignments/${id}`, {
+      const res = await apiFetch(`/api/assignments/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -912,7 +998,7 @@
           description: eDesc,
           deadline: new Date(eDeadline).toISOString(),
           max_points: maxPoints,
-          max_submission_size_mb: Number(eMaxSubmissionSizeMB),
+          max_submission_size_mb: sizeValue,
           grading_policy: ePolicy,
           show_traceback: eShowTraceback,
           show_test_details: eShowTestDetails,
@@ -937,10 +1023,28 @@
             : 0.5,
         }),
       });
+      if (!res.ok) {
+        let message = res.statusText;
+        try {
+          const data = await res.json();
+          message = data?.error ?? message;
+        } catch (parseError) {
+          // ignore response parse errors
+        }
+        const handledMessage = await handleEditError(message);
+        if (handledMessage && showError) {
+          err = handledMessage;
+          return false;
+        }
+        if (!handledMessage) err = message;
+        return false;
+      }
       editing = false;
       await load();
+      return true;
     } catch (e: any) {
       err = e.message;
+      return false;
     }
   }
 
@@ -1204,7 +1308,15 @@
     submitDialog.showModal();
   }
 
-  function openTestsModal() {
+  async function openTestsModal() {
+    if (
+      editing &&
+      assignment?.programming_language === "scratch" &&
+      eProgrammingLanguage === "python"
+    ) {
+      const saved = await saveEdit({ showError: true });
+      if (!saved) return;
+    }
     goto(`/assignments/${id}/tests`);
   }
 
@@ -1490,6 +1602,8 @@
                     placeholder={t("frontend/src/routes/assignments/[id]/+page.svelte::max_points_placeholder")}
                     required
                     icon={Trophy}
+                    error={maxPointsError}
+                    bind:inputRef={maxPointsInput}
                     small
                   />
                 {:else}
@@ -1652,6 +1766,8 @@
                       bind:value={eMaxSubmissionSizeMB}
                       label={t("frontend/src/routes/assignments/[id]/+page.svelte::max_submission_size_label")}
                       icon={FileUp}
+                      error={maxSubmissionSizeError}
+                      bind:inputRef={maxSubmissionSizeInput}
                       small
                     />
                   </div>
@@ -1661,6 +1777,19 @@
                     </div>
                   {/if}
                 </div>
+
+                {#if eProgrammingLanguage === "python"}
+                  <div class="flex items-center gap-3">
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-outline gap-2 rounded-xl"
+                      on:click={openTestsModal}
+                    >
+                      <FlaskConical size={14} />
+                      {t("frontend/src/routes/assignments/[id]/+page.svelte::manage_tests_button")}
+                    </button>
+                  </div>
+                {/if}
 
                 <div class="flex flex-wrap items-center gap-4">
                   {#if eProgrammingLanguage === "scratch"}

@@ -12,6 +12,7 @@
   export let required: boolean = false;
   export let error: string = "";
   export let small: boolean = false;
+  export let inputRef: HTMLInputElement | null = null;
 
   const dispatch = createEventDispatcher();
   let focused = false;
@@ -59,6 +60,7 @@
         {placeholder}
         {disabled}
         {required}
+        bind:this={inputRef}
         class="w-full bg-transparent border-none outline-none font-medium text-base-content placeholder:text-base-content/30 {small ? 'text-sm' : ''}"
         on:input={handleInput}
         on:focus={handleFocus}
