@@ -2260,8 +2260,13 @@
 
                 {#if assignment.programming_language === "scratch"}
                   <div class="badge h-7 gap-2 px-2.5 font-black text-[9px] uppercase tracking-wider bg-secondary text-secondary-content border-none shadow-sm">
-                    <span class="font-black">S</span>
+                    <img src="/scratch_logo.webp" alt="Scratch" class="h-3.5 w-3.5" />
                     {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_badge")}
+                  </div>
+                {:else if assignment.programming_language === "python"}
+                  <div class="badge h-7 gap-2 px-2.5 font-black text-[9px] uppercase tracking-wider bg-base-200 text-base-content border-none shadow-sm">
+                    <img src="/python_logo.webp" alt="Python" class="h-3.5 w-3.5" />
+                    {t("frontend/src/routes/assignments/[id]/+page.svelte::programming_language_python")}
                   </div>
                 {/if}
 
