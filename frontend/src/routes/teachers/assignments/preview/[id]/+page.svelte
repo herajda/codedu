@@ -119,7 +119,7 @@
     loading = true;
     err = "";
     try {
-      const data = await apiJSON(`/api/assignments/${id}`);
+      const data = await apiJSON(`/api/assignments/${id}?include_tests=1`);
       assignment = data.assignment;
       tests = data.tests ?? [];
       testsCount = Array.isArray(tests) ? tests.length : 0;

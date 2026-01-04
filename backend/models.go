@@ -1172,7 +1172,7 @@ func DeleteUser(id uuid.UUID) error {
 func ListSubmissionsForStudent(studentID uuid.UUID) ([]Submission, error) {
 	subs := []Submission{}
 	err := DB.Select(&subs, `
-               SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at,
+               SELECT id, assignment_id, student_id, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at,
                       ROW_NUMBER() OVER (PARTITION BY assignment_id, student_id ORDER BY created_at ASC, id ASC) AS attempt_number,
                       (SELECT COUNT(*) FROM results r WHERE r.submission_id = submissions.id AND r.status = 'passed') AS passed_tests,
                       (SELECT COUNT(*) FROM results r WHERE r.submission_id = submissions.id) AS total_tests
@@ -1211,7 +1211,7 @@ type SubmissionWithStudent struct {
 func ListSubmissionsForAssignmentAndStudent(aid, sid uuid.UUID) ([]SubmissionWithReason, error) {
 	subs := []SubmissionWithReason{}
 	err := DB.Select(&subs, `
-               SELECT id, assignment_id, student_id, code_path, code_content, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at,
+               SELECT id, assignment_id, student_id, status, points, override_points, is_teacher_run, manually_accepted, late, created_at, updated_at,
                       ROW_NUMBER() OVER (PARTITION BY assignment_id, student_id ORDER BY created_at ASC, id ASC) AS attempt_number,
                       (SELECT r.status FROM results r
                          WHERE r.submission_id = submissions.id AND r.status <> 'passed'
@@ -1229,7 +1229,7 @@ func ListSubmissionsForAssignmentAndStudent(aid, sid uuid.UUID) ([]SubmissionWit
 func ListSubmissionsForAssignment(aid uuid.UUID) ([]SubmissionWithStudent, error) {
 	subs := []SubmissionWithStudent{}
 	err := DB.Select(&subs, `
-               SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.points, s.override_points, s.is_teacher_run, s.manually_accepted, s.late, s.created_at, s.updated_at,
+               SELECT s.id, s.assignment_id, s.student_id, s.status, s.points, s.override_points, s.is_teacher_run, s.manually_accepted, s.late, s.created_at, s.updated_at,
                      ROW_NUMBER() OVER (PARTITION BY s.assignment_id, s.student_id ORDER BY s.created_at ASC, s.id ASC) AS attempt_number,
                      u.email, u.name,
                      (SELECT r.status FROM results r
@@ -1248,7 +1248,7 @@ func ListSubmissionsForAssignment(aid uuid.UUID) ([]SubmissionWithStudent, error
 func ListTeacherRunsForAssignment(aid uuid.UUID) ([]SubmissionWithStudent, error) {
 	subs := []SubmissionWithStudent{}
 	err := DB.Select(&subs, `
-                SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.points, s.override_points, s.is_teacher_run, s.manually_accepted, s.late, s.created_at, s.updated_at,
+                SELECT s.id, s.assignment_id, s.student_id, s.status, s.points, s.override_points, s.is_teacher_run, s.manually_accepted, s.late, s.created_at, s.updated_at,
                        ROW_NUMBER() OVER (PARTITION BY s.assignment_id, s.student_id ORDER BY s.created_at ASC, s.id ASC) AS attempt_number,
                        u.email, u.name,
                        (SELECT r.status FROM results r
@@ -1267,7 +1267,7 @@ func ListTeacherRunsForAssignment(aid uuid.UUID) ([]SubmissionWithStudent, error
 func ListTeacherRunsForAssignmentByUser(aid, uid uuid.UUID) ([]SubmissionWithStudent, error) {
 	subs := []SubmissionWithStudent{}
 	err := DB.Select(&subs, `
-                SELECT s.id, s.assignment_id, s.student_id, s.code_path, s.code_content, s.status, s.points, s.override_points, s.is_teacher_run, s.manually_accepted, s.late, s.created_at, s.updated_at,
+                SELECT s.id, s.assignment_id, s.student_id, s.status, s.points, s.override_points, s.is_teacher_run, s.manually_accepted, s.late, s.created_at, s.updated_at,
                        ROW_NUMBER() OVER (PARTITION BY s.assignment_id, s.student_id ORDER BY s.created_at ASC, s.id ASC) AS attempt_number,
                        u.email, u.name,
                        (SELECT r.status FROM results r
@@ -1351,6 +1351,20 @@ func ListTestCases(assignmentID uuid.UUID) ([]TestCase, error) {
                  WHERE assignment_id = $1
                  ORDER BY id`, assignmentID)
 	return list, err
+}
+
+type TestCaseStats struct {
+	Count     int     `db:"count"`
+	WeightSum float64 `db:"weight_sum"`
+}
+
+func GetTestCaseStats(assignmentID uuid.UUID) (TestCaseStats, error) {
+	var stats TestCaseStats
+	err := DB.Get(&stats, `
+                SELECT COUNT(*) AS count, COALESCE(SUM(weight), 0) AS weight_sum
+                  FROM test_cases
+                 WHERE assignment_id = $1`, assignmentID)
+	return stats, err
 }
 
 func DeleteTestCase(id uuid.UUID) error {

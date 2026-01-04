@@ -371,6 +371,7 @@ func getAssignment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
+	includeTests := strings.EqualFold(c.Query("include_tests"), "true") || c.Query("include_tests") == "1"
 	a, err := GetAssignment(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
@@ -391,8 +392,8 @@ func getAssignment(c *gin.Context) {
 			a.Deadline = o.NewDeadline
 		}
 		subs, _ := ListSubmissionsForAssignmentAndStudent(id, getUserID(c))
-		tests, _ := ListTestCases(id)
-		c.JSON(http.StatusOK, gin.H{"assignment": a, "submissions": subs, "tests_count": len(tests)})
+		stats, _ := GetTestCaseStats(id)
+		c.JSON(http.StatusOK, gin.H{"assignment": a, "submissions": subs, "tests_count": stats.Count})
 		return
 	} else if role == "teacher" {
 		if ok, err := IsTeacherOfAssignment(id, getUserID(c)); err != nil || !ok {
@@ -404,7 +405,14 @@ func getAssignment(c *gin.Context) {
 			}
 		}
 	}
-	tests, _ := ListTestCases(id)
+	var tests []TestCase
+	var stats TestCaseStats
+	if includeTests {
+		tests, _ = ListTestCases(id)
+		stats.Count = len(tests)
+	} else {
+		stats, _ = GetTestCaseStats(id)
+	}
 	// Recalculate MaxPoints from test weights if weighted grading policy is active.
 	// This applies to Python assignments and automatic/semi-automatic Scratch assignments.
 	if a.GradingPolicy == "weighted" {
@@ -413,11 +421,15 @@ func getAssignment(c *gin.Context) {
 		isScratchAuto := a.ProgrammingLanguage == "scratch" && (a.ScratchEvaluationMode == "automatic" || a.ScratchEvaluationMode == "semi_automatic")
 
 		if isPython {
-			sum := 0.0
-			for _, t := range tests {
-				sum += t.Weight
+			if includeTests {
+				sum := 0.0
+				for _, t := range tests {
+					sum += t.Weight
+				}
+				a.MaxPoints = int(sum)
+			} else {
+				a.MaxPoints = int(stats.WeightSum)
 			}
-			a.MaxPoints = int(sum)
 		} else if isScratchAuto && a.ScratchSemanticCriteria != nil {
 			criteria := parseScratchSemanticCriteria(*a.ScratchSemanticCriteria)
 			sum := 0.0
@@ -429,7 +441,12 @@ func getAssignment(c *gin.Context) {
 			a.MaxPoints = int(sum)
 		}
 	}
-	resp := gin.H{"assignment": a, "tests": tests}
+	resp := gin.H{"assignment": a}
+	if includeTests {
+		resp["tests"] = tests
+	} else {
+		resp["tests_count"] = stats.Count
+	}
 	if role == "teacher" || role == "admin" {
 		subs, _ := ListSubmissionsForAssignment(id)
 		var tsubs []SubmissionWithStudent
