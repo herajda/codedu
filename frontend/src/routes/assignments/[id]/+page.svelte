@@ -123,6 +123,13 @@
   );
   $: submissionExtension = isScratchAssignment ? scratchFileExt : pythonFileExt;
   $: submissionExtLabel = submissionExtension;
+  function normalizeTeacherRunFiles(list: File[]) {
+    const ext = submissionExtension.toLowerCase();
+    const filtered = list.filter((f) =>
+      f.name.toLowerCase().endsWith(ext),
+    );
+    return isScratchAssignment ? filtered.slice(-1) : filtered;
+  }
   $: {
     if (maxPointsError) {
       const needsMaxPoints =
@@ -1333,7 +1340,7 @@
     }
     if (role === "teacher" || role === "admin") {
       allowed.push("instructor");
-      if (!isScratchAssignment) allowed.push("teacher-runs");
+      allowed.push("teacher-runs");
     }
     return allowed.includes(key as TabKey);
   }
@@ -2426,15 +2433,13 @@
               <GraduationCap size={12} />
               {t("frontend/src/routes/assignments/[id]/+page.svelte::tab_instructor")}
             </button>
-            {#if !isScratchAssignment}
-              <button
-                class={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${activeTab === "teacher-runs" ? "bg-base-100 text-primary shadow-lg shadow-base-300 scale-[1.02] border border-base-300" : "hover:bg-base-300/50 opacity-50 hover:opacity-100"}`}
-                on:click={() => setTab("teacher-runs")}
-              >
-                <FlaskConical size={12} />
-                {t("frontend/src/routes/assignments/[id]/+page.svelte::tab_teacher_runs")}
-              </button>
-            {/if}
+            <button
+              class={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${activeTab === "teacher-runs" ? "bg-base-100 text-primary shadow-lg shadow-base-300 scale-[1.02] border border-base-300" : "hover:bg-base-300/50 opacity-50 hover:opacity-100"}`}
+              on:click={() => setTab("teacher-runs")}
+            >
+              <FlaskConical size={12} />
+              {t("frontend/src/routes/assignments/[id]/+page.svelte::tab_teacher_runs")}
+            </button>
           {/if}
         </div>
 
@@ -3073,7 +3078,7 @@
           </section>
         {/if}
 
-        {#if activeTab === "teacher-runs" && (role === "teacher" || role === "admin") && !isScratchAssignment}
+        {#if activeTab === "teacher-runs" && (role === "teacher" || role === "admin")}
           <section class="card-elevated p-8 sm:p-10 bg-base-100 rounded-[2rem] border border-base-200">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-10">
               <div class="flex items-center gap-4">
@@ -3604,15 +3609,17 @@
           isSolDragging = false;
           const dt = (e as DragEvent).dataTransfer;
           if (dt) {
-            solFiles = [...solFiles, ...Array.from(dt.files)].filter((f) =>
-              f.name.endsWith(".py"),
-            );
+            solFiles = normalizeTeacherRunFiles([
+              ...solFiles,
+              ...Array.from(dt.files),
+            ]);
           }
         }}
       >
         <div class="text-sm opacity-70 mb-2">
           {t(
             "frontend/src/routes/assignments/[id]/+page.svelte::new_teacher_run_modal_dropzone_text",
+            { ext: submissionExtLabel },
           )}
         </div>
         <div class="mb-3">
@@ -3626,11 +3633,13 @@
         <input
           bind:this={teacherFileInput}
           type="file"
-          accept=".py"
-          multiple
+          accept={submissionExtension}
+          multiple={!isScratchAssignment}
           class="hidden"
           on:change={(e) =>
-            (solFiles = Array.from((e.target as HTMLInputElement).files || []))}
+            (solFiles = normalizeTeacherRunFiles(
+              Array.from((e.target as HTMLInputElement).files || []),
+            ))}
         />
       </div>
       {#if solFiles.length}

@@ -809,7 +809,7 @@
   "frontend/src/routes/assignments/[id]/+page.svelte::need_starting_point_text": "Potřebujete výchozí bod?",
   "frontend/src/routes/assignments/[id]/+page.svelte::new_run_button": "Nový běh",
   "frontend/src/routes/assignments/[id]/+page.svelte::new_submission_button": "Nové odevzdání",
-  "frontend/src/routes/assignments/[id]/+page.svelte::new_teacher_run_modal_dropzone_text": "Přetáhněte referenční soubory .py sem",
+  "frontend/src/routes/assignments/[id]/+page.svelte::new_teacher_run_modal_dropzone_text": "Přetáhněte referenční soubory {ext} sem",
   "frontend/src/routes/assignments/[id]/+page.svelte::new_teacher_run_modal_files_selected_plural": "{count} souborů vybráno",
   "frontend/src/routes/assignments/[id]/+page.svelte::new_teacher_run_modal_files_selected_singular": "{count} soubor vybrán",
   "frontend/src/routes/assignments/[id]/+page.svelte::new_teacher_run_modal_heading": "Nový učitelský běh",

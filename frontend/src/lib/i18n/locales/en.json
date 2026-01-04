@@ -809,7 +809,7 @@
   "frontend/src/routes/assignments/[id]/+page.svelte::need_starting_point_text": "Need a starting point?",
   "frontend/src/routes/assignments/[id]/+page.svelte::new_run_button": "New run",
   "frontend/src/routes/assignments/[id]/+page.svelte::new_submission_button": "New submission",
-  "frontend/src/routes/assignments/[id]/+page.svelte::new_teacher_run_modal_dropzone_text": "Drag and drop reference .py files here",
+  "frontend/src/routes/assignments/[id]/+page.svelte::new_teacher_run_modal_dropzone_text": "Drag and drop reference {ext} files here",
   "frontend/src/routes/assignments/[id]/+page.svelte::new_teacher_run_modal_files_selected_plural": "{count} files selected",
   "frontend/src/routes/assignments/[id]/+page.svelte::new_teacher_run_modal_files_selected_singular": "{count} file selected",
   "frontend/src/routes/assignments/[id]/+page.svelte::new_teacher_run_modal_heading": "New teacher run",
