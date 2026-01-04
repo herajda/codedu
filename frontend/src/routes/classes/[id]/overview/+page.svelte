@@ -220,7 +220,7 @@ function badgeFor(a: any) {
       <div class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
       
       <div class="relative shrink-0">
-        <div class="w-16 h-16 rounded-2xl overflow-hidden ring-4 ring-base-200 shadow-lg">
+        <div class="w-16 h-16 rounded-full overflow-hidden ring-4 ring-base-200 shadow-lg">
           {#if teacherAvatar}
             <img src={teacherAvatar} alt={`Avatar of ${teacherName}`} class="w-full h-full object-cover" loading="lazy" />
           {:else}
