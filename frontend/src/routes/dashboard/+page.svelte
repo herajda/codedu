@@ -118,8 +118,8 @@
         body:JSON.stringify({name:classNameToCreate})
       });
       // Add the new class to both local state and the store
-      // For dashboard we might just reload to get proper stats structure
-      // or try to append a dummy structure
+      classesStore.addClass(cl);
+      
       newClassName='';
       showNewClassInput = false;
       await refreshData();
