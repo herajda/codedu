@@ -2096,6 +2096,54 @@ func runTeacherSolution(c *gin.Context) {
 		}
 	}
 
+	assignment, err := GetAssignment(aid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+
+	if assignment != nil && assignment.ProgrammingLanguage == "scratch" {
+		if findScratchProjectFile(tmpDir) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "no scratch file found"})
+			return
+		}
+
+		buf := new(bytes.Buffer)
+		zw := zip.NewWriter(buf)
+		_ = filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() {
+				return nil
+			}
+			rel := filepath.Base(path)
+			w, e := zw.Create(rel)
+			if e != nil {
+				return e
+			}
+			data, e := os.ReadFile(path)
+			if e != nil {
+				return e
+			}
+			_, e = w.Write(data)
+			return e
+		})
+		_ = zw.Close()
+		_ = os.MkdirAll("uploads", 0755)
+		name := fmt.Sprintf("%d_%d_%d_teacher.zip", aid, getUserID(c), time.Now().UnixNano())
+		path := filepath.Join("uploads", name)
+		_ = os.WriteFile(path, buf.Bytes(), 0644)
+		sub := &Submission{AssignmentID: aid, StudentID: getUserID(c), CodePath: path, CodeContent: base64.StdEncoding.EncodeToString(buf.Bytes()), IsTeacherRun: true}
+		if c.GetString("role") == "teacher" || c.GetString("role") == "admin" {
+			_ = DB.QueryRow(`INSERT INTO submissions (assignment_id, student_id, code_path, code_content, is_teacher_run)
+                          VALUES ($1,$2,$3,$4,TRUE) RETURNING id, status, created_at, updated_at`,
+				sub.AssignmentID, sub.StudentID, sub.CodePath, sub.CodeContent).Scan(&sub.ID, &sub.Status, &sub.CreatedAt, &sub.UpdatedAt)
+		} else {
+			_ = CreateSubmission(sub)
+		}
+		runScratchAnalysis(sub, assignment, tmpDir)
+		c.JSON(http.StatusOK, gin.H{"submission_id": sub.ID})
+		return
+	}
+
 	// Detect main file similarly to worker
 	var mainFile string
 	var firstPy string
@@ -2143,12 +2191,6 @@ func runTeacherSolution(c *gin.Context) {
 	_ = ensureSandboxPerms(tmpDir)
 
 	persistedTests, err := ListTestCases(aid)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
-		return
-	}
-
-	assignment, err := GetAssignment(aid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return
@@ -2661,6 +2703,15 @@ func acceptSubmission(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
+	sub, err := GetSubmission(sid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if sub.IsTeacherRun {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "teacher run submissions cannot be modified"})
+		return
+	}
 	a, err := GetAssignmentForSubmission(sid)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
@@ -2711,6 +2762,15 @@ func undoManualAccept(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
+	sub, err := GetSubmission(sid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if sub.IsTeacherRun {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "teacher run submissions cannot be modified"})
+		return
+	}
 	a, err := GetAssignmentForSubmission(sid)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
@@ -2754,6 +2814,15 @@ func failSubmission(c *gin.Context) {
 	sid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	sub, err := GetSubmission(sid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if sub.IsTeacherRun {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "teacher run submissions cannot be modified"})
 		return
 	}
 	a, err := GetAssignmentForSubmission(sid)
@@ -4110,6 +4179,15 @@ func overrideSubmissionPoints(c *gin.Context) {
 	sid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	sub, err := GetSubmission(sid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if sub.IsTeacherRun {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "teacher run submissions cannot be modified"})
 		return
 	}
 	var req struct {

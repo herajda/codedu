@@ -89,6 +89,7 @@
   let sid: number = 0;
   let role = "";
   $: role = $auth?.role ?? "";
+  $: isTeacherRun = submission?.is_teacher_run === true;
   let translate;
   $: translate = $translator;
   let scratchFullscreenMode: "none" | "player" | "both" = "none";
@@ -1174,7 +1175,7 @@
                   </div>
                 {/if}
 
-                {#if role === "teacher" || role === "admin"}
+                {#if (role === "teacher" || role === "admin") && !isTeacherRun}
                   <div class="w-full pt-4 space-y-3">
                     <div class="join w-full shadow-md rounded-xl overflow-hidden border border-base-300">
                       <input
