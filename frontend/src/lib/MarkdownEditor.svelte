@@ -74,7 +74,7 @@
       content: value,
       editorProps: {
         attributes: {
-          class: `prose prose-sm max-w-none focus:outline-none min-h-[120px] p-4 ${className}`,
+          class: `prose prose-sm max-w-none focus:outline-none min-h-[120px] px-4 py-2 ${className}`,
         },
       },
       onUpdate: ({ editor }) => {
@@ -306,6 +306,10 @@
     min-height: 120px;
     height: 100%;
     outline: none !important;
+  }
+  
+  :global(.ProseMirror > *:first-child) {
+    margin-top: 0 !important;
   }
   
   :global(.ProseMirror p.is-editor-empty:first-child::before) {
