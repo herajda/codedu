@@ -173,22 +173,20 @@
   async function handleEditError(message: string) {
     const normalized = (message || "").toLowerCase();
     if (normalized.includes("maxpoints") || normalized.includes("max_points")) {
-      await setMaxPointsError(
-        t(
-          "frontend/src/routes/assignments/[id]/+page.svelte::max_points_required_error",
-        ),
+      const translated = t(
+        "frontend/src/routes/assignments/[id]/+page.svelte::max_points_required_error",
       );
-      return true;
+      await setMaxPointsError(translated);
+      return translated;
     }
     if (normalized.includes("max_submission_size_mb")) {
-      await setMaxSubmissionSizeError(
-        t(
-          "frontend/src/routes/assignments/[id]/+page.svelte::max_submission_size_required_error",
-        ),
+      const translated = t(
+        "frontend/src/routes/assignments/[id]/+page.svelte::max_submission_size_required_error",
       );
-      return true;
+      await setMaxSubmissionSizeError(translated);
+      return translated;
     }
-    return false;
+    return null;
   }
 
   function addSubmissionFiles(incoming: File[]) {
@@ -918,8 +916,9 @@
       eSecondDeadlineTime = "23:59";
   }
 
-  async function saveEdit() {
+  async function saveEdit(options: { showError?: boolean } = {}) {
     try {
+      const { showError = false } = options;
       clearEditErrors();
       err = "";
       if (new Date(eDeadline) < new Date()) {
@@ -939,7 +938,7 @@
           confirmClass: "btn btn-warning",
           cancelClass: "btn",
         });
-        if (!proceed) return;
+        if (!proceed) return false;
       }
       if (eSecondDeadline && new Date(eSecondDeadline) <= new Date(eDeadline)) {
         const proceed = await confirmModal.open({
@@ -958,7 +957,7 @@
           confirmClass: "btn btn-warning",
           cancelClass: "btn",
         });
-        if (!proceed) return;
+        if (!proceed) return false;
       }
       const isScratch = eProgrammingLanguage === "scratch";
       const needsMaxPoints =
@@ -966,21 +965,21 @@
         (isScratch && scratchEvaluationMode === "manual");
       const pointsValue = Number(ePoints);
       if (needsMaxPoints && (!Number.isFinite(pointsValue) || pointsValue <= 0)) {
-        await setMaxPointsError(
-          t(
-            "frontend/src/routes/assignments/[id]/+page.svelte::max_points_required_error",
-          ),
+        const message = t(
+          "frontend/src/routes/assignments/[id]/+page.svelte::max_points_required_error",
         );
-        return;
+        await setMaxPointsError(message);
+        if (showError) err = message;
+        return false;
       }
       const sizeValue = Number(eMaxSubmissionSizeMB);
       if (!Number.isFinite(sizeValue) || sizeValue <= 0) {
-        await setMaxSubmissionSizeError(
-          t(
-            "frontend/src/routes/assignments/[id]/+page.svelte::max_submission_size_required_error",
-          ),
+        const message = t(
+          "frontend/src/routes/assignments/[id]/+page.svelte::max_submission_size_required_error",
         );
-        return;
+        await setMaxSubmissionSizeError(message);
+        if (showError) err = message;
+        return false;
       }
       // For weighted assignments, max_points is calculated from test weights
       const maxPoints =
@@ -1032,14 +1031,20 @@
         } catch (parseError) {
           // ignore response parse errors
         }
-        const handled = await handleEditError(message);
-        if (!handled) err = message;
-        return;
+        const handledMessage = await handleEditError(message);
+        if (handledMessage && showError) {
+          err = handledMessage;
+          return false;
+        }
+        if (!handledMessage) err = message;
+        return false;
       }
       editing = false;
       await load();
+      return true;
     } catch (e: any) {
       err = e.message;
+      return false;
     }
   }
 
@@ -1303,7 +1308,15 @@
     submitDialog.showModal();
   }
 
-  function openTestsModal() {
+  async function openTestsModal() {
+    if (
+      editing &&
+      assignment?.programming_language === "scratch" &&
+      eProgrammingLanguage === "python"
+    ) {
+      const saved = await saveEdit({ showError: true });
+      if (!saved) return;
+    }
     goto(`/assignments/${id}/tests`);
   }
 
