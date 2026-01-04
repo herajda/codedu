@@ -118,8 +118,8 @@
         body:JSON.stringify({name:classNameToCreate})
       });
       // Add the new class to both local state and the store
-      // For dashboard we might just reload to get proper stats structure
-      // or try to append a dummy structure
+      classesStore.addClass(cl);
+      
       newClassName='';
       showNewClassInput = false;
       await refreshData();
@@ -419,22 +419,12 @@
                     <div class="text-sm font-black tabular-nums">{c.students_count}</div>
                  </div>
 
-                 <div class="space-y-2">
-                    <div class="flex items-center justify-between text-[10px] font-black uppercase tracking-widest opacity-40">
-                      <span>{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_progress')}</span>
-                      <span class="tabular-nums">{c.average_progress}%</span>
-                    </div>
-                    <div class="w-full h-2 rounded-full bg-base-200 overflow-hidden">
-                       <div class="h-full bg-primary" style={`width: ${c.average_progress}%`}></div>
-                    </div>
-                 </div>
-
                  <div class="pt-2 space-y-2">
                     {#each (c.assignments ?? []).slice(0, 3) as a}
                       <div class="flex items-center justify-between text-xs group/item">
                         <span class="truncate opacity-70 group-hover/item:opacity-100 transition-opacity pr-2">{a.title}</span>
                         <div class="flex items-center gap-2 shrink-0">
-                           <div class="w-12 h-1 bg-base-200 rounded-full overflow-hidden">
+                           <div class="w-24 h-1 bg-base-200 rounded-full overflow-hidden">
                               <div class="h-full bg-primary/60" style={`width: ${(c.progress.find((x:any)=>x.id===a.id)?.done || 0) / (c.students_count || 1) * 100}%`}></div>
                            </div>
                            <span class="text-[10px] font-black opacity-40 tabular-nums">{(c.progress.find((x:any)=>x.id===a.id)?.done || 0)}/{c.students_count}</span>

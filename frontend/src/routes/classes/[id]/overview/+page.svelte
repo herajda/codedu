@@ -220,7 +220,7 @@ function badgeFor(a: any) {
       <div class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
       
       <div class="relative shrink-0">
-        <div class="w-16 h-16 rounded-2xl overflow-hidden ring-4 ring-base-200 shadow-lg">
+        <div class="w-16 h-16 rounded-full overflow-hidden ring-4 ring-base-200 shadow-lg">
           {#if teacherAvatar}
             <img src={teacherAvatar} alt={`Avatar of ${teacherName}`} class="w-full h-full object-cover" loading="lazy" />
           {:else}
@@ -286,8 +286,8 @@ function badgeFor(a: any) {
                   <div class="text-xs font-bold opacity-40 italic">{t('frontend/src/routes/classes/[id]/overview/+page.svelte::due_prefix')} {formatDateTime(a.deadline)}</div>
                 </div>
 
-                <div class="flex items-center gap-6 shrink-0 w-full sm:w-auto">
-                  <div class="flex-1 sm:w-32 space-y-2">
+                <div class="flex items-center gap-6 shrink-0 w-full sm:w-72 justify-end">
+                  <div class="flex-1 sm:w-40 space-y-2">
                      <div class="flex items-center justify-between text-[10px] font-black opacity-40 uppercase">
                         <span>{percent(a.best, a.max_points)}%</span>
                         <span>{a.best}/{a.max_points}</span>
@@ -299,9 +299,11 @@ function badgeFor(a: any) {
                   
                   {#key a.id}
                     {#if badgeFor(a)}
-                      <span class={`badge badge-ghost border-none font-black text-[9px] uppercase tracking-widest px-3 h-6 ${badgeFor(a).cls.replace('badge-', 'text-')}`}>
-                        {badgeFor(a).text}
-                      </span>
+                      <div class="w-28 shrink-0 flex justify-center">
+                        <span class={`badge badge-ghost border-none font-black text-[9px] uppercase tracking-widest px-3 h-6 ${badgeFor(a).cls.replace('badge-', 'text-')}`}>
+                          {badgeFor(a).text}
+                        </span>
+                      </div>
                     {/if}
                   {/key}
                 </div>
