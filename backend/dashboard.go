@@ -106,7 +106,7 @@ func getStudentDashboard(studentID uuid.UUID, data *DashboardData) (*DashboardDa
 	}
 	var assignments []Asgn
 	err = DB.Select(&assignments, `
-		SELECT a.*, c.name as class_name
+		SELECT a.id, a.title, a.created_at, a.class_id, a.deadline, a.max_points, c.name as class_name
 		FROM assignments a
 		JOIN class_students cs ON cs.class_id = a.class_id
 		JOIN classes c ON c.id = a.class_id
@@ -116,10 +116,17 @@ func getStudentDashboard(studentID uuid.UUID, data *DashboardData) (*DashboardDa
 		return nil, err
 	}
 
-	// 3. Get all submissions for this student
-	var submissions []Submission
+	// 3. Get all submissions for this student (only fields needed for stats)
+	type SubStat struct {
+		AssignmentID uuid.UUID `db:"assignment_id"`
+		Points       *float64  `db:"points"`
+		OverridePts  *float64  `db:"override_points"`
+	}
+	var submissions []SubStat
 	err = DB.Select(&submissions, `
-		SELECT * FROM submissions WHERE student_id = $1
+		SELECT assignment_id, points, override_points
+		  FROM submissions
+		 WHERE student_id = $1
 	`, studentID)
 	if err != nil {
 		return nil, err
@@ -284,7 +291,7 @@ func getTeacherDashboard(teacherID uuid.UUID, data *DashboardData) (*DashboardDa
 	// Assignments
 	var assignments []Assignment
 	err = DB.Select(&assignments, `
-		SELECT a.* FROM assignments a
+		SELECT a.id, a.title, a.class_id, a.created_at FROM assignments a
 		JOIN classes c ON c.id = a.class_id
 		WHERE c.teacher_id = $1
 	`, teacherID)

@@ -637,7 +637,7 @@ class MyTests(unittest.TestCase):
   async function load() {
     err = "";
     try {
-      const data = await apiJSON(`/api/assignments/${id}`);
+      const data = await apiJSON(`/api/assignments/${id}?include_tests=1`);
       assignment = data.assignment;
       applyBannedConfig(assignment);
       bannedSaved = false;
