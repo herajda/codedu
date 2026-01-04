@@ -940,6 +940,7 @@
   "frontend/src/routes/assignments/[id]/+page.svelte::scratch_semantic_example_3": "Hra končí při vypršení času",
   "frontend/src/routes/assignments/[id]/+page.svelte::scratch_badge": "Scratch",
   "frontend/src/routes/assignments/[id]/+page.svelte::uploading_status": "Nahrávám...",
+  "frontend/src/routes/assignments/[id]/+page.svelte::running_status": "Spouštění běhu...",
   "frontend/src/routes/assignments/[id]/+page.svelte::tab_instructor": "Pokrok studentů",
   "frontend/src/routes/assignments/[id]/+page.svelte::tab_overview": "Přehled",
   "frontend/src/routes/assignments/[id]/+page.svelte::tab_results": "Výsledky",
