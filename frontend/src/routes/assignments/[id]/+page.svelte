@@ -467,7 +467,7 @@
   let activeTab: TabKey = "overview";
   let isDragging = false;
 
-  // Teacher solution test-run state (modal in Teacher runs tab)
+  // Teacher solution test-run state (modal in Teacher attempts tab)
   let solFiles: File[] = [];
   let isSolDragging = false;
   let solLoading = false;
@@ -3619,7 +3619,7 @@
     </form>
   </dialog>
 
-  <!-- Teacher run upload modal -->
+  <!-- Teacher attempt upload modal -->
   <dialog bind:this={teacherRunDialog} class="modal modal-bottom sm:modal-middle">
     <div class="modal-box sm:w-11/12 sm:max-w-lg p-0 overflow-hidden bg-base-100 rounded-[2rem] shadow-2xl border border-base-300">
       <!-- Modal Header -->
