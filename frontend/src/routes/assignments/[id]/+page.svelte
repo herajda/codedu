@@ -12,7 +12,7 @@
   import ConfirmModal from "$lib/components/ConfirmModal.svelte";
   import CustomSelect from "$lib/components/CustomSelect.svelte";
   import StylishInput from "$lib/components/StylishInput.svelte";
-  import { DeadlinePicker } from "$lib";
+  import { DeadlinePicker, ExtendDeadlineModal } from "$lib";
   import { strictnessGuidance } from "$lib/llmStrictness";
   import { t, translator } from "$lib/i18n";
   import { submissionStatusLabel } from "$lib/status";
@@ -1394,61 +1394,50 @@
   }
 
   // Extension dialog state (teacher)
-  let extendDialog: HTMLDialogElement;
-  let extStudent: any = null;
-  let extDeadline = "";
-  let extDeadlineDate = "";
-  let extDeadlineTime = "";
-  let extNote = "";
-  function openExtendDialog(student: any) {
-    extStudent = student;
-    const cur = overrideMap[student.id];
-    extDeadline = cur
-      ? String(cur.new_deadline).slice(0, 16)
-      : assignment.deadline?.slice(0, 16) || "";
-    extDeadlineDate = extDeadline ? extDeadline.slice(0, 10) : "";
-    extDeadlineTime = extDeadline ? extDeadline.slice(11, 16) : "";
-    extNote = cur?.note || "";
-    extendDialog.showModal();
+  let extendDeadlineModal: InstanceType<typeof ExtendDeadlineModal>;
+
+  async function openExtendDialog(student: any) {
+    const res = await extendDeadlineModal.open(
+      student,
+      overrideMap[student.id],
+      assignment.deadline
+    );
+    if (!res) return;
+
+    if (res.clear) {
+      await clearExtension(student);
+    } else {
+      await saveExtension(student, res.newDeadline, res.note);
+    }
   }
-  async function saveExtension() {
-    if (!extStudent || !extDeadline) return;
+
+  async function saveExtension(student: any, newDeadline: string, note: string) {
+    if (!student || !newDeadline) return;
     try {
-      await apiFetch(`/api/assignments/${id}/extensions/${extStudent.id}`, {
+      await apiFetch(`/api/assignments/${id}/extensions/${student.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          new_deadline: new Date(extDeadline).toISOString(),
-          note: extNote.trim() ? extNote : null,
+          new_deadline: new Date(newDeadline).toISOString(),
+          note: note.trim() ? note : null,
         }),
       });
-      extendDialog.close();
-      await load();
-    } catch (e: any) {
-      err = e.message;
-    }
-  }
-  async function clearExtension() {
-    if (!extStudent) return;
-    try {
-      await apiFetch(`/api/assignments/${id}/extensions/${extStudent.id}`, {
-        method: "DELETE",
-      });
-      extendDialog.close();
       await load();
     } catch (e: any) {
       err = e.message;
     }
   }
 
-  // keep combined extension string synced with date/time parts
-  $: {
-    if (extDeadlineDate && extDeadlineTime)
-      extDeadline = `${extDeadlineDate}T${extDeadlineTime}`;
-    else if (!extDeadlineDate) extDeadline = "";
-  }
-  $: {
-    if (extDeadlineDate && !extDeadlineTime) extDeadlineTime = "23:59";
+  async function clearExtension(student: any) {
+    if (!student) return;
+    try {
+      await apiFetch(`/api/assignments/${id}/extensions/${student.id}`, {
+        method: "DELETE",
+      });
+      await load();
+    } catch (e: any) {
+      err = e.message;
+    }
   }
 
   // ───────────────────────────
@@ -1504,22 +1493,6 @@
     if (picked) {
       eSecondDeadlineDate = picked.slice(0, 10);
       eSecondDeadlineTime = picked.slice(11, 16);
-    }
-  }
-  async function pickExtensionDeadline() {
-    const initial =
-      extDeadlineDate && extDeadlineTime
-        ? `${extDeadlineDate}T${extDeadlineTime}`
-        : (assignment?.deadline ?? null);
-    const picked = await deadlinePicker.open({
-      title: t(
-        "frontend/src/routes/assignments/[id]/+page.svelte::select_new_deadline",
-      ),
-      initial,
-    });
-    if (picked) {
-      extDeadlineDate = picked.slice(0, 10);
-      extDeadlineTime = picked.slice(11, 16);
     }
   }
 </script>
@@ -3526,103 +3499,7 @@
     </div>
   </dialog>
 
-  <!-- Extend deadline dialog (teacher) -->
-  <dialog bind:this={extendDialog} class="modal">
-    <div class="modal-box w-11/12 max-w-md space-y-4">
-      <h3 class="font-bold text-lg">
-        {t(
-          "frontend/src/routes/assignments/[id]/+page.svelte::extend_deadline_modal_heading",
-        )}
-      </h3>
-      <div class="form-control">
-        <div class="label"
-          ><span class="label-text"
-            >{t(
-              "frontend/src/routes/assignments/[id]/+page.svelte::extend_deadline_modal_student_label",
-            )}</span
-          ></div
-        >
-        <div class="input input-bordered">
-          {extStudent?.name ?? extStudent?.email}
-        </div>
-      </div>
-      <div class="form-control">
-        <div class="label"
-          ><span class="label-text"
-            >{t(
-              "frontend/src/routes/assignments/[id]/+page.svelte::extend_deadline_modal_new_deadline_label",
-            )}</span
-          ></div
-        >
-        <div class="flex items-center gap-2">
-          <input
-            class="input input-bordered w-full"
-            readonly
-            placeholder="dd/mm/yyyy hh:mm"
-            value={euLabelFromParts(extDeadlineDate, extDeadlineTime)}
-          />
-          <button class="btn" on:click|preventDefault={pickExtensionDeadline}
-            >{t(
-              "frontend/src/routes/assignments/[id]/+page.svelte::pick_button",
-            )}</button
-          >
-          {#if extDeadlineDate}
-            <button
-              class="btn btn-ghost"
-              on:click|preventDefault={() => {
-                extDeadlineDate = "";
-                extDeadlineTime = "";
-              }}
-              >{t(
-                "frontend/src/routes/assignments/[id]/+page.svelte::clear_button_label",
-              )}</button
-            >
-          {/if}
-        </div>
-      </div>
-      <div class="form-control">
-        <div class="label"
-          ><span class="label-text"
-            >{t(
-              "frontend/src/routes/assignments/[id]/+page.svelte::extend_deadline_modal_note_label",
-            )}</span
-          ></div
-        >
-        <input
-          type="text"
-          class="input input-bordered w-full"
-          placeholder={t(
-            "frontend/src/routes/assignments/[id]/+page.svelte::extend_deadline_modal_note_placeholder",
-          )}
-          bind:value={extNote}
-        />
-      </div>
-      <div class="modal-action">
-        {#if overrideMap[extStudent?.id]}
-          <button class="btn btn-error btn-outline" on:click={clearExtension}
-            >{t(
-              "frontend/src/routes/assignments/[id]/+page.svelte::extend_deadline_modal_clear_button",
-            )}</button
-          >
-        {/if}
-        <button
-          class="btn"
-          on:click={saveExtension}
-          disabled={!extStudent || !extDeadline}
-          >{t(
-            "frontend/src/routes/assignments/[id]/+page.svelte::extend_deadline_modal_save_button",
-          )}</button
-        >
-      </div>
-    </div>
-    <form method="dialog" class="modal-backdrop">
-      <button
-        >{t(
-          "frontend/src/routes/assignments/[id]/+page.svelte::modal_close_button",
-        )}</button
-      >
-    </form>
-  </dialog>
+  <ExtendDeadlineModal bind:this={extendDeadlineModal} />
 
   <!-- Teacher attempt upload modal -->
   <dialog bind:this={teacherRunDialog} class="modal modal-bottom sm:modal-middle">
