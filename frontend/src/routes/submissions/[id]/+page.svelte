@@ -65,6 +65,7 @@
   let assignmentShowTraceback = false;
   let assignmentLLMHelpWhyFailed = false;
   let assignmentLanguage: string = "python";
+  let assignmentMaxPoints: number | null = null;
   let assignmentLoaded = false;
   let scratchProject: Uint8Array | null = null;
   let scratchProjectName = "";
@@ -372,6 +373,7 @@
           );
           assignmentScratchSemanticCriteria =
             ad.assignment?.scratch_semantic_criteria ?? "";
+          assignmentMaxPoints = ad.assignment?.max_points ?? null;
           // Prefer aggregate tests_count when present (student view), fallback to tests array (teacher/admin)
           try {
             assignmentTestsCount =
@@ -1152,6 +1154,11 @@
                   <span class="text-5xl font-black text-primary tabular-nums">
                     {submission.override_points ?? submission.points ?? "—"}
                   </span>
+                  {#if assignmentMaxPoints !== null}
+                    <span class="text-2xl font-bold opacity-30 tabular-nums">
+                      / {assignmentMaxPoints}
+                    </span>
+                  {/if}
                 </div>
 
                 {#if isScratchSubmission}
