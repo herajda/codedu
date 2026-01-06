@@ -395,7 +395,7 @@
                   {/if}
                   <p class="text-sm font-medium text-base-content/60 truncate italic">
                     {#if convo.text}
-                      "{convo.text}"
+                      {convo.text}
                     {:else if convo.image}
                       {t('frontend/src/routes/messages/+page.svelte::image')}
                     {:else}
