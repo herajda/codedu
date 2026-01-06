@@ -852,6 +852,8 @@
   "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_hours_singular": "před {count} hodinou",
   "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_minutes_plural": "před {count} minutami",
   "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_minutes_singular": "před {count} minutou",
+  "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_seconds_plural": "před {count} sekundami",
+  "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_seconds_singular": "před {count} sekundou",
   "frontend/src/routes/assignments/[id]/+page.svelte::results_table_header_exit": "Kód ukončení",
   "frontend/src/routes/assignments/[id]/+page.svelte::results_table_header_num": "#",
   "frontend/src/routes/assignments/[id]/+page.svelte::results_table_header_runtime": "Runtime (ms)",

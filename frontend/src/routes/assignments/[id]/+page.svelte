@@ -510,8 +510,8 @@
     return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
   }
 
-  function relativeToDeadline(deadline: string, nowMs: number) {
-    const now = new Date(nowMs);
+  function relativeToDeadline(deadline: string, nowMs?: number) {
+    const now = new Date(nowMs ?? currentTime);
     const due = new Date(deadline);
     const diffMs = due.getTime() - now.getTime();
 
@@ -520,51 +520,64 @@
     }
 
     const abs = Math.abs(diffMs);
+    const secs = Math.round(abs / 1000);
     const mins = Math.round(abs / 60000);
-    const hrs = Math.round(mins / 60);
-    const days = Math.round(hrs / 24);
+    const hrs = Math.round(abs / 3600000);
+    const days = Math.round(abs / 86400000);
 
-    if (mins < 60) {
-      if (diffMs >= 0)
+    if (diffMs < 0) {
+      if (abs < 60000) {
+        return translate(
+          secs === 1
+            ? "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_seconds_singular"
+            : "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_seconds_plural",
+          { count: secs },
+        );
+      }
+      if (abs < 3600000) {
         return translate(
           mins === 1
-            ? "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_future_minutes_singular"
-            : "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_future_minutes_plural",
+            ? "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_minutes_singular"
+            : "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_minutes_plural",
           { count: mins },
         );
+      }
+      if (abs < 86400000) {
+        return translate(
+          hrs === 1
+            ? "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_hours_singular"
+            : "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_hours_plural",
+          { count: hrs },
+        );
+      }
+      return translate(
+        days === 1
+          ? "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_days_singular"
+          : "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_days_plural",
+        { count: days },
+      );
+    }
+
+    if (mins < 60) {
       return translate(
         mins === 1
-          ? "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_minutes_singular"
-          : "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_minutes_plural",
+          ? "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_future_minutes_singular"
+          : "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_future_minutes_plural",
         { count: mins },
       );
     }
     if (hrs < 24) {
-      if (diffMs >= 0)
-        return translate(
-          hrs === 1
-            ? "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_future_hours_singular"
-            : "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_future_hours_plural",
-          { count: hrs },
-        );
       return translate(
         hrs === 1
-          ? "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_hours_singular"
-          : "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_hours_plural",
+          ? "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_future_hours_singular"
+          : "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_future_hours_plural",
         { count: hrs },
       );
     }
-    if (diffMs >= 0)
-      return translate(
-        days === 1
-          ? "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_future_days_singular"
-          : "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_future_days_plural",
-        { count: days },
-      );
     return translate(
       days === 1
-        ? "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_days_singular"
-        : "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_past_days_plural",
+        ? "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_future_days_singular"
+        : "frontend/src/routes/assignments/[id]/+page.svelte::relativeToDeadline_future_days_plural",
       { count: days },
     );
   }
