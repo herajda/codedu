@@ -296,10 +296,6 @@
       "checksum": "e0ea0d50291f75410cce7ba6b18ae989c759ff3705543fdc3ea4eef66ad43a40",
       "updated_at": "2025-10-11T10:39:56.553212+00:00"
     },
-    "frontend/src/routes/my-classes/+page.svelte": {
-      "checksum": "b1e94c2c65b281c435cfe5482806c9d4549cb6bb3faff7f3e91e099f7c30fa9f",
-      "updated_at": "2025-10-11T10:40:05.218298+00:00"
-    },
     "frontend/src/routes/register/+page.svelte": {
       "checksum": "cb316fc92925cd9583ca22e4c3fc11c3015a4b84820c848b72bd6c984bb524f3",
       "updated_at": "2025-10-11T10:40:34.417058+00:00"

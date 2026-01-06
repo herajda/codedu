@@ -148,7 +148,7 @@
       await apiFetch(`/api/classes/${id}`, { method: 'DELETE' });
       // Remove from store before navigating away
       classesStore.removeClass(id);
-      goto('/my-classes');
+      goto('/dashboard');
     } catch (e: any) { err = e.message }
   }
 
