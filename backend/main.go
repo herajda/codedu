@@ -290,6 +290,9 @@ func main() {
 		api.DELETE("/users/:id", RoleGuard("admin"), deleteUser)
 		// List my submissions (student)
 		api.GET("/my-submissions", RoleGuard("student"), listSubs)
+		// Pending reviews for teachers
+		api.GET("/pending-reviews", RoleGuard("teacher", "admin"), getPendingReviews)
+		api.GET("/pending-reviews/count", RoleGuard("teacher", "admin"), getPendingReviewsCount)
 		api.GET("/events", RoleGuard("student", "teacher", "admin"), eventsHandler)
 		// Interactive terminal for manual review sessions (teacher/admin only)
 		api.GET("/submissions/:id/terminal", RoleGuard("teacher", "admin"), submissionTerminalWS)

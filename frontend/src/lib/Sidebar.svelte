@@ -3,6 +3,7 @@
   import { sidebarOpen, sidebarCollapsed } from '$lib/sidebar';
   import { auth } from '$lib/auth';
   import { unreadMessages } from '$lib/stores/messages';
+  import { pendingReviewCount, loadPendingReviewCount } from '$lib/stores/pendingReviews';
   import { classesStore } from '$lib/stores/classes';
   import { translator } from '$lib/i18n';
   import type { Translator } from '$lib/i18n';
@@ -20,7 +21,8 @@
     ChevronDown,
     ChevronRight,
     X,
-    LayoutGrid
+    LayoutGrid,
+    ClipboardCheck
   } from 'lucide-svelte';
 
   let translate: Translator;
@@ -31,6 +33,10 @@
     classesStore.load().catch(() => {
       // Error handling is done in the store
     });
+    // Load pending review count for teachers/admins
+    if ($auth.role === 'teacher' || $auth.role === 'admin') {
+      loadPendingReviewCount();
+    }
   }
 
   $: currentPath = $page.url.pathname;
@@ -138,6 +144,20 @@
               <FolderOpen size={18} />
             </div>
             <span class="truncate font-bold text-sm tracking-tight">{translate('frontend/src/lib/Sidebar.svelte::teachers_files_link')}</span>
+          </a>
+          <a
+            href="/pending-reviews"
+            class="nav-link"
+            class:is-active={isActive('/pending-reviews')}
+            on:click={() => sidebarOpen.set(false)}
+          >
+            <div class="icon-box text-amber-500 bg-amber-500/10">
+              <ClipboardCheck size={18} />
+            </div>
+            <span class="truncate font-bold text-sm tracking-tight">{translate('frontend/src/lib/Sidebar.svelte::grading_inbox_link')}</span>
+            {#if $pendingReviewCount > 0 && !isActive('/pending-reviews')}
+              <span class="badge badge-warning badge-sm ml-auto font-black shadow-sm">{$pendingReviewCount}</span>
+            {/if}
           </a>
           {/if}
         </nav>

@@ -41,37 +41,37 @@ type User struct {
 }
 
 type Assignment struct {
-	ID              uuid.UUID      `db:"id" json:"id"`
-	Title           string         `db:"title" json:"title"`
-	Description     string         `db:"description" json:"description"`
-	CreatedBy       uuid.UUID      `db:"created_by" json:"created_by"`
-	Deadline        time.Time      `db:"deadline" json:"deadline"`
-	MaxPoints       int            `db:"max_points" json:"max_points"`
-	MaxSubmissionSizeMB int        `db:"max_submission_size_mb" json:"max_submission_size_mb"`
-	GradingPolicy   string         `db:"grading_policy" json:"grading_policy"`
-	Published       bool           `db:"published" json:"published"`
-	ShowTraceback   bool           `db:"show_traceback" json:"show_traceback"`
-	ShowTestDetails bool           `db:"show_test_details" json:"show_test_details"`
-	ProgrammingLanguage string     `db:"programming_language" json:"programming_language"`
-	ManualReview    bool           `db:"manual_review" json:"manual_review"`
-	ScratchEvaluationMode string   `db:"scratch_evaluation_mode" json:"scratch_evaluation_mode"`
-	BannedFunctions pq.StringArray `db:"banned_functions" json:"banned_functions"`
-	BannedModules   pq.StringArray `db:"banned_modules" json:"banned_modules"`
-	BannedToolRules *string        `db:"banned_tool_rules" json:"banned_tool_rules,omitempty"`
-	TemplatePath    *string        `db:"template_path" json:"template_path"`
-	CreatedAt       time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time      `db:"updated_at" json:"updated_at"`
-	ClassID         uuid.UUID      `db:"class_id" json:"class_id"`
+	ID                    uuid.UUID      `db:"id" json:"id"`
+	Title                 string         `db:"title" json:"title"`
+	Description           string         `db:"description" json:"description"`
+	CreatedBy             uuid.UUID      `db:"created_by" json:"created_by"`
+	Deadline              time.Time      `db:"deadline" json:"deadline"`
+	MaxPoints             int            `db:"max_points" json:"max_points"`
+	MaxSubmissionSizeMB   int            `db:"max_submission_size_mb" json:"max_submission_size_mb"`
+	GradingPolicy         string         `db:"grading_policy" json:"grading_policy"`
+	Published             bool           `db:"published" json:"published"`
+	ShowTraceback         bool           `db:"show_traceback" json:"show_traceback"`
+	ShowTestDetails       bool           `db:"show_test_details" json:"show_test_details"`
+	ProgrammingLanguage   string         `db:"programming_language" json:"programming_language"`
+	ManualReview          bool           `db:"manual_review" json:"manual_review"`
+	ScratchEvaluationMode string         `db:"scratch_evaluation_mode" json:"scratch_evaluation_mode"`
+	BannedFunctions       pq.StringArray `db:"banned_functions" json:"banned_functions"`
+	BannedModules         pq.StringArray `db:"banned_modules" json:"banned_modules"`
+	BannedToolRules       *string        `db:"banned_tool_rules" json:"banned_tool_rules,omitempty"`
+	TemplatePath          *string        `db:"template_path" json:"template_path"`
+	CreatedAt             time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt             time.Time      `db:"updated_at" json:"updated_at"`
+	ClassID               uuid.UUID      `db:"class_id" json:"class_id"`
 
 	// LLM-interactive testing configuration
-	LLMInteractive     bool    `db:"llm_interactive" json:"llm_interactive"`
-	LLMFeedback        bool    `db:"llm_feedback" json:"llm_feedback"`
-	LLMAutoAward       bool    `db:"llm_auto_award" json:"llm_auto_award"`
-	LLMScenariosRaw    *string `db:"llm_scenarios_json" json:"llm_scenarios_json"`
-	LLMStrictness      int     `db:"llm_strictness" json:"llm_strictness"`
-	LLMRubric          *string `db:"llm_rubric" json:"llm_rubric"`
-	LLMTeacherBaseline *string `db:"llm_teacher_baseline_json" json:"llm_teacher_baseline_json"`
-	LLMHelpWhyFailed   bool    `db:"llm_help_why_failed" json:"llm_help_why_failed"`
+	LLMInteractive          bool    `db:"llm_interactive" json:"llm_interactive"`
+	LLMFeedback             bool    `db:"llm_feedback" json:"llm_feedback"`
+	LLMAutoAward            bool    `db:"llm_auto_award" json:"llm_auto_award"`
+	LLMScenariosRaw         *string `db:"llm_scenarios_json" json:"llm_scenarios_json"`
+	LLMStrictness           int     `db:"llm_strictness" json:"llm_strictness"`
+	LLMRubric               *string `db:"llm_rubric" json:"llm_rubric"`
+	LLMTeacherBaseline      *string `db:"llm_teacher_baseline_json" json:"llm_teacher_baseline_json"`
+	LLMHelpWhyFailed        bool    `db:"llm_help_why_failed" json:"llm_help_why_failed"`
 	ScratchSemanticCriteria *string `db:"scratch_semantic_criteria" json:"scratch_semantic_criteria,omitempty"`
 
 	// Second deadline feature
@@ -585,34 +585,34 @@ func CloneAssignmentWithTests(sourceID, targetClassID, createdBy uuid.UUID) (uui
 	}
 	// Insert new assignment copying most fields; do not publish by default
 	dst := &Assignment{
-		ClassID:          targetClassID,
-		Title:            src.Title,
-		Description:      src.Description,
-		Deadline:         src.Deadline,
-		MaxPoints:        src.MaxPoints,
-		MaxSubmissionSizeMB: src.MaxSubmissionSizeMB,
-		GradingPolicy:    src.GradingPolicy,
-		Published:        false,
-		ShowTraceback:    src.ShowTraceback,
-		ShowTestDetails:  src.ShowTestDetails,
-		ProgrammingLanguage: src.ProgrammingLanguage,
-		ManualReview:     src.ManualReview,
+		ClassID:               targetClassID,
+		Title:                 src.Title,
+		Description:           src.Description,
+		Deadline:              src.Deadline,
+		MaxPoints:             src.MaxPoints,
+		MaxSubmissionSizeMB:   src.MaxSubmissionSizeMB,
+		GradingPolicy:         src.GradingPolicy,
+		Published:             false,
+		ShowTraceback:         src.ShowTraceback,
+		ShowTestDetails:       src.ShowTestDetails,
+		ProgrammingLanguage:   src.ProgrammingLanguage,
+		ManualReview:          src.ManualReview,
 		ScratchEvaluationMode: src.ScratchEvaluationMode,
-		BannedFunctions:  append(pq.StringArray(nil), src.BannedFunctions...),
-		BannedModules:    append(pq.StringArray(nil), src.BannedModules...),
-		TemplatePath:     src.TemplatePath,
-		CreatedBy:        createdBy,
-		SecondDeadline:   src.SecondDeadline,
-		LatePenaltyRatio: src.LatePenaltyRatio,
+		BannedFunctions:       append(pq.StringArray(nil), src.BannedFunctions...),
+		BannedModules:         append(pq.StringArray(nil), src.BannedModules...),
+		TemplatePath:          src.TemplatePath,
+		CreatedBy:             createdBy,
+		SecondDeadline:        src.SecondDeadline,
+		LatePenaltyRatio:      src.LatePenaltyRatio,
 		// LLM fields applied post-insert via UpdateAssignment
-		LLMInteractive:     src.LLMInteractive,
-		LLMFeedback:        src.LLMFeedback,
-		LLMAutoAward:       src.LLMAutoAward,
-		LLMScenariosRaw:    src.LLMScenariosRaw,
-		LLMStrictness:      src.LLMStrictness,
-		LLMRubric:          src.LLMRubric,
-		LLMTeacherBaseline: src.LLMTeacherBaseline,
-		LLMHelpWhyFailed:   src.LLMHelpWhyFailed,
+		LLMInteractive:          src.LLMInteractive,
+		LLMFeedback:             src.LLMFeedback,
+		LLMAutoAward:            src.LLMAutoAward,
+		LLMScenariosRaw:         src.LLMScenariosRaw,
+		LLMStrictness:           src.LLMStrictness,
+		LLMRubric:               src.LLMRubric,
+		LLMTeacherBaseline:      src.LLMTeacherBaseline,
+		LLMHelpWhyFailed:        src.LLMHelpWhyFailed,
 		ScratchSemanticCriteria: src.ScratchSemanticCriteria,
 	}
 	if src.BannedToolRules != nil {
@@ -1278,6 +1278,72 @@ func ListTeacherRunsForAssignmentByUser(aid, uid uuid.UUID) ([]SubmissionWithStu
                  WHERE s.assignment_id = $1 AND s.is_teacher_run = TRUE AND s.student_id = $2
                  ORDER BY s.created_at DESC`, aid, uid)
 	return subs, err
+}
+
+// PendingReview represents a submission that requires teacher review
+type PendingReview struct {
+	ID              uuid.UUID `db:"id" json:"id"`
+	AssignmentID    uuid.UUID `db:"assignment_id" json:"assignment_id"`
+	AssignmentTitle string    `db:"assignment_title" json:"assignment_title"`
+	ClassID         uuid.UUID `db:"class_id" json:"class_id"`
+	ClassName       string    `db:"class_name" json:"class_name"`
+	StudentID       uuid.UUID `db:"student_id" json:"student_id"`
+	StudentEmail    string    `db:"student_email" json:"student_email"`
+	StudentName     *string   `db:"student_name" json:"student_name"`
+	Status          string    `db:"status" json:"status"`
+	Points          *float64  `db:"points" json:"points"`
+	CreatedAt       time.Time `db:"created_at" json:"created_at"`
+	AttemptNumber   int       `db:"attempt_number" json:"attempt_number"`
+}
+
+// ListPendingReviewsForTeacher returns all submissions that need manual review
+// for assignments in classes owned by the given teacher.
+// A submission needs review if:
+// - The assignment has manual_review = true OR is Scratch with manual/semi_automatic mode
+// - The submission has override_points IS NULL (teacher hasn't graded yet)
+// - The submission is not a teacher run
+// - The submission status is not 'running'
+func ListPendingReviewsForTeacher(teacherID uuid.UUID) ([]PendingReview, error) {
+	reviews := []PendingReview{}
+	err := DB.Select(&reviews, `
+		SELECT s.id, s.assignment_id, a.title AS assignment_title,
+		       c.id AS class_id, c.name AS class_name,
+		       s.student_id, u.email AS student_email, u.name AS student_name,
+		       s.status, s.points, s.created_at,
+		       ROW_NUMBER() OVER (PARTITION BY s.assignment_id, s.student_id ORDER BY s.created_at ASC, s.id ASC) AS attempt_number
+		  FROM submissions s
+		  JOIN assignments a ON a.id = s.assignment_id
+		  JOIN classes c ON c.id = a.class_id
+		  JOIN users u ON u.id = s.student_id
+		 WHERE c.teacher_id = $1
+		   AND s.is_teacher_run = FALSE
+		   AND s.override_points IS NULL
+		   AND s.status <> 'running'
+		   AND (
+		       a.manual_review = TRUE
+		       OR (a.programming_language = 'scratch' AND a.scratch_evaluation_mode IN ('manual', 'semi_automatic'))
+		   )
+		 ORDER BY s.created_at DESC`, teacherID)
+	return reviews, err
+}
+
+// CountPendingReviewsForTeacher returns the count of pending reviews for a teacher
+func CountPendingReviewsForTeacher(teacherID uuid.UUID) (int, error) {
+	var count int
+	err := DB.Get(&count, `
+		SELECT COUNT(*)
+		  FROM submissions s
+		  JOIN assignments a ON a.id = s.assignment_id
+		  JOIN classes c ON c.id = a.class_id
+		 WHERE c.teacher_id = $1
+		   AND s.is_teacher_run = FALSE
+		   AND s.override_points IS NULL
+		   AND s.status <> 'running'
+		   AND (
+		       a.manual_review = TRUE
+		       OR (a.programming_language = 'scratch' AND a.scratch_evaluation_mode IN ('manual', 'semi_automatic'))
+		   )`, teacherID)
+	return count, err
 }
 
 func CreateTestCase(tc *TestCase) error {

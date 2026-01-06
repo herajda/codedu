@@ -4174,6 +4174,46 @@ func removeStudent(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// getPendingReviews returns all submissions that need manual review by the teacher.
+// GET /api/pending-reviews
+func getPendingReviews(c *gin.Context) {
+	uid := getUserID(c)
+	role := c.GetString("role")
+
+	// For admin, we could return all pending reviews, but for simplicity we return empty
+	// unless they're also a teacher with classes
+	if role != "teacher" && role != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+
+	reviews, err := ListPendingReviewsForTeacher(uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, reviews)
+}
+
+// getPendingReviewsCount returns just the count of pending reviews for sidebar badge.
+// GET /api/pending-reviews/count
+func getPendingReviewsCount(c *gin.Context) {
+	uid := getUserID(c)
+	role := c.GetString("role")
+
+	if role != "teacher" && role != "admin" {
+		c.JSON(http.StatusOK, gin.H{"count": 0})
+		return
+	}
+
+	count, err := CountPendingReviewsForTeacher(uid)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"count": 0})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"count": count})
+}
+
 // overrideSubmissionPoints allows a teacher or admin to set custom points for a submission.
 func overrideSubmissionPoints(c *gin.Context) {
 	sid, err := uuid.Parse(c.Param("id"))

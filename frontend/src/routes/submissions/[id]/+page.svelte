@@ -18,6 +18,7 @@
   import { t, translator } from "$lib/i18n";
   import { submissionStatusLabel } from "$lib/status";
   import ConfirmModal from "$lib/components/ConfirmModal.svelte";
+  import { loadPendingReviewCount } from "$lib/stores/pendingReviews";
 
   $: id = $page.params.id;
 
@@ -137,6 +138,10 @@
         body: JSON.stringify({ points: v }),
       });
       await load();
+      // Refresh pending review count for sidebar badge
+      if ($auth?.role === 'teacher' || $auth?.role === 'admin') {
+        loadPendingReviewCount();
+      }
     } catch (e: any) {
       err = e.message;
     } finally {
