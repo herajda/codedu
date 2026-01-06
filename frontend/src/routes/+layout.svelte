@@ -825,7 +825,7 @@
           <button
             class="btn btn-square btn-ghost sm:hidden"
             on:click={() => sidebarOpen.update((v) => !v)}
-            aria-label={t(
+            aria-label={translate(
               "frontend/src/routes/+layout.svelte::open_sidebar_aria",
             )}
             type="button"
@@ -849,7 +849,7 @@
           <button
             class="btn btn-square btn-ghost hidden sm:inline-flex"
             on:click={() => sidebarCollapsed.update((v) => !v)}
-            aria-label={t(
+            aria-label={translate(
               "frontend/src/routes/+layout.svelte::toggle_sidebar_aria",
             )}
             type="button"
@@ -886,7 +886,7 @@
         {#if user}
           <button
             class="btn btn-ghost"
-            aria-label={t(
+            aria-label={translate(
               "frontend/src/routes/+layout.svelte::toggle_theme_aria",
             )}
             type="button"
@@ -923,7 +923,7 @@
                 <div class="w-10 rounded-full ring-1 ring-base-300/60">
                   <img
                     src={user.avatar}
-                    alt={t(
+                    alt={translate(
                       "frontend/src/routes/+layout.svelte::user_avatar_alt",
                     )}
                   />
@@ -2278,10 +2278,10 @@
           </dialog>
         {:else}
           <a href="/login" class="btn btn-ghost"
-            >{t("frontend/src/routes/+layout.svelte::login_button")}</a
+            >{translate("frontend/src/routes/+layout.svelte::login_button")}</a
           >
           <a href="/register" class="btn btn-outline"
-            >{t("frontend/src/routes/+layout.svelte::register_button")}</a
+            >{translate("frontend/src/routes/+layout.svelte::register_button")}</a
           >
         {/if}
       </div>
@@ -2289,6 +2289,8 @@
   </div>
 
   <main class="container mx-auto flex-1 p-4 sm:p-6 gap-6">
-    <slot />
+    {#key $localeStore}
+      <slot />
+    {/key}
   </main>
 </div>
