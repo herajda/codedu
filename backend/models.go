@@ -1290,6 +1290,7 @@ type PendingReview struct {
 	StudentID       uuid.UUID `db:"student_id" json:"student_id"`
 	StudentEmail    string    `db:"student_email" json:"student_email"`
 	StudentName     *string   `db:"student_name" json:"student_name"`
+	StudentAvatar   *string   `db:"student_avatar" json:"student_avatar"`
 	Status          string    `db:"status" json:"status"`
 	Points          *float64  `db:"points" json:"points"`
 	CreatedAt       time.Time `db:"created_at" json:"created_at"`
@@ -1308,7 +1309,7 @@ func ListPendingReviewsForTeacher(teacherID uuid.UUID) ([]PendingReview, error) 
 	err := DB.Select(&reviews, `
 		SELECT s.id, s.assignment_id, a.title AS assignment_title,
 		       c.id AS class_id, c.name AS class_name,
-		       s.student_id, u.email AS student_email, u.name AS student_name,
+		       s.student_id, u.email AS student_email, u.name AS student_name, u.avatar AS student_avatar,
 		       s.status, s.points, s.created_at,
 		       ROW_NUMBER() OVER (PARTITION BY s.assignment_id, s.student_id ORDER BY s.created_at ASC, s.id ASC) AS attempt_number
 		  FROM submissions s

@@ -3,7 +3,6 @@
   import { apiJSON } from '$lib/api';
   import { translator } from '$lib/i18n';
   import type { Translator } from '$lib/i18n';
-  import { formatDateTime } from '$lib/date';
   import { submissionStatusLabel } from '$lib/status';
   import { loadPendingReviewCount } from '$lib/stores/pendingReviews';
   import {
@@ -17,7 +16,10 @@
     CheckCircle2,
     Filter,
     SortAsc,
-    SortDesc
+    Layers,
+    History,
+    ChevronRight,
+    Search
   } from 'lucide-svelte';
 
   interface PendingReview {
@@ -29,6 +31,7 @@
     student_id: string;
     student_email: string;
     student_name: string | null;
+    student_avatar: string | null;
     status: string;
     points: number | null;
     created_at: string;
@@ -44,6 +47,7 @@
   let groupBy: 'none' | 'student' | 'assignment' | 'class' = 'none';
   let filterClass = '';
   let filterAssignment = '';
+  let searchQuery = '';
 
   let translate: Translator;
   $: translate = $translator;
@@ -62,16 +66,15 @@
 
   onMount(() => {
     load();
-    // Refresh count for sidebar
     loadPendingReviewCount();
   });
 
   function statusColor(s: string) {
-    if (s === 'completed') return 'badge-success';
-    if (s === 'provisional') return 'badge-warning';
-    if (s === 'partially_completed') return 'badge-warning';
-    if (s === 'failed') return 'badge-error';
-    return '';
+    if (s === 'completed') return 'text-success bg-success/10 border-success/20';
+    if (s === 'provisional') return 'text-amber-500 bg-amber-500/10 border-amber-500/20';
+    if (s === 'partially_completed') return 'text-orange-500 bg-orange-500/10 border-orange-500/20';
+    if (s === 'failed') return 'text-error bg-error/10 border-error/20';
+    return 'text-base-content/60 bg-base-200 border-base-300';
   }
 
   function relativeTime(dateStr: string): string {
@@ -111,6 +114,15 @@
     return list.filter(r => {
       if (filterClass && r.class_id !== filterClass) return false;
       if (filterAssignment && r.assignment_id !== filterAssignment) return false;
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const match = 
+          (r.student_name || '').toLowerCase().includes(q) ||
+          r.student_email.toLowerCase().includes(q) ||
+          r.assignment_title.toLowerCase().includes(q) ||
+          r.class_name.toLowerCase().includes(q);
+        if (!match) return false;
+      }
       return true;
     });
   }
@@ -153,185 +165,244 @@
   <title>{translate('frontend/src/routes/pending-reviews/+page.svelte::page_title')} | CodEdu</title>
 </svelte:head>
 
-<div class="space-y-6">
-  <!-- Header -->
-  <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-    <div>
-      <div class="flex items-center gap-3">
-        <div class="p-3 rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20">
-          <ClipboardList class="w-8 h-8 text-amber-500" />
-        </div>
-        <div>
-          <h1 class="text-3xl font-bold tracking-tight">{translate('frontend/src/routes/pending-reviews/+page.svelte::page_title')}</h1>
-          <p class="text-sm opacity-70">{translate('frontend/src/routes/pending-reviews/+page.svelte::page_subtitle')}</p>
-        </div>
+<div class="max-w-6xl mx-auto space-y-8 pb-12 px-4 lg:px-0">
+  <!-- Header Section -->
+  <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 pt-4">
+    <div class="flex items-center gap-4">
+      <div class="p-4 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/20 text-white">
+        <ClipboardList class="w-8 h-8" />
+      </div>
+      <div>
+        <h1 class="text-4xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-base-content to-base-content/70">
+          {translate('frontend/src/routes/pending-reviews/+page.svelte::page_title')}
+        </h1>
+        <p class="text-base-content/60 font-medium">{translate('frontend/src/routes/pending-reviews/+page.svelte::page_subtitle')}</p>
       </div>
     </div>
 
     {#if !loading && reviews.length > 0}
-      <div class="badge badge-lg badge-warning gap-2 shadow-lg">
-        <Clock class="w-4 h-4" />
-        {reviews.length} {translate('frontend/src/routes/pending-reviews/+page.svelte::pending_count')}
+      <div class="flex items-center gap-2 bg-amber-500/10 text-amber-600 px-4 py-2 rounded-full border border-amber-500/20 font-bold shadow-sm backdrop-blur-sm self-start md:self-center">
+        <Clock class="w-5 h-5 animate-pulse" />
+        <span>{reviews.length} {translate('frontend/src/routes/pending-reviews/+page.svelte::pending_count')}</span>
       </div>
     {/if}
   </div>
 
-  <!-- Filters and Sort -->
+  <!-- Filters and Search -->
   {#if !loading && reviews.length > 0}
-    <div class="card bg-base-100/70 backdrop-blur border border-base-300 shadow-sm">
-      <div class="card-body py-4">
-        <div class="flex flex-col lg:flex-row gap-4 items-start lg:items-center">
-          <!-- Sort -->
-          <div class="flex items-center gap-2">
-            <span class="text-sm font-medium opacity-70 flex items-center gap-1">
-              <SortAsc class="w-4 h-4" />
-              {translate('frontend/src/routes/pending-reviews/+page.svelte::sort_by')}:
-            </span>
-            <select class="select select-sm select-bordered" bind:value={sortBy}>
-              <option value="newest">{translate('frontend/src/routes/pending-reviews/+page.svelte::sort_newest')}</option>
-              <option value="oldest">{translate('frontend/src/routes/pending-reviews/+page.svelte::sort_oldest')}</option>
-              <option value="student">{translate('frontend/src/routes/pending-reviews/+page.svelte::sort_student')}</option>
-              <option value="assignment">{translate('frontend/src/routes/pending-reviews/+page.svelte::sort_assignment')}</option>
-            </select>
-          </div>
-
-          <!-- Group -->
-          <div class="flex items-center gap-2">
-            <span class="text-sm font-medium opacity-70">{translate('frontend/src/routes/pending-reviews/+page.svelte::group_by')}:</span>
-            <select class="select select-sm select-bordered" bind:value={groupBy}>
-              <option value="none">{translate('frontend/src/routes/pending-reviews/+page.svelte::group_none')}</option>
-              <option value="student">{translate('frontend/src/routes/pending-reviews/+page.svelte::group_student')}</option>
-              <option value="assignment">{translate('frontend/src/routes/pending-reviews/+page.svelte::group_assignment')}</option>
-              <option value="class">{translate('frontend/src/routes/pending-reviews/+page.svelte::group_class')}</option>
-            </select>
-          </div>
-
-          <div class="divider divider-horizontal hidden lg:flex"></div>
-
-          <!-- Filter by Class -->
-          {#if uniqueClasses.length > 1}
-            <div class="flex items-center gap-2">
-              <span class="text-sm font-medium opacity-70 flex items-center gap-1">
-                <Filter class="w-4 h-4" />
-                {translate('frontend/src/routes/pending-reviews/+page.svelte::filter_class')}:
-              </span>
-              <select class="select select-sm select-bordered" bind:value={filterClass}>
-                <option value="">{translate('frontend/src/routes/pending-reviews/+page.svelte::filter_all')}</option>
-                {#each uniqueClasses as cls}
-                  <option value={cls.id}>{cls.name}</option>
-                {/each}
-              </select>
-            </div>
-          {/if}
-
-          <!-- Filter by Assignment -->
-          {#if uniqueAssignments.length > 1}
-            <div class="flex items-center gap-2">
-              <span class="text-sm font-medium opacity-70">{translate('frontend/src/routes/pending-reviews/+page.svelte::filter_assignment')}:</span>
-              <select class="select select-sm select-bordered" bind:value={filterAssignment}>
-                <option value="">{translate('frontend/src/routes/pending-reviews/+page.svelte::filter_all')}</option>
-                {#each uniqueAssignments as a}
-                  <option value={a.id}>{a.title}</option>
-                {/each}
-              </select>
-            </div>
-          {/if}
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      <!-- Search Bar -->
+      <div class="lg:col-span-4 relative group">
+        <div class="absolute inset-y-0 left-4 flex items-center pointer-events-none text-base-content/40 group-focus-within:text-primary transition-colors">
+          <Search class="w-5 h-5" />
         </div>
+        <input 
+          type="text" 
+          bind:value={searchQuery}
+          placeholder="Search students, assignments..."
+          class="input input-lg w-full pl-12 bg-base-100/50 backdrop-blur-md border border-base-300 focus:border-primary/50 focus:ring-4 focus:ring-primary/10 rounded-2xl transition-all shadow-sm"
+        />
+      </div>
+
+      <!-- Quick Action Controls -->
+      <div class="lg:col-span-8 flex flex-wrap items-center gap-3">
+        <div class="flex items-center gap-2 px-4 py-2 bg-base-100/50 border border-base-300 rounded-2xl shadow-sm">
+          <SortAsc class="w-4 h-4 text-primary" />
+          <span class="text-sm font-semibold text-base-content/60">{translate('frontend/src/routes/pending-reviews/+page.svelte::sort_by')}:</span>
+          <select class="select select-ghost select-sm font-bold focus:bg-transparent" bind:value={sortBy}>
+            <option value="newest">{translate('frontend/src/routes/pending-reviews/+page.svelte::sort_newest')}</option>
+            <option value="oldest">{translate('frontend/src/routes/pending-reviews/+page.svelte::sort_oldest')}</option>
+            <option value="student">{translate('frontend/src/routes/pending-reviews/+page.svelte::sort_student')}</option>
+            <option value="assignment">{translate('frontend/src/routes/pending-reviews/+page.svelte::sort_assignment')}</option>
+          </select>
+        </div>
+
+        <div class="flex items-center gap-2 px-4 py-2 bg-base-100/50 border border-base-300 rounded-2xl shadow-sm">
+          <Layers class="w-4 h-4 text-primary" />
+          <span class="text-sm font-semibold text-base-content/60">{translate('frontend/src/routes/pending-reviews/+page.svelte::group_by')}:</span>
+          <select class="select select-ghost select-sm font-bold focus:bg-transparent" bind:value={groupBy}>
+            <option value="none">{translate('frontend/src/routes/pending-reviews/+page.svelte::group_none')}</option>
+            <option value="student">{translate('frontend/src/routes/pending-reviews/+page.svelte::group_student')}</option>
+            <option value="assignment">{translate('frontend/src/routes/pending-reviews/+page.svelte::group_assignment')}</option>
+            <option value="class">{translate('frontend/src/routes/pending-reviews/+page.svelte::group_class')}</option>
+          </select>
+        </div>
+
+        {#if uniqueClasses.length > 1}
+          <div class="flex items-center gap-2 px-4 py-2 bg-base-100/50 border border-base-300 rounded-2xl shadow-sm">
+            <School class="w-4 h-4 text-primary" />
+            <select class="select select-ghost select-sm font-bold focus:bg-transparent" bind:value={filterClass}>
+              <option value="">{translate('frontend/src/routes/pending-reviews/+page.svelte::filter_all')} Classes</option>
+              {#each uniqueClasses as cls}
+                <option value={cls.id}>{cls.name}</option>
+              {/each}
+            </select>
+          </div>
+        {/if}
+
+        {#if uniqueAssignments.length > 1}
+          <div class="flex items-center gap-2 px-4 py-2 bg-base-100/50 border border-base-300 rounded-2xl shadow-sm">
+            <BookOpen class="w-4 h-4 text-primary" />
+            <select class="select select-ghost select-sm font-bold focus:bg-transparent" bind:value={filterAssignment}>
+              <option value="">{translate('frontend/src/routes/pending-reviews/+page.svelte::filter_all')} Assignments</option>
+              {#each uniqueAssignments as a}
+                <option value={a.id}>{a.title}</option>
+              {/each}
+            </select>
+          </div>
+        {/if}
       </div>
     </div>
   {/if}
 
-  <!-- Loading State -->
-  {#if loading}
-    <div class="space-y-3">
-      {#each Array(5) as _}
-        <div class="card bg-base-100 shadow animate-pulse">
-          <div class="card-body py-4">
-            <div class="flex items-center gap-4">
-              <div class="skeleton w-12 h-12 rounded-full"></div>
-              <div class="flex-1 space-y-2">
-                <div class="skeleton h-4 w-48"></div>
-                <div class="skeleton h-3 w-32"></div>
-              </div>
-              <div class="skeleton h-8 w-24 rounded-lg"></div>
+  <!-- Content States -->
+  <div class="space-y-4">
+    {#if loading}
+      <div class="space-y-4">
+        {#each Array(5) as _}
+          <div class="h-28 bg-base-100/50 border border-base-300 rounded-[2rem] animate-pulse flex items-center px-6 gap-6">
+            <div class="w-16 h-16 rounded-full bg-base-300"></div>
+            <div class="flex-1 space-y-3">
+              <div class="h-5 w-1/3 bg-base-300 rounded-full"></div>
+              <div class="h-4 w-1/4 bg-base-200 rounded-full"></div>
             </div>
+            <div class="w-32 h-10 bg-base-200 rounded-2xl"></div>
           </div>
-        </div>
-      {/each}
-    </div>
-
-  <!-- Empty State -->
-  {:else if reviews.length === 0}
-    <div class="card bg-base-100/70 backdrop-blur border border-base-300 shadow-lg">
-      <div class="card-body items-center text-center py-16">
-        <div class="p-4 rounded-full bg-success/10 mb-4">
-          <CheckCircle2 class="w-16 h-16 text-success" />
-        </div>
-        <h2 class="card-title text-2xl">{translate('frontend/src/routes/pending-reviews/+page.svelte::empty_title')}</h2>
-        <p class="opacity-70 max-w-md">{translate('frontend/src/routes/pending-reviews/+page.svelte::empty_description')}</p>
+        {/each}
       </div>
-    </div>
 
-  <!-- Grouped View -->
-  {:else if grouped}
-    <div class="space-y-6">
+    {:else if reviews.length === 0}
+      <div class="flex flex-col items-center justify-center py-20 px-4 bg-base-100/30 backdrop-blur rounded-[3rem] border-2 border-dashed border-base-300 shadow-inner group transition-all duration-500">
+        <div class="relative mb-8">
+            <div class="absolute inset-0 bg-success/20 blur-3xl rounded-full group-hover:bg-success/30 transition-all duration-700"></div>
+            <div class="relative p-8 rounded-full bg-base-100 border border-base-200 shadow-xl group-hover:scale-110 transition-transform duration-500">
+                <CheckCircle2 class="w-20 h-20 text-success" />
+            </div>
+        </div>
+        <h2 class="text-3xl font-black mb-3">{translate('frontend/src/routes/pending-reviews/+page.svelte::empty_title')}</h2>
+        <p class="text-base-content/60 font-medium max-w-sm text-center leading-relaxed">
+            {translate('frontend/src/routes/pending-reviews/+page.svelte::empty_description')}
+        </p>
+      </div>
+
+    {:else if grouped}
       {#each grouped as group}
-        <div class="space-y-2">
-          <h3 class="font-bold text-lg flex items-center gap-2 px-2">
-            {#if groupBy === 'student'}
-              <User class="w-5 h-5 text-primary" />
-            {:else if groupBy === 'assignment'}
-              <BookOpen class="w-5 h-5 text-primary" />
-            {:else}
-              <School class="w-5 h-5 text-primary" />
-            {/if}
-            {group.label}
-            <span class="badge badge-ghost badge-sm">{group.items.length}</span>
-          </h3>
-          <div class="space-y-2">
+        <div class="space-y-4 pt-4 first:pt-0">
+          <div class="flex items-center gap-3 px-2 group/header">
+            <div class="p-2 rounded-xl bg-primary/10 text-primary group-hover/header:rotate-12 transition-transform">
+              {#if groupBy === 'student'}
+                <User class="w-5 h-5" />
+              {:else if groupBy === 'assignment'}
+                <BookOpen class="w-5 h-5" />
+              {:else}
+                <School class="w-5 h-5" />
+              {/if}
+            </div>
+            <h3 class="text-xl font-bold">{group.label}</h3>
+            <span class="px-2 py-0.5 rounded-lg bg-base-200 text-xs font-bold opacity-60 uppercase tracking-widest">{group.items.length} items</span>
+          </div>
+          
+          <div class="grid grid-cols-1 gap-3">
             {#each group.items as review}
               <a
                 href="/submissions/{review.id}"
-                class="card bg-base-100/80 backdrop-blur border border-base-300 hover:border-primary/40 shadow-sm hover:shadow-md transition-all duration-200 group"
+                class="flex flex-col lg:flex-row lg:items-center gap-4 p-5 md:p-6 bg-base-100/60 backdrop-blur-md border border-base-300 hover:border-primary/40 hover:bg-base-100/80 hover:scale-[1.01] transition-all duration-300 rounded-[2rem] shadow-sm hover:shadow-xl group no-underline"
               >
-                <div class="card-body py-4 px-5">
-                  <div class="flex items-center gap-4">
-                    <!-- Avatar -->
-                    <div class="avatar placeholder">
-                      <div class="w-12 h-12 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
-                        <span class="text-lg font-bold text-primary">
-                          {(review.student_name || review.student_email).charAt(0).toUpperCase()}
-                        </span>
+                <!-- Avatar Section -->
+                <div class="flex items-center gap-4">
+                  <div class="relative">
+                    {#if review.student_avatar}
+                      <div class="w-16 h-16 rounded-full overflow-hidden shadow-md ring-2 ring-base-200 group-hover:ring-primary/20 transition-all">
+                        <img src={review.student_avatar} alt={review.student_name || review.student_email} class="w-full h-full object-cover" />
                       </div>
+                    {:else}
+                      <div class="w-16 h-16 rounded-full bg-gradient-to-br from-primary/20 via-primary/10 to-secondary/20 flex items-center justify-center shadow-inner text-2xl font-black text-primary border border-primary/20 group-hover:border-primary/40 transition-all">
+                        {(review.student_name || review.student_email).charAt(0).toUpperCase()}
+                      </div>
+                    {/if}
+                    <div class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-base-100 border-2 border-base-100 shadow-sm flex items-center justify-center text-primary">
+                        <User class="w-3.5 h-3.5" />
                     </div>
+                  </div>
 
-                    <!-- Info -->
-                    <div class="flex-1 min-w-0">
-                      <div class="flex items-center gap-2 flex-wrap">
-                        <span class="font-semibold truncate">{review.student_name || review.student_email}</span>
-                        <span class={`badge badge-sm ${statusColor(review.status)}`}>{submissionStatusLabel(review.status)}</span>
-                        {#if review.attempt_number > 1}
-                          <span class="badge badge-ghost badge-xs">#{review.attempt_number}</span>
-                        {/if}
-                      </div>
-                      <div class="flex items-center gap-3 text-sm opacity-70 mt-1">
-                        <span class="flex items-center gap-1 truncate">
-                          <BookOpen class="w-3.5 h-3.5" />
-                          {review.assignment_title}
-                        </span>
-                        <span class="flex items-center gap-1">
-                          <Calendar class="w-3.5 h-3.5" />
-                          {relativeTime(review.created_at)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <!-- Action -->
-                    <div class="flex items-center gap-2">
-                      <span class="btn btn-sm btn-primary gap-1 group-hover:gap-2 transition-all">
-                        {translate('frontend/src/routes/pending-reviews/+page.svelte::review_button')}
-                        <ArrowRight class="w-4 h-4" />
+                  <div class="flex-1 min-w-0 lg:hidden">
+                    <div class="font-bold text-lg leading-tight truncate">{review.student_name || review.student_email}</div>
+                    <div class="flex items-center gap-2 mt-1">
+                      <span class={`px-2 py-0.5 rounded-lg border text-[10px] font-black uppercase tracking-tighter ${statusColor(review.status)}`}>
+                        {submissionStatusLabel(review.status)}
                       </span>
+                      {#if review.attempt_number > 1}
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold opacity-40 px-2 py-0.5 bg-base-200 rounded-lg uppercase tracking-widest">
+                            <History class="w-3 h-3" />
+                            #{review.attempt_number}
+                        </span>
+                      {/if}
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Info Content (Desktop) -->
+                <div class="hidden lg:flex flex-1 flex-col min-w-0">
+                  <div class="flex items-center gap-3">
+                    <span class="text-xl font-bold truncate group-hover:text-primary transition-colors">{review.student_name || review.student_email}</span>
+                    <span class={`px-3 py-0.5 rounded-lg border text-[10px] font-black uppercase tracking-tighter shadow-sm ${statusColor(review.status)}`}>
+                      {submissionStatusLabel(review.status)}
+                    </span>
+                    {#if review.attempt_number > 1}
+                      <span class="inline-flex items-center gap-1 text-[10px] font-bold opacity-40 px-2 py-0.5 bg-base-200 rounded-lg uppercase tracking-widest">
+                          <History class="w-3 h-3" />
+                          Attempt #{review.attempt_number}
+                      </span>
+                    {/if}
+                  </div>
+                  <div class="flex items-center gap-4 mt-2 text-sm font-semibold text-base-content/50">
+                    <span class="flex items-center gap-1.5 truncate bg-base-200/50 px-3 py-1 rounded-xl group-hover:bg-primary/5 transition-colors">
+                      <BookOpen class="w-4 h-4 text-primary/60" />
+                      {review.assignment_title}
+                    </span>
+                    <span class="flex items-center gap-1.5 bg-base-200/50 px-3 py-1 rounded-xl group-hover:bg-primary/5 transition-colors">
+                      <School class="w-4 h-4 text-primary/60" />
+                      {review.class_name}
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Desktop Relative Time -->
+                <div class="hidden lg:flex items-center gap-1.5 text-xs font-bold opacity-40 group-hover:opacity-100 transition-opacity whitespace-nowrap px-4">
+                  <Calendar class="w-3.5 h-3.5" />
+                  {relativeTime(review.created_at)}
+                </div>
+
+                <!-- Mobile view info -->
+                <div class="lg:hidden space-y-3 mt-1">
+                    <div class="flex flex-col gap-2 p-3 bg-base-200/40 rounded-2xl border border-base-200">
+                        <div class="flex items-center gap-2 text-sm font-bold">
+                            <BookOpen class="w-4 h-4 text-primary/60" />
+                            <span class="truncate">{review.assignment_title}</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-xs font-semibold opacity-60">
+                            <School class="w-4 h-4" />
+                            <span>{review.class_name}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-1.5 text-xs opacity-60 font-bold">
+                            <Calendar class="w-3.5 h-3.5" />
+                            {relativeTime(review.created_at)}
+                        </div>
+                        <div class="btn btn-sm btn-primary rounded-xl gap-2 font-bold px-4">
+                            {translate('frontend/src/routes/pending-reviews/+page.svelte::review_button')}
+                            <ArrowRight class="w-4 h-4" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Desktop Action -->
+                <div class="hidden lg:flex items-center px-2">
+                  <div class="flex items-center gap-4 text-primary font-black uppercase text-[10px] tracking-[0.2em] opacity-0 translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
+                    {translate('frontend/src/routes/pending-reviews/+page.svelte::review_button')}
+                    <div class="p-3 rounded-2xl bg-primary text-white shadow-lg shadow-primary/30 group-hover:scale-110 transition-transform">
+                        <ChevronRight class="w-5 h-5" strokeWidth={3} />
                     </div>
                   </div>
                 </div>
@@ -340,69 +411,132 @@
           </div>
         </div>
       {/each}
-    </div>
 
-  <!-- Flat List View -->
-  {:else}
-    <div class="space-y-2">
-      {#each filtered as review}
-        <a
-          href="/submissions/{review.id}"
-          class="card bg-base-100/80 backdrop-blur border border-base-300 hover:border-primary/40 shadow-sm hover:shadow-md transition-all duration-200 group"
-        >
-          <div class="card-body py-4 px-5">
+    {:else}
+      <div class="grid grid-cols-1 gap-3">
+        {#each filtered as review}
+          <a
+            href="/submissions/{review.id}"
+            class="flex flex-col lg:flex-row lg:items-center gap-4 p-5 md:p-6 bg-base-100/60 backdrop-blur-md border border-base-300 hover:border-primary/40 hover:bg-base-100/80 hover:scale-[1.01] transition-all duration-300 rounded-[2rem] shadow-sm hover:shadow-xl group no-underline"
+          >
+            <!-- Avatar Section -->
             <div class="flex items-center gap-4">
-              <!-- Avatar -->
-              <div class="avatar placeholder">
-                <div class="w-12 h-12 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
-                  <span class="text-lg font-bold text-primary">
+              <div class="relative">
+                {#if review.student_avatar}
+                  <div class="w-16 h-16 rounded-full overflow-hidden shadow-md ring-2 ring-base-200 group-hover:ring-primary/20 transition-all">
+                    <img src={review.student_avatar} alt={review.student_name || review.student_email} class="w-full h-full object-cover" />
+                  </div>
+                {:else}
+                  <div class="w-16 h-16 rounded-full bg-gradient-to-br from-primary/20 via-primary/10 to-secondary/20 flex items-center justify-center shadow-inner text-2xl font-black text-primary border border-primary/20 group-hover:border-primary/40 transition-all">
                     {(review.student_name || review.student_email).charAt(0).toUpperCase()}
-                  </span>
+                  </div>
+                {/if}
+                <div class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-base-100 border-2 border-base-100 shadow-sm flex items-center justify-center text-primary">
+                    <User class="w-3.5 h-3.5" />
                 </div>
               </div>
 
-              <!-- Info -->
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 flex-wrap">
-                  <span class="font-semibold truncate">{review.student_name || review.student_email}</span>
-                  <span class={`badge badge-sm ${statusColor(review.status)}`}>{submissionStatusLabel(review.status)}</span>
+              <div class="flex-1 min-w-0 lg:hidden">
+                <div class="font-bold text-lg leading-tight truncate">{review.student_name || review.student_email}</div>
+                <div class="flex items-center gap-2 mt-1">
+                  <span class={`px-2 py-0.5 rounded-lg border text-[10px] font-black uppercase tracking-tighter ${statusColor(review.status)}`}>
+                    {submissionStatusLabel(review.status)}
+                  </span>
                   {#if review.attempt_number > 1}
-                    <span class="badge badge-ghost badge-xs">#{review.attempt_number}</span>
+                    <span class="inline-flex items-center gap-1 text-[10px] font-bold opacity-40 px-2 py-0.5 bg-base-200 rounded-lg uppercase tracking-widest">
+                        <History class="w-3 h-3" />
+                        #{review.attempt_number}
+                    </span>
                   {/if}
                 </div>
-                <div class="flex items-center gap-3 text-sm opacity-70 mt-1 flex-wrap">
-                  <span class="flex items-center gap-1 truncate">
-                    <BookOpen class="w-3.5 h-3.5" />
-                    {review.assignment_title}
-                  </span>
-                  <span class="flex items-center gap-1">
-                    <School class="w-3.5 h-3.5" />
-                    {review.class_name}
-                  </span>
-                  <span class="flex items-center gap-1">
-                    <Calendar class="w-3.5 h-3.5" />
-                    {relativeTime(review.created_at)}
-                  </span>
-                </div>
               </div>
+            </div>
 
-              <!-- Action -->
-              <div class="flex items-center gap-2">
-                <span class="btn btn-sm btn-primary gap-1 group-hover:gap-2 transition-all">
-                  {translate('frontend/src/routes/pending-reviews/+page.svelte::review_button')}
-                  <ArrowRight class="w-4 h-4" />
+            <!-- Info Content (Desktop) -->
+            <div class="hidden lg:flex flex-1 flex-col min-w-0">
+              <div class="flex items-center gap-3">
+                <span class="text-xl font-bold truncate group-hover:text-primary transition-colors">{review.student_name || review.student_email}</span>
+                <span class={`px-3 py-0.5 rounded-lg border text-[10px] font-black uppercase tracking-tighter shadow-sm ${statusColor(review.status)}`}>
+                  {submissionStatusLabel(review.status)}
+                </span>
+                {#if review.attempt_number > 1}
+                  <span class="inline-flex items-center gap-1 text-[10px] font-bold opacity-40 px-2 py-0.5 bg-base-200 rounded-lg uppercase tracking-widest">
+                      <History class="w-3 h-3" />
+                      Attempt #{review.attempt_number}
+                  </span>
+                {/if}
+              </div>
+              <div class="flex items-center gap-4 mt-2 text-sm font-semibold text-base-content/50">
+                <span class="flex items-center gap-1.5 truncate bg-base-200/50 px-3 py-1 rounded-xl group-hover:bg-primary/5 transition-colors">
+                  <BookOpen class="w-4 h-4 text-primary/60" />
+                  {review.assignment_title}
+                </span>
+                <span class="flex items-center gap-1.5 bg-base-200/50 px-3 py-1 rounded-xl group-hover:bg-primary/5 transition-colors">
+                  <School class="w-4 h-4 text-primary/60" />
+                  {review.class_name}
                 </span>
               </div>
             </div>
-          </div>
-        </a>
-      {/each}
-    </div>
-  {/if}
+
+            <!-- Desktop Relative Time -->
+            <div class="hidden lg:flex items-center gap-1.5 text-xs font-bold opacity-40 group-hover:opacity-100 transition-opacity whitespace-nowrap px-4">
+              <Calendar class="w-3.5 h-3.5" />
+              {relativeTime(review.created_at)}
+            </div>
+
+            <!-- Mobile view info -->
+            <div class="lg:hidden space-y-3 mt-1">
+                <div class="flex flex-col gap-2 p-3 bg-base-200/40 rounded-2xl border border-base-200">
+                    <div class="flex items-center gap-2 text-sm font-bold">
+                        <BookOpen class="w-4 h-4 text-primary/60" />
+                        <span class="truncate">{review.assignment_title}</span>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs font-semibold opacity-60">
+                        <School class="w-4 h-4" />
+                        <span>{review.class_name}</span>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-1.5 text-xs opacity-60 font-bold">
+                        <Calendar class="w-3.5 h-3.5" />
+                        {relativeTime(review.created_at)}
+                    </div>
+                    <div class="btn btn-sm btn-primary rounded-xl gap-2 font-bold px-4">
+                        {translate('frontend/src/routes/pending-reviews/+page.svelte::review_button')}
+                        <ArrowRight class="w-4 h-4" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Desktop Action -->
+            <div class="hidden lg:flex items-center px-2">
+              <div class="flex items-center gap-4 text-primary font-black uppercase text-[10px] tracking-[0.2em] opacity-0 translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
+                {translate('frontend/src/routes/pending-reviews/+page.svelte::review_button')}
+                <div class="p-3 rounded-2xl bg-primary text-white shadow-lg shadow-primary/30 group-hover:scale-110 transition-transform">
+                    <ChevronRight class="w-5 h-5" strokeWidth={3} />
+                </div>
+              </div>
+            </div>
+          </a>
+        {/each}
+      </div>
+    {/if}
+  </div>
 
   {#if err}
-    <div class="alert alert-error">
-      <span>{err}</span>
+    <div class="alert alert-error rounded-2xl shadow-lg border-2 border-error/20">
+      <div class="flex items-center gap-3">
+        <div class="p-2 bg-white/20 rounded-lg">
+          <Clock class="w-5 h-5 rotate-45" />
+        </div>
+        <span class="font-bold">{err}</span>
+      </div>
     </div>
   {/if}
 </div>
+
+<style>
+  :global(.select:focus) {
+    outline: none;
+  }
+</style>
