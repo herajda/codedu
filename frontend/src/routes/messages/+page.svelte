@@ -346,56 +346,54 @@
         </div>
       </div>
     {:else}
-      <div class="grid gap-6 md:grid-cols-2">
+      <div class="flex flex-col gap-3">
         {#each filteredConvos as convo (convo.id)}
           <div 
-            class="group relative bg-base-100 p-6 rounded-[2.5rem] border border-base-200 shadow-sm hover:shadow-2xl hover:shadow-primary/5 hover:border-primary/20 transition-all duration-300 cursor-pointer overflow-hidden flex flex-col"
+            class="group relative bg-base-100 p-4 sm:p-5 rounded-[2rem] border border-base-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 hover:border-primary/20 transition-all duration-300 cursor-pointer overflow-hidden flex items-center gap-4 sm:gap-6"
             on:click={() => openChat(convo)}
             in:fade={{ duration: 200 }}
           >
             <!-- Decorative gradient on hover -->
             <div class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-[100%] pointer-events-none group-hover:scale-150 transition-transform duration-700"></div>
             
-            <div class="flex items-start gap-4 mb-4">
-              <!-- Avatar -->
-              <div class="relative flex-shrink-0">
-                <div class="avatar shadow-lg shadow-base-300/40 rounded-full">
-                  <div class="w-16 h-16 rounded-[1.5rem] overflow-hidden group-hover:scale-105 transition-transform duration-500 bg-base-200">
-                    {#if convo.avatar}
-                      <img src={convo.avatar} alt={t('frontend/src/routes/messages/+page.svelte::avatar_alt')} class="w-full h-full object-cover" />
-                    {:else}
-                      <div class="w-full h-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-2xl font-black text-primary">
-                        {convo.displayName.charAt(0).toUpperCase()}
-                      </div>
-                    {/if}
-                  </div>
+            <!-- Avatar Section -->
+            <div class="relative flex-shrink-0">
+              <div class="avatar shadow-lg shadow-base-300/40 rounded-full">
+                <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden group-hover:scale-105 transition-transform duration-500 bg-base-200">
+                  {#if convo.avatar}
+                    <img src={convo.avatar} alt={t('frontend/src/routes/messages/+page.svelte::avatar_alt')} class="w-full h-full object-cover" />
+                  {:else}
+                    <div class="w-full h-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-2xl font-black text-primary">
+                      {convo.displayName.charAt(0).toUpperCase()}
+                    </div>
+                  {/if}
                 </div>
-                <!-- Online indicator -->
-                {#if $onlineUsers.some(u => u.id === convo.other_id)}
-                  <div class="absolute -bottom-1 -right-1 w-5 h-5 bg-success rounded-full border-[3px] border-base-100 shadow-sm animate-pulse"></div>
-                {:else}
-                  <div class="absolute -bottom-1 -right-1 w-5 h-5 bg-base-300 rounded-full border-[3px] border-base-100 shadow-sm"></div>
-                {/if}
               </div>
+              <!-- Online indicator -->
+              {#if $onlineUsers.some(u => u.id === convo.other_id)}
+                <div class="absolute -bottom-1 -right-1 w-5 h-5 bg-success rounded-full border-[3px] border-base-100 shadow-sm animate-pulse"></div>
+              {:else}
+                <div class="absolute -bottom-1 -right-1 w-5 h-5 bg-base-300 rounded-full border-[3px] border-base-100 shadow-sm"></div>
+              {/if}
+            </div>
 
-              <!-- Content -->
-              <div class="flex-1 min-w-0 pt-1">
-                <div class="flex items-start justify-between gap-2 overflow-hidden mb-1">
-                  <h3 class="font-black text-xl tracking-tight truncate group-hover:text-primary transition-colors">
-                    {convo.displayName}
-                  </h3>
-                  <div class="flex flex-col items-end shrink-0">
-                    <span class={`text-[10px] font-black uppercase tracking-widest ${getStatusColor(convo.status)}`}>
-                      {formatTime(convo.lastMessageTime)}
-                    </span>
-                  </div>
-                </div>
-                
-                <div class="flex items-center gap-2">
-                   {#if convo.unread_count > 0}
-                     <div class="w-2.5 h-2.5 bg-primary rounded-full shadow-lg shadow-primary/50 shrink-0"></div>
-                   {/if}
-                   <p class="text-sm font-medium text-base-content/60 truncate italic">
+            <!-- Content Section -->
+            <div class="flex-1 min-w-0 flex flex-col justify-center">
+              <div class="flex items-center justify-between gap-2 mb-1">
+                <h3 class="font-black text-lg sm:text-xl tracking-tight truncate group-hover:text-primary transition-colors">
+                  {convo.displayName}
+                </h3>
+                <span class={`text-[10px] sm:text-[11px] font-black uppercase tracking-widest shrink-0 ${getStatusColor(convo.status)}`}>
+                  {formatTime(convo.lastMessageTime)}
+                </span>
+              </div>
+              
+              <div class="flex items-center justify-between gap-4">
+                <div class="flex items-center gap-2 min-w-0">
+                  {#if convo.unread_count > 0}
+                    <div class="w-2.5 h-2.5 bg-primary rounded-full shadow-lg shadow-primary/50 shrink-0"></div>
+                  {/if}
+                  <p class="text-sm font-medium text-base-content/60 truncate italic">
                     {#if convo.text}
                       "{convo.text}"
                     {:else if convo.image}
@@ -403,26 +401,22 @@
                     {:else}
                       {t('frontend/src/routes/messages/+page.svelte::no_messages_yet')}
                     {/if}
-                   </p>
-                </div>
-              </div>
-            </div>
-
-            <div class="mt-auto flex items-center justify-between pt-4 border-t border-base-300/30">
-                <div class="flex items-center gap-4 min-w-0">
-                     <div class="flex items-center gap-1.5 px-3 py-1 bg-base-200/50 rounded-full text-[10px] font-black uppercase tracking-widest text-base-content/40 truncate">
-                         {convo.email ? convo.email : 'id: ' + convo.other_id}
-                     </div>
-                     {#if convo.unread_count > 0}
-                        <div class="badge badge-primary rounded-lg font-black text-[10px] tabular-nums px-2 border-none shrink-0">
-                            {convo.unread_count} {t('frontend/src/routes/messages/+page.svelte::filter_unread')}
-                        </div>
-                     {/if}
+                  </p>
                 </div>
 
-                <!-- Hover Actions -->
-                <div class="flex items-center gap-1 shrink-0">
-                    <button 
+                <div class="flex items-center gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                   <!-- Info Badge (Email/ID) -->
+                   <div class="hidden md:flex items-center px-3 py-1 bg-base-200/50 rounded-full text-[9px] font-black uppercase tracking-widest text-base-content/40">
+                       {convo.email ? convo.email : 'id: ' + convo.other_id}
+                   </div>
+                   
+                   {#if convo.unread_count > 0}
+                      <div class="badge badge-primary rounded-lg font-black text-[10px] tabular-nums px-2 border-none">
+                          {convo.unread_count}
+                      </div>
+                   {/if}
+
+                   <button 
                         class="btn btn-ghost btn-xs btn-circle hover:bg-warning/20 hover:text-warning transition-colors"
                         on:click={(e) => toggleStar(convo, e)}
                         title={t('frontend/src/routes/messages/+page.svelte::star_conversation_title')}
@@ -433,6 +427,7 @@
                             <StarOff class="w-4 h-4" />
                         {/if}
                     </button>
+
                     <div class="dropdown dropdown-left">
                         <button 
                             class="btn btn-ghost btn-xs btn-circle hover:bg-base-200 transition-colors"
@@ -456,6 +451,7 @@
                         </ul>
                     </div>
                 </div>
+              </div>
             </div>
             
           </div>
