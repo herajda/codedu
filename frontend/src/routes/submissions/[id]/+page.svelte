@@ -1508,7 +1508,7 @@
                                   <FileCode size={14} />
                                   {t("frontend/src/routes/submissions/[id]/+page.svelte::test_definition_title")}
                                 </div>
-                                <div class="bg-base-200/50 rounded-2xl border border-base-300/50 p-5 space-y-4 overflow-hidden">
+                                <div class="bg-base-100 rounded-2xl border border-base-200/70 p-5 space-y-4 overflow-hidden text-base-content/90">
                                   {#if mode === "function"}
                                     <div class="grid grid-cols-2 gap-4">
                                       <div class="space-y-1">
@@ -1525,18 +1525,18 @@
                                       </div>
                                     </div>
                                   {:else if r.unittest_code}
-                                    <pre class="text-xs font-mono bg-base-300/50 p-4 rounded-xl overflow-auto border border-base-300 max-h-60"><code>{viewableUnitTestSnippet(r.unittest_code, r.unittest_name)}</code></pre>
+                                    <pre class="text-xs font-mono bg-base-200 dark:!bg-gray-800 p-4 rounded-xl overflow-auto border border-base-200 max-h-60 text-base-content/90"><code>{viewableUnitTestSnippet(r.unittest_code, r.unittest_name)}</code></pre>
                                   {:else if typeof r.stdin !== "undefined" || typeof r.expected_stdout !== "undefined"}
                                     <div class="space-y-4">
                                       {#if r.stdin}
                                         <div class="space-y-1">
                                           <div class="text-[9px] font-black uppercase opacity-40">{t("frontend/src/routes/submissions/[id]/+page.svelte::input_label")}</div>
-                                          <pre class="text-xs font-mono bg-base-300/50 p-3 rounded-xl overflow-auto border border-base-300 max-h-32"><code>{r.stdin}</code></pre>
+                                          <pre class="text-xs font-mono bg-base-200 dark:!bg-gray-800 p-3 rounded-xl overflow-auto border border-base-200 max-h-32 text-base-content/90"><code>{r.stdin}</code></pre>
                                         </div>
                                       {/if}
                                       <div class="space-y-1">
                                         <div class="text-[9px] font-black uppercase opacity-40">{t("frontend/src/routes/submissions/[id]/+page.svelte::expected_output_label")}</div>
-                                        <pre class="text-xs font-mono bg-base-300/50 p-3 rounded-xl overflow-auto border border-base-300 max-h-32"><code>{r.expected_stdout}</code></pre>
+                                        <pre class="text-xs font-mono bg-base-200 dark:!bg-gray-800 p-3 rounded-xl overflow-auto border border-base-200 max-h-32 text-base-content/90"><code>{r.expected_stdout}</code></pre>
                                       </div>
                                     </div>
                                   {/if}
@@ -1550,9 +1550,9 @@
                                   <History size={14} />
                                   {t("frontend/src/routes/submissions/[id]/+page.svelte::execution_log_title")}
                                 </div>
-                                <div class="bg-base-300/30 rounded-2xl border border-base-300/50 p-5 overflow-hidden">
+                                <div class="bg-base-100 rounded-2xl border border-base-200/70 p-5 overflow-hidden text-base-content/90">
                                   {#if r.stderr}
-                                    <pre class="text-xs font-mono text-error/80 whitespace-pre-wrap max-h-60 overflow-auto"><code>{r.stderr}</code></pre>
+                                    <pre class="text-xs font-mono bg-base-200 dark:!bg-gray-800 p-4 rounded-xl border border-base-200 text-error/80 whitespace-pre-wrap max-h-60 overflow-auto"><code>{r.stderr}</code></pre>
                                   {:else}
                                     <div class="text-xs font-black uppercase opacity-20 tracking-widest py-8 text-center">{t("frontend/src/routes/submissions/[id]/+page.svelte::no_stderr_output_message")}</div>
                                   {/if}
