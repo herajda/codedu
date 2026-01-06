@@ -68,6 +68,8 @@
   $: id = $page.params.id;
   let role = "";
   $: role = $auth?.role ?? "";
+  let currentTime = Date.now();
+  let timerInterval: any;
 
   let assignment: any = null;
   // tests moved to standalone page
@@ -499,16 +501,30 @@
       "frontend/src/routes/assignments/[id]/+page.svelte::scratch_mode_manual",
     );
   }
-  function relativeToDeadline(deadline: string) {
-    const now = new Date();
+  function formatCountdown(ms: number) {
+    if (ms < 0) return "00:00:00";
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+  }
+
+  function relativeToDeadline(deadline: string, nowMs: number) {
+    const now = new Date(nowMs);
     const due = new Date(deadline);
     const diffMs = due.getTime() - now.getTime();
+
+    if (diffMs > 0 && diffMs < 24 * 60 * 60 * 1000) {
+      return formatCountdown(diffMs);
+    }
+
     const abs = Math.abs(diffMs);
     const mins = Math.round(abs / 60000);
     const hrs = Math.round(mins / 60);
     const days = Math.round(hrs / 24);
 
-    if (abs < 60) {
+    if (mins < 60) {
       if (diffMs >= 0)
         return translate(
           mins === 1
@@ -523,7 +539,7 @@
         { count: mins },
       );
     }
-    if (abs < 60 * 24) {
+    if (hrs < 24) {
       if (diffMs >= 0)
         return translate(
           hrs === 1
@@ -553,16 +569,16 @@
     );
   }
   $: isOverdue = assignment
-    ? new Date(assignment.deadline) < new Date()
+    ? new Date(assignment.deadline).getTime() < currentTime
     : false;
   $: isSecondDeadlineActive = assignment?.second_deadline
-    ? new Date(assignment.second_deadline) > new Date()
+    ? new Date(assignment.second_deadline).getTime() > currentTime
     : false;
   $: timeUntilDeadline = assignment
-    ? new Date(assignment.deadline).getTime() - Date.now()
+    ? new Date(assignment.deadline).getTime() - currentTime
     : 0;
   $: timeUntilSecondDeadline = assignment?.second_deadline
-    ? new Date(assignment.second_deadline).getTime() - Date.now()
+    ? new Date(assignment.second_deadline).getTime() - currentTime
     : 0;
   $: deadlineSoon =
     timeUntilDeadline > 0 && timeUntilDeadline <= 24 * 60 * 60 * 1000;
@@ -576,26 +592,26 @@
       ? role === "student" && done
         ? translate(
             "frontend/src/routes/assignments/[id]/+page.svelte::deadlineLabel_student_done",
-            { relativeTime: relativeToDeadline(assignment.deadline) },
+            { relativeTime: relativeToDeadline(assignment.deadline, currentTime) },
           )
         : translate(
             "frontend/src/routes/assignments/[id]/+page.svelte::deadlineLabel_overdue",
-            { relativeTime: relativeToDeadline(assignment.deadline) },
+            { relativeTime: relativeToDeadline(assignment.deadline, currentTime) },
           )
       : translate(
           "frontend/src/routes/assignments/[id]/+page.svelte::deadlineLabel_due",
-          { relativeTime: relativeToDeadline(assignment.deadline) },
+          { relativeTime: relativeToDeadline(assignment.deadline, currentTime) },
         )
     : "";
   $: secondDeadlineLabel = assignment?.second_deadline
-    ? new Date(assignment.second_deadline) < new Date()
+    ? new Date(assignment.second_deadline).getTime() < currentTime
       ? translate(
           "frontend/src/routes/assignments/[id]/+page.svelte::secondDeadlineLabel_passed",
-          { relativeTime: relativeToDeadline(assignment.second_deadline) },
+          { relativeTime: relativeToDeadline(assignment.second_deadline, currentTime) },
         )
       : translate(
           "frontend/src/routes/assignments/[id]/+page.svelte::secondDeadlineLabel_active",
-          { relativeTime: relativeToDeadline(assignment.second_deadline) },
+          { relativeTime: relativeToDeadline(assignment.second_deadline, currentTime) },
         )
     : "";
 
@@ -797,10 +813,15 @@
       }
     });
     esCtrl = { close: () => evs.close() };
+
+    timerInterval = setInterval(() => {
+      currentTime = Date.now();
+    }, 1000);
   });
 
   onDestroy(() => {
     esCtrl?.close();
+    if (timerInterval) clearInterval(timerInterval);
     if (typeof window !== "undefined") {
       window.removeEventListener("beforeunload", saveState);
     }
