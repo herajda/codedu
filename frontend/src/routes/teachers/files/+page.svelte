@@ -227,7 +227,7 @@ async function promptNotebook() {
   const notebookName = await promptModal?.open({
     title: t('frontend/src/routes/teachers/files/+page.svelte::new_notebook_title'),
     label: t('frontend/src/routes/teachers/files/+page.svelte::notebook_name_label'),
-    initialValue: 'Untitled.ipynb',
+    initialValue: t('frontend/src/routes/teachers/files/+page.svelte::notebook_name_initial_value'),
     helpText: t('frontend/src/routes/teachers/files/+page.svelte::notebook_help_text'),
     confirmLabel: t('frontend/src/routes/teachers/files/+page.svelte::create_button_label'),
     icon: 'fa-solid fa-book text-secondary',
@@ -259,11 +259,17 @@ async function rename(item:any){
   const name = await promptModal?.open({
     title: t('frontend/src/routes/teachers/files/+page.svelte::rename_title'),
     label: t('frontend/src/routes/teachers/files/+page.svelte::new_name_label'),
-    initialValue: item.name,
+    initialValue: (!item.is_dir && item.name.toLowerCase().endsWith('.ipynb')) ? displayName(item.name) : item.name,
     confirmLabel: t('frontend/src/routes/teachers/files/+page.svelte::save_button_label'),
     icon: item.is_dir ? 'fa-solid fa-folder text-warning' : 'fa-solid fa-pen text-primary',
     validate: (value) => value.trim() ? null : t('frontend/src/routes/teachers/files/+page.svelte::name_required'),
-    transform: (value) => value.trim(),
+    transform: (value) => {
+      const trimmed = value.trim();
+      if (!item.is_dir && item.name.toLowerCase().endsWith('.ipynb') && !trimmed.toLowerCase().endsWith('.ipynb')) {
+        return `${trimmed}.ipynb`;
+      }
+      return trimmed;
+    },
     selectOnOpen: true
   });
   if(!name || name === item.name) return;

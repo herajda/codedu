@@ -140,7 +140,7 @@
     const notebookName = await promptModal?.open({
       title: t('frontend/src/routes/classes/[id]/notes/+page.svelte::modal_new_notebook_title'),
       label: t('frontend/src/routes/classes/[id]/notes/+page.svelte::modal_notebook_name_label'),
-      initialValue: 'Untitled.ipynb',
+      initialValue: t('frontend/src/routes/classes/[id]/notes/+page.svelte::modal_notebook_name_initial_value'),
       helpText: t('frontend/src/routes/classes/[id]/notes/+page.svelte::modal_notebook_help_text'),
       confirmLabel: t('frontend/src/routes/classes/[id]/notes/+page.svelte::modal_create_button'),
       icon: 'fa-solid fa-book text-secondary',
@@ -197,10 +197,15 @@
     const name = await promptModal?.open({
       title: t('frontend/src/routes/classes/[id]/notes/+page.svelte::modal_rename_notebook_title'),
       label: t('frontend/src/routes/classes/[id]/notes/+page.svelte::modal_new_name_label'),
-      initialValue: n.name,
+      initialValue: displayName(n.name),
       confirmLabel: t('frontend/src/routes/classes/[id]/notes/+page.svelte::modal_save_button'),
       icon: 'fa-solid fa-pen text-primary',
       validate: (value) => value.trim() ? null : t('frontend/src/routes/classes/[id]/notes/+page.svelte::modal_name_required'),
+      transform: (value) => {
+        const trimmed = value.trim();
+        if (!trimmed.toLowerCase().endsWith('.ipynb')) return `${trimmed}.ipynb`;
+        return trimmed;
+      },
       selectOnOpen: true
     });
     if(!name || name === n.name) return;

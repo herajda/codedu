@@ -264,11 +264,17 @@ async function rename(item:any){
   const name = await promptModal?.open({
     title: t('frontend/src/routes/classes/[id]/files/+page.svelte::rename_title'),
     label: t('frontend/src/routes/classes/[id]/files/+page.svelte::new_name_label'),
-    initialValue: item.name,
+    initialValue: (!item.is_dir && item.name.toLowerCase().endsWith('.ipynb')) ? displayName(item.name) : item.name,
     confirmLabel: t('frontend/src/routes/classes/[id]/files/+page.svelte::save_button_label'),
     icon: item.is_dir ? 'fa-solid fa-folder text-warning' : 'fa-solid fa-pen text-primary',
     validate: (value) => value.trim() ? null : t('frontend/src/routes/classes/[id]/files/+page.svelte::name_required_error'),
-    transform: (value) => value.trim(),
+    transform: (value) => {
+      const trimmed = value.trim();
+      if (!item.is_dir && item.name.toLowerCase().endsWith('.ipynb') && !trimmed.toLowerCase().endsWith('.ipynb')) {
+        return `${trimmed}.ipynb`;
+      }
+      return trimmed;
+    },
     selectOnOpen: true
   });
   if(!name || name === item.name) return;
