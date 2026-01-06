@@ -393,7 +393,7 @@
                   {#if convo.unread_count > 0}
                     <div class="w-2.5 h-2.5 bg-primary rounded-full shadow-lg shadow-primary/50 shrink-0"></div>
                   {/if}
-                  <p class="text-sm font-medium text-base-content/60 truncate italic">
+                  <p class="text-sm font-medium text-base-content/60 truncate italic pr-1">
                     {#if convo.text}
                       {convo.text}
                     {:else if convo.image}
