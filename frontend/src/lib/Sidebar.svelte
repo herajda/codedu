@@ -155,7 +155,7 @@
               <ClipboardCheck size={18} />
             </div>
             <span class="truncate font-bold text-sm tracking-tight">{translate('frontend/src/lib/Sidebar.svelte::grading_inbox_link')}</span>
-            {#if $pendingReviewCount > 0 && !isActive('/pending-reviews')}
+            {#if $pendingReviewCount > 0}
               <span class="badge badge-warning badge-sm ml-auto font-black shadow-sm">{$pendingReviewCount}</span>
             {/if}
           </a>
