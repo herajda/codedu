@@ -2852,6 +2852,47 @@ func failSubmission(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// skipSubmission: PUT /api/submissions/:id/skip
+// Allows a teacher/admin to ignore a submission (mark as skipped) without grading.
+func skipSubmission(c *gin.Context) {
+	sid, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	sub, err := GetSubmission(sid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if sub.IsTeacherRun {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "teacher run submissions cannot be modified"})
+		return
+	}
+	a, err := GetAssignmentForSubmission(sid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if role := c.GetString("role"); role == "teacher" {
+		if ok, err := IsTeacherOfAssignment(a.ID, getUserID(c)); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+
+	_ = SetSubmissionManualAccept(sid, false)
+	_ = SetSubmissionOverridePoints(sid, nil)
+	_, _ = DB.Exec(`UPDATE submissions SET points=NULL WHERE id=$1`, sid)
+
+	if err := UpdateSubmissionStatus(sid, "skipped"); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
 // submissionTerminalWS: GET /api/submissions/:id/terminal (WS)
 // Upgrades to a websocket and bridges an interactive shell inside a Docker
 // container seeded with the submission's files. Teacher/admin only; also

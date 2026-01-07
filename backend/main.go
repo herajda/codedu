@@ -251,6 +251,7 @@ func main() {
 		api.PUT("/submissions/:id/points", RoleGuard("teacher", "admin"), overrideSubmissionPoints)
 		api.PUT("/submissions/:id/accept", RoleGuard("teacher", "admin"), acceptSubmission)
 		api.PUT("/submissions/:id/fail", RoleGuard("teacher", "admin"), failSubmission)
+		api.PUT("/submissions/:id/skip", RoleGuard("teacher", "admin"), skipSubmission)
 		api.PUT("/submissions/:id/undo-accept", RoleGuard("teacher", "admin"), undoManualAccept)
 		// TEACHER / STUDENT / ADMIN common
 		api.GET("/classes", RoleGuard("teacher", "student", "admin"), myClasses)

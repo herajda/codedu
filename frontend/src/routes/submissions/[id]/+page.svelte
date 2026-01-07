@@ -467,6 +467,7 @@
     if (s === "provisional") return "badge-warning";
     if (s === "partially_completed") return "badge-warning";
     if (s === "failed") return "badge-error";
+    if (s === "skipped") return "badge-neutral";
     if (s === "passed") return "badge-success";
     if (s === "wrong_output") return "badge-error";
     if (s === "runtime_error") return "badge-error";
@@ -1224,7 +1225,7 @@
                         {t("frontend/src/routes/submissions/[id]/+page.svelte::undo_manual_acceptance_button")}
                       </button>
                     {:else}
-                      <div class="grid grid-cols-2 gap-2">
+                      <div class="grid grid-cols-3 gap-2">
                         <button
                           class="btn btn-error btn-sm w-full rounded-xl font-black uppercase tracking-widest text-[9px] shadow-lg shadow-error/20"
                           title={t("frontend/src/routes/submissions/[id]/+page.svelte::fail_submission_button")}
@@ -1249,6 +1250,34 @@
                         >
                           <XCircle size={14} />
                           {t("frontend/src/routes/submissions/[id]/+page.svelte::fail_submission_button")}
+                        </button>
+                        <button
+                          class="btn btn-outline btn-sm w-full rounded-xl font-black uppercase tracking-widest text-[9px]"
+                          title={t("frontend/src/routes/submissions/[id]/+page.svelte::skip_submission_button")}
+                          on:click={async () => {
+                            const confirmed = await confirmModal.open({
+                              title: t("frontend/src/routes/submissions/[id]/+page.svelte::skip_submission_title"),
+                              body: t("frontend/src/routes/submissions/[id]/+page.svelte::skip_submission_body"),
+                              confirmLabel: t("frontend/src/routes/submissions/[id]/+page.svelte::skip_submission_button"),
+                              confirmClass: "btn btn-warning",
+                              icon: AlertCircle
+                            });
+                            if (!confirmed) return;
+                            try {
+                              await apiFetch(`/api/submissions/${submission.id}/skip`, {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({}),
+                              });
+                              await load();
+                              if ($auth?.role === "teacher" || $auth?.role === "admin") {
+                                loadPendingReviewCount();
+                              }
+                            } catch (e: any) { err = e.message; }
+                          }}
+                        >
+                          <AlertCircle size={14} />
+                          {t("frontend/src/routes/submissions/[id]/+page.svelte::skip_submission_button")}
                         </button>
                         <button
                           class="btn btn-success btn-sm w-full rounded-xl font-black uppercase tracking-widest text-[9px] shadow-lg shadow-success/20"

@@ -1320,6 +1320,7 @@ func ListPendingReviewsForTeacher(teacherID uuid.UUID) ([]PendingReview, error) 
 		   AND s.is_teacher_run = FALSE
 		   AND s.override_points IS NULL
 		   AND s.status <> 'running'
+		   AND s.status <> 'skipped'
 		   AND (
 		       a.manual_review = TRUE
 		       OR (a.programming_language = 'scratch' AND a.scratch_evaluation_mode IN ('manual', 'semi_automatic'))
@@ -1340,6 +1341,7 @@ func CountPendingReviewsForTeacher(teacherID uuid.UUID) (int, error) {
 		   AND s.is_teacher_run = FALSE
 		   AND s.override_points IS NULL
 		   AND s.status <> 'running'
+		   AND s.status <> 'skipped'
 		   AND (
 		       a.manual_review = TRUE
 		       OR (a.programming_language = 'scratch' AND a.scratch_evaluation_mode IN ('manual', 'semi_automatic'))

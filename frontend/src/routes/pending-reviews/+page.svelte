@@ -1,10 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { apiJSON } from '$lib/api';
+  import { apiJSON, apiFetch } from '$lib/api';
   import { translator } from '$lib/i18n';
   import type { Translator } from '$lib/i18n';
   import { submissionStatusLabel } from '$lib/status';
   import { loadPendingReviewCount } from '$lib/stores/pendingReviews';
+  import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   import {
     ClipboardList,
     User,
@@ -19,7 +20,8 @@
     Layers,
     History,
     ChevronRight,
-    Search
+    Search,
+    XCircle
   } from 'lucide-svelte';
 
   interface PendingReview {
@@ -51,6 +53,7 @@
 
   let translate: Translator;
   $: translate = $translator;
+  let confirmModal: InstanceType<typeof ConfirmModal>;
 
   async function load() {
     loading = true;
@@ -69,11 +72,34 @@
     loadPendingReviewCount();
   });
 
+  async function ignoreReview(id: string) {
+    const confirmed = await confirmModal.open({
+      title: translate('frontend/src/routes/pending-reviews/+page.svelte::skip_submission_title'),
+      body: translate('frontend/src/routes/pending-reviews/+page.svelte::skip_submission_body'),
+      confirmLabel: translate('frontend/src/routes/pending-reviews/+page.svelte::skip_submission_button'),
+      confirmClass: 'btn btn-warning',
+      icon: XCircle
+    });
+    if (!confirmed) return;
+    try {
+      await apiFetch(`/api/submissions/${id}/skip`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      await load();
+      loadPendingReviewCount();
+    } catch (e: any) {
+      err = e.message;
+    }
+  }
+
   function statusColor(s: string) {
     if (s === 'completed') return 'text-success bg-success/10 border-success/20';
     if (s === 'provisional') return 'text-amber-500 bg-amber-500/10 border-amber-500/20';
     if (s === 'partially_completed') return 'text-orange-500 bg-orange-500/10 border-orange-500/20';
     if (s === 'failed') return 'text-error bg-error/10 border-error/20';
+    if (s === 'skipped') return 'text-base-content/60 bg-base-200 border-base-300';
     return 'text-base-content/60 bg-base-200 border-base-300';
   }
 
@@ -385,20 +411,38 @@
                             <span>{review.class_name}</span>
                         </div>
                     </div>
-                    <div class="flex items-center justify-between">
+                    <div class="flex items-center justify-between gap-2">
                         <div class="flex items-center gap-1.5 text-xs opacity-60 font-bold">
                             <Calendar class="w-3.5 h-3.5" />
                             {relativeTime(review.created_at)}
                         </div>
-                        <div class="btn btn-sm btn-primary rounded-xl gap-2 font-bold px-4">
-                            {translate('frontend/src/routes/pending-reviews/+page.svelte::review_button')}
-                            <ArrowRight class="w-4 h-4" />
+                        <div class="flex items-center gap-2">
+                          <button
+                            type="button"
+                            class="btn btn-sm btn-ghost rounded-xl gap-2 font-bold px-4"
+                            on:click|preventDefault|stopPropagation={() => ignoreReview(review.id)}
+                          >
+                            <XCircle class="w-4 h-4" />
+                            {translate('frontend/src/routes/pending-reviews/+page.svelte::skip_submission_button')}
+                          </button>
+                          <div class="btn btn-sm btn-primary rounded-xl gap-2 font-bold px-4">
+                              {translate('frontend/src/routes/pending-reviews/+page.svelte::review_button')}
+                              <ArrowRight class="w-4 h-4" />
+                          </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Desktop Action -->
-                <div class="hidden lg:flex items-center px-2">
+                <div class="hidden lg:flex items-center px-2 gap-3">
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-sm rounded-xl gap-2 font-bold uppercase text-[10px] tracking-[0.2em] opacity-0 translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300"
+                    on:click|preventDefault|stopPropagation={() => ignoreReview(review.id)}
+                  >
+                    <XCircle class="w-4 h-4" />
+                    {translate('frontend/src/routes/pending-reviews/+page.svelte::skip_submission_button')}
+                  </button>
                   <div class="flex items-center gap-4 text-primary font-black uppercase text-[10px] tracking-[0.2em] opacity-0 translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
                     {translate('frontend/src/routes/pending-reviews/+page.svelte::review_button')}
                     <div class="p-3 rounded-2xl bg-primary text-white shadow-lg shadow-primary/30 group-hover:scale-110 transition-transform">
@@ -496,20 +540,38 @@
                         <span>{review.class_name}</span>
                     </div>
                 </div>
-                <div class="flex items-center justify-between">
+                <div class="flex items-center justify-between gap-2">
                     <div class="flex items-center gap-1.5 text-xs opacity-60 font-bold">
                         <Calendar class="w-3.5 h-3.5" />
                         {relativeTime(review.created_at)}
                     </div>
-                    <div class="btn btn-sm btn-primary rounded-xl gap-2 font-bold px-4">
-                        {translate('frontend/src/routes/pending-reviews/+page.svelte::review_button')}
-                        <ArrowRight class="w-4 h-4" />
+                    <div class="flex items-center gap-2">
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-ghost rounded-xl gap-2 font-bold px-4"
+                        on:click|preventDefault|stopPropagation={() => ignoreReview(review.id)}
+                      >
+                        <XCircle class="w-4 h-4" />
+                        {translate('frontend/src/routes/pending-reviews/+page.svelte::skip_submission_button')}
+                      </button>
+                      <div class="btn btn-sm btn-primary rounded-xl gap-2 font-bold px-4">
+                          {translate('frontend/src/routes/pending-reviews/+page.svelte::review_button')}
+                          <ArrowRight class="w-4 h-4" />
+                      </div>
                     </div>
                 </div>
             </div>
 
             <!-- Desktop Action -->
-            <div class="hidden lg:flex items-center px-2">
+            <div class="hidden lg:flex items-center px-2 gap-3">
+              <button
+                type="button"
+                class="btn btn-ghost btn-sm rounded-xl gap-2 font-bold uppercase text-[10px] tracking-[0.2em] opacity-0 translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300"
+                on:click|preventDefault|stopPropagation={() => ignoreReview(review.id)}
+              >
+                <XCircle class="w-4 h-4" />
+                {translate('frontend/src/routes/pending-reviews/+page.svelte::skip_submission_button')}
+              </button>
               <div class="flex items-center gap-4 text-primary font-black uppercase text-[10px] tracking-[0.2em] opacity-0 translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
                 {translate('frontend/src/routes/pending-reviews/+page.svelte::review_button')}
                 <div class="p-3 rounded-2xl bg-primary text-white shadow-lg shadow-primary/30 group-hover:scale-110 transition-transform">
@@ -534,6 +596,8 @@
     </div>
   {/if}
 </div>
+
+<ConfirmModal bind:this={confirmModal} />
 
 <style>
   :global(.select:focus) {
