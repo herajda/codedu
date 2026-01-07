@@ -2232,7 +2232,7 @@
   "frontend/src/routes/pending-reviews/+page.svelte::skip_submission_title": "Přeskočit toto odevzdání?",
   "frontend/src/routes/pending-reviews/+page.svelte::skip_submission_body": "Odevzdání se označí jako přeskočené a přestane se zobrazovat v seznamu ke kontrole.",
   "frontend/src/routes/pending-reviews/+page.svelte::just_now": "právě teď",
-  "frontend/src/routes/pending-reviews/+page.svelte::minutes_ago": "před ${count} min",
-  "frontend/src/routes/pending-reviews/+page.svelte::hours_ago": "před ${count}h",
-  "frontend/src/routes/pending-reviews/+page.svelte::days_ago": "před ${count}d"
+  "frontend/src/routes/pending-reviews/+page.svelte::minutes_ago": "před {count} min",
+  "frontend/src/routes/pending-reviews/+page.svelte::hours_ago": "před {count}h",
+  "frontend/src/routes/pending-reviews/+page.svelte::days_ago": "před {count}d"
 }

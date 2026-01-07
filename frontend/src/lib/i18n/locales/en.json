@@ -2252,7 +2252,7 @@
   "frontend/src/routes/pending-reviews/+page.svelte::skip_submission_title": "Ignore this submission?",
   "frontend/src/routes/pending-reviews/+page.svelte::skip_submission_body": "This will mark the submission as skipped so it no longer appears in the review list.",
   "frontend/src/routes/pending-reviews/+page.svelte::just_now": "just now",
-  "frontend/src/routes/pending-reviews/+page.svelte::minutes_ago": "${count} min ago",
-  "frontend/src/routes/pending-reviews/+page.svelte::hours_ago": "${count}h ago",
-  "frontend/src/routes/pending-reviews/+page.svelte::days_ago": "${count}d ago"
+  "frontend/src/routes/pending-reviews/+page.svelte::minutes_ago": "{count} min ago",
+  "frontend/src/routes/pending-reviews/+page.svelte::hours_ago": "{count}h ago",
+  "frontend/src/routes/pending-reviews/+page.svelte::days_ago": "{count}d ago"
 }
