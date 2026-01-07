@@ -1227,8 +1227,7 @@
                     {:else}
                       <div class="grid grid-cols-3 gap-2">
                         <button
-                          class="btn btn-error btn-sm w-full rounded-xl font-black uppercase tracking-widest text-[9px] shadow-lg shadow-error/20"
-                          title={t("frontend/src/routes/submissions/[id]/+page.svelte::fail_submission_button")}
+                          class="btn btn-error btn-sm w-full rounded-xl font-black uppercase tracking-wider text-[10px] shadow-lg shadow-error/20"
                           on:click={async () => {
                             if ((!isScratchSubmission && !assignmentManual) || (isScratchSubmission && assignmentScratchEvaluationMode !== "manual")) {
                               const confirmed = await confirmModal.open({
@@ -1248,12 +1247,10 @@
                             } catch (e: any) { err = e.message; }
                           }}
                         >
-                          <XCircle size={14} />
                           {t("frontend/src/routes/submissions/[id]/+page.svelte::fail_submission_button")}
                         </button>
                         <button
-                          class="btn btn-outline btn-sm w-full rounded-xl font-black uppercase tracking-widest text-[9px]"
-                          title={t("frontend/src/routes/submissions/[id]/+page.svelte::skip_submission_button")}
+                          class="btn btn-neutral btn-sm w-full rounded-xl font-black uppercase tracking-wider text-[10px] shadow-md"
                           on:click={async () => {
                             const confirmed = await confirmModal.open({
                               title: t("frontend/src/routes/submissions/[id]/+page.svelte::skip_submission_title"),
@@ -1276,7 +1273,6 @@
                             } catch (e: any) { err = e.message; }
                           }}
                         >
-                          <AlertCircle size={14} />
                           {t("frontend/src/routes/submissions/[id]/+page.svelte::skip_submission_button")}
                         </button>
                         <button
@@ -1302,7 +1298,6 @@
                             } catch (e: any) { err = e.message; }
                           }}
                         >
-                          <CheckCircle2 size={14} />
                           {t("frontend/src/routes/submissions/[id]/+page.svelte::accept_submission_button")}
                         </button>
                       </div>
