@@ -47,7 +47,6 @@
   // Filter and sort state
   let sortBy: 'newest' | 'oldest' | 'student' | 'assignment' = 'newest';
   let groupBy: 'none' | 'student' | 'assignment' | 'class' = 'none';
-  let filterClass = '';
   let filterAssignment = '';
   let searchQuery = '';
 
@@ -117,9 +116,9 @@
     return translate('frontend/src/routes/pending-reviews/+page.svelte::days_ago', { count: diffDays });
   }
 
-  function sortReviews(list: PendingReview[]) {
+  function sortReviews(list: PendingReview[], order: typeof sortBy) {
     const sorted = [...list];
-    switch (sortBy) {
+    switch (order) {
       case 'newest':
         sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         break;
@@ -136,12 +135,11 @@
     return sorted;
   }
 
-  function filterReviews(list: PendingReview[]) {
+  function filterReviews(list: PendingReview[], assignmentId: string, query: string) {
     return list.filter(r => {
-      if (filterClass && r.class_id !== filterClass) return false;
-      if (filterAssignment && r.assignment_id !== filterAssignment) return false;
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase();
+      if (assignmentId && r.assignment_id !== assignmentId) return false;
+      if (query) {
+        const q = query.toLowerCase();
         const match = 
           (r.student_name || '').toLowerCase().includes(q) ||
           r.student_email.toLowerCase().includes(q) ||
@@ -154,11 +152,10 @@
   }
 
   // Get unique classes and assignments for filters
-  $: uniqueClasses = [...new Map(reviews.map(r => [r.class_id, { id: r.class_id, name: r.class_name }])).values()];
   $: uniqueAssignments = [...new Map(reviews.map(r => [r.assignment_id, { id: r.assignment_id, title: r.assignment_title }])).values()];
 
   // Apply filters and sorting
-  $: filtered = sortReviews(filterReviews(reviews));
+  $: filtered = sortReviews(filterReviews(reviews, filterAssignment, searchQuery), sortBy);
 
   // Group by logic
   type GroupedReviews = { key: string; label: string; items: PendingReview[] }[];
@@ -253,18 +250,6 @@
             <option value="class">{translate('frontend/src/routes/pending-reviews/+page.svelte::group_class')}</option>
           </select>
         </div>
-
-        {#if uniqueClasses.length > 1}
-          <div class="flex items-center gap-2 px-4 py-2 bg-base-100/50 border border-base-300 rounded-2xl shadow-sm">
-            <School class="w-4 h-4 text-primary" />
-            <select class="select select-ghost select-sm font-bold focus:bg-transparent" bind:value={filterClass}>
-              <option value="">{translate('frontend/src/routes/pending-reviews/+page.svelte::filter_all')} Classes</option>
-              {#each uniqueClasses as cls}
-                <option value={cls.id}>{cls.name}</option>
-              {/each}
-            </select>
-          </div>
-        {/if}
 
         {#if uniqueAssignments.length > 1}
           <div class="flex items-center gap-2 px-4 py-2 bg-base-100/50 border border-base-300 rounded-2xl shadow-sm">
