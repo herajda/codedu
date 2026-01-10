@@ -6,6 +6,7 @@
   import { submissionStatusLabel } from '$lib/status';
   import { loadPendingReviewCount } from '$lib/stores/pendingReviews';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
+  import CustomSelect from '$lib/components/CustomSelect.svelte';
   import {
     ClipboardList,
     User,
@@ -267,14 +268,15 @@
 
       <!-- Quick Action Controls -->
       <div class="lg:col-span-8 flex flex-wrap items-center gap-3">
-        <div class="flex items-center gap-2 px-4 py-2 bg-base-100/50 border border-base-300 rounded-2xl shadow-sm">
-          <SortAsc class="w-4 h-4 text-primary" />
-          <span class="text-sm font-semibold text-base-content/60">{translate('frontend/src/routes/pending-reviews/+page.svelte::sort_by')}:</span>
-          <select class="select select-ghost select-sm font-bold focus:bg-transparent" bind:value={sortBy}>
-            <option value="newest">{translate('frontend/src/routes/pending-reviews/+page.svelte::sort_newest')}</option>
-            <option value="oldest">{translate('frontend/src/routes/pending-reviews/+page.svelte::sort_oldest')}</option>
-          </select>
-        </div>
+        <CustomSelect
+          bind:value={sortBy}
+          options={[
+            { value: 'newest', label: translate('frontend/src/routes/pending-reviews/+page.svelte::sort_newest') },
+            { value: 'oldest', label: translate('frontend/src/routes/pending-reviews/+page.svelte::sort_oldest') }
+          ]}
+          icon={SortAsc}
+          small={true}
+        />
 
         {#if uniqueAssignments.length > 1}
           <div class="flex items-center gap-2 px-4 py-2 bg-base-100/50 border border-base-300 rounded-2xl shadow-sm">
