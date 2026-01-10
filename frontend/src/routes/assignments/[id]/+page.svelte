@@ -2751,7 +2751,7 @@
                            <History size={14} class="text-primary" />
                            {t("frontend/src/routes/assignments/[id]/+page.svelte::view_my_submissions")}
                         </button>
-                        <button class="btn btn-primary rounded-xl px-6 h-10 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20 transform transition-all active:scale-95" on:click={openSubmitModal}>
+                        <button class="btn btn-primary rounded-xl px-6 h-10 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20 transform transition-all active:scale-95" on:click={openSubmitModal} disabled={attemptsExhausted}>
                            <Send size={14} />
                            {t("frontend/src/routes/assignments/[id]/+page.svelte::submit_new_attempt")}
                         </button>
@@ -2777,9 +2777,9 @@
               <button
                 class="btn btn-primary rounded-2xl px-8 h-12 font-black uppercase tracking-widest text-[11px] shadow-lg shadow-primary/20"
                 on:click={openSubmitModal}
-                disabled={assignment.second_deadline &&
+                disabled={(assignment.second_deadline &&
                   new Date() > assignment.deadline &&
-                  new Date() > assignment.second_deadline}
+                  new Date() > assignment.second_deadline) || attemptsExhausted}
               >
                 <Upload size={16} />
                 {t("frontend/src/routes/assignments/[id]/+page.svelte::new_submission_button")}
@@ -3351,9 +3351,9 @@
             <button
               class="btn btn-primary w-full shadow-lg shadow-primary/20 hover:shadow-primary/30 group transition-all duration-300 h-14 rounded-2xl gap-3 border-none"
               on:click={openSubmitModal}
-              disabled={assignment.second_deadline &&
+              disabled={(assignment.second_deadline &&
                 new Date() > assignment.deadline &&
-                new Date() > assignment.second_deadline}
+                new Date() > assignment.second_deadline) || attemptsExhausted}
             >
               <div class="p-2 bg-white/20 rounded-xl group-hover:rotate-12 transition-transform">
                 <Send size={18} />
