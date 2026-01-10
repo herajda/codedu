@@ -132,7 +132,7 @@
   <title>{cls?.name ? `${cls.name} | CodEdu` : 'Progress | CodEdu'}</title>
 </svelte:head>
 
-<div class="classes-progress-page">
+<div class="classes-progress-page flex flex-col min-h-0 h-full w-full overflow-hidden">
   {#if loading}
     <div class="flex justify-center mt-8"><span class="loading loading-dots loading-lg"></span></div>
   {:else if err}
@@ -210,7 +210,7 @@
   </section>
 
   <!-- Filters & List Section -->
-  <div>
+  <div class="flex flex-col flex-1 min-h-0 min-w-0">
     <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 px-2">
       <div class="flex items-center gap-3 w-full lg:w-auto">
         <div class="relative flex items-center w-full sm:w-auto">
@@ -245,21 +245,21 @@
       </div>
     </div>
 
-    <div class="bg-base-100 p-0 rounded-[2rem] border border-base-200 shadow-sm overflow-hidden backdrop-blur-sm">
-      <div class="relative overflow-x-auto custom-scrollbar">
+    <div class="bg-base-100 p-0 rounded-[2rem] border border-base-200 shadow-sm overflow-hidden backdrop-blur-sm flex flex-col flex-1 min-h-0">
+      <div class="relative overflow-auto custom-scrollbar flex-1 min-h-0 w-full">
         <table class="table table-compact w-full border-separate border-spacing-0">
           <thead>
             <tr>
-              <th class="p-5 bg-base-200/50 sticky left-0 z-40 backdrop-blur-md border-b border-base-200">
+              <th class="p-5 bg-base-200 sticky top-0 left-0 z-50 border-b border-base-200 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)]">
                 <span class="text-[10px] font-black uppercase tracking-widest opacity-40">{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::table_header_student')}</span>
               </th>
               {#each assignments as a}
-                <th class="p-4 text-center sticky top-0 z-20 bg-base-200/50 border-b border-base-200 min-w-24">
+                <th class="p-4 text-center sticky top-0 z-30 bg-base-200 border-b border-base-200 min-w-24">
                   <div class="font-black text-[10px] uppercase tracking-wider leading-snug mb-1 line-clamp-2" title={a.title}>{a.title}</div>
                   <div class="text-[9px] font-bold opacity-30">{a.max_points} pts</div>
                 </th>
               {/each}
-              <th class="p-5 text-right sticky right-0 z-30 bg-base-200/50 border-b border-base-200 min-w-32 backdrop-blur-md">
+              <th class="p-5 text-right sticky top-0 right-0 z-40 bg-base-200 border-b border-base-200 min-w-32 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.05)]">
                 <span class="text-[10px] font-black uppercase tracking-widest opacity-40">{translate('frontend/src/routes/classes/[id]/progress/+page.svelte::table_header_total')}</span>
               </th>
             </tr>
@@ -267,7 +267,7 @@
           <tbody class="divide-y divide-base-200">
             {#each visibleStudents as s (s.id)}
               <tr class="group hover:bg-primary/5 transition-colors cursor-pointer" on:click={() => openStudent(s.id)}>
-                <td class="p-5 sticky left-0 z-30 bg-base-100 group-hover:bg-transparent transition-colors shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)]">
+                <td class="p-5 sticky left-0 z-20 bg-base-100 transition-colors shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)]">
                   <div class="flex items-center gap-3">
                     <div class="avatar shrink-0">
                       <div class="w-10 h-10 rounded-2xl ring-2 ring-base-200 shadow-sm bg-base-200 overflow-hidden group-hover:ring-primary/20 transition-all">
@@ -299,7 +299,7 @@
                     {/if}
                   {/key}
                 {/each}
-                <td class="p-5 text-right sticky right-0 z-20 bg-base-100 group-hover:bg-transparent transition-colors shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.05)]">
+                <td class="p-5 text-right sticky right-0 z-20 bg-base-100 transition-colors shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.05)]">
                   <div class="flex flex-col items-end gap-1.5">
                     <div class="font-black text-sm tabular-nums">
                       {total(s.id)} <span class="text-[10px] opacity-40 font-bold">/ {totalPossible()}</span>

@@ -76,6 +76,7 @@
   let showBakalariForm = false;
   let showLocalAccountForm = false;
   let forcedLinkMode = false;
+  let lockContentScroll = false;
   let preferredLocaleSelection: "" | Locale = "";
   $: localeOptions = [
     {
@@ -115,6 +116,10 @@
   $: newPasswordsMatch =
     newPassword2.length === 0 ? false : newPassword === newPassword2;
   $: canSavePassword = newPasswordMeetsRules && newPasswordsMatch;
+
+  $: lockContentScroll = /^\/classes\/[^/]+\/progress\/?$/.test(
+    $page.url.pathname,
+  );
 
   const PUBLIC_AUTH_PREFIXES = [
     "/login",
@@ -1086,7 +1091,10 @@
               </header>
 
               <div
-                class="space-y-6 p-6 sm:p-8 flex-1 overflow-y-auto bg-base-50/50"
+                class="space-y-6 p-6 sm:p-8 flex-1 bg-base-50/50"
+                class:min-h-0={lockContentScroll}
+                class:overflow-y-auto={!lockContentScroll}
+                class:overflow-hidden={lockContentScroll}
               >
                 {#if editingAvatar}
                   <section

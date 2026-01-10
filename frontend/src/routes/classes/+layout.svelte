@@ -21,7 +21,7 @@
 </script>
 
 <div class="flex min-h-full">
-  <div class="flex-1 p-3 sm:p-4">
+  <div class="flex-1 p-3 sm:p-4 min-w-0">
     <slot />
   </div>
 </div>
