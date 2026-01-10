@@ -111,7 +111,15 @@
   const pythonFileExt = ".py";
   const scratchFileExt = ".sb3";
   const defaultMaxSubmissionSizeMB = 10;
+  const defaultSubmissionAttemptLimit = 3;
+  const defaultSubmissionAttemptWindowMs = 60 * 1000;
   let eProgrammingLanguage: ProgrammingLanguage = "python";
+  let submissionAttemptLimit = defaultSubmissionAttemptLimit;
+  let submissionAttemptWindowMs = defaultSubmissionAttemptWindowMs;
+  let submissionRateLimitUntil = 0;
+  $: waitMsRemaining = getSubmissionRateLimitWaitMs(currentTime);
+  $: rateLimitWaitSeconds = Math.ceil(waitMsRemaining / 1000);
+
 
   let confirmModal: InstanceType<typeof ConfirmModal>;
   // removed unittest file input (moved to tests page)
@@ -152,6 +160,56 @@
 
   function getSubmissionLimitMB() {
     return assignment?.max_submission_size_mb ?? defaultMaxSubmissionSizeMB;
+  }
+
+  function submissionAttemptStorageKey() {
+    return $auth?.id ? `submission_attempts_${$auth.id}` : "submission_attempts";
+  }
+
+  function loadSubmissionAttemptHistory() {
+    try {
+      const raw = localStorage.getItem(submissionAttemptStorageKey());
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.filter((v) => typeof v === "number") : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveSubmissionAttemptHistory(list: number[]) {
+    try {
+      localStorage.setItem(submissionAttemptStorageKey(), JSON.stringify(list));
+    } catch {
+      // ignore storage failures
+    }
+  }
+
+  function getRecentSubmissionAttempts(now: number) {
+    const list = loadSubmissionAttemptHistory();
+    const pruned = list
+      .filter((ts) => now - ts < submissionAttemptWindowMs)
+      .sort((a, b) => a - b);
+    if (pruned.length !== list.length) {
+      saveSubmissionAttemptHistory(pruned);
+    }
+    return pruned;
+  }
+
+  function getSubmissionRateLimitWaitMs(now: number) {
+    if (submissionAttemptLimit <= 0) return 0;
+    if (submissionRateLimitUntil > now) return submissionRateLimitUntil - now;
+    const attempts = getRecentSubmissionAttempts(now);
+    if (attempts.length < submissionAttemptLimit) return 0;
+    const oldest = attempts[0];
+    return submissionAttemptWindowMs - (now - oldest);
+  }
+
+  function recordSubmissionAttempt(now: number) {
+    if (submissionAttemptLimit <= 0) return;
+    const attempts = getRecentSubmissionAttempts(now);
+    attempts.push(now);
+    saveSubmissionAttemptHistory(attempts);
   }
 
   function clearEditErrors() {
@@ -281,6 +339,8 @@
     return `${h}:${m}`;
   }
   let eLatePenaltyRatio: number = 0.5;
+  let eMaxAttempts: number = 50;
+  let eMaxAttemptsEnabled = false;
   let showAdvancedOptions = false;
   let showAiOptions = false;
   let showRubric = false;
@@ -587,6 +647,9 @@
   $: isSecondDeadlineActive = assignment?.second_deadline
     ? new Date(assignment.second_deadline).getTime() > currentTime
     : false;
+  $: myAttemptsCount = submissions ? submissions.length : 0;
+  $: maxAttempts = assignment?.max_attempts ?? 0;
+  $: attemptsExhausted = maxAttempts > 0 && myAttemptsCount >= maxAttempts;
   $: timeUntilDeadline = assignment
     ? new Date(assignment.deadline).getTime() - currentTime
     : 0;
@@ -697,6 +760,17 @@
         submissions = data.submissions ?? [];
         latestSub = submissions[0] ?? null;
         results = [];
+        submissionAttemptLimit =
+          typeof data.submission_limit_per_minute === "number" &&
+          data.submission_limit_per_minute > 0
+            ? data.submission_limit_per_minute
+            : defaultSubmissionAttemptLimit;
+        const windowSeconds =
+          typeof data.submission_limit_window_seconds === "number" &&
+          data.submission_limit_window_seconds > 0
+            ? data.submission_limit_window_seconds
+            : defaultSubmissionAttemptWindowMs / 1000;
+        submissionAttemptWindowMs = windowSeconds * 1000;
         // test count comes from tests_count for students
         testsCount =
           (typeof data.tests_count === "number"
@@ -932,6 +1006,10 @@
     if (assignment.manual_review) testMode = "manual";
     else if (assignment.llm_interactive) testMode = "ai";
     else testMode = "automatic";
+    
+    eMaxAttempts = assignment.max_attempts && assignment.max_attempts > 0 ? assignment.max_attempts : 50;
+    eMaxAttemptsEnabled = !!(assignment.max_attempts && assignment.max_attempts > 0);
+    
     editing = true;
   }
 
@@ -1063,6 +1141,7 @@
           late_penalty_ratio: Number.isFinite(eLatePenaltyRatio)
             ? Math.min(1, Math.max(0, Number(eLatePenaltyRatio)))
             : 0.5,
+          max_attempts: eMaxAttemptsEnabled ? eMaxAttempts : 0
         }),
       });
       if (!res.ok) {
@@ -1301,7 +1380,12 @@
 
   async function submit() {
     if (files.length === 0) return;
-    
+    err = "";
+    const now = Date.now();
+    if (rateLimitWaitSeconds > 0) return;
+
+
+
     isUploading = true;
     uploadProgress = 0;
     
@@ -1349,6 +1433,29 @@
                     ),
                   ),
                 );
+              } else if (errorData?.error === "submission_rate_limited") {
+                const retrySeconds =
+                  typeof errorData.retry_after_seconds === "number" &&
+                  errorData.retry_after_seconds > 0
+                    ? errorData.retry_after_seconds
+                    : Math.ceil(submissionAttemptWindowMs / 1000);
+                submissionRateLimitUntil = Date.now() + retrySeconds * 1000;
+                reject(
+                  new Error(
+                    t(
+                      "frontend/src/routes/assignments/[id]/+page.svelte::submission_rate_limited_error",
+                      {
+                        limit:
+                          typeof errorData.limit === "number" && errorData.limit > 0
+                            ? errorData.limit
+                            : submissionAttemptLimit,
+                        seconds: retrySeconds,
+                      },
+                    ),
+                  ),
+                );
+              } else if (errorData?.error === "max_attempts_reached") {
+                 reject(new Error(t("frontend/src/routes/assignments/[id]/+page.svelte::max_attempts_error")));
               } else {
                 reject(new Error(errorData.error || xhr.statusText));
               }
@@ -1364,6 +1471,8 @@
 
       files = [];
       if (fileInput) fileInput.value = "";
+      recordSubmissionAttempt(Date.now());
+      submissionRateLimitUntil = 0;
       submitDialog.close();
       await load();
     } catch (e: any) {
@@ -1816,6 +1925,23 @@
                       small
                     />
                   </div>
+                  <div class="flex-1 min-w-[200px]">
+                    <div class="form-control">
+                        <label class="label pt-0 cursor-pointer justify-start gap-2 mb-1">
+                             <input type="checkbox" class="checkbox checkbox-xs checkbox-primary" bind:checked={eMaxAttemptsEnabled} />
+                             <span class="label-text font-bold text-[10px] uppercase opacity-40">{t("frontend/src/routes/assignments/[id]/+page.svelte::limit_attempts_label")}</span>
+                        </label>
+                        {#if eMaxAttemptsEnabled}
+                            <StylishInput
+                                type="number"
+                                bind:value={eMaxAttempts}
+                                placeholder="50"
+                                icon={History}
+                                small
+                            />
+                        {/if}
+                    </div>
+                  </div>
                   {#if eProgrammingLanguage === "scratch"}
                     <div class="flex-1 text-[11px] text-info/80 font-medium">
                       {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_manual_review_note")}
@@ -2265,6 +2391,13 @@
                   {t("frontend/src/routes/assignments/[id]/+page.svelte::max_points_badge", { maxPoints: assignment.max_points })}
                 </div>
 
+                {#if maxAttempts > 0}
+                  <div class={`badge h-7 gap-2 px-2.5 font-black text-[9px] uppercase tracking-wider border-none shadow-sm ${attemptsExhausted ? 'bg-error text-error-content' : 'bg-base-200 text-base-content'}`}>
+                    <History size={12} />
+                    {t("frontend/src/routes/assignments/[id]/+page.svelte::max_attempts_badge", { count: myAttemptsCount, max: maxAttempts })}
+                  </div>
+                {/if}
+
                 {#if assignment.programming_language === "scratch"}
                   <div class="badge h-7 gap-2 px-2.5 font-black text-[9px] uppercase tracking-wider bg-secondary text-secondary-content border-none shadow-sm">
                     <img src="/scratch_logo.webp" alt="Scratch" class="h-3.5 w-3.5" />
@@ -2368,10 +2501,13 @@
                   </button>
                 </div>
             {:else}
-              <button class="btn btn-primary shadow-2xl shadow-primary/30 font-black uppercase tracking-[0.1em] h-12 px-6 gap-3 rounded-xl animate-in fade-in slide-in-from-bottom-2 duration-700 text-xs" on:click={openSubmitModal} disabled={assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}>
+              <button class="btn btn-primary shadow-2xl shadow-primary/30 font-black uppercase tracking-[0.1em] h-12 px-6 gap-3 rounded-xl animate-in fade-in slide-in-from-bottom-2 duration-700 text-xs" on:click={openSubmitModal} disabled={(assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline) || attemptsExhausted}>
                 <Send size={18} />
                 {t("frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_button")}
               </button>
+              {#if attemptsExhausted}
+                 <div class="text-error text-xs font-bold uppercase tracking-wider opacity-80">{t("frontend/src/routes/assignments/[id]/+page.svelte::max_attempts_exhausted")}</div>
+              {/if}
               {#if assignment.template_path}
                  <button class="btn btn-ghost border-base-300 h-12 px-5 font-black uppercase tracking-widest text-[10px] gap-3 rounded-xl" on:click|preventDefault={downloadTemplate}>
                    <Download size={18} />
@@ -2615,7 +2751,7 @@
                            <History size={14} class="text-primary" />
                            {t("frontend/src/routes/assignments/[id]/+page.svelte::view_my_submissions")}
                         </button>
-                        <button class="btn btn-primary rounded-xl px-6 h-10 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20 transform transition-all active:scale-95" on:click={openSubmitModal}>
+                        <button class="btn btn-primary rounded-xl px-6 h-10 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20 transform transition-all active:scale-95" on:click={openSubmitModal} disabled={attemptsExhausted}>
                            <Send size={14} />
                            {t("frontend/src/routes/assignments/[id]/+page.svelte::submit_new_attempt")}
                         </button>
@@ -2641,9 +2777,9 @@
               <button
                 class="btn btn-primary rounded-2xl px-8 h-12 font-black uppercase tracking-widest text-[11px] shadow-lg shadow-primary/20"
                 on:click={openSubmitModal}
-                disabled={assignment.second_deadline &&
+                disabled={(assignment.second_deadline &&
                   new Date() > assignment.deadline &&
-                  new Date() > assignment.second_deadline}
+                  new Date() > assignment.second_deadline) || attemptsExhausted}
               >
                 <Upload size={16} />
                 {t("frontend/src/routes/assignments/[id]/+page.svelte::new_submission_button")}
@@ -3215,9 +3351,9 @@
             <button
               class="btn btn-primary w-full shadow-lg shadow-primary/20 hover:shadow-primary/30 group transition-all duration-300 h-14 rounded-2xl gap-3 border-none"
               on:click={openSubmitModal}
-              disabled={assignment.second_deadline &&
+              disabled={(assignment.second_deadline &&
                 new Date() > assignment.deadline &&
-                new Date() > assignment.second_deadline}
+                new Date() > assignment.second_deadline) || attemptsExhausted}
             >
               <div class="p-2 bg-white/20 rounded-xl group-hover:rotate-12 transition-transform">
                 <Send size={18} />
@@ -3388,6 +3524,40 @@
             </div>
           </div>
         {/if}
+        {#if err && rateLimitWaitSeconds === 0}
+
+          <div class="alert bg-error/10 border-error/20 text-error rounded-2xl flex items-start gap-3 py-3 animate-in fade-in slide-in-from-top-2">
+            <AlertCircle size={18} class="mt-0.5 shrink-0" />
+            <div class="flex-1">
+              <strong class="font-black uppercase tracking-widest text-[9px] block mb-0.5">
+                {t("frontend/src/lib/components/RunConsole.svelte::error")}
+              </strong>
+              <span class="text-[11px] font-medium leading-relaxed">{err}</span>
+            </div>
+            <button class="btn btn-ghost btn-circle btn-xs hover:bg-error/20" on:click={() => err = ""}>
+              <X size={14} />
+            </button>
+          </div>
+        {/if}
+
+        {#if rateLimitWaitSeconds > 0}
+          <div class="alert bg-error/10 border-error/20 text-error rounded-2xl flex items-start gap-4 py-4 animate-in fade-in slide-in-from-top-4 shadow-inner">
+            <div class="p-2.5 bg-error/20 rounded-xl mt-0.5 text-error ring-1 ring-error/30 ring-inset">
+              <Clock size={20} />
+            </div>
+            <div class="flex-1">
+              <h4 class="font-black text-sm uppercase tracking-tight mb-1 text-error">
+                {t("frontend/src/routes/assignments/[id]/+page.svelte::submission_rate_limited_title")}
+              </h4>
+              <p class="text-[11px] leading-relaxed opacity-90 font-bold">
+                {t("frontend/src/routes/assignments/[id]/+page.svelte::submission_rate_limited_error", { 
+                  limit: submissionAttemptLimit, 
+                  seconds: rateLimitWaitSeconds 
+                })}
+              </p>
+            </div>
+          </div>
+        {/if}
 
         <div
           role="button"
@@ -3515,10 +3685,11 @@
         <button
           class="btn btn-primary flex-[2] rounded-2xl h-12 shadow-lg shadow-primary/20 gap-2 font-black uppercase tracking-widest text-[11px]"
           on:click={submit}
-          disabled={!files.length || isUploading ||
+          disabled={!files.length || isUploading || rateLimitWaitSeconds > 0 ||
             (assignment.second_deadline &&
               new Date() > assignment.deadline &&
               new Date() > assignment.second_deadline)}
+
         >
           {#if isUploading}
             <div class="loading loading-spinner loading-xs"></div>
