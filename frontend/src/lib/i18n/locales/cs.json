@@ -2213,6 +2213,8 @@
   "frontend/src/routes/pending-reviews/+page.svelte::page_title": "Ke kontrole",
   "frontend/src/routes/pending-reviews/+page.svelte::page_subtitle": "Odevzdání čekající na vaše hodnocení",
   "frontend/src/routes/pending-reviews/+page.svelte::pending_count": "čeká",
+  "frontend/src/routes/pending-reviews/+page.svelte::latest_best_filter": "Jen nejlepší/poslední",
+  "frontend/src/routes/pending-reviews/+page.svelte::latest_best_filter_tooltip": "Pokud je zapnuto, u každého studenta a úlohy se zobrazí pouze nejrelevantnější odevzdání (poslední nebo s nejvyšším bodovým ziskem).",
   "frontend/src/routes/pending-reviews/+page.svelte::sort_by": "Řadit",
   "frontend/src/routes/pending-reviews/+page.svelte::sort_newest": "Nejnovější",
   "frontend/src/routes/pending-reviews/+page.svelte::sort_oldest": "Nejstarší",

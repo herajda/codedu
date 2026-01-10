@@ -4295,6 +4295,15 @@ func overrideSubmissionPoints(c *gin.Context) {
 	}
 	// If manual review is enabled (or scratch needs teacher confirmation) and points were set, mark as completed.
 	if req.Points != nil {
+		// Auto-skip other pending submissions if full points awarded
+		if *req.Points >= float64(a.MaxPoints) {
+			_, _ = DB.Exec(`UPDATE submissions SET status='skipped', updated_at=now()
+							 WHERE assignment_id=$1 AND student_id=$2 AND id <> $3 
+							   AND override_points IS NULL 
+							   AND status <> 'running' AND status <> 'skipped'`,
+				a.ID, sub.StudentID, sid)
+		}
+
 		if a.ManualReview {
 			_ = UpdateSubmissionStatus(sid, "completed")
 		} else if a.ProgrammingLanguage == "scratch" {

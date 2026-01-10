@@ -1295,6 +1295,11 @@ type PendingReview struct {
 	Points          *float64  `db:"points" json:"points"`
 	CreatedAt       time.Time `db:"created_at" json:"created_at"`
 	AttemptNumber   int       `db:"attempt_number" json:"attempt_number"`
+	MaxPoints       int       `db:"max_points" json:"max_points"`
+	Language        string    `db:"language" json:"language"`
+	ScratchMode     *string   `db:"scratch_mode" json:"scratch_mode"`
+	PassedTests     int       `db:"passed_tests" json:"passed_tests"`
+	TotalTests      int       `db:"total_tests" json:"total_tests"`
 }
 
 // ListPendingReviewsForTeacher returns all submissions that need manual review
@@ -1307,11 +1312,15 @@ type PendingReview struct {
 func ListPendingReviewsForTeacher(teacherID uuid.UUID) ([]PendingReview, error) {
 	reviews := []PendingReview{}
 	err := DB.Select(&reviews, `
+
 		SELECT s.id, s.assignment_id, a.title AS assignment_title,
 		       c.id AS class_id, c.name AS class_name,
 		       s.student_id, u.email AS student_email, u.name AS student_name, u.avatar AS student_avatar,
 		       s.status, s.points, s.created_at,
-		       ROW_NUMBER() OVER (PARTITION BY s.assignment_id, s.student_id ORDER BY s.created_at ASC, s.id ASC) AS attempt_number
+		       ROW_NUMBER() OVER (PARTITION BY s.assignment_id, s.student_id ORDER BY s.created_at ASC, s.id ASC) AS attempt_number,
+		       a.max_points, a.programming_language AS language, a.scratch_evaluation_mode AS scratch_mode,
+		       (SELECT COUNT(*) FROM results r WHERE r.submission_id = s.id AND r.status = 'passed') AS passed_tests,
+		       (SELECT COUNT(*) FROM results r WHERE r.submission_id = s.id) AS total_tests
 		  FROM submissions s
 		  JOIN assignments a ON a.id = s.assignment_id
 		  JOIN classes c ON c.id = a.class_id

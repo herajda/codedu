@@ -2233,6 +2233,8 @@
   "frontend/src/routes/pending-reviews/+page.svelte::page_title": "For Review",
   "frontend/src/routes/pending-reviews/+page.svelte::page_subtitle": "Submissions awaiting your review",
   "frontend/src/routes/pending-reviews/+page.svelte::pending_count": "pending",
+  "frontend/src/routes/pending-reviews/+page.svelte::latest_best_filter": "Latest/Best only",
+  "frontend/src/routes/pending-reviews/+page.svelte::latest_best_filter_tooltip": "When enabled, only the most relevant submission (latest or with highest score) for each student/assignment pair is shown.",
   "frontend/src/routes/pending-reviews/+page.svelte::sort_by": "Sort",
   "frontend/src/routes/pending-reviews/+page.svelte::sort_newest": "Newest first",
   "frontend/src/routes/pending-reviews/+page.svelte::sort_oldest": "Oldest first",
