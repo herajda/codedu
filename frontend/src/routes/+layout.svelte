@@ -34,6 +34,7 @@
   import CustomSelect from "$lib/components/CustomSelect.svelte";
   import StylishInput from "$lib/components/StylishInput.svelte";
   import { Globe, User as UserIcon, Key as KeyIcon, Lock as LockIcon, Mail as MailIcon } from "lucide-svelte";
+  import UserDropdown from "$lib/components/UserDropdown.svelte";
   import type { LayoutData } from "./$types";
   import type { Locale, TranslationDictionary } from "$lib/i18n";
 
@@ -917,51 +918,12 @@
               >
             {/if}
           </button>
-          <div class="dropdown dropdown-end">
-            <button
-              class="btn btn-ghost btn-circle avatar"
-              aria-haspopup="menu"
-              type="button"
-              tabindex="0"
-            >
-              {#if user.avatar}
-                <div class="w-10 rounded-full ring-1 ring-base-300/60">
-                  <img
-                    src={user.avatar}
-                    alt={translate(
-                      "frontend/src/routes/+layout.svelte::user_avatar_alt",
-                    )}
-                  />
-                </div>
-              {:else}
-                <div
-                  class="w-10 rounded-full bg-neutral text-neutral-content ring-1 ring-base-300/60 flex items-center justify-center"
-                >
-                  {user.role.slice(0, 1).toUpperCase()}
-                </div>
-              {/if}
-            </button>
-            <ul
-              class="mt-3 z-[60] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-36 border border-base-300/30"
-              role="menu"
-              tabindex="0"
-            >
-              <li>
-                <button on:click={openSettings}
-                  >{translate(
-                    "frontend/src/routes/+layout.svelte::settings_button",
-                  )}</button
-                >
-              </li>
-              <li>
-                <button on:click={logout}
-                  >{translate(
-                    "frontend/src/routes/+layout.svelte::logout_button",
-                  )}</button
-                >
-              </li>
-            </ul>
-          </div>
+          <UserDropdown 
+            {user} 
+            {translate} 
+            on:settings={openSettings} 
+            on:logout={logout} 
+          />
           <dialog bind:this={settingsDialog} class="modal">
             <div
               class="modal-box max-w-3xl p-0 flex flex-col max-h-[85vh] rounded-3xl shadow-2xl bg-base-100"
