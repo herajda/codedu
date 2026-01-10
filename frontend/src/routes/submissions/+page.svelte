@@ -30,7 +30,8 @@
     | 'provisional'
     | 'partially_completed'
     | 'completed'
-    | 'failed' = 'all';
+    | 'failed'
+    | 'skipped' = 'all';
   let sortBy: 'newest' | 'oldest' | 'status' = 'newest';
   let layoutMode: 'table' | 'cards' | 'board' = 'table';
 
@@ -49,6 +50,7 @@
     if(s === 'provisional') return 'badge-warning';
     if(s === 'partially_completed') return 'badge-warning';
     if(s === 'failed') return 'badge-error';
+    if(s === 'skipped') return 'badge-neutral';
     return '';
   }
 
@@ -202,6 +204,7 @@
             <option value="partially_completed">{t('frontend/src/routes/submissions/+page.svelte::partially_completed_filter')}</option>
             <option value="completed">{t('frontend/src/routes/submissions/+page.svelte::completed_filter')}</option>
             <option value="failed">{t('frontend/src/routes/submissions/+page.svelte::failed_filter')}</option>
+            <option value="skipped">{t('frontend/src/routes/submissions/+page.svelte::skipped_filter')}</option>
           </select>
           <select class="select select-bordered join-item" bind:value={sortBy}>
             <option value="newest">{t('frontend/src/routes/submissions/+page.svelte::newest')}</option>

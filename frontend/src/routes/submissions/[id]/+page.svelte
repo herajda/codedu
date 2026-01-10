@@ -18,6 +18,7 @@
   import { t, translator } from "$lib/i18n";
   import { submissionStatusLabel } from "$lib/status";
   import ConfirmModal from "$lib/components/ConfirmModal.svelte";
+  import { loadPendingReviewCount } from "$lib/stores/pendingReviews";
 
   $: id = $page.params.id;
 
@@ -137,6 +138,10 @@
         body: JSON.stringify({ points: v }),
       });
       await load();
+      // Refresh pending review count for sidebar badge
+      if ($auth?.role === 'teacher' || $auth?.role === 'admin') {
+        loadPendingReviewCount();
+      }
     } catch (e: any) {
       err = e.message;
     } finally {
@@ -462,6 +467,7 @@
     if (s === "provisional") return "badge-warning";
     if (s === "partially_completed") return "badge-warning";
     if (s === "failed") return "badge-error";
+    if (s === "skipped") return "badge-neutral";
     if (s === "passed") return "badge-success";
     if (s === "wrong_output") return "badge-error";
     if (s === "runtime_error") return "badge-error";
@@ -1031,10 +1037,17 @@
       <div class="relative p-6 sm:p-7 flex flex-col lg:flex-row gap-6">
         <div class="flex-1 space-y-8">
           <!-- Breadcrumbs / Back button -->
-          <button on:click={goBack} class="group flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] opacity-40 hover:opacity-100 transition-all hover:text-primary">
-            <ArrowLeft size={14} class="group-hover:-translate-x-1 transition-transform" />
-            {t("frontend/src/routes/submissions/[id]/+page.svelte::back_button")}
-          </button>
+          <div class="flex items-center gap-4">
+            <button on:click={goBack} class="group flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] opacity-40 hover:opacity-100 transition-all hover:text-primary">
+              <ArrowLeft size={14} class="group-hover:-translate-x-1 transition-transform" />
+              {t("frontend/src/routes/submissions/[id]/+page.svelte::back_button")}
+            </button>
+            <div class="w-px h-3 bg-base-300 opacity-40"></div>
+            <a href={`/assignments/${submission.assignment_id}`} class="group flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] opacity-40 hover:opacity-100 transition-all hover:text-primary">
+              <ExternalLink size={14} class="group-hover:scale-110 transition-transform" />
+              {t("frontend/src/routes/submissions/[id]/+page.svelte::view_assignment_details")}
+            </a>
+          </div>
 
           <div class="space-y-4">
             <div class="flex flex-wrap items-center gap-3">
@@ -1219,10 +1232,9 @@
                         {t("frontend/src/routes/submissions/[id]/+page.svelte::undo_manual_acceptance_button")}
                       </button>
                     {:else}
-                      <div class="grid grid-cols-2 gap-2">
+                      <div class="grid grid-cols-3 gap-2">
                         <button
-                          class="btn btn-error btn-sm w-full rounded-xl font-black uppercase tracking-widest text-[9px] shadow-lg shadow-error/20"
-                          title={t("frontend/src/routes/submissions/[id]/+page.svelte::fail_submission_button")}
+                          class="btn btn-error btn-sm w-full rounded-xl font-black uppercase tracking-wider text-[10px] shadow-lg shadow-error/20"
                           on:click={async () => {
                             if ((!isScratchSubmission && !assignmentManual) || (isScratchSubmission && assignmentScratchEvaluationMode !== "manual")) {
                               const confirmed = await confirmModal.open({
@@ -1242,8 +1254,33 @@
                             } catch (e: any) { err = e.message; }
                           }}
                         >
-                          <XCircle size={14} />
                           {t("frontend/src/routes/submissions/[id]/+page.svelte::fail_submission_button")}
+                        </button>
+                        <button
+                          class="btn btn-neutral btn-sm w-full rounded-xl font-black uppercase tracking-wider text-[10px] shadow-md"
+                          on:click={async () => {
+                            const confirmed = await confirmModal.open({
+                              title: t("frontend/src/routes/submissions/[id]/+page.svelte::skip_submission_title"),
+                              body: t("frontend/src/routes/submissions/[id]/+page.svelte::skip_submission_body"),
+                              confirmLabel: t("frontend/src/routes/submissions/[id]/+page.svelte::skip_submission_button"),
+                              confirmClass: "btn btn-warning",
+                              icon: AlertCircle
+                            });
+                            if (!confirmed) return;
+                            try {
+                              await apiFetch(`/api/submissions/${submission.id}/skip`, {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({}),
+                              });
+                              await load();
+                              if ($auth?.role === "teacher" || $auth?.role === "admin") {
+                                loadPendingReviewCount();
+                              }
+                            } catch (e: any) { err = e.message; }
+                          }}
+                        >
+                          {t("frontend/src/routes/submissions/[id]/+page.svelte::skip_submission_button")}
                         </button>
                         <button
                           class="btn btn-success btn-sm w-full rounded-xl font-black uppercase tracking-widest text-[9px] shadow-lg shadow-success/20"
@@ -1268,7 +1305,6 @@
                             } catch (e: any) { err = e.message; }
                           }}
                         >
-                          <CheckCircle2 size={14} />
                           {t("frontend/src/routes/submissions/[id]/+page.svelte::accept_submission_button")}
                         </button>
                       </div>

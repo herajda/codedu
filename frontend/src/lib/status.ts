@@ -4,5 +4,8 @@ export function submissionStatusLabel(status: string): string {
   if (status === "partially_completed") {
     return t("frontend/src/lib/status.ts::partially_completed_label");
   }
+  if (status === "skipped") {
+    return t("frontend/src/lib/status.ts::skipped_label");
+  }
   return status;
 }

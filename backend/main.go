@@ -251,6 +251,7 @@ func main() {
 		api.PUT("/submissions/:id/points", RoleGuard("teacher", "admin"), overrideSubmissionPoints)
 		api.PUT("/submissions/:id/accept", RoleGuard("teacher", "admin"), acceptSubmission)
 		api.PUT("/submissions/:id/fail", RoleGuard("teacher", "admin"), failSubmission)
+		api.PUT("/submissions/:id/skip", RoleGuard("teacher", "admin"), skipSubmission)
 		api.PUT("/submissions/:id/undo-accept", RoleGuard("teacher", "admin"), undoManualAccept)
 		// TEACHER / STUDENT / ADMIN common
 		api.GET("/classes", RoleGuard("teacher", "student", "admin"), myClasses)
@@ -290,6 +291,9 @@ func main() {
 		api.DELETE("/users/:id", RoleGuard("admin"), deleteUser)
 		// List my submissions (student)
 		api.GET("/my-submissions", RoleGuard("student"), listSubs)
+		// Pending reviews for teachers
+		api.GET("/pending-reviews", RoleGuard("teacher", "admin"), getPendingReviews)
+		api.GET("/pending-reviews/count", RoleGuard("teacher", "admin"), getPendingReviewsCount)
 		api.GET("/events", RoleGuard("student", "teacher", "admin"), eventsHandler)
 		// Interactive terminal for manual review sessions (teacher/admin only)
 		api.GET("/submissions/:id/terminal", RoleGuard("teacher", "admin"), submissionTerminalWS)

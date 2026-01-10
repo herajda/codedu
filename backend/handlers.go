@@ -2852,6 +2852,47 @@ func failSubmission(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// skipSubmission: PUT /api/submissions/:id/skip
+// Allows a teacher/admin to ignore a submission (mark as skipped) without grading.
+func skipSubmission(c *gin.Context) {
+	sid, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	sub, err := GetSubmission(sid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if sub.IsTeacherRun {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "teacher run submissions cannot be modified"})
+		return
+	}
+	a, err := GetAssignmentForSubmission(sid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	if role := c.GetString("role"); role == "teacher" {
+		if ok, err := IsTeacherOfAssignment(a.ID, getUserID(c)); err != nil || !ok {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	}
+
+	_ = SetSubmissionManualAccept(sid, false)
+	_ = SetSubmissionOverridePoints(sid, nil)
+	_, _ = DB.Exec(`UPDATE submissions SET points=NULL WHERE id=$1`, sid)
+
+	if err := UpdateSubmissionStatus(sid, "skipped"); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
 // submissionTerminalWS: GET /api/submissions/:id/terminal (WS)
 // Upgrades to a websocket and bridges an interactive shell inside a Docker
 // container seeded with the submission's files. Teacher/admin only; also
@@ -4174,6 +4215,46 @@ func removeStudent(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// getPendingReviews returns all submissions that need manual review by the teacher.
+// GET /api/pending-reviews
+func getPendingReviews(c *gin.Context) {
+	uid := getUserID(c)
+	role := c.GetString("role")
+
+	// For admin, we could return all pending reviews, but for simplicity we return empty
+	// unless they're also a teacher with classes
+	if role != "teacher" && role != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+
+	reviews, err := ListPendingReviewsForTeacher(uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+		return
+	}
+	c.JSON(http.StatusOK, reviews)
+}
+
+// getPendingReviewsCount returns just the count of pending reviews for sidebar badge.
+// GET /api/pending-reviews/count
+func getPendingReviewsCount(c *gin.Context) {
+	uid := getUserID(c)
+	role := c.GetString("role")
+
+	if role != "teacher" && role != "admin" {
+		c.JSON(http.StatusOK, gin.H{"count": 0})
+		return
+	}
+
+	count, err := CountPendingReviewsForTeacher(uid)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"count": 0})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"count": count})
+}
+
 // overrideSubmissionPoints allows a teacher or admin to set custom points for a submission.
 func overrideSubmissionPoints(c *gin.Context) {
 	sid, err := uuid.Parse(c.Param("id"))
@@ -4214,6 +4295,15 @@ func overrideSubmissionPoints(c *gin.Context) {
 	}
 	// If manual review is enabled (or scratch needs teacher confirmation) and points were set, mark as completed.
 	if req.Points != nil {
+		// Auto-skip other pending submissions if full points awarded
+		if *req.Points >= float64(a.MaxPoints) {
+			_, _ = DB.Exec(`UPDATE submissions SET status='skipped', updated_at=now()
+							 WHERE assignment_id=$1 AND student_id=$2 AND id <> $3 
+							   AND override_points IS NULL 
+							   AND status <> 'running' AND status <> 'skipped'`,
+				a.ID, sub.StudentID, sid)
+		}
+
 		if a.ManualReview {
 			_ = UpdateSubmissionStatus(sid, "completed")
 		} else if a.ProgrammingLanguage == "scratch" {
