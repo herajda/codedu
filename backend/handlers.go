@@ -393,7 +393,13 @@ func getAssignment(c *gin.Context) {
 		}
 		subs, _ := ListSubmissionsForAssignmentAndStudent(id, getUserID(c))
 		stats, _ := GetTestCaseStats(id)
-		c.JSON(http.StatusOK, gin.H{"assignment": a, "submissions": subs, "tests_count": stats.Count})
+		c.JSON(http.StatusOK, gin.H{
+			"assignment":                       a,
+			"submissions":                      subs,
+			"tests_count":                      stats.Count,
+			"submission_limit_per_minute":      getSubmissionAttemptLimit(),
+			"submission_limit_window_seconds":  submissionAttemptWindowSeconds,
+		})
 		return
 	} else if role == "teacher" {
 		if ok, err := IsTeacherOfAssignment(id, getUserID(c)); err != nil || !ok {
@@ -1788,6 +1794,21 @@ func deleteAllTestCases(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+const defaultSubmissionAttemptLimit = 3
+const submissionAttemptWindowSeconds = 60
+
+func getSubmissionAttemptLimit() int {
+	raw := strings.TrimSpace(GetSystemVariable("submission_attempt_limit_per_minute", ""))
+	if raw == "" {
+		return defaultSubmissionAttemptLimit
+	}
+	limit, err := strconv.Atoi(raw)
+	if err != nil || limit <= 0 {
+		return defaultSubmissionAttemptLimit
+	}
+	return limit
+}
+
 // createSubmission: POST /api/assignments/:id/submissions
 func createSubmission(c *gin.Context) {
 	aid, err := uuid.Parse(c.Param("id"))
@@ -1804,6 +1825,43 @@ func createSubmission(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "assignment not found"})
 		return
+	}
+	limit := getSubmissionAttemptLimit()
+	if limit > 0 {
+		type rateWindow struct {
+			Count  int          `db:"count"`
+			Oldest sql.NullTime `db:"oldest"`
+		}
+		var info rateWindow
+		err := DB.Get(&info, `SELECT COUNT(*) AS count, MIN(created_at) AS oldest
+			FROM submissions
+			WHERE student_id=$1
+			  AND is_teacher_run=FALSE
+			  AND created_at >= now() - interval '1 minute'`, getUserID(c))
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+			return
+		}
+		if info.Count >= limit {
+			retryAfter := submissionAttemptWindowSeconds
+			if info.Oldest.Valid {
+				elapsed := int(time.Since(info.Oldest.Time).Seconds())
+				remaining := submissionAttemptWindowSeconds - elapsed
+				if remaining > 0 {
+					retryAfter = remaining
+				} else {
+					retryAfter = 1
+				}
+			}
+			c.Header("Retry-After", strconv.Itoa(retryAfter))
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error":               "submission_rate_limited",
+				"limit":               limit,
+				"window_seconds":      submissionAttemptWindowSeconds,
+				"retry_after_seconds": retryAfter,
+			})
+			return
+		}
 	}
 	maxMB := assignment.MaxSubmissionSizeMB
 	if maxMB <= 0 {

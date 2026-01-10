@@ -912,6 +912,8 @@
   "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_or": "nebo",
   "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_max_size": "Maximální velikost {max} MB",
   "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_size_error": "Velikost souboru {size} MB překračuje limit {max} MB",
+  "frontend/src/routes/assignments/[id]/+page.svelte::submission_rate_limited_title": "Příliš mnoho odevzdání",
+  "frontend/src/routes/assignments/[id]/+page.svelte::submission_rate_limited_error": "Příliš mnoho odevzdání. Můžete nahrát maximálně {limit} za minutu. Zkuste to znovu za {seconds} s.",
   "frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_modal_upload_button": "Nahrát",
   "frontend/src/routes/assignments/[id]/+page.svelte::programming_language_label": "Programovací jazyk",
   "frontend/src/routes/assignments/[id]/+page.svelte::max_submission_size_label": "Max. velikost odevzdání (MB)",
