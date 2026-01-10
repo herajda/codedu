@@ -833,7 +833,7 @@
 
   <div class="p-6 space-y-6">
     {#if error}
-      <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl">
+      <div class="alert bg-error/10 border-error/20 text-error rounded-2xl">
         <AlertCircle size={18} />
         <div class="flex flex-col">
           <span class="font-medium text-sm">

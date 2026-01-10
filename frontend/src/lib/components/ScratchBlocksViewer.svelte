@@ -355,11 +355,11 @@
         {t("frontend/src/lib/components/ScratchBlocksViewer.svelte::scratch_blocks_loading")}
       </div>
     {:else if error}
-      <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl m-4">
+      <div class="alert bg-error/10 border-error/20 text-error rounded-2xl m-4">
         <span class="font-medium text-sm">{error}</span>
       </div>
     {:else if !targets.length}
-      <div class="alert bg-warning/10 border-warning/20 text-warning-content rounded-2xl m-4">
+      <div class="alert bg-warning/10 border-warning/20 text-warning rounded-2xl m-4">
         <span class="font-medium text-sm">
           {t("frontend/src/lib/components/ScratchBlocksViewer.svelte::scratch_blocks_empty_project")}
         </span>
@@ -367,7 +367,7 @@
     {/if}
 
     {#if targets.find((t) => t.id === selectedTargetId && !t.hasBlocks)}
-      <div class="alert bg-warning/10 border-warning/20 text-warning-content rounded-2xl m-4">
+      <div class="alert bg-warning/10 border-warning/20 text-warning rounded-2xl m-4">
         <span class="font-medium text-sm">
           {t("frontend/src/lib/components/ScratchBlocksViewer.svelte::scratch_blocks_empty_target")}
         </span>

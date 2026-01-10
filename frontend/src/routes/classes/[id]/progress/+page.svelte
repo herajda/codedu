@@ -83,10 +83,10 @@
   }
 
   function heatClass(pct: number) {
-    if (pct >= 95) return 'bg-success/20 text-success-content font-bold shadow-inner';
-    if (pct >= 80) return 'bg-success/10 text-success-content/80';
-    if (pct >= 60) return 'bg-warning/10 text-warning-content/80';
-    if (pct > 0) return 'bg-error/10 text-error-content/80';
+    if (pct >= 95) return 'bg-success/20 text-success font-bold shadow-inner';
+    if (pct >= 80) return 'bg-success/10 text-success';
+    if (pct >= 60) return 'bg-warning/10 text-warning';
+    if (pct > 0) return 'bg-error/10 text-error';
     return 'opacity-30';
   }
 

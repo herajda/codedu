@@ -386,8 +386,7 @@
   </div>
 
   {#if error}
-    <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl">
-      <span class="text-sm font-medium">{error}</span>
+            <div class="alert bg-error/10 border-error/20 text-error rounded-2xl">      <span class="text-sm font-medium">{error}</span>
     </div>
   {/if}
 

@@ -1694,7 +1694,7 @@
               </div>
               <div class="p-6 space-y-8">
                 {#if scratchSemanticAnalysisError}
-                  <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl">
+                  <div class="alert bg-error/10 border-error/20 text-error rounded-2xl">
                     <AlertCircle size={18} />
                     <div class="flex flex-col">
                       <span class="font-medium text-sm">
@@ -1836,7 +1836,7 @@
                     {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_loading")}
                   </div>
                 {:else if scratchProjectError}
-                  <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl">
+                  <div class="alert bg-error/10 border-error/20 text-error rounded-2xl">
                     <AlertCircle size={18} />
                     <span class="font-medium text-sm">{scratchProjectError}</span>
                   </div>
@@ -1847,7 +1847,7 @@
                     fullScreen={scratchFullscreenMode !== "none"}
                   />
                 {:else}
-                  <div class="alert bg-warning/10 border-warning/20 text-warning-content rounded-2xl">
+                  <div class="alert bg-warning/10 border-warning/20 text-warning rounded-2xl">
                     <AlertTriangle size={18} />
                     <span class="font-medium text-sm">
                       {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_empty")}
@@ -1876,14 +1876,14 @@
                       {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_blocks_loading")}
                     </div>
                   {:else if scratchProjectError}
-                    <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl">
+                    <div class="alert bg-error/10 border-error/20 text-error rounded-2xl">
                       <AlertCircle size={18} />
                       <span class="font-medium text-sm">{scratchProjectError}</span>
                     </div>
                   {:else if scratchProject}
                     <ScratchBlocksViewer projectData={scratchProject} fullHeight={scratchFullscreenMode === "both"} />
                   {:else}
-                    <div class="alert bg-warning/10 border-warning/20 text-warning-content rounded-2xl">
+                    <div class="alert bg-warning/10 border-warning/20 text-warning rounded-2xl">
                       <AlertTriangle size={18} />
                       <span class="font-medium text-sm">
                         {t("frontend/src/routes/submissions/[id]/+page.svelte::scratch_project_empty")}

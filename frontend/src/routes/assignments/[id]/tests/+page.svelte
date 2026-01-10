@@ -2942,7 +2942,7 @@ class MyTests(unittest.TestCase):
     </p>
   </div>
 {:else if assignment?.programming_language === "scratch"}
-  <div class="alert bg-info/10 border-info/20 text-info-content rounded-2xl shadow-sm">
+  <div class="alert bg-info/10 border-info/20 text-info rounded-2xl shadow-sm">
     <AlertCircle size={18} />
     <span class="font-medium text-sm">
       {translate("frontend/src/routes/assignments/[id]/tests/+page.svelte::scratch_tests_disabled")}
