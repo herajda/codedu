@@ -2407,7 +2407,7 @@
     </section>
 
     {#if role === "student" && isScratchAssignment}
-      <div class="alert bg-info/10 border-info/20 text-info-content mb-6 rounded-2xl shadow-sm">
+      <div class="alert bg-info/10 border-info/20 text-info mb-6 rounded-2xl shadow-sm">
         <Info size={20} />
         <span class="font-medium text-sm">
           {scratchModeView === "automatic"
@@ -2418,19 +2418,19 @@
         </span>
       </div>
     {:else if role === "student" && assignment.manual_review}
-      <div class="alert bg-info/10 border-info/20 text-info-content mb-6 rounded-2xl shadow-sm">
+      <div class="alert bg-info/10 border-info/20 text-info mb-6 rounded-2xl shadow-sm">
         <Info size={20} />
         <span class="font-medium text-sm">{t("frontend/src/routes/assignments/[id]/+page.svelte::teacher_review_alert_body")}</span>
       </div>
     {/if}
     {#if deadlineSoon}
-      <div class="alert bg-warning/10 border-warning/20 text-warning-content mb-6 rounded-2xl shadow-sm">
+      <div class="alert bg-warning/10 border-warning/20 text-warning mb-6 rounded-2xl shadow-sm">
         <Clock size={20} />
         <span class="font-bold text-sm">{t("frontend/src/routes/assignments/[id]/+page.svelte::deadline_near_alert")}</span>
       </div>
     {/if}
     {#if secondDeadlineSoon}
-      <div class="alert bg-warning/10 border-warning/20 text-warning-content mb-6 rounded-2xl shadow-sm">
+      <div class="alert bg-warning/10 border-warning/20 text-warning mb-6 rounded-2xl shadow-sm">
         <AlertTriangle size={20} />
         <span class="font-bold text-sm">{t("frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_near_alert", { penalty: Math.round(assignment.late_penalty_ratio * 100) })}</span>
       </div>
@@ -2508,7 +2508,7 @@
               <div class="markdown assignment-description text-base-content/90 leading-relaxed font-medium">{@html safeDesc}</div>
               
               {#if role === "student" && assignment.second_deadline && new Date() > assignment.deadline && new Date() <= assignment.second_deadline}
-                <div class="alert bg-warning/10 border-warning/20 text-warning-content rounded-2xl flex items-start gap-3">
+                <div class="alert bg-warning/10 border-warning/20 text-warning rounded-2xl flex items-start gap-3">
                   <AlertTriangle size={20} class="mt-0.5 shrink-0" />
                   <div class="text-sm">
                     <strong class="font-black uppercase tracking-wider text-[10px] block mb-1">{t("frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_active_alert_strong")}</strong>
@@ -2517,7 +2517,7 @@
                   </div>
                 </div>
               {:else if role === "student" && assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}
-                <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl flex items-start gap-3">
+                <div class="alert bg-error/10 border-error/20 text-error rounded-2xl flex items-start gap-3">
                   <AlertTriangle size={20} class="mt-0.5 shrink-0" />
                   <div class="text-sm">
                     <strong class="font-black uppercase tracking-wider text-[10px] block mb-1">{t("frontend/src/routes/assignments/[id]/+page.svelte::all_deadlines_passed_alert_strong")}</strong>
@@ -2651,7 +2651,7 @@
             </div>
             
             {#if assignment.second_deadline && new Date() > assignment.deadline && new Date() <= assignment.second_deadline}
-              <div class="alert bg-warning/10 border-warning/20 text-warning-content rounded-2xl flex items-start gap-4 mb-8">
+              <div class="alert bg-warning/10 border-warning/20 text-warning rounded-2xl flex items-start gap-4 mb-8">
                 <Clock size={20} class="mt-0.5 shrink-0" />
                 <div class="text-sm">
                   <strong class="font-black uppercase tracking-widest text-[10px] block mb-1">{t("frontend/src/routes/assignments/[id]/+page.svelte::second_deadline_period_info_strong")}</strong>
@@ -2659,7 +2659,7 @@
                 </div>
               </div>
             {:else if assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}
-              <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl flex items-start gap-4 mb-8">
+              <div class="alert bg-error/10 border-error/20 text-error rounded-2xl flex items-start gap-4 mb-8">
                 <AlertTriangle size={20} class="mt-0.5 shrink-0" />
                 <div class="text-sm">
                   <strong class="font-black uppercase tracking-widest text-[10px] block mb-1">{t("frontend/src/routes/assignments/[id]/+page.svelte::all_deadlines_passed_alert_strong")}</strong>
@@ -3284,7 +3284,7 @@
 
               <!-- Warning for late submission -->
               {#if assignment.second_deadline && latestSub.created_at > assignment.deadline && latestSub.created_at <= assignment.second_deadline}
-                <div class="alert bg-warning/10 border-warning/20 text-warning-content rounded-xl p-3 flex items-start gap-2 animate-in zoom-in-95 duration-300">
+                <div class="alert bg-warning/10 border-warning/20 text-warning rounded-xl p-3 flex items-start gap-2 animate-in zoom-in-95 duration-300">
                   <AlertTriangle size={14} class="mt-0.5 shrink-0" />
                   <p class="text-[10px] leading-relaxed font-bold">
                     {t("frontend/src/routes/assignments/[id]/+page.svelte::latest_submission_alert_body", { penalty: Math.round(assignment.late_penalty_ratio * 100) })}
@@ -3368,7 +3368,7 @@
 
       <div class="p-6 space-y-6">
         {#if assignment.second_deadline && new Date() > assignment.deadline && new Date() <= assignment.second_deadline}
-          <div class="alert bg-warning/10 border-warning/20 text-warning-content rounded-2xl flex items-start gap-3 py-3">
+          <div class="alert bg-warning/10 border-warning/20 text-warning rounded-2xl flex items-start gap-3 py-3">
             <AlertTriangle size={18} class="mt-0.5 shrink-0" />
             <div class="text-xs">
               <strong class="font-black uppercase tracking-widest text-[9px] block mb-0.5">
@@ -3378,7 +3378,7 @@
             </div>
           </div>
         {:else if assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}
-          <div class="alert bg-error/10 border-error/20 text-error-content rounded-2xl flex items-start gap-3 py-3">
+          <div class="alert bg-error/10 border-error/20 text-error rounded-2xl flex items-start gap-3 py-3">
             <AlertCircle size={18} class="mt-0.5 shrink-0" />
             <div class="text-xs">
               <strong class="font-black uppercase tracking-widest text-[9px] block mb-0.5">
