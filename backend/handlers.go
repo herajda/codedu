@@ -5502,7 +5502,8 @@ func listConversations(c *gin.Context) {
 			limit = v
 		}
 	}
-	list, err := ListRecentConversations(getUserID(c), limit)
+	search := strings.TrimSpace(c.Query("search"))
+	list, err := ListRecentConversations(getUserID(c), limit, search)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
 		return

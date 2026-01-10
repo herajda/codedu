@@ -15,6 +15,9 @@
   let convos: any[] = [];
   let filteredConvos: any[] = [];
   let searchQuery = '';
+  let searchTimer: ReturnType<typeof setTimeout> | null = null;
+  let searchRequestId = 0;
+  let hasMounted = false;
   let isLoading = true;
   let selectedFilter = 'all'; // all, unread, starred, archived
   let showArchived = false;
@@ -26,12 +29,18 @@
   onMount(() => {
     loadConvos();
     loadBlocked();
+    hasMounted = true;
   });
 
-  async function loadConvos() {
+  async function loadConvos(search = searchQuery.trim()) {
+    const requestId = ++searchRequestId;
     isLoading = true;
     try {
-      const list = await apiJSON('/api/messages');
+      const params = new URLSearchParams();
+      if (search) params.set('search', search);
+      const url = params.toString() ? `/api/messages?${params.toString()}` : '/api/messages';
+      const list = await apiJSON(url);
+      if (requestId !== searchRequestId) return;
       for (const c of list) {
         c.text = c.text ?? '';
         c.lastMessageTime = new Date(c.created_at);
@@ -44,7 +53,9 @@
     } catch (error) {
       console.error('Failed to load conversations:', error);
     } finally {
-      isLoading = false;
+      if (requestId === searchRequestId) {
+        isLoading = false;
+      }
     }
   }
 
@@ -68,16 +79,7 @@
 
   function applyFilters() {
     let filtered = [...convos];
-    
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(c => 
-        c.displayName.toLowerCase().includes(query) ||
-        c.email?.toLowerCase().includes(query) ||
-        c.text?.toLowerCase().includes(query)
-      );
-    }
-    
+
     switch (selectedFilter) {
       case 'unread':
         filtered = filtered.filter(c => c.unread_count > 0);
@@ -95,7 +97,16 @@
     filteredConvos = filtered;
   }
 
-  $: searchQuery, applyFilters();
+  function scheduleSearch() {
+    if (!hasMounted) return;
+    if (searchTimer) clearTimeout(searchTimer);
+    const query = searchQuery.trim();
+    searchTimer = setTimeout(() => {
+      loadConvos(query);
+    }, 250);
+  }
+
+  $: searchQuery, scheduleSearch();
   $: selectedFilter, applyFilters();
 
   function isToday(date: Date): boolean {

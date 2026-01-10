@@ -2326,12 +2326,14 @@ type Conversation struct {
 	Message
 }
 
-func ListRecentConversations(userID uuid.UUID, limit int) ([]Conversation, error) {
+func ListRecentConversations(userID uuid.UUID, limit int, search string) ([]Conversation, error) {
 	list := []Conversation{}
 	if limit <= 0 {
 		limit = 20
 	}
-	const q = `
+	search = strings.TrimSpace(search)
+	if search == "" {
+		const q = `
        WITH latest AS (
                SELECT *,
                       CASE WHEN sender_id=$1 THEN recipient_id ELSE sender_id END AS other_id,
@@ -2361,7 +2363,53 @@ func ListRecentConversations(userID uuid.UUID, limit int) ([]Conversation, error
        WHERE l.rn = 1 AND b.blocked_id IS NULL
        ORDER BY (COALESCE(un.unread_count,0) > 0) DESC, l.created_at DESC
        LIMIT $2`
-	err := DB.Select(&list, q, userID, limit)
+		err := DB.Select(&list, q, userID, limit)
+		return list, err
+	}
+
+	like := "%" + search + "%"
+	const q = `
+       WITH latest AS (
+               SELECT *,
+                      CASE WHEN sender_id=$1 THEN recipient_id ELSE sender_id END AS other_id,
+                      ROW_NUMBER() OVER (
+                              PARTITION BY CASE WHEN sender_id=$1 THEN recipient_id ELSE sender_id END
+                              ORDER BY created_at DESC
+                      ) AS rn
+                FROM messages
+               WHERE sender_id=$1 OR recipient_id=$1
+       ), unread AS (
+               SELECT sender_id AS other_id, COUNT(*) AS unread_count
+                 FROM messages
+                WHERE recipient_id=$1 AND is_read=FALSE
+                GROUP BY sender_id
+       )
+       SELECT l.other_id, u.name, u.avatar, u.email,
+              l.id, l.sender_id, l.recipient_id, l.content, l.image, l.file_name, l.file, l.created_at, l.structured,
+              COALESCE(un.unread_count,0) AS unread_count,
+              (sc.other_id IS NOT NULL) AS starred,
+              (ac.other_id IS NOT NULL) AS archived
+        FROM latest l
+        JOIN users u ON u.id = l.other_id
+        LEFT JOIN unread un ON un.other_id=l.other_id
+       LEFT JOIN starred_conversations sc ON sc.user_id=$1 AND sc.other_id=l.other_id
+       LEFT JOIN archived_conversations ac ON ac.user_id=$1 AND ac.other_id=l.other_id
+        LEFT JOIN blocked_users b ON b.blocker_id=$1 AND b.blocked_id=l.other_id
+       WHERE l.rn = 1 AND b.blocked_id IS NULL
+         AND (
+               LOWER(COALESCE(u.name,'')) LIKE LOWER($3)
+            OR LOWER(u.email) LIKE LOWER($3)
+            OR EXISTS (
+                    SELECT 1
+                      FROM messages m
+                     WHERE ((m.sender_id=$1 AND m.recipient_id=l.other_id)
+                         OR (m.sender_id=l.other_id AND m.recipient_id=$1))
+                       AND LOWER(m.content) LIKE LOWER($3)
+            )
+         )
+       ORDER BY (COALESCE(un.unread_count,0) > 0) DESC, l.created_at DESC
+       LIMIT $2`
+	err := DB.Select(&list, q, userID, limit, like)
 	return list, err
 }
 
