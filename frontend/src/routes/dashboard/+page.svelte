@@ -340,7 +340,7 @@
     </section>
 
     <!-- Stats Section -->
-    <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+    <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-8">
       <div class="bg-base-100 p-5 rounded-3xl border border-base-200 shadow-sm group hover:border-primary/30 transition-all">
         <div class="text-[10px] font-black uppercase tracking-widest opacity-40 mb-3">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_classes')}</div>
         <div class="flex items-center gap-4">
@@ -368,18 +368,6 @@
             <LayoutGrid size={20} />
           </div>
           <div class="text-2xl font-black tabular-nums">{teacherStats?.activeAssignments ?? 0}</div>
-        </div>
-      </div>
-
-      <div class="bg-base-100 p-5 rounded-3xl border border-base-200 shadow-sm group hover:border-info/30 transition-all">
-        <div class="text-[10px] font-black uppercase tracking-widest opacity-40 mb-3">{translate('frontend/src/routes/dashboard/+page.svelte::dashboard_progress')}</div>
-        <div class="flex items-center gap-4">
-          <div class="w-10 h-10 rounded-xl bg-info/10 text-info flex items-center justify-center group-hover:bg-info group-hover:text-info-content transition-all duration-300">
-             <Sparkles size={20} />
-          </div>
-          <div class="text-[10px] font-bold opacity-60 leading-tight">
-            {translate('frontend/src/routes/dashboard/+page.svelte::dashboard_assignments_not_finished_by_all_students', {n: teacherStats?.unfinishedCount ?? 0})}
-          </div>
         </div>
       </div>
     </section>
