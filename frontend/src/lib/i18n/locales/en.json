@@ -1799,6 +1799,7 @@
   "frontend/src/routes/submissions/[id]/+page.svelte::assignment_fallback_title": "Assignment",
   "frontend/src/routes/submissions/[id]/+page.svelte::attempt_prefix": "Attempt #",
   "frontend/src/routes/submissions/[id]/+page.svelte::back_button": "Back",
+  "frontend/src/routes/submissions/[id]/+page.svelte::view_assignment_details": "View Assignment Details",
   "frontend/src/routes/submissions/[id]/+page.svelte::close_button": "close",
   "frontend/src/routes/submissions/[id]/+page.svelte::download_button": "Download",
   "frontend/src/routes/submissions/[id]/+page.svelte::files_dialog_title": "Files",

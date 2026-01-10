@@ -1774,6 +1774,7 @@
   "frontend/src/routes/submissions/[id]/+page.svelte::assignment_fallback_title": "Úkol",
   "frontend/src/routes/submissions/[id]/+page.svelte::attempt_prefix": "Pokus č",
   "frontend/src/routes/submissions/[id]/+page.svelte::back_button": "Zpět",
+  "frontend/src/routes/submissions/[id]/+page.svelte::view_assignment_details": "Zobrazit detail zadání",
   "frontend/src/routes/submissions/[id]/+page.svelte::close_button": "zavřít",
   "frontend/src/routes/submissions/[id]/+page.svelte::download_button": "Stáhnout",
   "frontend/src/routes/submissions/[id]/+page.svelte::files_dialog_title": "Soubory",

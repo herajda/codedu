@@ -1037,10 +1037,17 @@
       <div class="relative p-6 sm:p-7 flex flex-col lg:flex-row gap-6">
         <div class="flex-1 space-y-8">
           <!-- Breadcrumbs / Back button -->
-          <button on:click={goBack} class="group flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] opacity-40 hover:opacity-100 transition-all hover:text-primary">
-            <ArrowLeft size={14} class="group-hover:-translate-x-1 transition-transform" />
-            {t("frontend/src/routes/submissions/[id]/+page.svelte::back_button")}
-          </button>
+          <div class="flex items-center gap-4">
+            <button on:click={goBack} class="group flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] opacity-40 hover:opacity-100 transition-all hover:text-primary">
+              <ArrowLeft size={14} class="group-hover:-translate-x-1 transition-transform" />
+              {t("frontend/src/routes/submissions/[id]/+page.svelte::back_button")}
+            </button>
+            <div class="w-px h-3 bg-base-300 opacity-40"></div>
+            <a href={`/assignments/${submission.assignment_id}`} class="group flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] opacity-40 hover:opacity-100 transition-all hover:text-primary">
+              <ExternalLink size={14} class="group-hover:scale-110 transition-transform" />
+              {t("frontend/src/routes/submissions/[id]/+page.svelte::view_assignment_details")}
+            </a>
+          </div>
 
           <div class="space-y-4">
             <div class="flex flex-wrap items-center gap-3">
