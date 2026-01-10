@@ -77,6 +77,7 @@ type Assignment struct {
 	// Second deadline feature
 	SecondDeadline   *time.Time `db:"second_deadline" json:"second_deadline"`
 	LatePenaltyRatio float64    `db:"late_penalty_ratio" json:"late_penalty_ratio"`
+	MaxAttempts      *int       `db:"max_attempts" json:"max_attempts"`
 }
 
 // AssignmentClone links a cloned assignment back to its source and target class.
@@ -282,8 +283,8 @@ func CreateAssignment(a *Assignment) error {
 		a.ScratchEvaluationMode = "manual"
 	}
 	const q = `
-          INSERT INTO assignments (title, description, created_by, deadline, max_points, max_submission_size_mb, grading_policy, published, show_traceback, show_test_details, programming_language, manual_review, scratch_evaluation_mode, banned_functions, banned_modules, banned_tool_rules, template_path, class_id, second_deadline, late_penalty_ratio, llm_help_why_failed, scratch_semantic_criteria)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+          INSERT INTO assignments (title, description, created_by, deadline, max_points, max_submission_size_mb, grading_policy, published, show_traceback, show_test_details, programming_language, manual_review, scratch_evaluation_mode, banned_functions, banned_modules, banned_tool_rules, template_path, class_id, second_deadline, late_penalty_ratio, llm_help_why_failed, scratch_semantic_criteria, max_attempts)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
           RETURNING id, created_at, updated_at`
 	return DB.QueryRow(q,
 		a.Title, a.Description, a.CreatedBy, a.Deadline,
@@ -291,7 +292,7 @@ func CreateAssignment(a *Assignment) error {
 		pq.Array(copyStringArray(a.BannedFunctions)), pq.Array(copyStringArray(a.BannedModules)),
 		a.BannedToolRules,
 		a.TemplatePath, a.ClassID,
-		a.SecondDeadline, a.LatePenaltyRatio, a.LLMHelpWhyFailed, a.ScratchSemanticCriteria,
+		a.SecondDeadline, a.LatePenaltyRatio, a.LLMHelpWhyFailed, a.ScratchSemanticCriteria, a.MaxAttempts,
 	).Scan(&a.ID, &a.CreatedAt, &a.UpdatedAt)
 }
 
@@ -345,7 +346,8 @@ func ListAssignments(role string, userID uuid.UUID) ([]Assignment, error) {
            COALESCE(a.scratch_evaluation_mode,'manual') AS scratch_evaluation_mode,
            a.scratch_semantic_criteria,
            a.second_deadline,
-           COALESCE(a.late_penalty_ratio,0.5) AS late_penalty_ratio
+           COALESCE(a.late_penalty_ratio,0.5) AS late_penalty_ratio,
+           a.max_attempts
       FROM assignments a`
 	switch role {
 	case "teacher":
@@ -377,7 +379,8 @@ func ListAssignments(role string, userID uuid.UUID) ([]Assignment, error) {
            COALESCE(a.scratch_evaluation_mode,'manual') AS scratch_evaluation_mode,
            a.scratch_semantic_criteria,
            a.second_deadline,
-           COALESCE(a.late_penalty_ratio,0.5) AS late_penalty_ratio
+           COALESCE(a.late_penalty_ratio,0.5) AS late_penalty_ratio,
+           a.max_attempts
       FROM assignments a` + joins + ` JOIN class_students cs ON cs.class_id = a.class_id
      WHERE cs.student_id = $1 AND a.published = true`
 		args = append(args, userID)
@@ -471,7 +474,8 @@ func GetAssignment(id uuid.UUID) (*Assignment, error) {
            COALESCE(scratch_evaluation_mode,'manual') AS scratch_evaluation_mode,
            scratch_semantic_criteria,
            second_deadline,
-           COALESCE(late_penalty_ratio,0.5) AS late_penalty_ratio
+           COALESCE(late_penalty_ratio,0.5) AS late_penalty_ratio,
+           max_attempts
       FROM assignments
      WHERE id = $1`, id)
 	if err != nil {
@@ -505,7 +509,8 @@ func GetAssignmentForSubmission(subID uuid.UUID) (*Assignment, error) {
            COALESCE(a.scratch_evaluation_mode,'manual') AS scratch_evaluation_mode,
            a.scratch_semantic_criteria,
            a.second_deadline,
-           COALESCE(a.late_penalty_ratio,0.5) AS late_penalty_ratio
+           COALESCE(a.late_penalty_ratio,0.5) AS late_penalty_ratio,
+           a.max_attempts
           FROM assignments a
           JOIN submissions s ON s.assignment_id = a.id
          WHERE s.id=$1`, subID)
@@ -524,15 +529,15 @@ func UpdateAssignment(a *Assignment) error {
            banned_functions=$12, banned_modules=$13, banned_tool_rules=$14,
            llm_interactive=$15, llm_feedback=$16, llm_auto_award=$17, llm_scenarios_json=$18,
            llm_strictness=$19, llm_rubric=$20, llm_teacher_baseline_json=$21,
-           second_deadline=$22, late_penalty_ratio=$23, llm_help_why_failed=$24, scratch_semantic_criteria=$25,
+           second_deadline=$22, late_penalty_ratio=$23, llm_help_why_failed=$24, scratch_semantic_criteria=$25, max_attempts=$26,
            updated_at=now()
-     WHERE id=$26`,
+     WHERE id=$27`,
 		a.Title, a.Description, a.Deadline,
 		a.MaxPoints, a.MaxSubmissionSizeMB, a.GradingPolicy, a.ShowTraceback, a.ShowTestDetails, a.ProgrammingLanguage, a.ManualReview, a.ScratchEvaluationMode,
 		pq.Array(copyStringArray(a.BannedFunctions)), pq.Array(copyStringArray(a.BannedModules)), a.BannedToolRules,
 		a.LLMInteractive, a.LLMFeedback, a.LLMAutoAward, a.LLMScenariosRaw,
 		a.LLMStrictness, a.LLMRubric, a.LLMTeacherBaseline,
-		a.SecondDeadline, a.LatePenaltyRatio, a.LLMHelpWhyFailed, a.ScratchSemanticCriteria,
+		a.SecondDeadline, a.LatePenaltyRatio, a.LLMHelpWhyFailed, a.ScratchSemanticCriteria, a.MaxAttempts,
 		a.ID)
 	if err != nil {
 		return err
@@ -614,6 +619,7 @@ func CloneAssignmentWithTests(sourceID, targetClassID, createdBy uuid.UUID) (uui
 		LLMTeacherBaseline:      src.LLMTeacherBaseline,
 		LLMHelpWhyFailed:        src.LLMHelpWhyFailed,
 		ScratchSemanticCriteria: src.ScratchSemanticCriteria,
+		MaxAttempts:             src.MaxAttempts,
 	}
 	if src.BannedToolRules != nil {
 		clone := *src.BannedToolRules

@@ -270,6 +270,7 @@ func createAssignment(c *gin.Context) {
 		ProgrammingLanguage     string  `json:"programming_language"`
 		ScratchEvaluationMode   *string `json:"scratch_evaluation_mode"`
 		ScratchSemanticCriteria *string `json:"scratch_semantic_criteria"`
+		MaxAttempts             *int    `json:"max_attempts"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -319,6 +320,7 @@ func createAssignment(c *gin.Context) {
 		CreatedBy:        getUserID(c),
 		SecondDeadline:   nil,
 		LatePenaltyRatio: 0.5,
+		MaxAttempts:      req.MaxAttempts,
 	}
 	if err := CreateAssignment(a); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create assignment"})
@@ -394,11 +396,11 @@ func getAssignment(c *gin.Context) {
 		subs, _ := ListSubmissionsForAssignmentAndStudent(id, getUserID(c))
 		stats, _ := GetTestCaseStats(id)
 		c.JSON(http.StatusOK, gin.H{
-			"assignment":                       a,
-			"submissions":                      subs,
-			"tests_count":                      stats.Count,
-			"submission_limit_per_minute":      getSubmissionAttemptLimit(),
-			"submission_limit_window_seconds":  submissionAttemptWindowSeconds,
+			"assignment":                      a,
+			"submissions":                     subs,
+			"tests_count":                     stats.Count,
+			"submission_limit_per_minute":     getSubmissionAttemptLimit(),
+			"submission_limit_window_seconds": submissionAttemptWindowSeconds,
 		})
 		return
 	} else if role == "teacher" {
@@ -525,6 +527,7 @@ func updateAssignment(c *gin.Context) {
 		ScratchSemanticCriteria *string  `json:"scratch_semantic_criteria"`
 		SecondDeadline          *string  `json:"second_deadline"`
 		LatePenaltyRatio        *float64 `json:"late_penalty_ratio"`
+		MaxAttempts             *int     `json:"max_attempts"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -617,6 +620,9 @@ func updateAssignment(c *gin.Context) {
 	}
 	if req.LatePenaltyRatio != nil {
 		a.LatePenaltyRatio = *req.LatePenaltyRatio
+	}
+	if req.MaxAttempts != nil {
+		a.MaxAttempts = req.MaxAttempts
 	}
 	if a.ProgrammingLanguage == "scratch" {
 		a.ManualReview = false
@@ -1825,6 +1831,17 @@ func createSubmission(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "assignment not found"})
 		return
+	}
+	if assignment.MaxAttempts != nil && *assignment.MaxAttempts > 0 {
+		var count int
+		if err := DB.Get(&count, `SELECT COUNT(*) FROM submissions WHERE assignment_id=$1 AND student_id=$2 AND is_teacher_run=FALSE`, aid, getUserID(c)); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "db fail"})
+			return
+		}
+		if count >= *assignment.MaxAttempts {
+			c.JSON(http.StatusConflict, gin.H{"error": "max_attempts_reached", "max": *assignment.MaxAttempts})
+			return
+		}
 	}
 	limit := getSubmissionAttemptLimit()
 	if limit > 0 {

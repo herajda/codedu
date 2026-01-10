@@ -339,6 +339,8 @@
     return `${h}:${m}`;
   }
   let eLatePenaltyRatio: number = 0.5;
+  let eMaxAttempts: number = 50;
+  let eMaxAttemptsEnabled = false;
   let showAdvancedOptions = false;
   let showAiOptions = false;
   let showRubric = false;
@@ -645,6 +647,9 @@
   $: isSecondDeadlineActive = assignment?.second_deadline
     ? new Date(assignment.second_deadline).getTime() > currentTime
     : false;
+  $: myAttemptsCount = submissions ? submissions.length : 0;
+  $: maxAttempts = assignment?.max_attempts ?? 0;
+  $: attemptsExhausted = maxAttempts > 0 && myAttemptsCount >= maxAttempts;
   $: timeUntilDeadline = assignment
     ? new Date(assignment.deadline).getTime() - currentTime
     : 0;
@@ -1001,6 +1006,10 @@
     if (assignment.manual_review) testMode = "manual";
     else if (assignment.llm_interactive) testMode = "ai";
     else testMode = "automatic";
+    
+    eMaxAttempts = assignment.max_attempts && assignment.max_attempts > 0 ? assignment.max_attempts : 50;
+    eMaxAttemptsEnabled = !!(assignment.max_attempts && assignment.max_attempts > 0);
+    
     editing = true;
   }
 
@@ -1132,6 +1141,7 @@
           late_penalty_ratio: Number.isFinite(eLatePenaltyRatio)
             ? Math.min(1, Math.max(0, Number(eLatePenaltyRatio)))
             : 0.5,
+          max_attempts: eMaxAttemptsEnabled ? eMaxAttempts : 0
         }),
       });
       if (!res.ok) {
@@ -1444,6 +1454,8 @@
                     ),
                   ),
                 );
+              } else if (errorData?.error === "max_attempts_reached") {
+                 reject(new Error(t("frontend/src/routes/assignments/[id]/+page.svelte::max_attempts_error")));
               } else {
                 reject(new Error(errorData.error || xhr.statusText));
               }
@@ -1913,6 +1925,23 @@
                       small
                     />
                   </div>
+                  <div class="flex-1 min-w-[200px]">
+                    <div class="form-control">
+                        <label class="label pt-0 cursor-pointer justify-start gap-2 mb-1">
+                             <input type="checkbox" class="checkbox checkbox-xs checkbox-primary" bind:checked={eMaxAttemptsEnabled} />
+                             <span class="label-text font-bold text-[10px] uppercase opacity-40">{t("frontend/src/routes/assignments/[id]/+page.svelte::limit_attempts_label")}</span>
+                        </label>
+                        {#if eMaxAttemptsEnabled}
+                            <StylishInput
+                                type="number"
+                                bind:value={eMaxAttempts}
+                                placeholder="50"
+                                icon={History}
+                                small
+                            />
+                        {/if}
+                    </div>
+                  </div>
                   {#if eProgrammingLanguage === "scratch"}
                     <div class="flex-1 text-[11px] text-info/80 font-medium">
                       {t("frontend/src/routes/assignments/[id]/+page.svelte::scratch_manual_review_note")}
@@ -2362,6 +2391,13 @@
                   {t("frontend/src/routes/assignments/[id]/+page.svelte::max_points_badge", { maxPoints: assignment.max_points })}
                 </div>
 
+                {#if maxAttempts > 0}
+                  <div class={`badge h-7 gap-2 px-2.5 font-black text-[9px] uppercase tracking-wider border-none shadow-sm ${attemptsExhausted ? 'bg-error text-error-content' : 'bg-base-200 text-base-content'}`}>
+                    <History size={12} />
+                    {t("frontend/src/routes/assignments/[id]/+page.svelte::max_attempts_badge", { count: myAttemptsCount, max: maxAttempts })}
+                  </div>
+                {/if}
+
                 {#if assignment.programming_language === "scratch"}
                   <div class="badge h-7 gap-2 px-2.5 font-black text-[9px] uppercase tracking-wider bg-secondary text-secondary-content border-none shadow-sm">
                     <img src="/scratch_logo.webp" alt="Scratch" class="h-3.5 w-3.5" />
@@ -2465,10 +2501,13 @@
                   </button>
                 </div>
             {:else}
-              <button class="btn btn-primary shadow-2xl shadow-primary/30 font-black uppercase tracking-[0.1em] h-12 px-6 gap-3 rounded-xl animate-in fade-in slide-in-from-bottom-2 duration-700 text-xs" on:click={openSubmitModal} disabled={assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline}>
+              <button class="btn btn-primary shadow-2xl shadow-primary/30 font-black uppercase tracking-[0.1em] h-12 px-6 gap-3 rounded-xl animate-in fade-in slide-in-from-bottom-2 duration-700 text-xs" on:click={openSubmitModal} disabled={(assignment.second_deadline && new Date() > assignment.deadline && new Date() > assignment.second_deadline) || attemptsExhausted}>
                 <Send size={18} />
                 {t("frontend/src/routes/assignments/[id]/+page.svelte::submit_solution_button")}
               </button>
+              {#if attemptsExhausted}
+                 <div class="text-error text-xs font-bold uppercase tracking-wider opacity-80">{t("frontend/src/routes/assignments/[id]/+page.svelte::max_attempts_exhausted")}</div>
+              {/if}
               {#if assignment.template_path}
                  <button class="btn btn-ghost border-base-300 h-12 px-5 font-black uppercase tracking-widest text-[10px] gap-3 rounded-xl" on:click|preventDefault={downloadTemplate}>
                    <Download size={18} />
